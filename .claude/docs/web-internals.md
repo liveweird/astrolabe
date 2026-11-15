@@ -23,12 +23,12 @@ section of the page you touch before changing it, and put a new page's mechanics
 - [Project view](#project-view)
 - [Roadmap](#roadmap)
 - [Programs](#programs)
-- [Milestones](#milestones-pagesmilestonestsx-119)
-- [Dependencies](#dependencies-pagesdependenciestsx-120)
-- [Team load](#team-load-pagesteamloadtsx-119)
-- [Baselines](#baselines-pagesbaselinestsx-pagesbaselinecomparetsx-v09)
-- [Schedule proposals](#schedule-proposals-pagesscheduleproposalstsx-18)
-- [Deviations, bindings and the Jira chips](#deviations-bindings-and-the-jira-chips-pagesdeviationstsx-v110)
+- [Milestones](#milestones)
+- [Dependencies](#dependencies)
+- [Team load](#team-load)
+- [Baselines](#baselines)
+- [Schedule proposals](#schedule-proposals)
+- [Deviations, bindings and the Jira chips](#deviations-bindings-and-the-jira-chips)
 - [Teams and the team page](#teams-and-the-team-page-pagesteamstsx-pagesteamdetailstsx-v050)
 - [People](#people-pagespeopletsx-pagespersondetailstsx)
 - [Public holidays](#public-holidays-pagespublicholidaystsx-v070)
@@ -1244,470 +1244,681 @@ Pinned by: `pages/Programs.test.tsx`, `Programs.virtual.test.tsx`, `Programs.bas
 `Programs.test.tsx` runs the page against a one-endpoint fetch mock (the default open set, the chevron by pointer and keyboard, the status sentences, Expand/Collapse all, the arrows
 following the fold, the pick and its shared key, Year zoom, empty and failed loads).
 
----
+## Milestones
 
-*The sections above are restructured. Everything from "Milestones" to the end keeps its old shape, with its tags and history, until the two steps that finish this document (the 1.24.0 docs restructuring, D24 and D25); the last of them removes this line.*
+Files: `pages/Milestones.tsx`; `api/milestones.ts` (`listMilestones`); `utils/milestoneFilters.ts` (pure: `parseMilestoneFilter`, `milestoneFilterParams`, `narrowingCount`, the Schedule choice);
+`utils/milestoneLinks.ts` (`milestonesPath`, `unscheduledMilestonesPath({teamId?, projectId?})`, the builder Home's "not scheduled" figures use); `components/MilestonesFilters.tsx`;
+`components/TeamFilterSelect.tsx`, `components/ProjectFilterSelect.tsx`, `components/ProjectScopeChip.tsx` (the last also on Dependencies); `hooks/useTeamOptions.ts`; `utils/planNames.ts`.
 
-## Milestones (`pages/Milestones.tsx`, 1.19)
+### Route and data
 
-`/milestones` (nav: Planning after Programs, `IconTimelineEvent`, **everyone**, read-only; palette "Milestones" / PL "Kamienie milowe") lists every milestone of the plan
-from the paged `GET /milestones` (`api/milestones.ts` `listMilestones`; the rows are the ones the dependency pickers search, so a milestone under a deleted
-project or program is absent). It is the list-page template (`FilterPanel`, `SortHeader`, `RegistryListTable`) with the filters in the URL instead of
-`useStoredState` (the Deviations idiom, no remembered filter): `utils/milestoneFilters.ts` (pure: `parseMilestoneFilter`, `milestoneFilterParams`,
-`narrowingCount`, the Schedule choice) reads `scheduled` (the exact words `true`/`false`; `false` is the unscheduled list), `teamId`, `projectId` (positive
-integers, `idOf`) and `name`; a malformed value is dropped, a change `replace`s the entry, so a link, a reload and Back restore the view.
-`utils/milestoneLinks.ts` spells the route once (`milestonesPath`, `unscheduledMilestonesPath({teamId?, projectId?})`, the builder Home's "not scheduled"
-figures use).
+`/milestones` (nav: Planning, `IconTimelineEvent`, **everyone**, read-only) lists every milestone of the plan from the paged `GET /milestones`. The rows are the ones the dependency pickers
+search, so a milestone under a deleted project or program is absent. It is the list-page template ("Shared list-page and dialog mechanics": `FilterPanel`, `SortHeader`,
+`RegistryListTable`) with the filters in the URL instead of `useStoredState` (the Deviations idiom, no remembered filter).
 
-- **Filters** (`components/MilestonesFilters.tsx`): the Schedule select (All / Not scheduled / Scheduled, never clearable), the team select (EVERY team: `hooks/useTeamOptions.ts`, key
-  `["teams","options"]`, shared with the Deviations panel; `components/TeamFilterSelect.tsx`), the **Project** select (1.21: every project of the plan view, `components/ProjectFilterSelect.tsx`) and the name search (`ClearableTextInput`); a `projectId` is also a removable chip beside the
-  toggle (`components/ProjectScopeChip.tsx`, shared with the Dependencies page: "Project: Invoices", named from `GET /views/plan` under `["plan","view"]` through `utils/planNames.ts`, the Deviations page's strings), so the scope shows with the panel closed; the select and the chip are two views of one parameter. The name
-  input keeps the text as typed and writes it trimmed to the URL at once; the REQUEST waits 300 ms (the debounced value is in the query key), and a URL change
-  from elsewhere (Back, a link, "Clear the filters") that disagrees with the typed text replaces it during render.
-- **Query**: key `["plan","milestones","list", page, pageSize, sortParam, scheduled, teamId, projectId, name]` (under `["plan"]`, so a schedule or plan write refreshes
-  it; the pickers' own search is not a query), `placeholderData: keepPreviousData`, sortable Milestone / Project / Team (`name`, `projectName`, `teamName`),
-  initial sort project name; sort and page size are remembered per browser (`usePagedSort`, key `milestones`).
-- **Rows**: milestone name (text: a milestone has no page), project (link to the project, `plan.openProjectAria`), team (link, `teams.openAria`), estimate in
-  man-days, start, end; a milestone without dates shows one dimmed "Not scheduled" across the two date cells. Under the title: "N milestones" (the server's
-  `total`); empty states "The plan has no milestones yet" / "No milestone matches the filters" with a "Clear the filters" button.
-- **Tests**: `Milestones.test.tsx`, `utils/milestoneFilters.test.ts`, `utils/milestoneLinks.test.ts` (fixtures `test/milestones.ts`).
+- Query: key `["plan","milestones","list", page, pageSize, sortParam, scheduled, teamId, projectId, name]` (under `["plan"]`, so a schedule or plan write refreshes it; the pickers' own
+  search is not a query), `placeholderData: keepPreviousData`. Sortable Milestone / Project / Team (`name`, `projectName`, `teamName`), initial sort project name; sort and page size are
+  remembered per browser (`usePagedSort`, key `milestones`).
+- Rows: milestone name (text: a milestone has no page), project (link, `plan.openProjectAria`), team (link, `teams.openAria`), estimate in man-days, start, end; a milestone without dates
+  shows one dimmed "Not scheduled" across the two date cells. Under the title: "N milestones" (the server's `total`); the empty states carry a "Clear the filters" button.
 
-## Dependencies (`pages/Dependencies.tsx`, 1.20)
+### Filters
 
-`/dependencies` (nav: Planning after Milestones, `IconLink`, **everyone**, edit and delete by the row's `can` since 1.22; palette "Dependencies" / PL "Zależności") lists every dependency of the plan from the
-ONE unpaged `GET /views/dependencies` (`api/dependencyList.ts` `getDependencyListView`, key `DEPENDENCY_LIST_KEY = ["plan","dependencies"]`, under `["plan"]` so every
-plan write refreshes it; at most 1,000 rows with `truncated`; since 1.22 each row carries the caller's own `can{edit, delete}`, the project view's flags, and nothing else differs between callers). **The wire document names its ends once (1.21):** a row
-holds `predecessor`/`successor` as `{kind, id}` and the names are in `milestones`, `projects` and `teams`, exactly what the listed rows name;
-`utils/dependencyListRows.ts` `resolveDependencyList` joins them back, once, in the page's query function (`readDependencyList`), so the cache holds the
-resolved list: each row's two ends are `{kind, id, name, projectId, projectName, teamId, teamName}` (the table, the filter and their tests read that, as before). It is
-NOT a `select`: a throwing `select` over a kept document makes TanStack Query 5.105 re-render without end (its error result carries a fresh `errorUpdatedAt` each
-time), whereas an error from the query function is the ordinary one. A reference the lists do not hold throws there: a failed read (below). Each row is the project
-view's own item minus `critical` and `can`, in the server's order (violated first, the largest shortfall first, then OK, then unscheduled): the page never sorts or recounts. **Changing a link (1.22):** a row
-offers "Edit…" and "Delete" in a `RowActionsMenu` (named `common.table.operationsAria` with "predecessor → successor", each end with its project) only under its own
-`can` flag, and a row with neither has no menu, never a disabled control; when no shown row offers anything the operations column (header `common.table.operations`) is absent altogether, otherwise a row
-without a menu has an empty cell. "Edit…" opens the project page's own `DependencyEditorModal` with `project={null}` (the type and the lag; both ends read-only, each
-naming its project; the page owns `useDialogFocus`, so the focus returns to the row's menu button); "Delete" goes through `useDeleteConfirm` and the shared
-`DependencyDeleteModal` (the project page's wording; the focus goes to the page title). A save or a delete refreshes `["plan"]` (this list, the plan, project and team views,
-Home) and `["roadmap"]`; the dialog's own errors (the cycle `409` with its path, the `403`, the `404` of a link deleted meanwhile) stay in the dialog and re-read nothing. Nothing is offered to a
-caller who may do nothing, and a new link is still added on the page of its successor's project. The facts line (`role="group"`, "N dependencies", Home's own red
-string `home.roadmap.conflicts` and a gray "N not scheduled yet", each badge only when positive, the whole line absent while the plan has no dependency) reads the
-document's `totals` over EVERY dependency, so a filter or the cap never changes it. The three filters are in the URL like the Milestones page's
-(`utils/dependencyListFilters.ts` `parseDependencyListFilter`, `dependencyListFilterParams`, `matchesDependencyFilter`, `narrowingCount`; a change `replace`s the
-entry; nothing is remembered): `status` = `violated` | `ok` | `unscheduled` (absent, `all` or unknown = every dependency), `teamId`, `projectId` (positive integers,
-`idOf`). They are applied in the browser over the rows that arrived, AND-combined, so a change makes no second read: a team keeps a row when either end is a
-milestone of it (a project end has no team), a project when either end belongs to it (a project end's `projectId` is its own id). `utils/dependencyListLinks.ts`
-spells the route once (`dependenciesPath`, `dependenciesFilteredPath(filter)`, `violatedDependenciesPath({teamId?, projectId?})`, the builders the plan pages' and
-Home's links use).
+- In the URL: `scheduled` (the exact words `true`/`false`; `false` is the unscheduled list), `teamId`, `projectId` (positive integers, `idOf`) and `name`. A malformed value is dropped, a
+  change `replace`s the entry, so a link, a reload and Back restore the view.
+- Controls: the Schedule select (All / Not scheduled / Scheduled, never clearable), the team select (EVERY team: `useTeamOptions`, key `["teams","options"]`, shared with the Deviations
+  panel), the Project select (every project of the plan view) and the name search (`ClearableTextInput`).
+- A `projectId` is also a removable chip beside the toggle (`ProjectScopeChip`: "Project: Invoices", named from `GET /views/plan` under `["plan","view"]` through `utils/planNames.ts`, the
+  Deviations page's strings), so the scope shows with the panel closed; the select and the chip are two views of one parameter.
+- The name input keeps the text as typed and writes it trimmed to the URL at once; the REQUEST waits 300 ms (the debounced value is in the query key), and a URL change from elsewhere
+  (Back, a link, "Clear the filters") that disagrees with the typed text replaces it during render.
 
-- **Filters** (`components/DependencyListFilters.tsx`): the Status select (All / Violated / OK / Not scheduled yet, never clearable; "OK" and "Not scheduled yet" are the
-  project table's `project.dependency.status.*`), the team select (EVERY team, `useTeamOptions`, the Milestones page's) and the Project select (1.21, every project of the plan view; they narrow the rows in the browser, no second read of the document), plus, for a `projectId`, the removable chip
-  `components/ProjectScopeChip.tsx` beside the toggle.
-- **Table** (`components/DependencyListTable.tsx`, named "Dependencies of the plan" - not "Dependencies of the project", which the project page's table and five e2e
-  specs address): a plain table in a `ScrollRegion` with a 70vh height cap and a sticky header (the baseline comparison's shape). Status, lag and dates are the
-  project table's own cells (`components/DependencyCells.tsx`: `DependencyStatusBadge`, `DependencyLagText`); the type and the column headers are its strings. An end's
-  cell: its name ("Project X" for a project end), under it its project (link, `plan.openProjectAria`) and, for a milestone, its team (link, `teams.openAria`).
-- **States**: loading (`LoadingBlock`, no facts line and no claim until the read answers), a failed read (`ErrorAlert`; the rows of a kept document stay on screen
-  over a failed re-read, and no empty claim is made from it; a document whose row names an end the lists do not hold is that same failed read), no dependency at all (`totals.links === 0`), nothing matches the filters (with "Clear the filters"
-  when a filter narrows), `truncated` (one dimmed line under the rows shown; when the filters hide every row READ, the line says
-  "none of the first N" with the same Clear button, never "nothing matches").
-- **Tests**: `Dependencies.test.tsx`, `Dependencies.write.test.tsx` (the writes: the menu by `can`, the dialog, the confirmation, the refresh, the focus), `api/dependencyList.test.ts`, `utils/dependencyListRows.test.ts` (the resolver), `utils/dependencyListFilters.test.ts`, `utils/dependencyListLinks.test.ts`
-  (fixtures `test/dependencyList.ts`: rows and ends are the RESOLVED shapes; `dependencyListView(rows)` answers the wire document built from them).
+### Tests
 
-## Team load (`pages/TeamLoad.tsx`, 1.19; weeks from this week on, 1.22)
+Pinned by: `Milestones.test.tsx`, `utils/milestoneFilters.test.ts`, `utils/milestoneLinks.test.ts` (fixtures `test/milestones.ts`).
 
-`/team-load` (nav: Planning after Milestones, `IconGauge`, **everyone**, read-only; palette "Team load" / PL "Obciążenie zespołów") lists every team against its
-capacity from the ONE unpaged `GET /views/team-load` (`api/teamLoad.ts` `getTeamLoadView`, key `TEAM_LOAD_KEY = ["plan","teamLoad"]`, under `["plan"]` so a
-schedule or capacity write refreshes it; at most 200 rows with `truncated`, the same document for every caller, no `can`). The figures are the team page's
-own and are shown as they arrive, never recounted: the facts line (`role="group"`, "N teams" and the two orange badges in Home's own strings
-`home.roadmap.overloadedTeams|wipTeams`, each only when positive) reads the document's `totals` over EVERY team, so a filter or the 200-row cap never changes
-it. The one filter, `warning` = `overloaded` | `wip` | `any` (absent or unknown = every team), is in the URL like the Milestones page's
-(`utils/teamLoadFilters.ts` `parseTeamLoadFilter`, `teamLoadFilterParams`, `matchesWarning`; a change `replace`s the entry; no remembered filter) and is applied
-in the browser over the rows, so changing it makes no second read. `any` means an overloaded week or a week over the WIP limit; weeks without capacity are a
-fact, not a warning. **Since 1.22 a second filter, `past` (`?past=true`, the exact word; anything else reads as off), is the "Include past weeks" `Switch` after the
-Show select** (`teamLoad.filter.past`; the filter badge counts it; each control's change keeps the other's parameter, `replace`). `utils/teamLoadLinks.ts` spells the route once (`teamLoadPath`, `teamLoadWarningPath(warning)`, the builder Home's two capacity badges use).
+## Dependencies
 
-- **Columns**: Team (the link to the team page, `teams.openAria`), Manager (dimmed "No manager" when none), Milestones, Not scheduled (a link to
-  `unscheduledMilestonesPath({teamId})` named by its row, `teamLoad.notScheduledAria`, only when positive; a plain 0 otherwise), Overloaded and WIP (the team
-  page's two orange badges, only when positive) and Capacity (a gray "N weeks without capacity" badge, only when positive: a team with scheduled work and no
-  capacity period can never be overloaded, and the page says so instead of looking fine). No row or page ever says "fits"; no chart; every figure is worded.
-- **States**: loading (`LoadingBlock`, no facts line and no claim until the read answers), a failed read (`ErrorAlert`, no empty claim), no team at all
-  (`totals.teams === 0`), nothing matches the filter (with "Show every team"), `truncated` (one dimmed line with the rows shown).
-- **Weeks with a warning (1.21, `components/TeamLoadWeeks.tsx`)**: under the teams table an h3 "Weeks with a warning", one dimmed sentence and the table "Weeks
-  with a warning, by team" (a `ScrollRegion`, min width 720, max height 420, sticky header): one row per team and week, in the document's order (team by team,
-  oldest week first) — Team (the same `teams.openAria` link as the teams table; tests and e2e scope by table), Week, Load, Capacity, In progress (peak) and
-  Status. The weeks are the document's `warningWeeks` (the team page's own `WeekLoad`, no `flowCapacity`), shown as they arrive; the cells are
-  `components/WeekLoadCells.tsx` (`WeekStatus`, with `weekLabel` and `mdText` in `utils/weekLoadText.ts`, moved out of `TeamWeeklyLoad.tsx`, which imports them back). **Since 1.22 the section lists the weeks from the document's `currentWeekStart`
-  on** (the server's Monday in UTC, written into the document by `GET /views/team-load`; the page never reads the browser's clock; a week ON it stays; ISO dates compare
-  as text in `matchesWeek`'s third argument) unless `past=true`, which lists every listed week and restores 1.21's sentence; the default sentence
-  (`teamLoad.weeks.introFrom`) names the week with `weekLabel`. **A dimmed line, `teamLoad.weeks.earlier` ("N earlier weeks are left out here. Turn on "Include past
-  weeks" to list them."), counts what the date hides** (`earlierWeekCount`: the listed weeks of the rows the Show filter keeps that its warning keeps and the date
-  hides) and shows whether or not the section does, so a team with "3 weeks overloaded" and no week below is never a riddle; it is absent with `past=true`, when
-  nothing is hidden and while there is no answer. The date only HIDES listed weeks: the teams table's three counts, the facts line and Home's two team figures
-  still count every week (as the team page's badges do), so no figure moves with the switch, and it makes no second read. The server keeps its 2,000-week
-  budget for the weeks from the current week on first (the nearest first), then the earlier ones (the latest first), so `teamLoad.weeks.truncated` says so.
-  The "Show" filter keeps
-  the teams the table above keeps AND narrows their weeks (`matchesWeek`: `overloaded` the overloaded weeks, `wip` the weeks over the limit, `any` or none
-  every listed week), in the browser, from the same one read. The section is ABSENT when no week is left (zero is no claim, and no sentence says "no
-  warnings"), while the first read runs and after a failed first read; a failed re-read keeps the kept document's weeks under the alert. The weeks without
-  capacity stay a count. `warningWeeksTruncated` shows one dimmed line, "Not every week is listed: the list stops after N weeks, team by team, so a later team may show fewer weeks or none" (N = the weeks the document
-  lists), under the section or alone when it is absent, so a short or missing list is never read as "none".
-- **Tests**: `TeamLoad.test.tsx` (since 1.22 also the date, the line, the switch, a pinned far-off browser clock), `api/teamLoad.test.ts`, `utils/teamLoadFilters.test.ts`, `utils/teamLoadLinks.test.ts` (fixtures `test/teamLoad.ts`).
+Files: `pages/Dependencies.tsx`; `api/dependencyList.ts` (`getDependencyListView`); `utils/dependencyListRows.ts` (`resolveDependencyList`); `utils/dependencyListFilters.ts`
+(`parseDependencyListFilter`, `dependencyListFilterParams`, `matchesDependencyFilter`, `narrowingCount`); `utils/dependencyListLinks.ts` (`dependenciesPath`,
+`dependenciesFilteredPath(filter)`, `violatedDependenciesPath({teamId?, projectId?})`, the builders the plan pages' and Home's links use); `components/DependencyListFilters.tsx`;
+`components/DependencyListTable.tsx`; `components/DependencyCells.tsx`; `components/ProjectScopeChip.tsx`.
 
-## Baselines (`pages/Baselines.tsx`, `pages/BaselineCompare.tsx`, v0.9)
+### Route and data
 
-`/baselines` (nav: Planning after Programs, `IconCamera`, **for everyone**; palette "Baselines" / PL "Bazy odniesienia") is the registry of the named, frozen
-copies of the plan, `GET /baselines` under `["baselines","list"]` through `hooks/useBaselines.ts` (`{items, can, loading, failed, error}`, `staleTime` 1 minute,
-the `useHolidays.ts` shape - the timelines' picker reads the same cache). The list is a BOUNDED set (the cap is 100, newest first), so it is ONE unpaged table
-in a `ScrollRegion` (no `RegistryListTable`: it carries a pager), not the Teams page's paged shape: Name (the link into the comparison, `baselines.openAria`),
-Description, Taken (`YYYY-MM-DD HH:mm`, read in UTC, the header says so), Plan revision, Taken by, Milestones, Projects. **What a row offers comes from the
-list's `can.manage`** (ADMIN or a `ROADMAP_EDITOR`, the server's arithmetic - never the session's roles): "Take baseline" and the row menu (Rename..., Delete)
-exist only with it. `components/BaselineEditorModal.tsx` is take (name + description, then the server copies the plan) and rename in one; the take's 409 is told
-apart by `isBaselineLimit` (the problem type `urn:astrolabe:problem:baseline-limit`): the cap reads "The limit of 100 baselines is reached: delete one first" as
-the dialog's alert, any other 409 is a name clash and marks the name field. At 100 rows the page says the cap is reached instead of counting. **Every write
-bumps the plan revision**, so a take, rename or delete refreshes `["baselines"]` AND `["plan"]` + `["roadmap"]`; a delete of a baseline already deleted
-elsewhere (404) says so and reloads the list.
+`/dependencies` (nav: Planning after Milestones, `IconLink`, **everyone**) lists every dependency of the plan from the ONE unpaged `GET /views/dependencies`
+(`getDependencyListView`, key `DEPENDENCY_LIST_KEY = ["plan","dependencies"]`, under `["plan"]` so every plan write refreshes it; at most 1,000 rows with `truncated`). Each row carries
+the caller's own `can{edit, delete}`, the project view's flags, and nothing else differs between callers.
 
-`/baselines/:id` renders `GET /views/baseline/{id}` under `["baselines","view",id,{against}]` (read, never recomputed - the server counts the working days on the CURRENT
-calendar): the facts line (taken, by whom, the plan revision, the counts; "The plan has not changed since this baseline." when the view's `revision` equals the
-baseline's `planRevision`), the **totals** of milestones and of projects as badges (`utils/baselineOverlay.ts` `movementTotalsParts`: an ORANGE "N end later",
-gray for the rest, "No schedule changes" at zero), and the **Changes** table - ONE plain table in a `ScrollRegion` (`maxHeight` 70vh, <= 1,000 rows, no
-virtualisation) grouped by project: the project row (name = link into `/projects/:id`, program > work stream, the span movement as a sentence and its
-milestones' counts, the two spans, Start/End in signed working days, Status) then its CHANGED milestone rows (team, baseline and current dates or "Unscheduled"
-or a dash, Start/End deltas, the estimate "10 -> 12.5", Status). **The Status badge** is `movementStatus`: ORANGE "Later" exactly when a moved row's END is
-later (the user's rule), gray "Earlier" / "Moved" / "New" / "Removed" / "Scheduled" / "Unscheduled" / "Unchanged" - and gray "Re-estimated" for an estimate-only
-change, which the server lists as a changed row though its kind is `UNCHANGED`. Client-side, unpersisted filters (`utils/baselineCompare.ts`, pure): a team
-`Select` (the teams of the listed rows; keeps only the projects that have a row of it), a project-name text filter (case- and accent-insensitive) and "Changed
-projects only" (on by default; a project stays when it changed itself, its counts show a change, or it has a listed row). A malformed or unknown id is the
-not-found alert (`EditPageLoadState`, under the page's h2) and a malformed one never asks the server. Strings: `baselines.*` (`movement.*` and `totals.*` are
-the shared sentences; PL has the full `_one/_few/_many/_other` set). The picker, the shadow bars and the Movement section on the timeline pages reuse
-`movementSentence`, `movementStatus` and `movementTotalsParts` (see "Timeline mechanics"); here each project row has a "Show on timeline" button and the header
-a "Show on the roadmap" one - both set the browser-wide pick (`useBaselinePick`) before they navigate. **Two baselines (1.7):** `components/BaselineCompareControls.tsx` is the
-"Compare against" `Select` (the live plan, the default, or any OTHER baseline newest first with its plan revision; the URL's `?against=N` is the state, so a comparison is a link; a
-malformed or own id is ignored, the typed 400 `unknown-baseline` drops the parameter with an inline note); this baseline stays "then", the facts line and the Then/Now column headers name
-both sides, a project row gains the rank sentence ("Rank 3 → 5", `utils/baselineCompare.ts` `rankSentence`, none for a new or gone project) and both "Show on ..." buttons are hidden (a newly picked "now" that fails to load with anything but the typed 400 keeps the page chrome and the picker mounted with the error inline, so the live plan or another baseline can be picked; a failure with no `against` is the load-error page; the overlay is one
-baseline against the live plan). Tests: `Baselines.test.tsx`, `BaselineCompare.test.tsx`, `BaselineCompare.against.test.tsx`,
-`baselines.test.ts`, `useBaselines.test.tsx`, `baselineOverlay.test.ts`, `baselineCompare.test.ts`.
+- **The wire document names its ends once.** A row holds `predecessor`/`successor` as `{kind, id}` and the names are in `milestones`, `projects` and `teams`, exactly what the listed
+  rows name. `resolveDependencyList` joins them back, once, in the page's query function (`readDependencyList`), so the cache holds the resolved list: each row's two ends are
+  `{kind, id, name, projectId, projectName, teamId, teamName}` (the table, the filter and their tests read that).
+- It is NOT a `select`: a throwing `select` over a kept document makes TanStack Query re-render without end (its error result carries a fresh `errorUpdatedAt` each time), whereas an error
+  from the query function is the ordinary one. A reference the lists do not hold throws there: a failed read (below).
+- Each row is the project view's own item minus `critical` and `can`, in the server's order: the page never sorts
+  or recounts.
+- The facts line (`role="group"`, "N dependencies", Home's own red string `home.roadmap.conflicts` and a gray "N not scheduled yet", each badge only when positive, the whole line absent
+  while the plan has no dependency) reads the document's `totals` over EVERY dependency, so a filter or the cap never changes it.
+
+### Changing a link
+
+A row offers "Edit…" and "Delete" in a `RowActionsMenu` (named `common.table.operationsAria` with "predecessor → successor", each end with its project) only under its own `can` flag.
+
+- A row with neither has no menu, never a disabled control; when no shown row offers anything the operations column (header `common.table.operations`) is absent altogether, otherwise a
+  row without a menu has an empty cell.
+- "Edit…" opens the project page's own `DependencyEditorModal` with `project={null}` (the type and the lag; both ends read-only, each naming its project; the page owns `useDialogFocus`,
+  so the focus returns to the row's menu button). "Delete" goes through `useDeleteConfirm` and the shared `DependencyDeleteModal` (the project page's wording; the focus goes to the page
+  title).
+- A save or a delete refreshes `["plan"]` (this list, the plan, project and team views, Home) and `["roadmap"]`; the dialog's own errors (the cycle `409` with its path, the `403`, the
+  `404` of a link deleted meanwhile) stay in the dialog and re-read nothing.
+- A new link is still added on the page of its successor's project.
+
+### Filters
+
+Three filters are in the URL like the Milestones page's (a change `replace`s the entry; nothing is remembered): `status` = `violated` | `ok` | `unscheduled` (absent, `all` or unknown =
+every dependency), `teamId`, `projectId` (positive integers, `idOf`).
+
+- They are applied in the browser over the rows that arrived, AND-combined, so a change makes no second read: a team keeps a row when either end is a milestone of it (a project end has no
+  team), a project when either end belongs to it (a project end's `projectId` is its own id).
+- Controls: the Status select (All / Violated / OK / Not scheduled yet, never clearable; "OK" and "Not scheduled yet" are the project table's `project.dependency.status.*`), the team select
+  (EVERY team, `useTeamOptions`) and the Project select (every project of the plan view), plus, for a `projectId`, the removable chip `ProjectScopeChip` beside the toggle.
+
+### Table and states
+
+- The table (`DependencyListTable`, named "Dependencies of the plan" - not "Dependencies of the project", which the project page's table and e2e specs address): a plain table in a
+  `ScrollRegion` with a 70vh height cap and a sticky header (the baseline comparison's shape). Status, lag and dates are the project table's own cells (`DependencyStatusBadge`,
+  `DependencyLagText`); an end's cell: its name ("Project X" for a project end), under it its project (link, `plan.openProjectAria`) and, for a milestone, its team (link, `teams.openAria`).
+- Loading: `LoadingBlock`, no facts line and no claim until the read answers. A failed read: `ErrorAlert`; the rows of a kept document stay on screen over a failed re-read, and no empty claim
+  is made from it (a document whose row names an end the lists do not hold is that same failed read).
+- No dependency at all (`totals.links === 0`); nothing matches the filters (with "Clear the filters" when a filter narrows).
+- `truncated`: one dimmed line under the rows shown; when the filters hide every row READ, the line says "none of the first N" with the same Clear button, never "nothing matches".
+
+### Tests
+
+Pinned by: `Dependencies.test.tsx`, `Dependencies.write.test.tsx` (the menu by `can`, the dialog, the confirmation, the refresh, the focus), `api/dependencyList.test.ts`,
+`utils/dependencyListRows.test.ts`, `utils/dependencyListFilters.test.ts`, `utils/dependencyListLinks.test.ts`. The fixtures `test/dependencyList.ts`: rows and ends are the RESOLVED shapes;
+`dependencyListView(rows)` answers the wire document built from them.
+
+## Team load
+
+Files: `pages/TeamLoad.tsx`; `api/teamLoad.ts` (`getTeamLoadView`); `utils/teamLoadFilters.ts` (`parseTeamLoadFilter`, `teamLoadFilterParams`, `matchesWarning`, `matchesWeek`);
+`utils/teamLoadLinks.ts` (`teamLoadPath`, `teamLoadWarningPath(warning)`, the builder Home's two capacity badges use); `components/TeamLoadWeeks.tsx`; `components/WeekLoadCells.tsx`
+(`WeekStatus`; `weekLabel` and `mdText` live in `utils/weekLoadText.ts`, imported by `TeamWeeklyLoad.tsx` too).
+
+### Route and data
+
+`/team-load` (nav: Planning after Dependencies, `IconGauge`, **everyone**, read-only) lists every team against its capacity from the ONE unpaged `GET /views/team-load`
+(`getTeamLoadView`, key `TEAM_LOAD_KEY = ["plan","teamLoad"]`, under `["plan"]` so a schedule or capacity write refreshes it; at most 200 rows with `truncated`, the same document for every
+caller, no `can`). The figures are the team page's own and are shown as they arrive, never recounted.
+
+- The facts line (`role="group"`, "N teams" and the two orange badges in Home's own strings `home.roadmap.overloadedTeams|wipTeams`, each only when positive) reads the document's `totals`
+  over EVERY team, so a filter or the 200-row cap never changes it.
+- Columns: Team (the link to the team page, `teams.openAria`), Manager (dimmed "No manager" when none), Milestones, Not scheduled (a link to `unscheduledMilestonesPath({teamId})` named by
+  its row, `teamLoad.notScheduledAria`, only when positive; a plain 0 otherwise), Overloaded and WIP (the team page's two orange badges, only when positive) and Capacity (a gray "N weeks
+  without capacity" badge, only when positive: a team with scheduled work and no capacity period can never be overloaded, and the page says so instead of looking fine). No row or page ever
+  says "fits"; no chart; every figure is worded.
+- States: loading (`LoadingBlock`, no facts line and no claim until the read answers), a failed read (`ErrorAlert`, no empty claim), no team at all (`totals.teams === 0`), nothing matches
+  the filter (with "Show every team"), `truncated` (one dimmed line with the rows shown).
+
+### Filters
+
+Both are in the URL like the Milestones page's (a change `replace`s the entry; no remembered filter) and applied in the browser over the rows, so changing one makes no second read.
+
+- `warning` = `overloaded` | `wip` | `any` (absent or unknown = every team). `any` means an overloaded week or a week over the WIP limit; weeks without capacity are a fact, not a warning.
+- `past` (`?past=true`, the exact word; anything else reads as off) is the "Include past weeks" `Switch` after the Show select (`teamLoad.filter.past`; the filter badge counts it). Each
+  control's change keeps the other's parameter (`replace`).
+
+### Weeks with a warning
+
+Under the teams table an h3 "Weeks with a warning", one dimmed sentence and the table "Weeks with a warning, by team" (a `ScrollRegion`, min width 720, max height 420, sticky header): one row
+per team and week, in the document's order (team by team, oldest week first) - Team (the same `teams.openAria` link as the teams table; tests and e2e scope by table), Week, Load, Capacity, In
+progress (peak) and Status. The weeks are the document's `warningWeeks` (the team page's own `WeekLoad`, no `flowCapacity`), shown as they arrive.
+
+- **From this week on.** The section lists the weeks from the document's `currentWeekStart` on (the server's Monday in UTC; the page never reads the browser's clock; a week ON it stays; ISO
+  dates compare as text in `matchesWeek`'s third argument) unless `past=true`, which lists every listed week with the sentence without a week (`teamLoad.weeks.intro`); the default sentence
+  (`teamLoad.weeks.introFrom`) names the week with `weekLabel`.
+- **The hidden count.** A dimmed line, `teamLoad.weeks.earlier`, counts what the date hides (`earlierWeekCount`: the listed weeks of the rows the Show filter keeps that its warning keeps and
+  the date hides) and shows whether or not the section does, so a team with "3 weeks overloaded" and no week below is never a riddle; it is absent with `past=true`, when nothing is hidden and
+  while there is no answer.
+- The date only HIDES listed weeks: the teams table's three counts, the facts line and Home's two team figures still count every week (as the team page's badges do), so no figure moves with
+  the switch, and it makes no second read.
+- The "Show" filter keeps the teams the table above keeps AND narrows their weeks (`matchesWeek`: `overloaded` the overloaded weeks, `wip` the weeks over the limit, `any` or none every
+  listed week), from the same one read.
+- The section is ABSENT when no week is left (zero is no claim, and no sentence says "no warnings"), while the first read runs and after a failed first read; a failed re-read keeps the kept
+  document's weeks under the alert. The weeks without capacity stay a count.
+- `warningWeeksTruncated` shows one dimmed line, `teamLoad.weeks.truncated` (N = the weeks the document lists, from this week on first), under the section or alone when it is absent, so a
+  short or missing list is never read as "none".
+
+### Tests
+
+Pinned by: `TeamLoad.test.tsx` (also the date, the line, the switch, a pinned far-off browser clock), `api/teamLoad.test.ts`, `utils/teamLoadFilters.test.ts`, `utils/teamLoadLinks.test.ts`
+(fixtures `test/teamLoad.ts`).
+
+## Baselines
+
+Files: `pages/Baselines.tsx`; `pages/BaselineCompare.tsx`; `hooks/useBaselines.ts`; `components/BaselineEditorModal.tsx`; `components/BaselineCompareControls.tsx`; `utils/baselineOverlay.ts` (`movementTotalsParts`,
+`movementSentence`, `movementStatus`); `utils/baselineCompare.ts` (`rankSentence`); `hooks/useBaselinePick.ts`; `components/BaselinePicker.tsx`; `components/BaselineMovement.tsx`;
+`components/BaselineTotals.tsx`.
+
+### The registry
+
+`/baselines` (nav: Planning after Team load, `IconCamera`, **everyone**) is the registry of the named, frozen copies of the plan, `GET /baselines` under `["baselines","list"]` through
+`hooks/useBaselines.ts` (`{items, can, loading, failed, error}`, `staleTime` 1 minute, the `useHolidays.ts` shape - the timelines' picker reads the same cache).
+
+- The list is a BOUNDED set (the cap is 100, newest first), so it is ONE unpaged table in a `ScrollRegion` (no `RegistryListTable`: it carries a pager), not the Teams page's paged shape:
+  Name (the link into the comparison, `baselines.openAria`), Description, Taken (`YYYY-MM-DD HH:mm`, read in UTC, the header says so), Plan revision, Taken by, Milestones, Projects.
+- **What a row offers comes from the list's `can.manage`** (ADMIN or a `ROADMAP_EDITOR`, the server's arithmetic - never the session's roles): "Take baseline" and the row menu (Rename...,
+  Delete) exist only with it.
+- `BaselineEditorModal` is take (name + description, then the server copies the plan) and rename in one. The take's 409 is told apart by `isBaselineLimit` (the problem type
+  `urn:astrolabe:problem:baseline-limit`): the cap reads "The limit of 100 baselines is reached: delete one first" as the dialog's alert, any other 409 is a name clash and marks the name
+  field. At 100 rows the page says the cap is reached instead of counting.
+- **Every write bumps the plan revision**, so a take, rename or delete refreshes `["baselines"]` AND `["plan"]` + `["roadmap"]`; a delete of a baseline already deleted elsewhere (404) says so
+  and reloads the list.
+
+### The comparison
+
+`/baselines/:id` renders `GET /views/baseline/{id}` under `["baselines","view",id,{against}]` (read, never recomputed - the server counts the working days on the CURRENT calendar). A
+malformed or unknown id is the not-found alert (`EditPageLoadState`, under the page's h2) and a malformed one never asks the server.
+
+- The facts line: taken, by whom, the plan revision, the counts; "The plan has not changed since this baseline." when the view's `revision` equals the baseline's `planRevision`.
+- The **totals** of milestones and of projects as badges (`movementTotalsParts`: an ORANGE "N end later", gray for the rest, "No schedule changes" at zero).
+- The **Changes** table is ONE plain table in a `ScrollRegion` (`maxHeight` 70vh, <= 1,000 rows, no virtualisation) grouped by project: the project row (name = link into `/projects/:id`,
+  program > work stream, the span movement as a sentence and its milestones' counts, the two spans, Start/End in signed working days, Status) then its CHANGED milestone rows (team, baseline
+  and current dates or "Unscheduled" or a dash, Start/End deltas, the estimate "10 -> 12.5", Status).
+- **The Status badge** is `movementStatus`: ORANGE "Later" exactly when a moved row's END is later, gray "Earlier" / "Moved" / "New" / "Removed" / "Scheduled" / "Unscheduled" / "Unchanged" -
+  and gray "Re-estimated" for an estimate-only change, which the server lists as a changed row though its kind is `UNCHANGED`.
+- Client-side, unpersisted filters (`utils/baselineCompare.ts`, pure): a team `Select` (the teams of the listed rows; keeps only the projects that have a row of it), a project-name text
+  filter (case- and accent-insensitive) and "Changed projects only" (on by default; a project stays when it changed itself, its counts show a change, or it has a listed row).
+- The picker, the shadow bars and the Movement section on the timeline pages reuse `movementSentence`, `movementStatus` and `movementTotalsParts`; here each project row has a "Show on
+  timeline" button and the header a "Show on the roadmap" one - both set the browser-wide pick before they navigate.
+
+### Compare against
+
+`components/BaselineCompareControls.tsx` is the "Compare against" `Select` (the live plan, the default, or any OTHER baseline newest first with its plan revision). The URL's `?against=N` is
+the state, so a comparison is a link; a malformed or own id is ignored, the typed 400 `unknown-baseline` drops the parameter with an inline note.
+
+- This baseline stays "then"; the facts line and the Then/Now column headers name both sides, a project row gains the rank sentence ("Rank 3 → 5", `rankSentence`, none for a new or gone
+  project) and both "Show on ..." buttons are hidden (the overlay is one baseline against the live plan).
+- A newly picked "now" that fails to load with anything but the typed 400 keeps the page chrome and the picker mounted with the error inline, so the live plan or another baseline can be
+  picked; a failure with no `against` is the load-error page.
 
 ### The baseline pick on the timeline pages
 
-**The baseline overlay (v0.9, every timeline page).** ONE browser-remembered pick (`hooks/useBaselinePick.ts`, key `timeline.baseline`, none by default) selects
-the baseline all four pages compare with: `components/BaselinePicker.tsx` in the Timeline's `toolbar` slot (None + the baselines newest first, the first
-"(latest)"), `?baseline=N` on the view getters, the pick inside every query key (`["plan","team",id,{baseline}]`, ...; the optimistic steps keep the cached
-`baseline` block; a write is refused while the shown copy is the previous pick's placeholder, rolls back into the entry it was made on and stores its revision
-into the entry it was made on ONLY (the roadmap ranking and the schedule, pin, team-order and proposal-accept writes: a sibling pick's entry still holds the old order and dates, so it keeps its old revision and a write there is a 409); the picker is disabled while a write runs), the typed 400 `unknown-baseline` clearing the pick once (`useDropUnknownPick`), shadow bars
-and appended rows from the pure `utils/baselineOverlay.ts`. The project and team pages add the Movement section (`components/BaselineMovement.tsx`), the plan
-pages one totals line (`components/BaselineTotals.tsx`); the comparison page's "Show on timeline" sets the pick. Reference and the details: `timeline.md` "The
-baseline overlay".
+The ONE browser-remembered pick (`hooks/useBaselinePick.ts`, key `timeline.baseline`, none by default) selects the baseline all four timeline pages compare with (`BaselinePicker` in the
+Timeline's `toolbar` slot, `?baseline=N` on the view getters, the pick inside every query key). The project and team pages add the Movement section (`BaselineMovement`), the plan pages one
+totals line (`BaselineTotals`). The query keys, the write rules, the tone, the rows and the Movement section: `timeline.md` "The baseline overlay".
 
-## Schedule proposals (`pages/ScheduleProposals.tsx`, 1.8)
+### Tests
 
-`/schedule-proposals` (nav: Planning after Baselines, `IconCalendarStats`, **for everyone**; palette "Schedule proposals" / PL "Propozycje harmonogramu", keywords proposal, schedule,
-cross-team; path `utils/scheduleProposalLinks.ts`) runs ONE proposal over several teams (`POST /schedule-proposals`: the teams in dependency order to a fixed point, `planning-model.md`
-"The cross-team run") and accepts the ticked moves of every team in ONE plan write. **What it offers comes from the server:** the `MultiSelect` (`maxValues` 50, searchable, disabled while a
-run is requested or open, picks the server no longer lists are dropped at Propose) is filled from `GET /schedule-proposals/teams` under `["schedule-proposals","teams"]` (an ADMIN: every
-active team; otherwise the teams the caller manages; an ADMIN also gets an **"All teams"** button beside it that ticks the first 50 listed at once, the run's `teamIds` ceiling, disabled while a run is requested or open); an empty list is the `EmptyState` "You manage no team" with no multi-select and no Propose; the server's 403/404/400 on the run reach the page
-inline (`scheduleProposals.forbidden/gone/invalid`, then the generic action words). Wrappers in `api/scheduleProposals.ts` (`listProposalTeams`, `proposeCrossTeamSchedule`,
-`acceptCrossTeamSchedule`, `checkSchedule`).
+Pinned by: `Baselines.test.tsx`, `BaselineCompare.test.tsx`, `BaselineCompare.against.test.tsx`, `baselines.test.ts`, `useBaselines.test.tsx`, `baselineOverlay.test.ts`, `baselineCompare.test.ts`.
 
-**The run** is page state in `hooks/useCrossTeamProposal.ts`, the team page's `useScheduleProposal` state machine over a run: `propose(teamIds)` (local `asOf`; a run with no move in ANY team
-opens nothing and leaves the same two notes as the team page), ONE `selected` set over every team's move ids (milestone ids are global), `toggle`, `selectAll(teamId)` / `selectNone(teamId)` (a
-section's header checkbox acts on THAT team's moves; the status region says the run-wide "n of N selected"), `discard()` (not while the accept runs), `dismiss()`. `accept()` posts
-`{expectedRevision, scopeHash, teamIds (the run's blocks), items}` for the ticked moves of all sections on the write key `["schedule-proposals","accept"]`; while it runs a second accept
-or Propose is refused out loud (`refused`, the `role="note"` "A save is still running", `project.busy` announced; Discard answers `false`). On success the preview closes, `["plan"]` and
-`["roadmap"]` refresh in the background (no cache patch: the page holds no view) and `outcome` is the inline note ("N scheduled · M skipped: reasons", the fixed `teams.proposal.reason.*`
-vocabulary; no toast). `409 stale-revision` closes the run with the reload note; **`409 stale-scope`** closes it, re-proposes the SAME teams at once and keeps the ticks of the moves that still
-exist (`rescoped`, orange note); any other failure is the inline `FormErrorAlert` above the buttons, which takes the focus, with the run open. The page owns the ONE polite status region
-(`VisuallyHidden role="status"`, the zero-width-space re-read flip) the hook announces into; `useProposalFocus` (made structural, `{applying, rescoped}`) hands Discard the focus when a run
-opens and Propose gets it back.
+## Schedule proposals
 
-**The page** (a `Stack`, h2 `PageHeader` with Propose in `actions`): the multi-select, `ProposalNotes` (its prop is the structural `ProposalFlow`), then with a run open `components/CrossTeamFacts.tsx`
-(`role="note"`: gray "Placed in N pass(es) · settled"; an ORANGE Alert when `!settled`: "Not settled after 5 passes: the teams depend on each other in a loop, so every pass moved something again.
-The dates shown are the last pass's - check the link warnings before you accept"), one `components/CrossTeamProposalSection.tsx` per block of `teams[]` in PLACEMENT order, the accept's alert
-and ONE **Accept selected across teams (N)** (primary) with Discard. A section is an h3 (the team's name, a dimmed "placed n of N") holding the team page's `ProposalTable` (named per team
-through its `label` prop, so no two tables share a name; "Accept all" in its header acts on that team) and, collapsed, `TeamWeeklyLoad` with `labels` (an h4 "Proposed load", the table named per team);
-with no move ticked anywhere there are no `weeks` and the section says "Tick a move to see the load after accepting it". **The ticked-subset check is `useScheduleCheck`** with ALL the run's team ids and
-every team's moves; `overlayCheck(block, check, block.teamId)` gives each section the verdicts and load of the ticked moves (all ticked = the run's own, none = no new warnings, some = the check's answer
-once in), and `ProposalTable` words "Checking the ticked moves..." / the failure under each summary. Closing the run drops the `["plan","schedule-check"]` queries. The hook returns `words` (`ProposalWords`, an optional override of `ProposalFlow`): the no-capacity, stale and re-proposed notes and their announcements speak of "the chosen teams" (`scheduleProposals.noCapacity/stale/rescoped`), not of one team or a schedule to reload. A run that did not settle is announced in the SAME sentence as the ready one (two announcements in one batch keep only the last). `accept()` sets a synchronous in-flight ref (cleared in `onSettled`) so a double click sends ONE request and the second is refused out loud. Strings: `scheduleProposals.*`
-(`appShell.nav.scheduleProposals`), the accept/discard/outcome words reuse `teams.proposal.*`; an administrator with no team at all reads "No team to propose for yet" (the words only: `useAdmin()` gates nothing). Tests: `ScheduleProposals.test.tsx`, `CrossTeamProposalSection.test.tsx`,
-`useCrossTeamProposal.test.tsx` (fixtures `test/crossTeamRun.ts`).
+Files: `pages/ScheduleProposals.tsx`; `utils/scheduleProposalLinks.ts`; `api/scheduleProposals.ts` (`listProposalTeams`, `proposeCrossTeamSchedule`, `acceptCrossTeamSchedule`,
+`checkSchedule`); `hooks/useCrossTeamProposal.ts`; `components/CrossTeamFacts.tsx`; `components/CrossTeamProposalSection.tsx`.
 
-## Deviations, bindings and the Jira chips (`pages/Deviations.tsx`, v1.1.0)
+### Route and data
 
-`/deviations` (nav: Planning after Baselines, `IconGitCompare`, **everyone**; palette "Deviations" / PL "Odchylenia") is where the plan and the linked Jira
-items disagree: `GET /views/deviations` under `["jira","deviations","view",filter]` through `hooks/useDeviations.ts` - ONE purpose-built document
-(`{revision, asOf, connections[], totals, items[≤2,000], truncated}`), unpaged, `api/deviations.ts`. **Reading never touches a timeline view**: every query here
-lives under the `["jira"]` prefix (the page's second section, Capacity from Flow, under `["flow"]`). A refresh (Refresh now, a connection edit) refreshes
-`["jira"]` only; a write that changes the Jira flags and bars the four timeline views carry - a bind, an unlink, the import's apply, an acknowledgement - goes
-through `refreshJiraAndTimelines` (`utils/queryRefresh.ts`: `["jira"]`, `["plan"]` = plan, project and team views, `["roadmap"]` = roadmap and programs; a
-scheduled poll has no write here, open pages catch up on focus). It refetches on window focus and, while the SERVER says a run is running
-(`connections[].lastRun.running`), every 10 s (`DEVIATIONS_POLL_MS`; the run table's 3 s is too eager for this big document) through `useBoundedPoll`, the C8
-rule: the response that first reports the run finished carries the new data.
+`/schedule-proposals` (nav: Planning after Baselines, `IconCalendarStats`, **everyone**) runs ONE proposal over several teams (`POST /schedule-proposals`: the teams in dependency order to a
+fixed point, `planning-model.md` "The cross-team run") and accepts the ticked moves of every team in ONE plan write.
 
-**The URL holds the filters** (`utils/deviationFilters.ts`, pure: `parseDeviationFilter`/`deviationFilterParams`): `connectionId`, `level`, `severity`, `kind`,
-`workStreamId`, `programId`, `projectId`, `teamId`, `acknowledged`, `all`; a malformed or unknown value is dropped (a stale link never breaks the page), a
-change `replace`s the entry, the chips link in with a normal navigation, so Back and a reload restore the view. The panel (`components/DeviationsFilters.tsx`)
-holds a select each for **Status** (Open / Acknowledged / All, first), connection, plan item type, severity, work stream (from `GET /views/plan`, the page's
-cache entry) and team (1.21: the options come from `useTeamOptions`, every team; the markup, strings and address behaviour are unchanged, and it has no "Team N" option), plus the **"Show everything"** switch (`all=true`: items with no deviation AND the `ESTIMATE_NOT_COMPARABLE` lines, which are never
-listed otherwise nor counted by a chip; a project or team scope IMPLIES `all` server-side, so the switch reads ON there and turning it off sends `all=false`,
-which the URL accepts); a project / program / kind scope from the URL is a removable chip beside the toggle ("Project: Invoices"), named from the plan view.
+**What it offers comes from the server.** The `MultiSelect` (`maxValues` 50, searchable, disabled while a run is requested or open, picks the server no longer lists are dropped at Propose) is
+filled from `GET /schedule-proposals/teams` under `["schedule-proposals","teams"]`.
 
-**Acknowledge** (1.3, per LINE since 1.12; `hooks/useAcknowledge.ts`, `components/DeviationAckCell.tsx` = a line's sentence and button, `DeviationAckAll` = the batch buttons at the head of a
-row's lines, `DeviationAckOrphanNotice`; `POST`/`DELETE /integrations/jira/bindings/{id}/acknowledge`). **Status** (`deviationStatus`/`deviationStatusPatch`, `utils/deviationFilters.ts`) composes with
-the URL as the server does: Open sends NOTHING (the server lists the open items), except under a project/team scope, which implies `all`, where it sends the
-override `all=false` (so does ADDING a scope while Open, `keepStatus`; REMOVING the last scope falls back to the default Open list, the implied All being the
-chip's; `acknowledged=false` in a URL is dropped); Acknowledged sends `acknowledged=true` (and keeps an explicit `all=true`); All sends `all=true`; a scope
-reads All. The "Show everything" switch writes the same `all`, so All and the switch are two views of one parameter. **There is no Acknowledgement column**: the
-Deviations cell lists every LISTED line of the row (`items[].deviations[]`, whatever the Status - a row on the Open list shows its acknowledged lines too), each
-as the kind badge (gray once acknowledged, `SeverityBadge dimmed`) and the sentence, and under it the line's own acknowledgement (`DeviationLine.acknowledgement{at, by, current}`; the
-item has no `acknowledgement` of its own): "Acknowledged by X on D" / "Acknowledged on D by X · changed since" (a stamp whose line changed is `current: false`,
-the line is open again; a deleted acknowledger drops the name) and ONE button (`isLineOpen`, `utils/deviations.ts`): **Acknowledge** for an open line (no stamp or a stale one),
-**Unacknowledge** for a current one - both only with the item's `can.acknowledge` (a pure RIGHTS flag; a clean row has no lines, so no button). The buttons name the line by
-Jira key and kind ("Acknowledge E2E-6: End"), carry `data-ack-for="<bindingId>:<KIND>"`, are `aria-disabled` + `data-disabled` (Mantine's disabled look; never `disabled`/`loading`:
-they lose the focus) and ignore clicks while ANY write runs. A line is `POST {fingerprint: item.fingerprint, kind}` / `DELETE …?kind=KIND`. **Acknowledge all (N)** /
-**Withdraw all (N)** (the port of Flow's `CapacityAckAll`; named "Acknowledge all (N) open deviations of E2E-6" / "Withdraw all (N) acknowledged deviations of E2E-6") head the lines when
-at least two LISTED lines are open (a stale stamp counts) / currently acknowledged; one open line has only its own button. The batch is the same two calls WITHOUT `kind`
-(`POST {fingerprint}` stamps every line without a current acknowledgement; `DELETE` clears every stored stamp of the binding, stale ones too), both with the key
-`<bindingId>:all` (`data-ack-for`, busy, notice), and the success toast, re-read, 409 note, refusals and focus rule of a single line. N counts the lines the row lists: a hidden
-`ESTIMATE_NOT_COMPARABLE` line (shown under `all=true` only) is not in it, though the kind-less POST would stamp it. **A success re-reads `["jira"]`, `["plan"]` and
-`["roadmap"]`** (a current acknowledgement silences the Jira flags on all four timeline views); a `409 stale-deviations` is the orange inline `role="status"`
-note "The deviations changed since you looked" plus the same re-read, never a toast and never the red alert; a 403/404 is a red inline message and re-reads
-`["jira"]`; the note or message shows under its OWN control (`AckNoticeAlert`; a row far down must see why its button did nothing), above the
-table with a scroll-into-view only once that control has left the list (`DeviationAckOrphanNotice` over the keys of the rendered rows, `itemAckKeys`); a DELETE's 404 reads "already withdrawn", not "link gone";
-messages clear on the next write or whenever the filters' URL string changes (Back, a chip link and "Clear the filters" included), and a write that settles after that sets none. **Focus**:
-after a write that re-reads, `useDeleteConfirm`'s rule at every render and once after the re-read (`hooks/useAckFocus.ts`, shared with `useCapacityAcknowledge`: the hook arms the keys, the page-level hooks own the writes; focus on `body` -> the control's own button if still there (a line's Acknowledge becomes its
-Unacknowledge under the same key, the two batch buttons share the all-key), else the row's other controls, the next row's, the previous row's, else the list's h3 `tabIndex={-1}`; anywhere else -> leave).
-Totals gain a gray "N acknowledged" (`totals.acknowledged`: bindings with a current line), and under any Status but Open a line says the warning/info/gone figures count open items only (the
-server counts open LINES); an Open list that is empty while acknowledged items exist reads "Nothing is open" with the count hidden. Tests: `Deviations.ack.test.tsx`, `Deviations.ack.lines.test.tsx`
-(per line, the batch, counts, `can` false), `Deviations.ack.refusals.test.tsx`, `DeviationAckCell.test.tsx`, `utils/deviations.test.ts`, `api/deviations.test.ts`.
+- An ADMIN gets every active team, anyone else the teams the caller manages; an ADMIN also gets an **"All teams"** button beside the select that ticks the first 50 listed at once (the run's
+  `teamIds` ceiling), disabled while a run is requested or open.
+- An empty list is the `EmptyState` "You manage no team" with no multi-select and no Propose; an administrator with no team at all reads "No team to propose for yet" (the words only:
+  `useAdmin()` gates nothing).
+- The server's 403/404/400 on the run reach the page inline (`scheduleProposals.forbidden/gone/invalid`, then the generic action words).
 
-**Honesty about currency** (the page never implies the data is fresh): "Data from Jira" (`components/DeviationsSources.tsx`, h3) is one row per connection with
-its newest run as the C8 helpers read it (`utils/syncRuns.ts` `runState`: the server's `running`, `finishedAt: null` and not running = **Interrupted**) and the
-notes that qualify the figures - never refreshed ("as they were when each item was linked"), the last refresh FAILED (with `errorCodeText`, the code kept
-visible), abandoned/interrupted, **stale** (1.17: "The last successful refresh is older than expected", Flow's sentence under the shared key `deviations.sources.noteStale`), the connection DISABLED (its items are listed and unlinkable but stale), and **`mappingOk: false`** ("levels and estimates are
-not compared for its items"). An orange `role="note"` above the list says it may be out of date when any ENABLED connection is not `CURRENT` (the SERVER's derived `status.state`, 1.17: never synced, failed, `STALE`; a first run or a retry after a failure still in flight keeps the old state, a routine refresh on a good connection does not raise it) or its mapping does not fit. That is ONE rule, `isStaleSource({state, mappingOk?})` in `utils/staleness.ts`, read by the banner and the dated claim (`staleConnection`/`hasStaleSource`/`verifiedAt`, `utils/deviations.ts`, which add `!enabled`), by Flow's twins in `utils/capacityDeviations.ts` (no mapping to pass) and by the chips (`marksOf`); the any-enabled-stale and oldest-success folds are the generic `hasStaleSource`/`verifiedAt` of the same file, each connector passing its own stale predicate and success accessor. Nothing is judged on the client's clock. The dated "No deviations in the data read at T" is withheld under the same predicate (and when the newest run did not SUCCEED, a routine refresh in flight included); the row's "· stale" under "Data as of" keeps its own rule (a gone item or a disabled connection: the READING is frozen). Tests build connections with `connectionIn(shape)` (`test/deviations.ts`: every member of `enabled`/`lastRun`/`status` agrees, as the server derives it), never by overriding `lastRun` alone. The column is "Last run", not "last refresh"
-(a failed run is a run). **Refresh now is ADMIN-only** (per connection, `POST /integrations/sync/runs`; a `409 run-in-progress` is a normal state: no error and
-no note of its own, the page re-reads and its status line says a refresh is running; a `429` of the per-user `sync-run` bucket, 1.13.1, reads "Too many requests. Wait a minute and try again." (`common.error.tooManyRequests`) in the inline alert, here and on the connection pages). Each row's last column is "Data as of": `jira.observedAt` aged ("5 minutes
-ago", the exact UTC time in its `title`) - it is when Astrolabe last CAPTURED that item (the bind, or a run in which Jira reported it changed), NOT when it was
-linked and not when a run last looked, so it can be older than the connection's last run; a gone item or a disabled connection adds "stale". A gone item's Jira cell badge reads "Gone from Jira", or "Moved out of scope" when its GONE line's `detail.jira` is `MOVED_OUT` (1.12: a probe still read the issue, under a key outside the connection's projects; the sentence is "Moved out of the connection's projects (Jira still has it)", `deviations.phrase.goneMovedOut`), or "Not listed by Jira" for `NOT_LISTED` (1.13: the key it answered with is inside them; "Still in the connection's projects, but Jira no longer lists it (archived, or its type changed)", `deviations.phrase.goneNotListed`); one helper, `goneBadge(reason)` in `utils/deviations.ts`, maps a reason to `movedOut | notListed | gone`, and the key link already shows the binding's current (followed) key. The age is measured
-against the browser's clock (`dataUpdatedAt`) from the server's `observedAt`, so the two clocks can differ by their skew: accepted, the tooltip carries the
-exact UTC time and the age is cosmetic. **The chips on the project and team pages** are built from the timeline view, which carries no run history, so they show the LAST OBSERVATION; since 1.16 each
-`jiraSites[]` entry says how fresh its connection is (`state`, `mappingOk`) and a chip adds the dimmed text "Jira data may be out of date" after its count
-while `JiraMarks.stale` ("The chips and marks" below). Whether a connection is stale, failed or disabled, and why, is told on the Deviations page and the
-connection pages.
+### The run
 
-**Counting words**: the totals badges are the server's `warnings`/`infos` over every match before the cap (orange / gray, the roadmap flag vocabulary; red is
-never used); **the gone figure is split (1.13)**: "N gone from Jira" shows `totals.gone - totals.stillInJira` and a second gray "N still in Jira, out of scope" shows `totals.stillInJira` (`deviations.totals.stillInJira_*`), each hidden at 0; "N items shown" is `items.length`, `truncated` is an orange note; **`totals.bindings` is never worded as "how many are linked"** - it counts only
-deviating bindings unless `all` applies. The empty list is told apart: no connection (an ADMIN gets the link to Administration, Jira; anyone else "an
-administrator has to add one"), nothing linked (asked by `GET /integrations/jira/bindings?pageSize=1` `total`, only when it decides the wording), the filters
-match nothing (+ "Clear the filters"), an empty list is a claim about a READ and is DATED: "No deviations in the data read at 2026-11-06 10:01 (UTC)"
-(`verifiedAt`: the oldest finish among the connections, and only when every connection is enabled, its mapping fits and its newest run SUCCEEDED - a disabled
-one may hold bindings nobody refreshes - because 1.1 has no scheduler and the present tense is not earned), else "No deviations in the data read so far". A
-project or team scope whose own `totals.bindings` is 0 (with `all` in force, that is every link in scope) reads "Nothing here is linked", never "no items
-match". While a new filter's answer is on its way (`isPlaceholderData`) the kept answer belongs to the OLD filters, so a busy status stands in for any
-empty-state claim.
+Page state in `hooks/useCrossTeamProposal.ts`, the team page's `useScheduleProposal` state machine over a run.
 
-**The sentences** (`utils/deviations.ts`, pure, EN/PL with `_one/_few/_many/_other`): `deviationSentence(deviation, item, t)` for every `DeviationKind` - "Ends
-3 working days later than Jira (plan 2044-01-12, Jira 2044-01-08)": **`detail.days` is in working days, POSITIVE = the plan is later** (so a negative figure
-reads "earlier"); **a `detail` member that does not apply is ABSENT (1.15), never `null`, so every check is `=== undefined` (a `=== null` compiles against the generated types and is silently always false); a flag's `deviation` is `{kind, detail}` without a severity, `deviationSentence` takes `Pick<Deviation, "kind" | "detail">`, and the flags' optional members (`days`, `teamId`, `otherProjectId`, `deviation`, `count`) follow the same rule (`utils/flagSentences.ts`, `utils/jiraBars.ts`);** the dates are appended only when BOTH sides are known (a date is never made up from an absent one), a missing or zero figure degrades to "ends
-on a different day", `TARGET_DIFFERS` (days is the end's shift, else the start's) is a neutral sentence with no count (the dates column carries the figures),
-and `ESTIMATE_NOT_COMPARABLE` (no conversion declared, OR the figure was read under another unit than the mapping names now) names neither cause. **Coverage
-kinds (1.4):** `UNLINKED_IN_JIRA` ("3 Jira items are not in the plan: COV-5, COV-6, COV-7", `detail.jira` = the keys), `UNLINKED_IN_PLAN` ("1 plan item is not
-linked to Jira: Rollout", `detail.plan` = the names) and `CHILDREN_DONE` ("All 2 child issues are done in Jira while the plan ends 2046-03-01", `detail.count` =
-the children, `detail.plan` = the plan's end) with its mirror `CHILDREN_OPEN` (1.14: "3 of 12 child issues still open in Jira while the plan ended 2046-03-01", the open
-figure parsed from `detail.jira` = `open/children`; PL "Otwartych zgłoszeń podrzędnych w Jirze: 3 z 12, a plan zakończył się …"; unreadable members degrade to the label "Children open"); **the "+N more" rule**: the server lists at most 10 keys/names and `detail.count` is the full figure, so the
-sentence appends "and {N} more" (PL "i jeszcze {N}") when `count` exceeds 10 - the listed figure is `min(count, 10)`, never a split of the joined text (a plan
-name may contain ", "); a missing list, count or date degrades to the plain kind label. The roadmap panel phrases these through the same function. Severity is
-spelled in a visually hidden word before each kind badge (`components/SeverityBadge.tsx`: orange warning / gray info; the Deviations table, the Flow capacity lines and the team page's fact use it, the roadmap flag panel with `hiddenPrefix={false}`). `ageText` is in the same file; the table is `components/DeviationsTable.tsx` (plan
-item with its link into `/projects/:id` - a milestone's through its project -, the Jira key through `JiraKeyLink`, both sides' dates, the sentences, the age)
-in a `ScrollRegion` (1,080 px minimum: a phone scrolls it); the acknowledgement is per line inside the Deviations cell (above). Tests: `Deviations.test.tsx`,
-`utils/deviations|deviationFilters|jiraMarks|jiraBind.test.ts`, `hooks/useDeviations.test.tsx`, `api/deviations.test.ts`.
+- `propose(teamIds)` (local `asOf`; a run with no move in ANY team opens nothing and leaves the same two notes as the team page), ONE `selected` set over every team's move ids (milestone ids are
+  global), `toggle`, `selectAll(teamId)` / `selectNone(teamId)` (a section's header checkbox acts on THAT team's moves; the status region says the run-wide "n of N selected"), `discard()` (not
+  while the accept runs), `dismiss()`.
+- `accept()` posts `{expectedRevision, scopeHash, teamIds (the run's blocks), items}` for the ticked moves of all sections on the write key `["schedule-proposals","accept"]`. It sets a
+  synchronous in-flight ref (cleared in `onSettled`), so a double click sends ONE request; while it runs a second accept or Propose is refused out loud (`refused`, the `role="note"` "A save is
+  still running", `project.busy` announced; Discard answers `false`).
+- On success the preview closes, `["plan"]` and `["roadmap"]` refresh in the background (no cache patch: the page holds no view) and `outcome` is the inline note ("N scheduled · M skipped:
+  reasons", the fixed `teams.proposal.reason.*` vocabulary; no toast).
+- `409 stale-revision` closes the run with the reload note; **`409 stale-scope`** closes it, re-proposes the SAME teams at once and keeps the ticks of the moves that still exist (`rescoped`,
+  orange note); any other failure is the inline `FormErrorAlert` above the buttons, which takes the focus, with the run open.
+- The page owns the ONE polite status region (`VisuallyHidden role="status"`, the zero-width-space re-read flip) the hook announces into; `useProposalFocus` (structural, `{applying, rescoped}`)
+  hands Discard the focus when a run opens and Propose gets it back. A run that did not settle is announced in the SAME sentence as the ready one (two announcements in one batch keep only the
+  last).
+- The hook returns `words` (`ProposalWords`, an optional override of `ProposalFlow`): the no-capacity, stale and re-proposed notes and their announcements speak of "the chosen teams"
+  (`scheduleProposals.noCapacity/stale/rescoped`), not of one team or a schedule to reload.
 
-**The bind dialog** (`components/JiraBindDialog.tsx`, `JiraBindNodePicker.tsx`; used on the connection page and the project page):
-`POST /integrations/jira/bindings`. It works for a plan OWNER who is no administrator, for whom the connection registry is forbidden, so it asks for nothing
-itself: the `source` prop is what the page has - the connection page's own connection (fixed; `mappingOk` is taken as true there, a stale mapping is the
-server's inline 409), the project page's `useJiraLinks` `connections[]` (asked only while the dialog is open: a pending or failed answer is the dialog's own
-note, with Retry) - and only `enabled` ones are offered, exactly one is preselected (with two or more and none chosen, a note says why Link is disabled), one
-with `mappingOk: false` is marked "(mapping needs fixing)" and refuses the link in words, none says so plainly (an ADMIN gets the link to Jira, anyone else "an
-administrator has to add one"). `target` fixes the node (project header, milestone row menu: no picker); `connectionId` fixes the connection (the connection
-page). Otherwise a level select and a picker: **programs from `GET /views/plan`** (no list exists; only those with `can.edit`), projects and milestones through
-the dependency editor's paged pickers (`ProjectSelect`/`MilestoneSelect` take `label`/`description`). **Every refusal is inline with the entered key kept**
-(`utils/jiraBind.ts` `bindFailure`): 400 (the server's sentence under a fixed lead: unknown issue, outside the connection's keys, wrong level), 409
-`already-bound` (the sentence names the other side), 409 `jira-mapping-invalid` / `jira-not-discovered` / `jira-token-unreadable` (an administrator's to fix),
-429 (the per-user `jira-bind` bucket), 502 (Jira's code in words), 403, 404; success is the toast "Linked to Jira" + `refreshJiraAndTimelines`. **`can.edit` is
-the bind's guard**: the owner chain or ADMIN (`PlanPermissions.canManage` = `requireOwnerOrAdmin`; a milestone's `can.edit` is its project's), so "Link to
-Jira…" shows with the node's own `can.edit` and a team manager who owns nothing sees none. A node the page's view says is linked is never offered the link
-(1:1): with `can.edit` the OWNER gets "Unlink from Jira" (the project header button, replacing Link; a milestone's red "Unlink from Jira: KEY" menu item)
-through `hooks/useJiraUnlink.ts` + `components/JiraUnlinkModal.tsx` (the delete-confirm pattern shared with the connection page's table:
-`DELETE /integrations/jira/bindings/{id}`, `refreshJiraAndTimelines`, focus to the page heading, 403/404 inline); without it the key shows as a disabled line.
-The header's Link/Unlink read the view's own `jira` blocks, so they are right from the first render. Program bindings are linked and unlinked on the connection
-page only (`BACKLOG.md`).
+### The page
 
-**The bindings list** (`components/JiraBindingsSection.tsx`, the connection page's third h3 section): `GET /integrations/jira/bindings?connectionId=` paged
-(sort `issueKey`/`createdAt`), a level filter and the `q` name filter, a gone mark ("Gone from Jira", "Moved out of scope" from `observation.goneReason === "MOVED_OUT"`, or "Not listed by Jira" from `NOT_LISTED`, through `goneBadge`; the key shown is the binding's current one), **Unlink** through `useDeleteConfirm` + `ConfirmDeleteModal`
-(`confirmLabel`; focus returns to the section's h3) and "Link a node…" (disabled while the connection is disabled). The server hides bindings of deleted plan
-items, so a row is not always there and the list may differ from a connection delete's count by those. **"Import from Jira…" on a program or project row (1.15)**: an inline `Button`
-(`variant="subtle"`, `size="compact-sm"`, aria `jira.import.entryRootAria` = "Import from Jira what is listed under {name}": it never contains the section button's "Import from Jira…", so a Playwright substring match finds one)
-before "Unlink", in the same `Group`; shown only while the section's `canImport` holds (enabled, stored discovery) AND the plan view knows the node. The plan view is read under the Plan page's own key
-`["plan","view"]` (`getPlanView`), enabled only while the list shows a program or project row and `canImport` (a milestone-only page asks nothing), and a failed read just leaves the buttons out. The root is
-`rootOfBinding(plan, row, connection.id)` (`utils/jiraImportRoot.ts`: `findProgram`/`findProject` for the work stream and the owner the binding's node lacks, then `rootOf` with the row's `issueKey` and
-`observation.gone`; null for a milestone row, an unread view or a node the plan no longer holds). A second `JiraImportModal` is mounted for it (`key` = `<level>:<nodeId>`, `source` = this connection only,
-`useDialogFocus` covers it); the section's whole-scope modal is unchanged. Tests: `JiraBindingsSection.test.tsx`, `utils/jiraImportRoot.test.ts`.
+A `Stack`, h2 `PageHeader` with Propose in `actions`: the multi-select, `ProposalNotes` (its prop is the structural `ProposalFlow`), then with a run open:
 
-**The import modal** (1.2, `components/JiraImportModal.tsx`; entry points: since 1.10 "Import from Jira…" beside "Link a node…" in the bindings section - ADMIN's
-page, disabled until the connection is enabled and has a stored discovery - and the Plan page's work-stream menu, since 1.14 a linked program's menu and a linked project's page header, and since 1.15 a linked project's Plan row and the connection page's program and project rows, below): ONE wide `Modal` (title = the h2, phases are h3) in three phases, state in
-`hooks/useJiraImport.ts`, pure model in `utils/jiraImport.ts` (ticks, scope, body), sentences in `utils/jiraImportText.ts`. **Scope** (`JiraImportScopeStep`:
-work stream from `["plan","view"]`, owner, Jira project keys all preselected, **the import filter (1.13.3)**, "Copy Jira's dates", default team / program / project - the last two offered only
-from the picked stream, the server's own rule) -> `POST …/import-preview`; **Preview** (`JiraImportPreviewStep`: totals, notes, "N of M selected", a virtualised
-table - `JiraImportVirtualTable`, TanStack Virtual above 80 rows, fixed row height, `aria-rowcount`/`aria-rowindex`, shared with the outcome's skipped list -, a
-checkbox per CREATE/BIND row, SKIP rows say why in words) -> `POST …/import`; **Outcome** (counts created / linked / scheduled / skipped, every skipped row with
-its reason, "Preview again" when rows read `CHANGED`). **Ticks keep the dependencies true**: unticking a row unticks what is created under it (`dependsOn` =
-`parent.rowJiraId`; the server would answer `PARENT_SKIPPED`), the rows show "Not imported: its parent X is not ticked" and a polite status says how many moved;
-ticking a row ticks the rows it lands under. **The body is strict**: `expected.parent` is projected to `{kind, nodeId}` (never the preview's `parent` verbatim),
-a BIND carries `nodeId`, a milestone CREATE the `teamId` the row showed; a per-row team `NativeSelect` goes to `overrides.teamId` and never into `expected`; **(1.14)** a program or project row that would be CREATED has a compact owner picker (`PersonSelect compact`, aria "Owner for KEY", opened on the dialog's owner; clearing it goes back to the dialog's owner; a milestone, BIND or skipped row has none), whose pick goes to `overrides.ownerPersonId` only when it differs from the scope's owner (`toApplyRequest`'s fifth parameter, `hasOwnerChoice`), the picks are page state of the preview step and reset with a new preview; the
-apply sends the SCOPE the preview was read under. `totals.truncated` disables Import (narrow the keys or the filter). **The filter (1.13.3)**: right under the keys, a
-Switch "Leave out done items" (ON when the dialog opens) and a NumberInput "Updated within (days)" (365; `PollingFields`' idiom: `clampBehavior="none"`, bounds
-`MIN/MAX_IMPORT_UPDATED_DAYS` 1..3,650 mirroring the server's, a value outside them shows the sentence under the field and disables Preview, `toScope` answers
-null; EMPTY = no time limit; 0 is refused), the Switch's description carries two sentences: what "done" means and that a done or older parent of an item that is read is read as well when it is in the selected Jira projects (not "always kept": a parent outside them, past the 200-read cap or unreadable is not). `toScope` adds `filter{excludeDone,
-updatedWithinDays}` only when a control is on (`{excludeDone: true}` with the field empty; NO member with both off = the request of before the filter), and
-since the apply spreads the preview's scope it sends the SAME filter. The preview step reads `preview.scope.filter` (the filter the rows were read under, never the
-form): one `role="note"` line "Left out: … Their parents in the selected projects are still read." in three wordings (done / window / both, plural on the days; none without a filter, and no count - the server does not report
-one), the too-large alert names both causes (over 2,000 issues, over 200 parents read one by one) and the filter as the lever, an empty preview under a filter says
-the filter may be why (or that the projects have none); a kept parent and a child whose parent could not be read show `KEPT_AS_PARENT` / `PARENT_UNREADABLE` among the row's notes (`infoText`).
-Tests: `JiraImportModal.filter.test.tsx`.
-**Suggested matches (1.15)** (server side: `jira-sync.md` "Suggested matches (1.15)"). A CREATE row the server found a strict name match for carries `suggestion {nodeId, nodeName}`; the Action cell (`JiraImportRowMatch`) then says "Looks like “NAME” in the plan, which is not linked yet" and offers a compact **Link instead** (aria "Link instead: KEY to NAME"); a BIND row with the info `MATCH_CONFIRMED` offers **Create instead** (aria "Create instead: KEY as a new item"). A click records a **pending change** (`MatchChange`, state in `hooks/useImportMatches.ts`, per preview: the step is keyed by `useJiraImport`'s `previewSeq`, a counter bumped whenever a preview is set - never by `asOf`, which two previews can share - so a new preview starts clean) and nothing else: the row reads "Will be linked to “NAME” after the next preview" / "Will be created as a new item after the next preview" with **Undo** (aria "Undo the change for KEY"), a `role="note"` banner (`JiraImportMatchNote`; never an `Alert`, whose implicit `role="alert"` would interrupt) says "N changes to the matches are waiting" and carries **Preview again**, and **Import is disabled** until the preview is read again: the preview must stay the exact picture of what Import does (a linked item changes what hangs under it, the stale-confirmation `CHANGED` aside). While the banner shows, the footer's own "Preview again" is not rendered, so the button's name is never doubled (the failure alert's one, on an apply failure, can still coexist). "Preview again" re-runs the preview under the preview's scope with `matches = nextMatches(scope, items, pending)` (`utils/jiraImport.ts`: the scope's confirmed entries minus every row with a pending change plus the suggestion of each pending "link", each Jira id once; `withMatches` leaves the member out when the list is empty, which is the request of before 1.15). The apply spreads the preview's scope, so it repeats `matches` by itself, and the outcome step's "Preview again" (after `CHANGED`) re-reads under the same confirmed matches. Above the table a `role="note"` line counts the suggestions ("N items look like plan items that are not linked yet. “Link instead” avoids duplicates."; under an active import filter it adds "Items the filter left out are not considered.", because the matcher cannot see them) beside a Switch **Possible matches only** that narrows the shown rows to the ones offering a choice (a suggestion or a confirmed link); it composes with the search, acts like it on "Showing X of Y" and "Tick shown", and leaves the ticks alone. Neither the line nor the switch exists when the preview has no such row. The fixed 88 px row height holds because a match row spends at most one badge line and two text lines: the badge and the `compact-xs` button share ONE line (`Group`, no wrap), the suggestion / pending sentence is one clamped line (the full text in its `title`; the button's aria-label carries the name too), and on such a row the "parent is not ticked" note is clamped to one line as well (other rows keep three). **Work is carried across a match-driven "Preview again"** (the one with changes waiting; `PreviewCarry`, `carriedTicks`, `carriedPicks` in `utils/jiraImport.ts`, held by the modal for the NEXT step only): each row still present with the SAME action keeps its tick state, team override and owner pick, keyed by Jira id; a row whose action changed (the confirmed row itself, a child re-planned under the existing node) and a row new in the preview start as a fresh preview does (ticked, no override), and an unticked row also unticks what is created under it in the new plan, so the dependencies stay true. Any other preview (the footer's plain "Preview again", the outcome's, Back then Preview) starts afresh, as it always did. **Back then a new Preview drops the confirmed matches**: the scope is rebuilt from the form, which holds none, so every suggestion reads as a suggestion again. While any call is reading (a match-driven preview can take up to 180 s) the per-row controls - the checkbox, the team select, the owner picker and the match buttons - are disabled, because an edit made then would be lost when the next preview replaces the step. In the Action cell the badge is the part that gives way (min-width 0, an ellipsis, the full label in its `title`) and the match button is `flex: none`, so a long Polish label ("Nie zostanie zaimportowany" beside "Powiąż zamiast tego") cannot push it out of the 250 px cell. A failed "Preview again" leaves the step as it was: the pending changes stay, Import stays disabled, and the banner's button (and the failure alert's own, on a timeout) retries with the same `matches`. Tests: `JiraImportModal.matches.test.tsx`, `utils/jiraImport.test.ts` (`nextMatches`, `withMatches`).
-**The preview search (1.13.4)**: a `ClearableTextInput` "Search the preview" above the table (page state, nothing stored, no API change) filters the rows by a trimmed,
-case- and accent-insensitive substring (`foldDiacritics`, the rule of `foldedOptionsFilter`) over the Jira key, the Jira id, the summary and the plan name
-(`searchItems` in `utils/jiraImport.ts`); a blank query shows every row. A row with no Jira key (a non-admin's row redacted under an active filter: a `hidden-n` placeholder
-id, a blank name) NEVER matches a non-empty query. The search only HIDES rows: ticks and team overrides are untouched, "N of M selected" and **Import (n)** stay global, and
-the apply sends every ticked row. While a query is active an always-mounted `role="status"` line says "Showing X of Y", Select all / Select none become "Tick shown" /
-"Untick shown" and, with the header checkbox (its checked / indeterminate state too), act on the SHOWN selectable rows only through `tickShown` (`tickRow`'s
-parent/child rules per shown row: ticking also ticks what a shown row is created under, unticking also unticks what is created under it, shown or not; the
-existing live region says "Also ticked / unticked N items outside the search …", cleared when the search changes). No match: a `role="note"` "No rows match “…”." replaces the table, the box stays.
-Tests: `JiraImportModal.search.test.tsx`, `utils/jiraImport.test.ts`. **Time**: each call owns an `AbortController` that
-aborts at `IMPORT_TIMEOUT_MS` (180 s, over the server's 170 s browse), the visible wait has a Stop for a preview, one request at a time, and an apply is never
-aborted by the client: the dialog cannot be closed over it, and leaving the page (Back, the palette) does not cancel it either (only an unmount mid-PREVIEW
-aborts) - it finishes and still refreshes the plan; an answer that leaves the write in doubt (the 180 s abort, no server answer, a 5xx other than the server's
-own 502: `applyMayHaveLanded`) says so, points at the "Links to plan items" list, offers Preview again and refreshes anyway. The app's rate-bucket 429 (this one, `jira-import`) carries
-`Retry-After` in whole seconds (declared on the spec's `TooManyRequests`; the account-lockout and password-change-lock 429s carry none) but `ApiError` exposes no headers and the transport reads none: the message says to wait a minute (the `jira-import` bucket is 5/min, shared by preview and
-apply). Failures are inline (`importFailure`), a 409 in the apply offers "Preview again". **After an apply the plan moves**, so it refreshes `["jira"]`,
-`["plan"]` (plan, project and team views) and `["roadmap"]` (roadmap and programs) - the one Jira mutation that does. A non-admin's redacted SKIP row (empty
-summary, the key as its name) renders the key, never a blank cell. The rows are one fixed 88 px (`IMPORT_ROW_HEIGHT`; clamped text keeps its full text in the
-DOM and a `title`), there is no Level column (the cell under the key reads "Epic → milestone"), and the Skipped badge is orange only when some skip is not
-`ALREADY_BOUND`. A created PROJECT row's dates cell reads "Target window a to b" (the window the server will write: 1.14; the same `copyDates` switch, hint included), and its info `TARGET_NOT_COPIED` says "created without a target window" when Jira gives one date or a reversed pair. The "N of M milestones created unscheduled" note counts ticked rows the SERVER marked `DATES_NOT_COPIED`. Tests: `JiraImportModal.test.tsx`,
-`.errors.test.tsx`, `.virtual.test.tsx` (the 2,000-row cap), `.source.test.tsx` (the connection source), `hooks/useJiraImport.test.tsx` (the in-flight guard, unmount),
-`utils/jiraImport|jiraImportText.test.ts`, harness `test/jiraImportHarness.ts`; the server pins the same bodies in `JiraImportWebBodyTest.kt` (literal JSON
-through the real deserialization and the kernel).
-**The modal is connection-source driven (1.10)**, `JiraBindDialog`'s contract: props `{ source: ImportSource, initialWorkStreamId?, onClose }` (`utils/jiraImport.ts`:
-`ImportConnection` = `{id, name, siteUrl, projectKeys}`, a `JiraConnection` is structurally one; `ImportSource` = `{connections | null, failed, retry}`). The connection page
-passes `{connections: [connection]}`; the Plan page passes the deviations view's `connections[]` filtered to `enabled && mappingOk` (`usableImportConnections`). The scope
-step opens with `JiraImportConnectionField` (loading text / a failed alert with Retry / the "none usable" note / the Select, read-only when exactly one; reusing
-`jira.bind.connection|loading|loadFailed|retry`); the modal preselects exactly one, and changing the connection resets the Jira-project keys to the new one's (the rest of the
-form stays). `useJiraImport(connectionId | null)` does nothing while null and Preview is disabled until a connection is chosen. `initialWorkStreamId` presets the stream
-(`emptyScope(keys, workStreamId)`) and the stream Select is `readOnly`. The connection of the preview and outcome phases is kept even if a later refetch drops it.
-**The Plan page's entries** (six entry points since 1.15: the connection page's button and its program and project rows, the work stream's menu, a linked program's menu, a linked project's row menu, a linked project's page header - "Project view"). The stream's (`PlanActions.importFromJira`, `PlanWorkStreamSection`): a `Menu.Item` "Import from Jira…" (aria "Import from Jira into {name}") under `can.edit`, after
-Close/Reopen. `hooks/usePlanJiraImport.ts` holds the page's import state (`importing`: a stream, a program with its link OR a project with its link; `Plan.tsx` calls `useDialogFocus(jiraImport.modal !== null)`) and reads the connections with
-`useJiraConnections({workStreamId}, importing is a stream)` (`hooks/useDeviations.ts`, key `["jira","deviations","connections",filter]`; `useJiraLinks` is its one-line
-project wrapper) - the request appears only after the click. After an apply the plan page shows the imported tree (the hook refreshes `["jira"]`, `["plan"]`, `["roadmap"]`).
-**The rooted import (1.14, "Import from a linked node" in `jira-sync.md`).** The modal takes an optional `root: ImportRoot` (`utils/jiraImport.ts`: `{level: PROGRAM|PROJECT, nodeId, name, issueKey, connectionId, workStreamId, owner: PickedOption}`);
-with it the stream is the root's, the connection is the root's own (`source.connections` filtered to `root.connectionId`; absent from the usable ones = a `role="note"` "linked through a connection that is disabled or no longer fits its site: an administrator has to enable and test it" instead of the field, Preview disabled; a source that has not answered yet shows the loading text), the form opens with `owner = root.owner`, and `toScope(form, keys, root)`
-adds `root {level, nodeId}` and NEVER `projectKeys` or `defaults.programId` (nor `defaults.projectId` under a project root); the apply spreads the preview's scope, so it repeats the root. The scope step replaces the intro by a `role="note"` first line naming the key and the node ("Importing what Jira lists under KEY into the program “NAME”: its projects and their milestones." / "… the project “NAME”: its milestones."), hides the work stream,
-the Jira projects and the default program, shows the owner for a PROGRAM root only (a project root sends the project's owner) and turns "Default project" into "Project for items directly under KEY" offering the root program's own projects (PROGRAM root only); the filter, "Copy Jira's dates" and the default team are as before. The preview step shows, for an empty rooted preview, one `role="note"` with "Jira lists nothing under KEY at the levels this connection maps.", under an active filter "The filter may be why: …", and "If KEY has child items in Jira, search Jira for parent = KEY." (the 1.13.4 search and the rest are untouched). `409 urn:astrolabe:problem:jira-root-unusable` is `isJiraRootUnusable` (`api/jira.ts`) and `importFailure` answers `jira.import.error.rootUnusable` (the link cannot be used; see the Deviations page; no server text, no "Preview again").
-**The program and project entries and their links read (1.15).** `useJiraPlanLinks(enabled)` (`hooks/useJiraPlanLinks.ts`; key `["jira","links"]`, `getJiraLinks()` = `GET /views/jira-links`, `staleTime` 30 s, focus refetch at the default, `retry: false`) answers `{programs: Map<programId, JiraNodeLink>, projects: Map<projectId, JiraNodeLink>, connections, failed, retry}` from ONE read that feeds both the entries' visibility and the dialog's connection, so opening a rooted dialog asks for nothing more. The read is two statements on the server whatever the size of the plan (no deviation computation), so the page asks on every visit that can use it: 1.14's 5-minute `staleTime` and its no-focus-refetch went with the deviations read they protected (`useJiraProgramLinks` is deleted); every `["jira"]` invalidation (a bind, an unlink, an import, a refresh) re-reads it. It is enabled only while the plan view holds a program with `can.createProject` or a project with `can.createMilestone` (an optimisation, never the rule); a failed read hides both entries and shows no error. `PlanActions.canImportChildren(program)` = the program's `can.createProject` AND a program link, `canImportMilestones(project)` = the project's `can.createMilestone` (new in 1.15 on the plan view) AND a project link; `PlanProgramBlock` shows a `Menu.Item` "Import from Jira…" (aria "Import from Jira what is listed under {name}": it starts with the visible text, label-in-name; `IconFileImport`) after "Move to…" in the program's menu and in the project row's menu; each kebab's own condition includes it. Both roots are built by `rootOf(level, node, link)` (`utils/jiraImportRoot.ts`: the node's `workStreamId`, `ownerPersonId`/`ownerName`, the link's `issueKey`/`connectionId`/`gone`). A link through a connection that is not usable still shows the entry (the dialog says why), and so does a link whose Jira item the read already says is gone (`link.gone` -> `root.gone`): the scope step opens with the "cannot be used" note (`jira.import.error.rootUnusable`) and Preview disabled, no Jira round trip. The project page cannot tell: `project.jira` carries no gone flag (its dates are null for a gone item but also for a never-observed one), so that dialog learns it from the `jira-root-unusable` refusal. A rooted PROGRAM dialog's owner hint says only projects are created (`ownerHintRoot`). Every mount site keys the modal by its source (`stream:<id>`, `program:<id>`, `project:<id>`) so its form state never carries over. Tests: `JiraImportModal.root.test.tsx`, `pages/Plan.test.tsx` ("Import from a linked program", "Import from a linked project"), `hooks/useJiraPlanLinks.test.tsx`, `utils/jiraImportRoot.test.ts`, `utils/jiraImport|jiraImportText.test.ts`, the harness's `previewScope(user, rooted)`.
+- `CrossTeamFacts` (`role="note"`): gray "Placed in N pass(es) · settled"; an ORANGE Alert when `!settled` (`scheduleProposals.facts.unsettled_*`: the teams depend on each other in a loop, so every
+  pass moved something again; the dates shown are the last pass's).
+- One `CrossTeamProposalSection` per block of `teams[]` in PLACEMENT order: an h3 (the team's name, a dimmed "placed n of N") holding the team page's `ProposalTable` (named per team through
+  its `label` prop, so no two tables share a name; "Accept all" in its header acts on that team) and, collapsed, `TeamWeeklyLoad` with `labels` (an h4 "Proposed load", the table named per
+  team). With no move ticked anywhere there are no `weeks` and the section says "Tick a move to see the load after accepting it".
+- The accept's alert and ONE **Accept selected across teams (N)** (primary) with Discard.
 
-**The chips and marks (1.3: built from the VIEW)** (`components/JiraChips.tsx`, `utils/jiraMarks.ts`): the project and team pages make **no request of their
-own** for what is linked - `projectMarks(view)` / `teamMarks(view)` read the document's `jira` blocks (the project's own and every milestone row's, scheduled
-and tray) and `jiraSites` (`url = siteUrl + "/browse/" + key`, https only through `JiraKeyLink`/`jiraBrowseUrl`; the URL is never per row), so the chip is
-exactly as current as the view and any refresh of `["plan"]` (a plan write, a bind, an unlink, an acknowledgement) moves it. Only OPEN flags are counted - the
-view lists none for an acknowledged item or a disabled connection - and only `JIRA_DEVIATION` ones: the project's `JIRA_MILESTONES` roll-up repeats its
-milestone rows' flags and counting it would count a deviation twice. The project page's facts row (inside `ProjectFacts`, so nothing under it shifts) has "Jira:
-E2E-1" (the project's own key), "N milestones linked to Jira" and the count (a link to `/deviations?projectId=`, orange with a warning, gray otherwise; "No
-deviations seen" at zero, never "in line"); the team page the same count line (`/deviations?teamId=`); nothing at all while nothing is linked. **The qualifier (1.16).** 1.1's "may be out of date" is back,
-read off the view's own `jiraSites[{connectionId, siteUrl, state, mappingOk}]` (no request): `JiraMarks.stale` (`marksOf`) is true when some site a MARKED node
-links through has `state !== "CURRENT"` (so `NEVER_SYNCED`, `STALE`, `FAILED` and `DISABLED` all count) or `mappingOk === false`; a site no marked node uses, a
-link whose connection is not in `jiraSites` and a document with no mark say nothing. Both chips (`DeviationCount` in `JiraChips.tsx`) render
-`deviations.chip.stale` ("Jira data may be out of date", PL "Dane z Jiry mogą być nieaktualne") as plain dimmed text after the count badge, inside the
-`role="group"`, at ANY count (three deviations read from a connection that failed last night are as doubtful as none); not an `Alert` and not orange - the
-Deviations page's banner is the warning, the chip only qualifies. **One rule with the banner (1.17)**: both read `isStaleSource` (`utils/staleness.ts`: the server's state is not `CURRENT`, or `mappingOk` is false), so, except for a DISABLED site,
-a chip never qualifies a figure the page it links to leaves unwarned. **The Roadmap and Programs pages' facts line reads the same rule over ALL the document's sites (1.17, "Roadmap" and "Programs")**. What still differs is deliberate: a DISABLED site counts on the chip, while the banner skips a disabled connection (its own row says "Disabled" with a note) so a retired connection raises no permanent banner. **Honest limit:** `CURRENT` means the newest run succeeded and,
-for a polled connection, not long ago; a manual-only connection stays `CURRENT` after any success however old (its "Last run" is on the Deviations page).
-`useJiraLinks(projectId, enabled)` (`hooks/useDeviations.ts`) survives ONLY for the bind dialog's `connections[]` (`GET /views/deviations?projectId=`, asked
-while the dialog is open, no `answered` gate on the page); `useJiraColumn` and its `teams.jiraColumn.<id>` key are removed.
+**The ticked-subset check is `useScheduleCheck`** with ALL the run's team ids and every team's moves; `overlayCheck(block, check, block.teamId)` gives each section the verdicts and load of the
+ticked moves (all ticked = the run's own, none = no new warnings, some = the check's answer once in), and `ProposalTable` words "Checking the ticked moves..." / the failure under each summary.
+Closing the run drops the `["plan","schedule-check"]` queries.
 
-**The Flags column and the tray (1.3)** (`components/MilestoneFlags.tsx`, `utils/flagSentences.ts`): the project and team timelines get a **Flags** column
-(`roadmap.column.flags`, before Slack and Operations) while some SCHEDULED milestone has a `jira` link or a flag (the calendar's `NO_WORKING_DAY`, phrased "Covers no working day: only weekends or holidays" by `roadmap.flag.noWorkingDay`; an unlinked row shows just the triangle); the column is 130 px, 210 px while some scheduled row
-shows a roll-up and its cell is the row's Jira key as an external link (`JiraKeyLink`, out of the roving tab order, https only through `jiraBrowseUrl`, the site
-from the view's `jiraSites`), beside the roadmap's icon (an orange triangle for warnings, a gray info circle for infos, with counts); the icon's accessible
-label lists the row's flag sentences behind its key ("Jira E2E-3: Ends 3 working days later than Jira (plan …, Jira …)", `flagSentence` shared with the
-roadmap's flag panel), and a linked row with no open flag (clean, acknowledged, or on a disabled connection) gets "Linked to Jira: E2E-3" instead, so it is told
-apart from an unlinked one; an unlinked, ghost, summary or baseline row has an empty cell. **The roll-up (1.4)** comes LAST in the cell, after the key and the
-icon (the least critical element: the cell clips without an ellipsis, so it must never push a warning badge out), when the link's `rollup` is set - compact
-dimmed `xs` text `5/12 · 34 pt` (done of children, then Jira's story points as Jira states them, never converted; the points part is omitted when `points` is
-null); it shrinks with an ellipsis (`minWidth: 0`), so in a tray name cell a long name cannot widen the row. **The roll-up text** is
-`components/JiraRollupText.tsx` (`rollupText`/`rollupSentence`/`formatPoints` in `utils/deviations.ts`, keys `deviations.rollup.*`): the short text is
-`aria-hidden` and the ACCESSIBLE NAME is the full sentence ("12 child issues in Jira, done: 5, story points: 34", plural forms on the children count), also the
-`title` and a visually hidden span; points show up to two decimals, trailing zeros dropped; a link with `rollup: null` (a project link, a disabled connection, a
-childless epic) renders nothing of it, and the tray's `NameWithFlags` carries it through `MilestoneFlags`. The Deviations page's Jira cell shows the same
-component under the type/status line. **A binding through a DISABLED connection stays a link** (the server keeps `jira` with null dates and no flag): the chip
-counts it with no deviations, the key shows, Unlink works, no bar is drawn. A **tray row** has no column: the same key link and icon sit beside the name and,
-for an open `UNSCHEDULED_IN_PLAN` flag, the name cell adds "Jira: 2027-03-01 to 2027-03-05"; since 1.16 the timeline also gets an appended row for the milestone's Jira bar
-(`timeline.md` "Appended rows for the tray"; the tray row itself is unchanged), whose menu since 1.17 offers "Schedule on Jira's dates" to whoever may schedule. Tests:
-`ProjectView.jira.test.tsx`, `TeamDetails.jira.test.tsx`, `JiraChips.test.tsx`, `utils/jiraMarks.test.ts`, `utils/flagSentences.test.ts`,
-`hooks/useDeviations.test.tsx`, `JiraBindDialog.test.tsx`, `JiraBindingsSection.test.tsx`.
+The accept/discard/outcome words reuse `teams.proposal.*`.
 
-### Capacity from Flow (1.6)
+### Tests
 
-`components/CapacityDeviationsSection.tsx` (the page's second h3 after the Jira list): ANOTHER document, `GET /views/capacity-deviations`
-(`{asOf, connections[], totals{warnings, infos, gone, acknowledged, teams}, items[≤1,000 teams, each with `can{acknowledge}` and its sprint rows, each row with its
-`fingerprint` and `acknowledgement{at, by, current}|null`], truncated}`, no `revision`: capacity is team data)
-under `["flow","deviations","view",filter]` through `hooks/useCapacityDeviations.ts` (`api/capacityDeviations.ts`) - the Jira document is untouched, the two
-load in parallel and fail separately (a failed Flow document is the section's own heading and alert; a failed Jira one leaves the Flow section standing). **It
-exists only when there is a Flow connection** (`connections.length > 0`; a Jira-only stack sees nothing new, not even a heading). **Filters:** it takes the
-URL's `teamId`, `severity` and **Status** (a team id and the WARNING/INFO scale mean the same in both lists; the server narrows each team's ROWS by severity, so
-"warnings only" lists the warning sprints; the page's ONE Status select - Open / Acknowledged / All, `acknowledged`/`all` in the URL - applies to both lists and is
-sent as the view's own `acknowledged`/`all`, `all=false` too, the Open choice under a team scope, since the server's `teamId` implies `all`); plan item type, work
-stream, project, kind and connection are the Jira list's (a Jira connection id is not a Flow one) and are named in one `role="note"` line while any is in the URL. **Honesty about currency** (the Jira rule, read off the derived `status`,
-`utils/capacityDeviations.ts`): "Data from Flow" (`CapacityDeviationsSources.tsx`, h4) is a row per connection - state badge, when its document was mirrored
-(`teamsAt`), the notes that qualify the figures (never refreshed, last refresh failed with `errorCodeText(…, "FLOW")`, stale, disabled) and, for an ADMIN,
-**Refresh now** = `POST /integrations/sync/runs {kind: "FLOW"}` then a re-read of `["flow"]` (a 409 run-in-progress is a normal state; a 429 reads "Too many requests. Wait a minute and try again.", 1.13.1); an orange `role="note"`
-says the list may be out of date when an ENABLED connection is not CURRENT (`hasStaleFlowSource`); an empty section is told apart - no team is linked (asked of
-the connections' own team lists `["flow","teams",id]`, only then), a filter that matches nothing, or "In line with Flow in the data read at T (UTC)"
-(`verifiedFlowAt`: the OLDEST success, withheld - "read so far" - when ANY connection is disabled or not CURRENT; the team-list check is not polled, it re-reads
-on focus and on `refreshFlowLinks`). A failed re-read keeps the last answer under the section's `ErrorAlert`. A row whose connection is disabled or not CURRENT
-carries "stale" under "Data as of" (the Jira table's mark), since the banner covers enabled connections only. **Totals:** orange warnings (a gone team is one of
-them), gray infos, an ORANGE "of which N teams gone from Flow" (part of the warnings, not an addition), a gray "N acknowledged" (rows, not teams; warnings,
-infos and gone count the OPEN rows whatever Status lists, so under Acknowledged/All the Jira list's "open items only" note says it), "N teams shown", or "N of M
-teams shown" from `totals.teams` when the server cut the list. The poll is the Jira page's (`DEVIATIONS_POLL_MS` while `status.lastRun.running`, bounded). **Rows:** one per team -
-the team (a link to `/teams/:id`), its Flow team (with the connection's name only when there are several), the lines (`CapacityDeviationList`, shared with the
-team page: severity in words before an orange/gray kind badge, `TEAM_GONE` as one sentence, the sprints that differ as sentences, the sprints WITHOUT capacity
-folded into one "N sprints without capacity in the plan (from DATE)" line over a table disclosure - the count and the date are the OPEN sprints', with a dimmed
-"· M acknowledged" after it, or "N sprints … all acknowledged" when none is open) and when Flow was last seen. **The acknowledge (1.9)** is per sprint row: every
-line carries `CapacityAckCell` (the Jira `DeviationAckCell`'s shape and its `deviations.ack.*` sentences - "Acknowledged by Ada on 2026-11-06", "… by Ada ·
-changed since" for a stale one, which is open again and offers Acknowledge anew - plus ONE button named by the sprint, "the team's own row" for the gone team,
-Acknowledge / Unacknowledge by the item's `can.acknowledge` and the row's state, `data-ack-for="<bindingId>:<sprintId|team>"`); the folded sprints carry it in a
-fourth "Acknowledgement" column of their table, so a single missing sprint is a sentence with its cell. The write is `hooks/useCapacityAcknowledge.ts`, the Jira
-`useAcknowledge` state machine over the row key: `POST`/`DELETE /integrations/flow/team-bindings/{id}/acknowledge` with the row's `detail.sprintId` (always in
-the POST body, `null` for the gone team) and `fingerprint`; a success re-reads `["flow","deviations"]` and `["plan"]` (`refreshCapacityAcknowledgements`: the team
-view's flag and markers follow the open rows); the shared `409 stale-deviations` (`isStaleDeviations`) is an orange note in the row plus the re-read (a note of
-a row that left the list is shown above the list, `CapacityAckOrphanNotice`), a 403/404 a red message and a `refreshFlowLinks`; the focus rule is the Jira
-one (the same `useAckFocus`: the row's own button, the next row's, the previous row's, else the "Differences from Flow" heading). **Acknowledge all (1.10)**: at the head of a team's list
-(`CapacityAckAll` in `CapacityAckCell.tsx`, rendered by `CapacityDeviationList`, so both surfaces have it) a `Button` "Acknowledge all (N)" - named "Acknowledge all (N)
-open differences of <team>" (`CapacityAckContext.team` is the item's team name) - shown only when the item's `can.acknowledge` allows it AND at least two of the listed
-rows are open (`isOpen`: a stale acknowledgement and every folded "sprints without capacity" row count; acknowledged ones neither count nor are sent; one open row has
-its own button). It **acknowledges what the list shows**: the page's Status/severity/team filters have already narrowed the rows, and N is on the label. One request,
-`POST /integrations/flow/team-bindings/{id}/acknowledge-all` (`acknowledgeCapacityDeviations`, body `{items:[{sprintId|null, fingerprint}]}`, all or nothing), through the
-SAME hook as a `{kind: "acknowledgeAll", bindingId, rows}` request keyed by `capacityAckAllKey(bindingId)` (`<id>:all`, the button's `data-ack-for` and the busy and notice
-key): the success toast, the re-read, the stale `409` note ("The deviations changed since you looked…", nothing was stored), the 403/404 refusals and the focus rule are
-the single write's (the neighbours are the list's row keys, so after a batch the focus goes to the first row button still there, else the heading). While any write runs the button is
-`aria-disabled`/`data-disabled`, never `disabled`. The batch's note shows under the button at the head of its team's list (button or not), and `listedKeys` of both
-callers hold each listed team's all-key, so `CapacityAckOrphanNotice` shows it above the list only once the team's item has left the list (an Open list with nothing open
-left). **Withdraw all (1.11)**: beside it in the same `CapacityAckAll` a `Button` "Withdraw all (N)" (named "Withdraw all (N) acknowledged differences of <team>"; PL "Cofnij wszystkie (N)") - shown with `can.acknowledge` and at least two listed rows that are CURRENTLY acknowledged (`!isOpen`: a stale acknowledgement is open and not sent; every folded acknowledged sprint counts), so it shows where the list has acknowledged rows (the Status filter on the Deviations page, always on the team page). One request, `POST …/team-bindings/{id}/unacknowledge-all` (`unacknowledgeCapacityDeviations`, body `{items:[{sprintId|null}]}`, all or nothing, `204`), through the SAME hook as `{kind: "unacknowledgeAll", bindingId, rows}` keyed by the same all-key (busy, notice, `data-ack-for`), with the "Acknowledgement withdrawn" toast, the re-read, the stale `409` note (nothing was deleted), the refusals (its 404 is the binding: "This link no longer exists") and the focus rule of the batch acknowledge. **The sentence**
-(`capacityDeviationSentence`, EN/PL): `"<Flow's sprint name> (<start> – <end>): the plan has 36.00 man-days, Flow 30.00 — 6.00 more in the plan"` (`gapMd` > 0 =
-the plan has more; man-days are JSON numbers shown with two decimals and a dot), plus "Flow plans 44.00 man-days for the whole sprint; 22.00 fall on the days it
-holds here." when `flowTotalMd` differs from `flowMd` (a fixed per-sprint figure that shares days with an earlier sprint). **An empty Open list** with rows
-acknowledged (`totals.acknowledged > 0`) says "No open capacity difference." and how many sprints are hidden - never "In line with Flow". Tests:
-`CapacityDeviationsSection.test.tsx`, `CapacityDeviationsSection.ack.test.tsx` (the acknowledge, "Acknowledge all", "Withdraw all"), `CapacityDeviationList.test.tsx`, `CapacityAckCell.test.tsx`, `Deviations.test.tsx` ("Capacity from Flow"),
-`utils/capacityDeviations.test.ts`, `hooks/useCapacityDeviations.test.tsx`, `hooks/useCapacityAcknowledge.test.tsx`, `api/capacityDeviations.test.ts`; fixtures in
-`test/flow.ts` (`capacityView`, `capacityItem`, `differsRow`, `missingRow`, `acknowledgedRow`, `staleAcknowledgedRow`, `NO_FLOW_VIEW`).
+Pinned by: `ScheduleProposals.test.tsx`, `CrossTeamProposalSection.test.tsx`, `useCrossTeamProposal.test.tsx` (fixtures `test/crossTeamRun.ts`).
+
+## Deviations, bindings and the Jira chips
+
+Files: `pages/Deviations.tsx`; `api/deviations.ts`; `hooks/useDeviations.ts`; `hooks/useAcknowledge.ts`; `hooks/useAckFocus.ts`; `utils/deviationFilters.ts`; `utils/deviations.ts`;
+`utils/staleness.ts`; `utils/syncRuns.ts`; `utils/queryRefresh.ts`; `components/DeviationsFilters.tsx`; `components/DeviationsSources.tsx`; `components/DeviationsTable.tsx`;
+`components/DeviationAckCell.tsx`; `components/SeverityBadge.tsx`. The bind dialog, the bindings list, the import modal, the chips and the Capacity from Flow section have their own files,
+named in their sections.
+
+### Route and data
+
+`/deviations` (nav: Planning after Schedule proposals, `IconGitCompare`, **everyone**) is where the plan and the linked Jira items disagree: `GET /views/deviations` under
+`["jira","deviations","view",filter]` through `hooks/useDeviations.ts` - ONE purpose-built document (`{revision, asOf, connections[], totals, items[≤2,000], truncated}`), unpaged,
+`api/deviations.ts`.
+
+- **Reading never touches a timeline view**: every query here lives under the `["jira"]` prefix (the page's second section, Capacity from Flow, under `["flow"]`). A refresh (Refresh now,
+  a connection edit) refreshes `["jira"]` only.
+- A write that changes the Jira flags and bars the four timeline views carry - a bind, an unlink, the import's apply, an acknowledgement - goes through `refreshJiraAndTimelines`
+  (`utils/queryRefresh.ts`: `["jira"]`, `["plan"]` = plan, project and team views, `["roadmap"]` = roadmap and programs). A scheduled poll has no write here; open pages catch up on focus.
+- It refetches on window focus and, while the SERVER says a run is running (`connections[].lastRun.running`), every 10 s (`DEVIATIONS_POLL_MS`; the run table's 3 s is too eager for this big
+  document) through `useBoundedPoll`: the response that first reports the run finished carries the new data.
+
+### Filters
+
+**The URL holds the filters** (`parseDeviationFilter`/`deviationFilterParams`, pure): `connectionId`, `level`, `severity`, `kind`, `workStreamId`, `programId`, `projectId`, `teamId`,
+`acknowledged`, `all`. A malformed or unknown value is dropped (a stale link never breaks the page), a change `replace`s the entry, the chips link in with a normal navigation, so Back and a
+reload restore the view.
+
+- The panel (`DeviationsFilters`) holds a select each for **Status** (Open / Acknowledged / All, first), connection, plan item type, severity, work stream (from `GET /views/plan`, the
+  page's cache entry) and team (`useTeamOptions`, every team; no "Team N" option), plus the **"Show everything"** switch (`all=true`: items with no deviation AND the
+  `ESTIMATE_NOT_COMPARABLE` lines, which are never listed otherwise nor counted by a chip).
+- A project or team scope IMPLIES `all` server-side, so the switch reads ON there and turning it off sends `all=false`, which the URL accepts. A project / program / kind scope from the URL
+  is a removable chip beside the toggle ("Project: Invoices"), named from the plan view.
+- **Status** (`deviationStatus`/`deviationStatusPatch`) composes with the URL as the server does: Open sends NOTHING (the server lists the open items), except under a project/team scope,
+  which implies `all`, where it sends the override `all=false` (so does ADDING a scope while Open, `keepStatus`; REMOVING the last scope falls back to the default Open list; `acknowledged=false`
+  in a URL is dropped). Acknowledged sends `acknowledged=true` (and keeps an explicit `all=true`); All sends `all=true`; a scope reads All. The "Show everything" switch writes the same `all`, so
+  All and the switch are two views of one parameter.
+
+### The table and its sentences
+
+The table is `DeviationsTable` in a `ScrollRegion` (1,080 px minimum: a phone scrolls it): the plan item with its link into `/projects/:id` (a milestone's through its project), the Jira key
+through `JiraKeyLink`, both sides' dates, the sentences, the age. `utils/deviations.ts` (pure, EN/PL with `_one/_few/_many/_other`) holds the sentences: `deviationSentence(deviation, item, t)`
+covers every `DeviationKind` ("Ends 3 working days later than Jira (plan 2044-01-12, Jira 2044-01-08)").
+
+- **`detail.days` is in working days, POSITIVE = the plan is later** (a negative figure reads "earlier").
+- **A `detail` member that does not apply is ABSENT, never `null`**, so every check is `=== undefined` (a `=== null` compiles against the generated types and is silently always false). A
+  flag's `deviation` is `{kind, detail}` without a severity, `deviationSentence` takes `Pick<Deviation, "kind" | "detail">`, and the flags' optional members (`days`, `teamId`,
+  `otherProjectId`, `deviation`, `count`) follow the same rule (`utils/flagSentences.ts`, `utils/jiraBars.ts`).
+- The dates are appended only when BOTH sides are known (a date is never made up from an absent one); a missing or zero figure degrades to "ends on a different day"; `TARGET_DIFFERS` (days
+  is the end's shift, else the start's) is a neutral sentence with no count (the dates column carries the figures); `ESTIMATE_NOT_COMPARABLE` (no conversion declared, OR the figure was read
+  under another unit than the mapping names now) names neither cause.
+- **Coverage kinds.** `UNLINKED_IN_JIRA` (`detail.jira` = the keys, e.g. "3 Jira items are not in the plan: COV-5, COV-6, COV-7"), `UNLINKED_IN_PLAN` (`detail.plan` = the names),
+  `CHILDREN_DONE` (`detail.count` = the children, `detail.plan` = the plan's end) and its mirror `CHILDREN_OPEN` ("3 of 12 child issues still open in Jira while the plan ended
+  2046-03-01": the open figure is parsed from `detail.jira` = `open/children`; unreadable members degrade to the label "Children open").
+- **The "+N more" rule**: the server lists at most 10 keys/names and `detail.count` is the full figure, so the sentence appends "and {N} more" when `count` exceeds 10 - the listed figure
+  is `min(count, 10)`, never a split of the joined text (a plan name may contain ", "). A missing list, count or date degrades to the plain kind label. The roadmap panel phrases these
+  through the same function.
+- Severity is spelled in a visually hidden word before each kind badge (`SeverityBadge`: orange warning / gray info; the Deviations table, the Flow capacity lines and the team page's fact use
+  it, the roadmap flag panel with `hiddenPrefix={false}`). `ageText` is in the same file.
+
+### Acknowledge
+
+Per LINE (`hooks/useAcknowledge.ts`; `DeviationAckCell` = a line's sentence and button, `DeviationAckAll` = the batch buttons at the head of a row's lines, `DeviationAckOrphanNotice`;
+`POST`/`DELETE /integrations/jira/bindings/{id}/acknowledge`).
+
+- **There is no Acknowledgement column.** The Deviations cell lists every LISTED line of the row (`items[].deviations[]`, whatever the Status - a row on the Open list shows its acknowledged
+  lines too), each as the kind badge (gray once acknowledged, `SeverityBadge dimmed`) and the sentence, and under it the line's own acknowledgement
+  (`DeviationLine.acknowledgement{at, by, current}`; the item has no `acknowledgement` of its own): "Acknowledged by X on D", or "Acknowledged on D by X · changed since" when the stamp's line
+  changed (`current: false`, the line is open again); a deleted acknowledger drops the name.
+- ONE button per line (`isLineOpen`, `utils/deviations.ts`): **Acknowledge** for an open line (no stamp or a stale one), **Unacknowledge** for a current one - both only with the item's
+  `can.acknowledge` (a pure RIGHTS flag; a clean row has no lines, so no button). A line is `POST {fingerprint: item.fingerprint, kind}` / `DELETE …?kind=KIND`.
+- The buttons name the line by Jira key and kind ("Acknowledge E2E-6: End"), carry `data-ack-for="<bindingId>:<KIND>"`, are `aria-disabled` + `data-disabled` (Mantine's disabled look; never `disabled`/`loading`: they lose the focus) and ignore clicks while ANY write runs.
+- **Acknowledge all (N)** / **Withdraw all (N)** (named "Acknowledge all (N) open deviations of E2E-6" / "Withdraw all (N) acknowledged deviations of E2E-6") head the lines when at least two
+  LISTED lines are open (a stale stamp counts) / currently acknowledged. The batch is the same two calls WITHOUT `kind` (`POST {fingerprint}` stamps every line without a current
+  acknowledgement; `DELETE` clears every stored stamp of the binding, stale ones too), both with the key `<bindingId>:all` (`data-ack-for`, busy, notice) and a single line's toast, re-read, 409
+  note, refusals and focus rule. N counts the lines the row lists: a hidden `ESTIMATE_NOT_COMPARABLE` line (shown under `all=true` only) is not in it, though the kind-less POST would stamp it.
+- **A success re-reads `["jira"]`, `["plan"]` and `["roadmap"]`** (a current acknowledgement silences the Jira flags on all four timeline views). A `409 stale-deviations` is the orange inline
+  `role="status"` note "The deviations changed since you looked" plus the same re-read, never a toast and never the red alert; a 403/404 is a red inline message and re-reads `["jira"]`; a
+  DELETE's 404 reads "already withdrawn", not "link gone".
+- The note or message shows under its OWN control (`AckNoticeAlert`; a row far down must see why its button did nothing), above the table with a scroll-into-view only once that control has
+  left the list (`DeviationAckOrphanNotice` over the keys of the rendered rows, `itemAckKeys`). Messages clear on the next write or whenever the filters' URL string changes, and a write that
+  settles after that sets none.
+- **Focus** (`hooks/useAckFocus.ts`, shared with `useCapacityAcknowledge`: the hook arms the keys, the page-level hooks own the writes): after a write that re-reads, `useDeleteConfirm`'s rule at
+  every render and once after the re-read - focus on `body` -> the control's own button if still there (a line's Acknowledge becomes its Unacknowledge under the same key, the two batch buttons
+  share the all-key), else the row's other controls, the next row's, the previous row's, else the list's h3 `tabIndex={-1}`; anywhere else -> leave.
+
+### Honesty about currency
+
+The page never implies the data is fresh (the chips on the project and team pages show the LAST OBSERVATION and qualify it: "The chips and marks").
+
+- "Data from Jira" (`DeviationsSources`, h3) is one row per connection with its newest run as the helpers read it (`utils/syncRuns.ts` `runState`: the server's `running`, `finishedAt: null`
+  and not running = **Interrupted**). The column is "Last run", not "last refresh" (a failed run is a run). The notes that qualify the figures: never refreshed ("as they were when each item
+  was linked"), the last refresh FAILED (with `errorCodeText`, the code kept visible), abandoned/interrupted, **stale** ("The last successful refresh is older than expected", Flow's sentence
+  under the shared key `deviations.sources.noteStale`), the connection DISABLED (its items are listed and unlinkable but stale), and **`mappingOk: false`** ("levels and estimates are not
+  compared for its items").
+- An orange `role="note"` above the list says it may be out of date when any ENABLED connection is not `CURRENT` (the SERVER's derived `status.state`: never synced, failed, `STALE`; a first
+  run or a retry after a failure still in flight keeps the old state, a routine refresh on a good connection does not raise it) or its mapping does not fit.
+- That is ONE rule, `isStaleSource({state, mappingOk?})` in `utils/staleness.ts`, read by the banner and the dated claim (`staleConnection`/`hasStaleSource`/`verifiedAt`,
+  `utils/deviations.ts`, which add `!enabled`), by Flow's twins in `utils/capacityDeviations.ts` (no mapping to pass) and by the chips (`marksOf`); the any-enabled-stale and oldest-success folds
+  are the generic `hasStaleSource`/`verifiedAt`, each connector passing its own stale predicate and success accessor. Nothing is judged on the client's clock.
+- **Refresh now is ADMIN-only** (per connection, `POST /integrations/sync/runs`). A `409 run-in-progress` is a normal state: no error and no note of its own, the page re-reads and its status
+  line says a refresh is running. A `429` of the per-user `sync-run` bucket reads `common.error.tooManyRequests` in the inline alert, here and on the connection pages.
+- **"Data as of"** is `jira.observedAt` aged (the exact UTC time in its `title`): when Astrolabe last CAPTURED that item (the bind, or a run in which Jira reported it changed), NOT when it was
+  linked and not when a run last looked, so it can be older than the connection's last run; a gone item or a disabled connection adds "stale" (the READING is frozen: a rule of its own). The age is the browser's clock against the
+  server's `observedAt`: the skew is accepted.
+- **A gone item's Jira cell badge** reads "Gone from Jira"; "Moved out of scope" when its GONE line's `detail.jira` is `MOVED_OUT` (a probe still read the issue, under a key outside the
+  connection's projects; `deviations.phrase.goneMovedOut`); "Not listed by Jira" for `NOT_LISTED` (the key it answered with is inside them; `deviations.phrase.goneNotListed`). `goneBadge(reason)`
+  in `utils/deviations.ts` maps a reason to `movedOut | notListed | gone`; the key link shows the binding's current (followed) key.
+
+### Totals and empty states
+
+- **Counting words.** The totals badges are the server's `warnings`/`infos` over every match before the cap (orange / gray, the roadmap flag vocabulary; red is never used) and a gray "N
+  acknowledged" (`totals.acknowledged`: bindings with a current line). "N items shown" is `items.length`; `truncated` is an orange note. Under any Status but Open a line says the
+  warning/info/gone figures count open items only (the server counts open LINES); an Open list that is empty while acknowledged items exist reads "Nothing is open" with the count hidden.
+- **The gone figure is split**: "N gone from Jira" shows `totals.gone - totals.stillInJira` and a second gray "N still in Jira, out of scope" shows `totals.stillInJira`
+  (`deviations.totals.stillInJira_*`), each hidden at 0. `totals.bindings` is never worded as "how many are linked": it counts only deviating bindings unless `all` applies.
+- **The empty list is told apart**: no connection (an ADMIN gets the link to Administration, Jira; anyone else is told an administrator has to add one), nothing linked (asked by
+  `GET /integrations/jira/bindings?pageSize=1` `total`, only when it decides the wording), the filters match nothing (+ "Clear the filters").
+- An empty list is a claim about a READ and is DATED ("No deviations in the data read at 2026-11-06 10:01 (UTC)"; `verifiedAt`: the oldest finish among the connections), withheld under the
+  staleness predicate above and when the newest run did not SUCCEED (a routine refresh in flight included) - a disabled connection may hold bindings nobody refreshes - else "No deviations in
+  the data read so far".
+- A project or team scope whose own `totals.bindings` is 0 (with `all` in force, that is every link in scope) reads "Nothing here is linked", never "no items match". While a new filter's
+  answer is on its way (`isPlaceholderData`) the kept answer belongs to the OLD filters, so a busy status stands in for any empty-state claim.
+
+### The bind dialog
+
+`components/JiraBindDialog.tsx`, `JiraBindNodePicker.tsx` (used on the connection page and the project page): `POST /integrations/jira/bindings`. It works for a plan OWNER who is no
+administrator, for whom the connection registry is forbidden, so it asks for nothing itself: the `source` prop is what the page has.
+
+- The connection page's own connection (fixed; `mappingOk` is taken as true there, a stale mapping is the server's inline 409), or the project page's `useJiraLinks` `connections[]` (asked
+  only while the dialog is open: a pending or failed answer is the dialog's own note, with Retry; `useJiraLinks(projectId, enabled)` in `hooks/useDeviations.ts`, `GET /views/deviations?projectId=`, is used only for this).
+- Only `enabled` connections are offered, exactly one is preselected (with two or more and none chosen, a note says why Link is disabled), one with `mappingOk: false` is marked "(mapping
+  needs fixing)" and refuses the link in words, none says so plainly (an ADMIN gets the link to Jira, anyone else is told an administrator has to add one).
+- `target` fixes the node (project header, milestone row menu: no picker); `connectionId` fixes the connection (the connection page). Otherwise a level select and a picker: programs from
+  `GET /views/plan` (no list exists; only those with `can.edit`), projects and milestones through the dependency editor's paged pickers (`ProjectSelect`/`MilestoneSelect` take
+  `label`/`description`).
+- **Every refusal is inline with the entered key kept** (`utils/jiraBind.ts` `bindFailure`): 400 (the server's sentence under a fixed lead: unknown issue, outside the connection's keys,
+  wrong level), 409 `already-bound` (the sentence names the other side), 409 `jira-mapping-invalid` / `jira-not-discovered` / `jira-token-unreadable` (an administrator's to fix), 429 (the
+  per-user `jira-bind` bucket), 502 (Jira's code in words), 403, 404. Success is the toast "Linked to Jira" + `refreshJiraAndTimelines`.
+- **`can.edit` is the bind's guard**: the owner chain or ADMIN (`PlanPermissions.canManage` = `requireOwnerOrAdmin`; a milestone's `can.edit` is its project's), so "Link to Jira…" shows with
+  the node's own `can.edit` and a team manager who owns nothing sees none. A node the page's view says is linked is never offered the link (1:1).
+- With `can.edit` the OWNER gets "Unlink from Jira" (the project header button, replacing Link; a milestone's red "Unlink from Jira: KEY" menu item) through `hooks/useJiraUnlink.ts` +
+  `components/JiraUnlinkModal.tsx` (the delete-confirm pattern shared with the connection page's table: `DELETE /integrations/jira/bindings/{id}`, `refreshJiraAndTimelines`, focus to the page
+  heading, 403/404 inline); without it the key shows as a disabled line. The header's Link/Unlink read the view's own `jira` blocks, so they are right from the first render. Program bindings
+  are linked and unlinked on the connection page only.
+
+### The bindings list
+
+`components/JiraBindingsSection.tsx`, the connection page's third h3 section: `GET /integrations/jira/bindings?connectionId=` paged (sort `issueKey`/`createdAt`), a level filter and the `q`
+name filter.
+
+- A gone mark ("Gone from Jira", "Moved out of scope" from `observation.goneReason === "MOVED_OUT"`, or "Not listed by Jira" from `NOT_LISTED`, through `goneBadge`; the key shown is the
+  binding's current one).
+- **Unlink** through `useDeleteConfirm` + `ConfirmDeleteModal` (`confirmLabel`; focus returns to the section's h3) and "Link a node…" (disabled while the connection is disabled). The server
+  hides bindings of deleted plan items, so a row is not always there and the list may differ from a connection delete's count by those.
+- **"Import from Jira…" on a program or project row**: an inline `Button` (`variant="subtle"`, `size="compact-sm"`, aria `jira.import.entryRootAria` = "Import from Jira what is listed under
+  {name}": it never contains the section button's "Import from Jira…", so a substring match finds one) before "Unlink"; shown only while the section's `canImport` holds (enabled, stored
+  discovery) AND the plan view knows the node.
+- The plan view is read under the Plan page's own key `["plan","view"]` (`getPlanView`), enabled only while the list shows a program or project row and `canImport`, and a failed read just
+  leaves the buttons out. The root is `rootOfBinding(plan, row, connection.id)` (`utils/jiraImportRoot.ts`: `findProgram`/`findProject` for the work stream and the owner the binding's node
+  lacks, then `rootOf` with the row's `issueKey` and `observation.gone`; null for a milestone row, an unread view or a node the plan no longer holds). A second `JiraImportModal` is mounted for
+  it (`key` = `<level>:<nodeId>`, `source` = this connection only, `useDialogFocus` covers it); the section's whole-scope modal is unchanged.
+
+### The import modal
+
+`components/JiraImportModal.tsx`: ONE wide `Modal` (title = the h2, phases are h3) in three phases; state in `hooks/useJiraImport.ts`, the pure model in `utils/jiraImport.ts` (ticks, scope,
+body), sentences in `utils/jiraImportText.ts`.
+
+- **Scope** (`JiraImportScopeStep`): work stream from `["plan","view"]`, owner, Jira project keys all preselected, the import filter, "Copy Jira's dates", default team / program / project
+  (the last two offered only from the picked stream, the server's own rule) -> `POST …/import-preview`.
+- **Preview** (`JiraImportPreviewStep`): totals, notes, "N of M selected", a virtualised table (`JiraImportVirtualTable`, TanStack Virtual above 80 rows, fixed row height,
+  `aria-rowcount`/`aria-rowindex`, shared with the outcome's skipped list), a checkbox per CREATE/BIND row, SKIP rows say why in words -> `POST …/import`. `totals.truncated` disables Import.
+- **Outcome**: counts created / linked / scheduled / skipped, every skipped row with its reason, "Preview again" when rows read `CHANGED`.
+- **Rows** are one fixed 88 px (`IMPORT_ROW_HEIGHT`; clamped text keeps its full text in the DOM and a `title`); no Level column (the cell under the key reads "Epic → milestone"); the
+  Skipped badge is orange only when some skip is not `ALREADY_BOUND`; a non-admin's redacted SKIP row renders the key, never a blank cell.
+- A created PROJECT row's dates cell reads "Target window a to b" (the window the server will write; the same `copyDates` switch), and its info `TARGET_NOT_COPIED` says "created without a
+  target window" when Jira gives one date or a reversed pair. The "N of M milestones created unscheduled" note counts ticked rows the SERVER marked `DATES_NOT_COPIED`.
+- **Ticks keep the dependencies true**: unticking a row unticks what is created under it (`dependsOn` = `parent.rowJiraId`; the server would answer `PARENT_SKIPPED`), the rows show "Not
+  imported: its parent X is not ticked" and a polite status says how many moved; ticking a row ticks the rows it lands under.
+- **The body is strict**: `expected.parent` is projected to `{kind, nodeId}` (never the preview's `parent` verbatim), a BIND carries `nodeId`, a milestone CREATE the `teamId` the row showed;
+  a per-row team `NativeSelect` goes to `overrides.teamId` and never into `expected`. A program or project row that would be CREATED has a compact owner picker (`PersonSelect compact`, aria
+  "Owner for KEY", opened on the dialog's owner; clearing it goes back to the dialog's owner), whose pick goes to `overrides.ownerPersonId` only when it differs from the scope's owner
+  (`toApplyRequest`'s fifth parameter, `hasOwnerChoice`); the picks are page state of the preview step and reset with a new preview. The apply sends the SCOPE the preview was read under.
+
+### Time, failures and the refresh after an apply
+
+- Each call owns an `AbortController` that aborts at `IMPORT_TIMEOUT_MS` (180 s, over the server's 170 s browse); the visible wait has a Stop for a preview, one request at a time.
+- An apply is never aborted by the client: the dialog cannot be closed over it, and leaving the page does not cancel it either (only an unmount mid-PREVIEW aborts) - it finishes and still
+  refreshes the plan. An answer that leaves the write in doubt (the 180 s abort, no server answer, a 5xx other than the server's own 502: `applyMayHaveLanded`) says so, points at the "Links to
+  plan items" list, offers Preview again and refreshes anyway.
+- The rate-bucket 429 (`jira-import`, 5/min, shared by preview and apply) carries `Retry-After` (declared on the spec's `TooManyRequests`) but `ApiError` exposes no headers and the transport
+  reads none: the message says to wait a minute. Other failures are inline (`importFailure`); a 409 in the apply offers "Preview again".
+- **After an apply the plan moves**, so it refreshes `["jira"]`, `["plan"]` (plan, project and team views) and `["roadmap"]` (roadmap and programs) - the one Jira mutation that does.
+
+### The import filter
+
+Right under the keys: a Switch "Leave out done items" (ON when the dialog opens) and a NumberInput "Updated within (days)" (365; `PollingFields`' idiom: `clampBehavior="none"`, bounds
+`MIN/MAX_IMPORT_UPDATED_DAYS` 1..3,650 mirroring the server's, a value outside them shows the sentence under the field and disables Preview, `toScope` answers null; EMPTY = no time limit; 0
+is refused). The Switch's description says what "done" means and that a done or older parent of an item that is read is read as well when it is in the selected Jira projects.
+
+- `toScope` adds `filter{excludeDone, updatedWithinDays}` only when a control is on (`{excludeDone: true}` with the field empty; NO member with both off = a request without a filter); the
+  apply spreads the preview's scope, so it sends the SAME filter.
+- The preview step reads `preview.scope.filter` (the filter the rows were read under, never the form): one `role="note"` line `jira.import.preview.leftOut*` in three wordings (done / window / both;
+  none without a filter, and no count - the server does not report one).
+- The too-large alert names both causes and the filter as the lever; an empty preview under a filter says the filter may be why. A kept
+  parent and a child whose parent could not be read show `KEPT_AS_PARENT` / `PARENT_UNREADABLE` among the row's notes (`infoText`).
+
+### Suggested matches
+
+Server side: `jira-sync.md` "Suggested matches". A CREATE row the server found a strict name match for carries `suggestion {nodeId, nodeName}`; the Action cell (`JiraImportRowMatch`) says it
+looks like that plan item and offers a compact **Link instead** (aria "Link instead: KEY to NAME"). A BIND row with the info `MATCH_CONFIRMED` offers **Create instead** (aria "Create instead:
+KEY as a new item").
+
+- A click records a **pending change** (`MatchChange`, state in `hooks/useImportMatches.ts`, per preview: the step is keyed by `useJiraImport`'s `previewSeq`, a counter bumped whenever a
+  preview is set - never by `asOf`, which two previews can share) and nothing else: the row reads "Will be linked ... / created as a new item after the next preview" with **Undo** (aria "Undo
+  the change for KEY").
+- A `role="note"` banner (`JiraImportMatchNote`; never an `Alert`, whose implicit `role="alert"` would interrupt) says N changes are waiting and carries **Preview again**, and **Import is
+  disabled** until the preview is read again: the preview must stay the exact picture of what Import does. While the banner shows, the footer's own "Preview again" is not rendered, so the
+  footer never doubles it (an apply failure's own "Preview again" can still coexist).
+- "Preview again" re-runs the preview under the preview's scope with `matches = nextMatches(scope, items, pending)` (`utils/jiraImport.ts`: the scope's confirmed entries minus every row with a
+  pending change plus the suggestion of each pending "link", each Jira id once; `withMatches` leaves the member out when the list is empty). The apply spreads the preview's scope, so it
+  repeats `matches`, and the outcome step's "Preview again" (after `CHANGED`) re-reads under the same confirmed matches. **Back then a new Preview drops the confirmed matches**: the scope is
+  rebuilt from the form, which holds none.
+- Above the table a `role="note"` line counts the suggestions (under an active import filter it adds that the items the filter left out are not considered, because the matcher cannot see
+  them) beside a Switch **Possible matches only** that narrows the shown rows to the ones offering a choice (a suggestion or a confirmed link); it composes with the search, leaves the ticks
+  alone and, like the search, drives "Showing X of Y" and "Tick shown". Neither exists when the preview has no such row.
+- The fixed 88 px row height holds because a match row spends at most one badge line and two text lines: the badge (min-width 0, an ellipsis, the full label in its `title`) and the
+  `compact-xs` button (`flex: none`) share ONE line (`Group`, no wrap), the suggestion / pending sentence is one clamped line, and on such a row the "parent is not ticked" note is clamped to one
+  line (other rows keep three), so a long Polish label cannot push the button out of the 250 px cell.
+- **Work is carried across a match-driven "Preview again"** (`PreviewCarry`, `carriedTicks`, `carriedPicks` in `utils/jiraImport.ts`, held by the modal for the NEXT step only): each row still
+  present with the SAME action keeps its tick state, team override and owner pick, keyed by Jira id; a row whose action changed and a row new in the preview start fresh (ticked, no override),
+  and an unticked row also unticks what is created under it in the new plan. Any other preview starts afresh.
+- While any call is reading (a match-driven preview can take up to 180 s) the per-row controls are disabled, because an edit made then would be lost when the next preview replaces the step. A
+  failed "Preview again" leaves the step as it was: the pending changes stay, Import stays disabled, and the banner's button retries with the same `matches`.
+
+### The preview search
+
+A `ClearableTextInput` "Search the preview" above the table (page state, nothing stored, no API change) filters the rows by a trimmed, case- and accent-insensitive substring
+(`foldDiacritics`, the rule of `foldedOptionsFilter`) over the Jira key, the Jira id, the summary and the plan name (`searchItems` in `utils/jiraImport.ts`); a blank query shows every row.
+
+- A row with no Jira key (a non-admin's row redacted under an active filter: a `hidden-n` placeholder id, a blank name) NEVER matches a non-empty query.
+- The search only HIDES rows: ticks and team overrides are untouched, "N of M selected" and **Import (n)** stay global, and the apply sends every ticked row.
+- While a query is active an always-mounted `role="status"` line says "Showing X of Y", Select all / Select none become "Tick shown" / "Untick shown" and, with the header checkbox (its
+  checked / indeterminate state too), act on the SHOWN selectable rows only through `tickShown` (`tickRow`'s parent/child rules per shown row: ticking also ticks what a shown row is created
+  under, unticking also unticks what is created under it, shown or not; the live region says "Also ticked / unticked N items outside the search …", cleared when the search changes).
+- No match: a `role="note"` "No rows match “…”." replaces the table, the box stays.
+
+### The connection source and the entry points
+
+**The modal is connection-source driven**, `JiraBindDialog`'s contract: props `{ source: ImportSource, initialWorkStreamId?, onClose }` (`utils/jiraImport.ts`: `ImportConnection` =
+`{id, name, siteUrl, projectKeys}`, a `JiraConnection` is structurally one; `ImportSource` = `{connections | null, failed, retry}`). The connection page passes `{connections: [connection]}`; the Plan page
+passes the deviations view's `connections[]` filtered to `enabled && mappingOk` (`usableImportConnections`).
+
+- The scope step opens with `JiraImportConnectionField` (loading text / a failed alert with Retry / the "none usable" note / the Select, read-only when exactly one; reusing
+  `jira.bind.connection|loading|loadFailed|retry`); the modal preselects exactly one, and changing the connection resets the Jira-project keys to the new one's.
+  `useJiraImport(connectionId | null)` does nothing while null and Preview is disabled until a connection is chosen. The connection of the preview and outcome phases is kept even if a later refetch drops it.
+- `initialWorkStreamId` presets the stream (`emptyScope(keys, workStreamId)`) and the stream Select is `readOnly`.
+- **Entry points** (six): the connection page's button and its program and project rows ("The bindings list"), the work stream's menu, a linked program's menu, a linked project's row menu and
+  a linked project's page header. The stream's (`PlanActions.importFromJira`, `PlanWorkStreamSection`) is a `Menu.Item` "Import from Jira…" (aria "Import from Jira into {name}") under
+  `can.edit`, after Close/Reopen. The connection page's button beside "Link a node…" is disabled until the connection is enabled and has a stored discovery.
+- `hooks/usePlanJiraImport.ts` holds the Plan page's import state (`importing`: a stream, a program with its link OR a project with its link; `Plan.tsx` calls
+  `useDialogFocus(jiraImport.modal !== null)`) and reads the connections with `useJiraConnections({workStreamId}, importing is a stream)` (`hooks/useDeviations.ts`, key
+  `["jira","deviations","connections",filter]`; `useJiraLinks` is its one-line project wrapper) - the request appears only after the click. Every mount site keys the modal by its source
+  (`stream:<id>`, `program:<id>`, `project:<id>`), so its form state never carries over.
+
+### The rooted import
+
+"Import from a linked node" in `jira-sync.md`. The modal takes an optional `root: ImportRoot` (`utils/jiraImport.ts`:
+`{level: PROGRAM|PROJECT, nodeId, name, issueKey, connectionId, workStreamId, owner: PickedOption}`).
+
+- The stream is the root's; the connection is the root's own (`source.connections` filtered to `root.connectionId`; absent from the usable ones = a `role="note"` that an administrator has to
+  enable and test it instead of the field, Preview disabled; a source that has not answered yet shows the loading text); the form opens with `owner = root.owner`.
+- `toScope(form, keys, root)` adds `root {level, nodeId}` and NEVER `projectKeys` or `defaults.programId` (nor `defaults.projectId` under a project root); the apply spreads the preview's
+  scope, so it repeats the root.
+- The scope step replaces the intro by a `role="note"` first line naming the key and the node, hides the work stream, the Jira projects and the default program, shows the owner for a PROGRAM
+  root only (a project root sends the project's owner) and turns "Default project" into "Project for items directly under KEY" (PROGRAM root only: the root program's own projects); the filter,
+  "Copy Jira's dates" and the default team are as before. A rooted PROGRAM dialog's owner hint says only projects are created (`ownerHintRoot`).
+- An empty rooted preview shows one `role="note"`: Jira lists nothing under KEY at the levels this connection maps, under an active filter that the filter may be why, and the hint to search
+  Jira for `parent = KEY`.
+- `409 urn:astrolabe:problem:jira-root-unusable` is `isJiraRootUnusable` (`api/jira.ts`) and `importFailure` answers `jira.import.error.rootUnusable` (the link cannot be used; no server text,
+  no "Preview again").
+- **The entries read the links.** `useJiraPlanLinks(enabled)` (`hooks/useJiraPlanLinks.ts`; key `["jira","links"]`, `getJiraLinks()` = `GET /views/jira-links`, `staleTime` 30 s, focus refetch
+  at the default, `retry: false`) answers `{programs: Map<programId, JiraNodeLink>, projects: Map<projectId, JiraNodeLink>, connections, failed, retry}` from ONE read that feeds both the
+  entries' visibility and the dialog's connection, so opening a rooted dialog asks for nothing more. Every `["jira"]` invalidation (a bind, an unlink, an import, a refresh) re-reads it.
+- It is enabled only while the plan view holds a program with `can.createProject` or a project with `can.createMilestone` (an optimisation, never the rule); a failed read hides both entries and
+  shows no error. `PlanActions.canImportChildren(program)` = the program's `can.createProject` AND a program link, `canImportMilestones(project)` = the project's `can.createMilestone` AND a
+  project link.
+- `PlanProgramBlock` shows a `Menu.Item` "Import from Jira…" (aria "Import from Jira what is listed under {name}": it starts with the visible text, label-in-name; `IconFileImport`) after "Move
+  to…" in the program's menu and in the project row's menu; each kebab's own condition includes the import right, so an owner with `canImportChildren` or `canImportMilestones` alone still gets the menu. Both roots are built by `rootOf(level, node, link)` (`utils/jiraImportRoot.ts`: the node's `workStreamId`,
+  `ownerPersonId`/`ownerName`, the link's `issueKey`/`connectionId`/`gone`).
+- A link through a connection that is not usable still shows the entry (the dialog says why), and so does a link whose Jira item the read already says is gone (`link.gone` -> `root.gone`):
+  the scope step opens with the "cannot be used" note and Preview disabled, no Jira round trip. The project page cannot tell (`project.jira` carries no gone flag: its dates are null for a
+  gone item but also for a never-observed one), so that dialog learns it from the `jira-root-unusable` refusal.
+
+### The chips and marks
+
+`components/JiraChips.tsx`, `utils/jiraMarks.ts`. The project and team pages make **no request of their own** for what is linked: `projectMarks(view)` / `teamMarks(view)` read the document's
+`jira` blocks (the project's own and every milestone row's, scheduled and tray) and `jiraSites` (`url = siteUrl + "/browse/" + key`, https only through `JiraKeyLink`/`jiraBrowseUrl`; the URL is
+never per row), so the chip is exactly as current as the view and any refresh of `["plan"]` (a plan write, a bind, an unlink, an acknowledgement) moves it.
+
+- Only OPEN flags are counted - the view lists none for an acknowledged item or a disabled connection - and only `JIRA_DEVIATION` ones: the project's `JIRA_MILESTONES` roll-up repeats its
+  milestone rows' flags and counting it would count a deviation twice.
+- The project page's facts row (inside `ProjectFacts`, so nothing under it shifts) has "Jira: E2E-1" (the project's own key), "N milestones linked to Jira" and the count (a link to
+  `/deviations?projectId=`, orange with a warning, gray otherwise; "No deviations seen" at zero, never "in line"); the team page the same count line (`/deviations?teamId=`); nothing at all
+  while nothing is linked.
+- **The qualifier.** `JiraMarks.stale` (`marksOf`) is true when some site a MARKED node links through has `state !== "CURRENT"` (so `NEVER_SYNCED`, `STALE`, `FAILED` and `DISABLED` all count) or
+  `mappingOk === false`, read off the view's own `jiraSites[{connectionId, siteUrl, state, mappingOk}]`; a site no marked node uses, a link whose connection is not in `jiraSites` and a
+  document with no mark say nothing. Both chips (`DeviationCount` in `JiraChips.tsx`) render `deviations.chip.stale` as plain dimmed text after the count badge, inside the `role="group"`,
+  at ANY count (three deviations read from a connection that failed last night are as doubtful as none); not an `Alert` and not orange - the Deviations page's banner is the warning, the chip
+  only qualifies.
+- **One rule with the banner**: both read `isStaleSource` (`utils/staleness.ts`), so, except for a DISABLED site, a chip never qualifies a figure the page it links to leaves unwarned. The
+  Roadmap and Programs pages' facts line reads the same rule over ALL the document's sites ("Roadmap", "Programs"). What still differs is deliberate: a DISABLED site counts on the chip, while
+  the banner skips a disabled connection (its own row says "Disabled" with a note) so a retired connection raises no permanent banner.
+- **Honest limit:** `CURRENT` means the newest run succeeded and, for a polled connection, not long ago; a manual-only connection stays `CURRENT` after any success however old (its "Last run"
+  is on the Deviations page).
+
+### The Flags column and the roll-up
+
+The Flags column, the tray row and its menu: `timeline.md` "The Jira markers". Their web half is `components/MilestoneFlags.tsx` (with `utils/flagSentences.ts`): the icon's accessible label
+lists the row's flag sentences behind its key (`flagSentence`, shared with the roadmap's flag panel), and a linked row with no open flag (clean, acknowledged, or on a disabled connection) gets
+"Linked to Jira: E2E-3" instead, so it is told apart from an unlinked one. A binding through a DISABLED connection stays a link: the chip counts it with no deviations, the key shows, Unlink
+works, no bar is drawn. A tray row's name cell adds "Jira: 2027-03-01 to 2027-03-05" for an open `UNSCHEDULED_IN_PLAN` flag; the calendar's `NO_WORKING_DAY` flag is phrased by `roadmap.flag.noWorkingDay`.
+
+- **The roll-up** comes LAST in the cell, after the key and the icon (the least critical element: the cell clips without an ellipsis, so it must never push a warning badge out), when the
+  link's `rollup` is set: compact dimmed `xs` text `5/12 · 34 pt` (done of children, then Jira's story points as Jira states them, never converted; the points part is omitted when `points`
+  is null). It shrinks with an ellipsis (`minWidth: 0`), so in a tray name cell a long name cannot widen the row.
+- `components/JiraRollupText.tsx` (`rollupText`/`rollupSentence`/`formatPoints` in `utils/deviations.ts`, keys `deviations.rollup.*`): the short text is `aria-hidden` and the ACCESSIBLE NAME is
+  the full sentence ("12 child issues in Jira, done: 5, story points: 34", plural forms on the children count), also the `title` and a visually hidden span; points show up to two decimals,
+  trailing zeros dropped; a link with `rollup: null` (a project link, a disabled connection, a childless epic) renders nothing of it, and the tray's `NameWithFlags` carries it through
+  `MilestoneFlags`. The Deviations page's Jira cell shows the same component under the type/status line.
+
+### Capacity from Flow
+
+`components/CapacityDeviationsSection.tsx`, the page's second h3 after the Jira list: ANOTHER document, `GET /views/capacity-deviations`, shaped
+`{asOf, connections[], totals{warnings, infos, gone, acknowledged, teams}, items[], truncated}`: `items` ≤ 1,000 teams, each with `can{acknowledge}` and its sprint rows, each row with its
+`fingerprint` and `acknowledgement{at, by, current}|null`; no `revision` (capacity is team data). It is read under `["flow","deviations","view",filter]` through
+`hooks/useCapacityDeviations.ts` (`api/capacityDeviations.ts`). The Jira document is untouched; the two load in parallel and fail separately (a failed Flow document is the section's own
+heading and alert; a failed Jira one leaves the Flow section standing).
+
+- **It exists only when there is a Flow connection** (`connections.length > 0`; a Jira-only stack sees nothing new, not even a heading).
+- **Filters.** It takes the URL's `teamId`, `severity` and **Status** (the server narrows each team's ROWS by severity, so "warnings only" lists the warning sprints). The page's ONE Status
+  select applies to both lists and is sent as the view's own `acknowledged`/`all`, `all=false` too (the Open choice under a team scope, since the server's `teamId` implies `all`). Plan item
+  type, work stream, project, kind and connection are the Jira list's (a Jira connection id is not a Flow one) and are named in one `role="note"` line while any is in the URL.
+- **Rows:** one per team - the team (a link to `/teams/:id`), its Flow team (with the connection's name only when there are several), the lines (`CapacityDeviationList`, shared with the team
+  page: severity in words before an orange/gray kind badge, `TEAM_GONE` as one sentence, the sprints that differ as sentences, the sprints WITHOUT capacity folded into one line over a table
+  disclosure - the count and the date are the OPEN sprints', with a dimmed "· M acknowledged" after it, or "all acknowledged" when none is open) and when Flow was last seen.
+- **Totals:** orange warnings (a gone team is one of them), gray infos, an ORANGE "of which N teams gone from Flow" (part of the warnings, not an addition), a gray "N acknowledged" (rows, not
+  teams; warnings, infos and gone count the OPEN rows whatever Status lists, so under Acknowledged/All the Jira list's "open items only" note says it), "N teams shown" or, when the server cut
+  the list, "N of M teams shown" from `totals.teams`. The poll is the Jira page's (`DEVIATIONS_POLL_MS` while `status.lastRun.running`, bounded).
+- **The sentence** (`capacityDeviationSentence`, EN/PL): `"<Flow's sprint name> (<start> – <end>): the plan has 36.00 man-days, Flow 30.00 — 6.00 more in the plan"` (`gapMd` > 0 = the plan
+  has more; man-days are JSON numbers shown with two decimals and a dot), plus a second sentence when `flowTotalMd` differs from `flowMd` (a fixed per-sprint figure that shares days with an
+  earlier sprint).
+- **An empty Open list** with rows acknowledged (`totals.acknowledged > 0`) says "No open capacity difference." and how many sprints are hidden - never "In line with Flow".
+
+#### Currency
+
+The Jira rule, read off the derived `status` (`utils/capacityDeviations.ts`). "Data from Flow" (`CapacityDeviationsSources.tsx`, h4) is a row per connection - state badge, when its document
+was mirrored (`teamsAt`), the notes that qualify the figures (never refreshed, last refresh failed with `errorCodeText(…, "FLOW")`, stale, disabled) and, for an ADMIN, **Refresh now** =
+`POST /integrations/sync/runs {kind: "FLOW"}` then a re-read of `["flow"]` (a 409 run-in-progress is a normal state; a 429 reads "Too many requests. Wait a minute and try again.").
+
+- An orange `role="note"` says the list may be out of date when an ENABLED connection is not CURRENT (`hasStaleFlowSource`). A row whose connection is disabled or not CURRENT carries "stale"
+  under "Data as of" (the Jira table's mark), since the banner covers enabled connections only.
+- An empty section is told apart: no team is linked (asked of the connections' own team lists `["flow","teams",id]`, only then; not polled, it re-reads on focus and on `refreshFlowLinks`), a
+  filter that matches nothing, or "In line with Flow in the data read at T (UTC)" (`verifiedFlowAt`: the OLDEST success, withheld - "read so far" - when ANY connection is disabled or not
+  CURRENT). A failed re-read keeps the last answer under the section's `ErrorAlert`.
+
+#### Acknowledge
+
+Per sprint row: every line carries `CapacityAckCell` (the Jira `DeviationAckCell`'s shape and its `deviations.ack.*` sentences, a stale stamp is open again) plus ONE button named by the sprint
+("the team's own row" for the gone team), Acknowledge / Unacknowledge by the item's `can.acknowledge` and the row's state, `data-ack-for="<bindingId>:<sprintId|team>"`. The folded sprints carry
+it in a fourth "Acknowledgement" column of their table, so a single missing sprint is a sentence with its cell.
+
+- The write is `hooks/useCapacityAcknowledge.ts`, the Jira `useAcknowledge` state machine over the row key: `POST`/`DELETE /integrations/flow/team-bindings/{id}/acknowledge` with the row's
+  `detail.sprintId` (always in the POST body, `null` for the gone team) and `fingerprint`. A success re-reads `["flow","deviations"]` and `["plan"]` (`refreshCapacityAcknowledgements`: the
+  team view's flag and markers follow the open rows); the shared `409 stale-deviations` (`isStaleDeviations`) is an orange note in the row plus the re-read (a note of a row that left the list is
+  shown above the list, `CapacityAckOrphanNotice`), a 403/404 a red message and a `refreshFlowLinks`; the focus rule is the Jira one (the same `useAckFocus`; the fallback is the "Differences
+  from Flow" heading).
+- **Acknowledge all** (`CapacityAckAll` in `CapacityAckCell.tsx`, rendered by `CapacityDeviationList`, so the team page has it too): at the head of a team's list a `Button` "Acknowledge all
+  (N)" (named "Acknowledge all (N) open differences of <team>"; `CapacityAckContext.team` is the item's team name), shown only when the item's `can.acknowledge` allows it AND at least two of the listed rows are open (`isOpen`: a stale
+  acknowledgement and every folded "sprints without capacity" row count; acknowledged ones neither count nor are sent). It **acknowledges what the list shows**: the page's
+  Status/severity/team filters have already narrowed the rows, and N is on the label. One request, `POST /integrations/flow/team-bindings/{id}/acknowledge-all`
+  (`acknowledgeCapacityDeviations`, body `{items:[{sprintId|null, fingerprint}]}`, all or nothing).
+- **Withdraw all**: beside it a `Button` "Withdraw all (N)" (named "Withdraw all (N) acknowledged differences of <team>"), shown with `can.acknowledge` and at least two listed rows that are
+  CURRENTLY acknowledged (`!isOpen`: a stale acknowledgement is open and not sent; every folded acknowledged sprint counts), so it shows where the list has acknowledged rows. One request,
+  `POST …/team-bindings/{id}/unacknowledge-all` (`unacknowledgeCapacityDeviations`, body `{items:[{sprintId|null}]}`, all or nothing, `204`).
+- Both batches go through the SAME hook as `{kind: "acknowledgeAll", bindingId, rows}` / `{kind: "unacknowledgeAll", bindingId, rows}` keyed by `capacityAckAllKey(bindingId)` (`<id>:all`, the button's `data-ack-for` and
+  the busy and notice key), with the single write's toast, re-read, stale `409` note (nothing was stored / deleted), refusals (the withdrawal's 404 is the binding) and focus rule - after a batch
+  the focus goes to the first row button still there, else the heading. While any write runs the button is `aria-disabled`/`data-disabled`, never `disabled`. The batch's note shows under the
+  button at the head of its team's list (button or not), and `listedKeys` of both callers hold each listed team's all-key, so `CapacityAckOrphanNotice` shows it above the list only once the
+  team's item has left the list.
+
+### Tests
+
+Pinned by: `Deviations.test.tsx` (also "Capacity from Flow"), `Deviations.ack.test.tsx`, `Deviations.ack.lines.test.tsx`, `Deviations.ack.refusals.test.tsx`, `DeviationAckCell.test.tsx`,
+`utils/deviations.test.ts`, `utils/deviationFilters.test.ts`, `utils/jiraMarks.test.ts`, `utils/jiraBind.test.ts`, `utils/flagSentences.test.ts`, `hooks/useDeviations.test.tsx`, `api/deviations.test.ts`,
+`JiraBindDialog.test.tsx`, `JiraBindingsSection.test.tsx`, `utils/jiraImportRoot.test.ts`, `ProjectView.jira.test.tsx`, `TeamDetails.jira.test.tsx`, `JiraChips.test.tsx`.
+
+- Import: `JiraImportModal.test.tsx`, `.errors.test.tsx`, `.virtual.test.tsx` (the 2,000-row cap), `.source.test.tsx`, `JiraImportModal.filter.test.tsx`, `JiraImportModal.matches.test.tsx`,
+  `JiraImportModal.search.test.tsx`, `JiraImportModal.root.test.tsx`, `hooks/useJiraImport.test.tsx` (the in-flight guard, unmount), `hooks/useJiraPlanLinks.test.tsx`,
+  `utils/jiraImport.test.ts`, `utils/jiraImportText.test.ts`, `pages/Plan.test.tsx` ("Import from a linked program", "Import from a linked project"), the harness `test/jiraImportHarness.ts`
+  (`previewScope(user, rooted)`); the server pins the same bodies in `JiraImportWebBodyTest.kt` (literal JSON through the real deserialization and the kernel).
+- Flow: `CapacityDeviationsSection.test.tsx`, `CapacityDeviationsSection.ack.test.tsx`, `CapacityDeviationList.test.tsx`, `CapacityAckCell.test.tsx`, `utils/capacityDeviations.test.ts`,
+  `hooks/useCapacityDeviations.test.tsx`, `hooks/useCapacityAcknowledge.test.tsx`, `api/capacityDeviations.test.ts`; fixtures in `test/flow.ts`.
+- Technique: tests build connections with `connectionIn(shape)` (`test/deviations.ts`: every member of `enabled`/`lastRun`/`status` agrees, as the server derives it), never by overriding
+  `lastRun` alone.
+
+---
+
+*The sections above are restructured. Everything from "Teams and the team page" to the end keeps its old shape, with its tags and history, until the step that finishes this document (the 1.24.0 docs restructuring, D25); that step removes this line.*
 
 ## Teams and the team page (`pages/Teams.tsx`, `pages/TeamDetails.tsx`, v0.5.0)
 
