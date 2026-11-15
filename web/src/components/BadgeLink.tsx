@@ -8,7 +8,7 @@ import { Link as RouterLink } from "react-router-dom";
  */
 export default function BadgeLink({ to, color, ariaLabel, children }: { to: string; color: string; ariaLabel?: string; children: ReactNode }) {
   return (
-    <Badge color={color} variant="light" tt="none" component={RouterLink} to={to} aria-label={ariaLabel}>
+    <Badge color={color} tt="none" component={RouterLink} to={to} aria-label={ariaLabel}>
       {children}
     </Badge>
   );

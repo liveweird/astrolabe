@@ -91,23 +91,23 @@ function Totals({ view, filter }: { view: DeviationView; filter: DeviationFilter
   return (
     <Stack gap="xs">
       <Group gap="sm" role="group" aria-label={t("deviations.list.title")}>
-        <Badge color="orange" variant="light" tt="none">
+        <Badge color="orange" tt="none">
           {t("deviations.totals.warnings", { count: totals.warnings })}
         </Badge>
-        <Badge color="gray" variant="light" tt="none">
+        <Badge color="gray" tt="none">
           {t("deviations.totals.infos", { count: totals.infos })}
         </Badge>
         {totals.gone - totals.stillInJira > 0 && (
-          <Badge color="gray" variant="light" tt="none">
+          <Badge color="gray" tt="none">
             {t("deviations.totals.gone", { count: totals.gone - totals.stillInJira })}
           </Badge>
         )}
         {totals.stillInJira > 0 && (
-          <Badge color="gray" variant="light" tt="none">
+          <Badge color="gray" tt="none">
             {t("deviations.totals.stillInJira", { count: totals.stillInJira })}
           </Badge>
         )}
-        <Badge color="gray" variant="light" tt="none">
+        <Badge color="gray" tt="none">
           {t("deviations.totals.acknowledged", { count: totals.acknowledged })}
         </Badge>
         <Text size="sm" c="dimmed">

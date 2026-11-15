@@ -23,7 +23,6 @@ export default function TeamFlags({ flags }: { flags: readonly PlanFlag[] }) {
           <Badge
             key={`${flag.kind}-${index}`}
             color={warning ? "orange" : "gray"}
-            variant="light"
             tt="none"
             miw="max-content"
             leftSection={<Icon size={12} aria-hidden="true" />}

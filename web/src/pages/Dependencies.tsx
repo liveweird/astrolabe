@@ -42,12 +42,12 @@ function DependencyListFacts({ totals }: { totals: DependencyListView["totals"] 
     <Group gap="md" role="group" aria-label={t("dependencyList.factsAria")}>
       <Text size="sm">{t("dependencyList.facts.links", { count: totals.links })}</Text>
       {totals.violated > 0 && (
-        <Badge color="red" variant="light" tt="none">
+        <Badge color="red" tt="none">
           {t("home.roadmap.conflicts", { count: totals.violated })}
         </Badge>
       )}
       {totals.unscheduled > 0 && (
-        <Badge color="gray" variant="light" tt="none">
+        <Badge color="gray" tt="none">
           {t("dependencyList.facts.unscheduled", { count: totals.unscheduled })}
         </Badge>
       )}

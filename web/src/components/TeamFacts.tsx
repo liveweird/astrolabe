@@ -27,12 +27,12 @@ export default function TeamFacts({ view }: { view: TeamView }) {
       <Text size="sm">{t("teams.view.milestones", { count: view.scheduled.length + view.unscheduled.length })}</Text>
       <Text size="sm">{t("teams.view.scheduledCount", { count: view.scheduled.length })}</Text>
       {overloaded > 0 && (
-        <Badge color="orange" variant="light" tt="none">
+        <Badge color="orange" tt="none">
           {t("teams.view.overloadedWeeks", { count: overloaded })}
         </Badge>
       )}
       {wip > 0 && (
-        <Badge color="orange" variant="light" tt="none">
+        <Badge color="orange" tt="none">
           {t("teams.view.wipWeeks", { count: wip })}
         </Badge>
       )}
@@ -42,12 +42,12 @@ export default function TeamFacts({ view }: { view: TeamView }) {
         </BadgeLink>
       )}
       {view.idleGaps.length > 0 && (
-        <Badge color="gray" variant="light" tt="none">
+        <Badge color="gray" tt="none">
           {t("timeline.idle.badge", { count: view.idleGaps.length })}
         </Badge>
       )}
       {view.order.custom && (
-        <Badge color="gray" variant="light" tt="none">
+        <Badge color="gray" tt="none">
           {t("teams.view.customOrder")}
         </Badge>
       )}

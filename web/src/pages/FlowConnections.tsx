@@ -58,7 +58,7 @@ function LastRun({ run }: { run: FlowConnection["lastRun"] }) {
   const state = runState(run);
   return (
     <Group gap="xs" wrap="nowrap">
-      <Badge color={RUN_STATE_COLOR[state]} variant="light" tt="none">
+      <Badge color={RUN_STATE_COLOR[state]} tt="none">
         {t(`sync.runs.state.${state}`)}
       </Badge>
       <Text size="sm">{formatDateTime(run.startedAt)}</Text>
@@ -155,7 +155,7 @@ export default function FlowConnections() {
                     {connection.name}
                   </Anchor>
                   {!connection.enabled && (
-                    <Badge color="gray" variant="light" tt="none">
+                    <Badge color="gray" tt="none">
                       {t("flow.disabled")}
                     </Badge>
                   )}

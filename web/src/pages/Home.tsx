@@ -59,12 +59,12 @@ function OpenLine({ label, counts, stale }: { label: string; counts: OpenCounts 
       <Group gap="xs">
         <Text size="sm">{label}</Text>
         {counts.warnings > 0 && (
-          <Badge color="orange" variant="light" tt="none">
+          <Badge color="orange" tt="none">
             {t("deviations.totals.warnings", { count: counts.warnings })}
           </Badge>
         )}
         {counts.infos > 0 && (
-          <Badge color="gray" variant="light" tt="none">
+          <Badge color="gray" tt="none">
             {t("deviations.totals.infos", { count: counts.infos })}
           </Badge>
         )}

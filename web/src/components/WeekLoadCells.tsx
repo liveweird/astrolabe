@@ -17,22 +17,22 @@ export function WeekStatus({ week }: { week: WeekLoad }) {
     <Group gap={6} wrap="nowrap">
       {week.overloaded && (
         // miw max-content: a badge shrinks (and clips its sentence with an ellipsis) when the table is tight; the column grows instead.
-        <Badge color="orange" variant="light" tt="none" miw="max-content">
+        <Badge color="orange" tt="none" miw="max-content">
           {t("teams.view.status.overloaded", { md: mdText(week.overloadMd ?? week.load - (week.capacity ?? 0)) })}
         </Badge>
       )}
       {week.wipExceeded && (
-        <Badge color="orange" variant="light" tt="none" miw="max-content">
+        <Badge color="orange" tt="none" miw="max-content">
           {t("teams.view.status.wipExceeded")}
         </Badge>
       )}
       {!warned && (
-        <Badge color="gray" variant="light" tt="none" miw="max-content">
+        <Badge color="gray" tt="none" miw="max-content">
           {t(week.capacity === null ? "teams.view.status.noCapacity" : "teams.view.status.ok")}
         </Badge>
       )}
       {week.flowCapacity != null && (
-        <Badge color={week.flowCapacity === "WARNING" ? "orange" : "gray"} variant="light" tt="none" miw="max-content" data-flow-badge={week.flowCapacity}>
+        <Badge color={week.flowCapacity === "WARNING" ? "orange" : "gray"} tt="none" miw="max-content" data-flow-badge={week.flowCapacity}>
           {t("teams.view.status.flowCapacity")}
         </Badge>
       )}

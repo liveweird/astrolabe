@@ -45,16 +45,16 @@ export default function JiraImportOutcomeStep({
         {t("jira.import.outcome.title")}
       </Title>
       <Group gap="xs" role="status">
-        <Badge color="green" variant="light" tt="none">
+        <Badge color="green" tt="none">
           {t("jira.import.outcome.created", { n: created.length })}
         </Badge>
-        <Badge color="green" variant="light" tt="none">
+        <Badge color="green" tt="none">
           {t("jira.import.outcome.bound", { n: bound.length })}
         </Badge>
-        <Badge color="gray" variant="light" tt="none">
+        <Badge color="gray" tt="none">
           {t("jira.import.outcome.scheduled", { n: scheduled })}
         </Badge>
-        <Badge color={notable ? "orange" : "gray"} variant="light" tt="none">
+        <Badge color={notable ? "orange" : "gray"} tt="none">
           {t("jira.import.outcome.skipped", { n: skipped.length })}
         </Badge>
       </Group>

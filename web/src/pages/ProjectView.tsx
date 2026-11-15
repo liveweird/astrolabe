@@ -79,28 +79,28 @@ function ProjectFacts({ view, marks }: { view: ProjectViewDocument; marks: JiraM
       <Text size="sm">{targetStart !== null && targetEnd !== null ? t("project.windowLine", { start: targetStart, end: targetEnd }) : t("project.noWindow")}</Text>
       <Text size="sm">{view.span !== null ? t("project.spanLine", { start: view.span.start, end: view.span.end }) : t("project.nothingScheduled")}</Text>
       {view.drift !== null && badges.length === 0 && (
-        <Badge color="gray" variant="light">
+        <Badge color="gray">
           {t("project.drift.onTarget")}
         </Badge>
       )}
       {badges.map((badge) => (
-        <Badge key={badge.key} color={badge.late ? "orange" : "gray"} variant="light">
+        <Badge key={badge.key} color={badge.late ? "orange" : "gray"}>
           {badge.label}
         </Badge>
       ))}
       {view.baseline !== undefined &&
         spanBadges(view.baseline.project, t).map((badge) => (
-          <Badge key={`baseline-${badge.key}`} color={badge.late ? "orange" : "gray"} variant="light" tt="none">
+          <Badge key={`baseline-${badge.key}`} color={badge.late ? "orange" : "gray"} tt="none">
             {badge.label}
           </Badge>
         ))}
       {conflicts > 0 && (
-        <Badge color="red" variant="light">
+        <Badge color="red">
           {t("project.conflicts", { count: conflicts })}
         </Badge>
       )}
       {view.idleGaps.length > 0 && (
-        <Badge color="gray" variant="light">
+        <Badge color="gray">
           {t("timeline.idle.badge", { count: view.idleGaps.length })}
         </Badge>
       )}

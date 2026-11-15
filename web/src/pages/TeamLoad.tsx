@@ -21,7 +21,7 @@ type Choice = (typeof CHOICES)[number];
 /** One orange warning badge, only while positive (a zero figure is not a claim); `text` is the worded figure. */
 function WarningBadge({ text }: { text: string | null }) {
   return text === null ? null : (
-    <Badge color="orange" variant="light" tt="none">
+    <Badge color="orange" tt="none">
       {text}
     </Badge>
   );
@@ -78,7 +78,7 @@ function TeamLoadTableRow({ row }: { row: TeamLoadRow }) {
       </Table.Td>
       <Table.Td>
         {row.weeksWithoutCapacity > 0 && (
-          <Badge color="gray" variant="light" tt="none">
+          <Badge color="gray" tt="none">
             {t("teamLoad.withoutCapacity", { count: row.weeksWithoutCapacity })}
           </Badge>
         )}

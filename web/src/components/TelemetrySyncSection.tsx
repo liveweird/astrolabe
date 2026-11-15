@@ -48,7 +48,7 @@ function Failures({ connection }: { connection: TelemetrySyncConnection }) {
   const code = status.lastRun?.errorCode;
   return (
     <>
-      <Badge color="red" variant="light" tt="none">
+      <Badge color="red" tt="none">
         {t("sync.status.failuresInARow", { count: status.consecutiveFailures })}
       </Badge>
       {code && (

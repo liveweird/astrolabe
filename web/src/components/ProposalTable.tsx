@@ -42,12 +42,12 @@ function Summary({ proposal, check }: { proposal: ProposalContent; check?: Propo
       <Group gap="sm" align="center">
         <Text size="sm">{figures}</Text>
         {newlyViolated > 0 && (
-          <Badge color="red" variant="light" tt="none" miw="max-content">
+          <Badge color="red" tt="none" miw="max-content">
             {t("teams.proposal.badge.violated", { count: newlyViolated })}
           </Badge>
         )}
         {stillViolated > 0 && (
-          <Badge color="gray" variant="light" tt="none" miw="max-content">
+          <Badge color="gray" tt="none" miw="max-content">
             {t("teams.proposal.badge.stillViolated", { count: stillViolated })}
           </Badge>
         )}
@@ -100,7 +100,7 @@ function ViolatedLink({ entry }: { entry: LinkAtMove }) {
   const date = entry.link.check.requiredDate ?? "–";
   return (
     <Group gap={6} align="flex-start" wrap="nowrap">
-      <Badge color="red" variant="light" tt="none" miw="max-content">
+      <Badge color="red" tt="none" miw="max-content">
         {t("teams.proposal.links.badge")}
       </Badge>
       <Text size="sm" className={classes.proposalViolation}>

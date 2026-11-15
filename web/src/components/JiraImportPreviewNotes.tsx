@@ -40,17 +40,17 @@ export default function JiraImportPreviewNotes({
   return (
     <>
       <Group gap="xs" role="group" aria-label={t("jira.import.preview.totalsAria")}>
-        <Badge color="gray" variant="light" tt="none">
+        <Badge color="gray" tt="none">
           {t("jira.import.preview.totalFound", { n: totals.items })}
         </Badge>
         <Badge color="gray" variant="outline" tt="none">
           {t("jira.import.preview.totalCreate", { n: totals.create })}
         </Badge>
-        <Badge color="gray" variant="light" tt="none">
+        <Badge color="gray" tt="none">
           {t("jira.import.preview.totalBind", { n: totals.bind })}
         </Badge>
         {totals.skip > 0 && (
-          <Badge color={notable ? "orange" : "gray"} variant="light" tt="none">
+          <Badge color={notable ? "orange" : "gray"} tt="none">
             {t("jira.import.preview.totalSkip", { n: totals.skip })}
           </Badge>
         )}

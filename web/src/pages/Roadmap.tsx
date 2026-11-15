@@ -61,12 +61,12 @@ function RoadmapFacts({ ranked, unranked, flags, jiraStale }: { ranked: number; 
       <Text size="sm">{t("roadmap.facts.ranked", { count: ranked })}</Text>
       <Text size="sm">{t("roadmap.facts.unranked", { count: unranked })}</Text>
       {flags.warnings > 0 && (
-        <Badge color="orange" variant="light" tt="none">
+        <Badge color="orange" tt="none">
           {t("roadmap.facts.warnings", { count: flags.warnings })}
         </Badge>
       )}
       {flags.infos > 0 && (
-        <Badge color="gray" variant="light" tt="none">
+        <Badge color="gray" tt="none">
           {t("roadmap.facts.infos", { count: flags.infos })}
         </Badge>
       )}

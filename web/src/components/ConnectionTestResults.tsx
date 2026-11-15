@@ -104,7 +104,7 @@ export default function ConnectionTestResults(props: { result: JiraTestResult; k
                   <Text size="sm">{row.required ? t("sync.test.required") : t("sync.test.optional")}</Text>
                 </Table.Td>
                 <Table.Td style={{ whiteSpace: "nowrap" }}>
-                  <Badge color={rowColor(row)} variant="light" tt="none">
+                  <Badge color={rowColor(row)} tt="none">
                     {row.ok ? t("sync.test.ok") : isSkipped(row) ? t("sync.test.skipped") : t("sync.test.failed")}
                   </Badge>
                 </Table.Td>

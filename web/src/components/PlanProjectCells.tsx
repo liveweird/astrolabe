@@ -24,12 +24,12 @@ export function FlagCountsCell({ counts, label }: { counts: FlagCounts; label?: 
   return (
     <Group gap={4} wrap="nowrap" title={sentence} data-flags={`${warnings},${infos}`}>
       {warnings > 0 && (
-        <Badge aria-hidden="true" color="orange" variant="light" size="sm" px={4} leftSection={<IconAlertTriangle size={12} />}>
+        <Badge aria-hidden="true" color="orange" size="sm" px={4} leftSection={<IconAlertTriangle size={12} />}>
           {warnings}
         </Badge>
       )}
       {infos > 0 && (
-        <Badge aria-hidden="true" color="gray" variant="light" size="sm" px={4} leftSection={<IconInfoCircle size={12} />}>
+        <Badge aria-hidden="true" color="gray" size="sm" px={4} leftSection={<IconInfoCircle size={12} />}>
           {infos}
         </Badge>
       )}

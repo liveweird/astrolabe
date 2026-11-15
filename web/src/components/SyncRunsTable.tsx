@@ -70,7 +70,7 @@ export default function SyncRunsTable({
                       <Text size="sm">{t(`sync.runs.trigger.${run.trigger}`)}</Text>
                     </Table.Td>
                     <Table.Td>
-                      <Badge color={RUN_STATE_COLOR[state]} variant="light" tt="none">
+                      <Badge color={RUN_STATE_COLOR[state]} tt="none">
                         {t(`sync.runs.state.${state}`)}
                       </Badge>
                       {state === "interrupted" && (

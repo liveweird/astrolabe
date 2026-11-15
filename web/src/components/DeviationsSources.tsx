@@ -105,7 +105,7 @@ export default function DeviationsSources({ connections, admin, readAt }: { conn
                       </Text>
                     )}
                     {!connection.enabled && (
-                      <Badge color="gray" variant="light" tt="none" ml="xs">
+                      <Badge color="gray" tt="none" ml="xs">
                         {t("deviations.sources.disabled")}
                       </Badge>
                     )}
@@ -120,7 +120,7 @@ export default function DeviationsSources({ connections, admin, readAt }: { conn
                       </Text>
                     ) : (
                       <>
-                        <Badge color={RUN_STATE_COLOR[state]} variant="light" tt="none">
+                        <Badge color={RUN_STATE_COLOR[state]} tt="none">
                           {t(`sync.runs.state.${state}`)}
                         </Badge>
                         <Text size="xs" c="dimmed">

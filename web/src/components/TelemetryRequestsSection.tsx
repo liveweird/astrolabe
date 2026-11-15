@@ -20,7 +20,7 @@ function RouteRow({ stats, name }: { stats: TelemetryRouteStats; name: string })
       <Table.Td ta="right">{formatDuration(stats.p95Ms)}</Table.Td>
       <Table.Td ta="right">
         {stats.serverErrors > 0 ? (
-          <Badge color="red" variant="light">
+          <Badge color="red">
             {formatCount(stats.serverErrors)}
           </Badge>
         ) : (
@@ -29,7 +29,7 @@ function RouteRow({ stats, name }: { stats: TelemetryRouteStats; name: string })
       </Table.Td>
       <Table.Td ta="right">
         {stats.rateLimited > 0 ? (
-          <Badge color="orange" variant="light">
+          <Badge color="orange">
             {formatCount(stats.rateLimited)}
           </Badge>
         ) : (

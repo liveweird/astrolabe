@@ -30,7 +30,7 @@ export default function ConnectionTestBadge({
     );
   }
   const badge = (
-    <Badge color={lastTestOk ? "green" : "red"} variant="light" tt="none">
+    <Badge color={lastTestOk ? "green" : "red"} tt="none">
       {lastTestOk ? t("sync.test.passed") : t("sync.test.notPassed")}
     </Badge>
   );

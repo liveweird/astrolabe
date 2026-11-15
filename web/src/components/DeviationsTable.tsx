@@ -80,12 +80,12 @@ function JiraCell({ item, connection, showConnection }: { item: DeviationItem; c
         </Text>
       )}
       {jira.gone && (
-        <Badge color="orange" variant="light" tt="none" mt={2}>
+        <Badge color="orange" tt="none" mt={2}>
           {t(GONE_BADGE[badge])}
         </Badge>
       )}
       {connection && !connection.enabled && (
-        <Badge color="gray" variant="light" tt="none" mt={2}>
+        <Badge color="gray" tt="none" mt={2}>
           {t("deviations.jira.connectionDisabled")}
         </Badge>
       )}

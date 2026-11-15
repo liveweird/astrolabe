@@ -209,7 +209,7 @@ export default function Users() {
                         {user.name}
                       </Text>
                       {self && (
-                        <Badge size="xs" variant="light">
+                        <Badge size="xs">
                           {t("users.youBadge")}
                         </Badge>
                       )}

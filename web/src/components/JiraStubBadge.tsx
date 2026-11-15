@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 export default function JiraStubBadge() {
   const { t } = useTranslation();
   return (
-    <Badge color="gray" variant="light" tt="none" title={t("jira.stub.title")}>
+    <Badge color="gray" tt="none" title={t("jira.stub.title")}>
       {t("jira.stub.badge")}
     </Badge>
   );

@@ -28,7 +28,7 @@ function ScopeChips({ filter, plan, onChange }: { filter: DeviationFilter; plan:
   return (
     <Group gap="xs" role="group" aria-label={t("deviations.filter.scopeAria")}>
       {chips.map((chip) => (
-        <Badge key={chip.key} color="gray" variant="light" tt="none" size="lg" rightSection={<CloseButton size="xs" aria-label={chip.remove} onClick={() => onChange(chip.clear)} />}>
+        <Badge key={chip.key} color="gray" tt="none" size="lg" rightSection={<CloseButton size="xs" aria-label={chip.remove} onClick={() => onChange(chip.clear)} />}>
           {chip.text}
         </Badge>
       ))}

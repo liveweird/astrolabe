@@ -75,7 +75,7 @@ function FlowLinked({
             <Group gap="xs" wrap="wrap">
               <Text size="sm">{binding.flowTeamName}</Text>
               {binding.gone && (
-                <Badge color="orange" variant="light" tt="none">
+                <Badge color="orange" tt="none">
                   {t("flow.panel.gone")}
                 </Badge>
               )}

@@ -11,7 +11,7 @@ import { Badge, VisuallyHidden, type MantineSpacing } from "@mantine/core";
 export default function SeverityBadge({ severity, children, hiddenPrefix = true, mr, dimmed = false }: { severity: "WARNING" | "INFO"; children: ReactNode; hiddenPrefix?: boolean; mr?: MantineSpacing; dimmed?: boolean }) {
   const { t } = useTranslation();
   return (
-    <Badge color={severity === "WARNING" && !dimmed ? "orange" : "gray"} variant="light" tt="none" mr={mr}>
+    <Badge color={severity === "WARNING" && !dimmed ? "orange" : "gray"} tt="none" mr={mr}>
       {hiddenPrefix && <VisuallyHidden component="span">{t(`deviations.severity.${severity}`)}: </VisuallyHidden>}
       {children}
     </Badge>

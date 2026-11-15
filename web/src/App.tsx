@@ -151,7 +151,6 @@ function Shell() {
             {/* Sits beside the Burger, where the nav it toggles lives. */}
             <Tooltip label={t("appShell.toggleNav")} position="right" withinPortal>
               <ActionIcon
-                variant="subtle"
                 visibleFrom="sm"
                 onClick={() => setNavCollapsed(!navCollapsed)}
                 aria-label={t("appShell.toggleNav")}

@@ -19,8 +19,6 @@ export default function RevealablePassword({
         {visible ? password : "*".repeat(password.length)}
       </Code>
       <ActionIcon
-        variant="subtle"
-        color="gray"
         onClick={() => setVisible((v) => !v)}
         aria-pressed={visible}
         aria-label={visible ? t("common.action.hidePassword") : t("common.action.showPassword")}

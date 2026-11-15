@@ -213,7 +213,6 @@ export default function PublicHolidays() {
                       {admin && (
                         <Table.Td style={{ width: 1 }} ta="right">
                           <ActionIcon
-                            variant="subtle"
                             color="red"
                             size="sm"
                             aria-label={t("calendar.deleteAria", { name: holiday.name })}

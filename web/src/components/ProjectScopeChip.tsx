@@ -13,7 +13,6 @@ export default function ProjectScopeChip({ projectId, onRemove }: { projectId: n
     <Group gap="xs" role="group" aria-label={t("deviations.filter.scopeAria")}>
       <Badge
         color="gray"
-        variant="light"
         tt="none"
         size="lg"
         rightSection={<CloseButton size="xs" aria-label={t("deviations.filter.removeProject")} onClick={onRemove} />}

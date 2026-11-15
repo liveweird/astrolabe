@@ -13,7 +13,7 @@ const NO_WRAP = { whiteSpace: "nowrap" } as const;
 export function StatusBadge({ status }: { status: ReturnType<typeof movementStatus> }) {
   const { t } = useTranslation();
   return (
-    <Badge color={status.late ? "orange" : "gray"} variant="light" miw="max-content">
+    <Badge color={status.late ? "orange" : "gray"} miw="max-content">
       {t(`baselines.status.${status.key}`)}
     </Badge>
   );
@@ -66,19 +66,19 @@ export function TotalsBadges({
       ) : (
         <>
           {parts.map((part) => (
-            <Badge key={part.key} color={part.late ? "orange" : "gray"} variant="light">
+            <Badge key={part.key} color={part.late ? "orange" : "gray"}>
               {part.label}
             </Badge>
           ))}
           {estimateOnly > 0 && (
-            <Badge color="gray" variant="light">
+            <Badge color="gray">
               {t("baselines.totals.estimateOnly", { count: estimateOnly })}
             </Badge>
           )}
         </>
       )}
       {extra.map((part) => (
-        <Badge key={part.key} color="gray" variant="light">
+        <Badge key={part.key} color="gray">
           {part.label}
         </Badge>
       ))}

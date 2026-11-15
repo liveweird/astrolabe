@@ -12,7 +12,7 @@ export default function SyncStatusBadge({ detail = true, ...context }: SyncStatu
   const line = detail ? syncStatusDetail(context, t) : null;
   return (
     <Stack gap={2} align="flex-start">
-      <Badge color={SYNC_STATE_COLOR[context.status.state]} variant="light" tt="none">
+      <Badge color={SYNC_STATE_COLOR[context.status.state]} tt="none">
         {t(`sync.status.${context.status.state}`)}
       </Badge>
       {line && (

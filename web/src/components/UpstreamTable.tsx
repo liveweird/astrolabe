@@ -89,7 +89,7 @@ export default function UpstreamTable({
               {chainBadge && (
                 <Table.Td>
                   {row.critical && (
-                    <Badge color="gray" variant="light" tt="none">
+                    <Badge color="gray" tt="none">
                       {t("project.critical.onChain")}
                     </Badge>
                   )}

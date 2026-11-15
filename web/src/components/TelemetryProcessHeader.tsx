@@ -14,7 +14,7 @@ export default function TelemetryProcessHeader({ process }: { process: Telemetry
           {roleName(t, process.role)} · {process.instance}
         </Title>
         {process.stale && (
-          <Badge color="orange" variant="light" style={{ flexShrink: 0 }}>
+          <Badge color="orange" style={{ flexShrink: 0 }}>
             {t("telemetry.stale.badge")}
           </Badge>
         )}

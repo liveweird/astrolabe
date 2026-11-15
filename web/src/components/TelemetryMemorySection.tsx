@@ -25,12 +25,12 @@ function PercentOfLimit({ percent }: { percent: number | null }) {
     <Group gap={6} justify="flex-end" wrap="nowrap">
       <span>{formatPercent(percent)}</span>
       {level === "critical" && (
-        <Badge color="red" variant="light">
+        <Badge color="red">
           {t("telemetry.memory.critical")}
         </Badge>
       )}
       {level === "high" && (
-        <Badge color="orange" variant="light">
+        <Badge color="orange">
           {t("telemetry.memory.high")}
         </Badge>
       )}

@@ -190,7 +190,7 @@ export default function JiraBindingsSection({ connection }: { connection: JiraCo
               <Group gap="xs" wrap="nowrap">
                 <JiraKeyWithPrevious issueKey={row.issueKey} previousKey={row.observation?.issueKey} siteUrl={connection.siteUrl} />
                 {row.observation?.gone && (
-                  <Badge color="orange" variant="light" tt="none">
+                  <Badge color="orange" tt="none">
                     {t(GONE_BADGE[goneBadge(row.observation.goneReason)])}
                   </Badge>
                 )}

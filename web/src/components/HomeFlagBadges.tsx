@@ -9,12 +9,12 @@ export default function HomeFlagBadges({ flags }: { flags: components["schemas"]
   return (
     <Group gap="xs" wrap="wrap">
       {flags.warnings > 0 && (
-        <Badge color="orange" variant="light" tt="none">
+        <Badge color="orange" tt="none">
           {t("roadmap.facts.warnings", { count: flags.warnings })}
         </Badge>
       )}
       {flags.infos > 0 && (
-        <Badge color="gray" variant="light" tt="none">
+        <Badge color="gray" tt="none">
           {t("roadmap.facts.infos", { count: flags.infos })}
         </Badge>
       )}

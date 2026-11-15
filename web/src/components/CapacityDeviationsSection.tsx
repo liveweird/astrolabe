@@ -68,19 +68,19 @@ function Totals({ view, status }: { view: CapacityDeviationView; status: ReturnT
   return (
     <Stack gap="xs">
       <Group gap="sm" role="group" aria-label={t("deviations.flowSection.list.title")}>
-        <Badge color="orange" variant="light" tt="none">
+        <Badge color="orange" tt="none">
           {t("deviations.totals.warnings", { count: totals.warnings })}
         </Badge>
-        <Badge color="gray" variant="light" tt="none">
+        <Badge color="gray" tt="none">
           {t("deviations.totals.infos", { count: totals.infos })}
         </Badge>
         {totals.gone > 0 && (
           // `totals.warnings` already counts these (a gone team is one WARNING row), so the badge reads as part of them.
-          <Badge color="orange" variant="light" tt="none">
+          <Badge color="orange" tt="none">
             {t("deviations.flowSection.totals.gone", { count: totals.gone })}
           </Badge>
         )}
-        <Badge color="gray" variant="light" tt="none">
+        <Badge color="gray" tt="none">
           {t("deviations.flowSection.totals.acknowledged", { count: totals.acknowledged })}
         </Badge>
         <Text size="sm" c="dimmed">

@@ -82,7 +82,7 @@ export default function TeamCapacity({ view, readOnly = false }: { view: TeamVie
                       <Group gap="xs" wrap="nowrap">
                         {period.effectiveFrom}
                         {period.source === "FLOW" && (
-                          <Badge color="gray" variant="light" tt="none" title={period.flowSprintName ?? undefined}>
+                          <Badge color="gray" tt="none" title={period.flowSprintName ?? undefined}>
                             {t("teams.view.period.sourceFlow")}
                           </Badge>
                         )}

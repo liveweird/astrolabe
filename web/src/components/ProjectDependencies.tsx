@@ -41,7 +41,7 @@ function DependencyRow({
       <Table.Td style={NO_WRAP}>
         <DependencyStatusBadge check={check} />
         {showCritical && dependency.critical && (
-          <Badge color="gray" variant="light" tt="none" miw="max-content" ml="xs">
+          <Badge color="gray" tt="none" miw="max-content" ml="xs">
             {t("project.critical.linkBadge")}
           </Badge>
         )}

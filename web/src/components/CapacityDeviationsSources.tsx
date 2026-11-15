@@ -96,7 +96,7 @@ export default function CapacityDeviationsSources({ connections, admin, readAt }
                     </Text>
                   )}
                   {!connection.enabled && (
-                    <Badge color="gray" variant="light" tt="none" ml="xs">
+                    <Badge color="gray" tt="none" ml="xs">
                       {t("deviations.sources.disabled")}
                     </Badge>
                   )}

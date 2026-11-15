@@ -60,12 +60,12 @@ export default function HomeTeamsTable({ teams }: { teams: HomeMe["teams"] }) {
               <Table.Td>
                 <Group gap="xs" wrap="wrap">
                   {team.overloadedWeeks > 0 && (
-                    <Badge color="orange" variant="light" tt="none">
+                    <Badge color="orange" tt="none">
                       {t("teams.view.overloadedWeeks", { count: team.overloadedWeeks })}
                     </Badge>
                   )}
                   {team.wipExceededWeeks > 0 && (
-                    <Badge color="orange" variant="light" tt="none">
+                    <Badge color="orange" tt="none">
                       {t("teams.view.wipWeeks", { count: team.wipExceededWeeks })}
                     </Badge>
                   )}

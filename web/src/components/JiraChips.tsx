@@ -43,7 +43,7 @@ export function DeviationCount({
   const count = warnings + infos;
   return (
     <>
-      <Badge color={count > 0 && warnings > 0 ? "orange" : "gray"} variant="light" tt="none" component={RouterLink} to={to} aria-label={ariaLabel}>
+      <Badge color={count > 0 && warnings > 0 ? "orange" : "gray"} tt="none" component={RouterLink} to={to} aria-label={ariaLabel}>
         {count === 0 ? t("deviations.chip.inLine") : t("deviations.chip.count", { count })}
       </Badge>
       {stale && <JiraStaleNote />}
