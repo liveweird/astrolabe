@@ -17,6 +17,32 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.20.0",
+    date: "2026-11-15",
+    en: `**Astrolabe 1.20.0: every dependency of the plan on one page.**
+
+- Dependencies (new, under Planning): every dependency of the plan, the violated ones first (the largest shortfall first), then the ones that hold, then the ones with an end not scheduled yet. Each row shows the type, the lag, both ends with their milestone, project and team, and the check. Filter by status, team or project; the filters are in the address. A dependency is still changed on its successor's project page.
+- Home: the red "violated dependencies" figure opens the list of violated dependencies; under "Yours", a project's or a team's conflicts open it narrowed to that project or team.
+- Roadmap and Programs pages: a project's row menu has "Dependencies". Team page: the number of dependencies and the red conflicts badge open the list for the team.
+- Home shows your own changes to the Jira and Flow connections, mappings, synchronisations and team links at once.
+- The sign-in and password-reset pages also offer Reload when a new version has been deployed.
+- API (\`/api/v1\`): \`GET /views/dependencies\` (any signed-in user) answers the Dependencies page in one read.
+- Nothing is written to Jira or Flow.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.
+- Proven against the built-in Flow stub; not yet compared with a real Flow.`,
+    pl: `**Astrolabe 1.20.0: wszystkie zależności planu na jednej stronie.**
+
+- Zależności (nowa strona w sekcji Planowanie): każda zależność planu, najpierw niedotrzymane (od największego niedoboru), potem dotrzymane, potem te, których koniec nie jest jeszcze zaplanowany. Każdy wiersz pokazuje typ, opóźnienie, oba końce z kamieniem milowym, projektem i zespołem oraz wynik sprawdzenia. Filtr po stanie, zespole i projekcie; filtry są w adresie. Zależność nadal zmieniasz na stronie projektu jej następnika.
+- Strona główna: czerwona liczba niedotrzymanych zależności otwiera ich listę; w sekcji „Twoje” konflikty projektu albo zespołu otwierają listę zawężoną do tego projektu albo zespołu.
+- Roadmapa i Programy: menu wiersza projektu ma pozycję „Zależności”. Strona zespołu: liczba zależności i czerwony znacznik konfliktów otwierają listę dla zespołu.
+- Strona główna od razu pokazuje Twoje zmiany połączeń z Jirą i Flow, mapowań, synchronizacji i powiązań zespołów.
+- Strony logowania i resetu hasła też proponują Odśwież, gdy wdrożono nową wersję.
+- API (\`/api/v1\`): \`GET /views/dependencies\` (każdy zalogowany użytkownik/zalogowana użytkowniczka) zwraca stronę Zależności w jednym odczycie.
+- Niczego nie zapisujemy w Jirze ani we Flow.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.
+- Sprawdzone na wbudowanej atrapie Flow; jeszcze nie porównane z prawdziwym Flow.`,
+  },
+  {
     version: "1.19.0",
     date: "2026-11-14",
     en: `**Astrolabe 1.19.0: Home's figures lead somewhere.**
