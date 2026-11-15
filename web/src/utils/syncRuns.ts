@@ -1,5 +1,9 @@
 import type { ParseKeys, TFunction } from "i18next";
+import type { components } from "../api/schema";
 import type { SyncKind, SyncOutcome } from "../api/sync";
+
+/** The declared failure codes (the spec's `SyncFailureCode`, nullable on the wire): the keys both sentence tables below are typed over. */
+type FailureCode = NonNullable<components["schemas"]["SyncFailureCode"]>;
 
 /** The poll period while a run is running. */
 export const RUN_POLL_MS = 3_000;
@@ -65,7 +69,11 @@ export const RUN_STATE_COLOR: Record<RunState, string> = {
   running: "gray",
 };
 
-/** The failure codes a probe row or a run row can carry (Jira's fetch vocabulary plus the run's and the probes' own), with their EN/PL sentence. */
+/**
+ * Every declared failure code with its EN/PL sentence (`Record` over the spec's list: a new, missing or renamed code fails `tsc`). `SKIPPED` is
+ * worded by the test table's own detail (a skipped probe row never reaches {@link errorCodeText}); `TIME_ZONE_INVALID` has the one sentence
+ * Flow's table words, which names no connector.
+ */
 const ERROR_CODE_KEYS = {
   AUTHENTICATION_FAILED: "sync.errorCode.AUTHENTICATION_FAILED",
   FORBIDDEN_SCOPE: "sync.errorCode.FORBIDDEN_SCOPE",
@@ -90,7 +98,9 @@ const ERROR_CODE_KEYS = {
   SHUTDOWN: "sync.errorCode.SHUTDOWN",
   INTERNAL: "sync.errorCode.INTERNAL",
   ABANDONED: "sync.errorCode.ABANDONED",
-} as const satisfies Record<string, ParseKeys>;
+  SKIPPED: "sync.test.skippedDetail",
+  TIME_ZONE_INVALID: "flow.errorCode.TIME_ZONE_INVALID",
+} as const satisfies Record<FailureCode, ParseKeys>;
 
 /**
  * The codes a Flow run or probe row words differently from Jira's (Flow's token is a service token, its one 401 is uniform, the origin list is
@@ -109,7 +119,7 @@ const FLOW_ERROR_CODE_KEYS = {
   BLOCKED_HOST: "flow.errorCode.BLOCKED_HOST",
   REDIRECT: "flow.errorCode.REDIRECT",
   TIME_ZONE_INVALID: "flow.errorCode.TIME_ZONE_INVALID",
-} as const satisfies Record<string, ParseKeys>;
+} as const satisfies Partial<Record<FailureCode, ParseKeys>>;
 
 function isKnownErrorCode(code: string): code is keyof typeof ERROR_CODE_KEYS {
   return Object.hasOwn(ERROR_CODE_KEYS, code);
