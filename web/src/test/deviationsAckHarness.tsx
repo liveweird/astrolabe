@@ -30,8 +30,8 @@ export const row = (bindingId: number, key: string, over: Partial<DeviationItem>
   const base = item();
   return item({ bindingId, node: { ...base.node, id: 10 + bindingId, name: `Milestone ${key}` }, jira: { ...base.jira, key }, fingerprint: String(bindingId).repeat(64).slice(0, 64), can: { acknowledge: true }, ...over });
 };
-/** An item whose only line (the 3-day END_DIFFERS) is currently acknowledged; the deprecated item-level summary is kept in step (the UI does not read it). */
-export const acknowledged = (over: Partial<DeviationItem> = {}) => ({ deviations: [stamped(endLater(3))], acknowledgement: { at: AT, by: "Ada Lovelace", current: true }, ...over });
+/** An item whose only line (the 3-day END_DIFFERS) is currently acknowledged. */
+export const acknowledged = (over: Partial<DeviationItem> = {}) => ({ deviations: [stamped(endLater(3))], ...over });
 
 function Where() {
   const location = useLocation();

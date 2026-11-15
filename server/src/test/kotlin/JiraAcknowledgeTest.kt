@@ -65,7 +65,7 @@ class JiraAcknowledgeTest {
                     assertEquals(HttpStatusCode.Forbidden, caller.client.ack(binding, fingerprint).status, label)
                     assertEquals(HttpStatusCode.Forbidden, caller.client.unack(binding).status, "$label: DELETE")
                 }
-                assertNull(w.admin.client.ackItem(f.connectionId, binding).acknowledgement, "$label: nothing is left stored")
+                assertNull(w.admin.client.ackItem(f.connectionId, binding).ackSummary(), "$label: nothing is left stored")
             }
         }
     }
@@ -81,9 +81,9 @@ class JiraAcknowledgeTest {
 
             w.projectOwner.client.ack(binding, fingerprint).acknowledgement()
             assertEquals(HttpStatusCode.Forbidden, teams.otherManager.client.unack(binding).status, "another team's manager")
-            assertNotNull(w.admin.client.ackItem(f.connectionId, binding).acknowledgement, "the refused withdrawal changed nothing")
+            assertNotNull(w.admin.client.ackItem(f.connectionId, binding).ackSummary(), "the refused withdrawal changed nothing")
             assertEquals(HttpStatusCode.NoContent, teams.manager.client.unack(binding).status, "the manager withdraws the owner's stamp")
-            assertNull(w.admin.client.ackItem(f.connectionId, binding).acknowledgement)
+            assertNull(w.admin.client.ackItem(f.connectionId, binding).ackSummary())
 
             val managerName = TestPlan.scalar("SELECT name FROM people WHERE id = ${teams.manager.personId}") { it.getString(1) }
             assertEquals(managerName, teams.manager.client.ack(binding, fingerprint).acknowledgement().acknowledgedBy)
@@ -135,7 +135,7 @@ class JiraAcknowledgeTest {
         }
         val shapes = listOf("0".repeat(63), "0".repeat(65), "g".repeat(64), "A".repeat(64))
         for (shape in shapes) assertEquals(HttpStatusCode.BadRequest, w.admin.client.ack(binding, shape).status, shape)
-        assertNull(w.admin.client.ackItem(f.connectionId, binding).acknowledgement)
+        assertNull(w.admin.client.ackItem(f.connectionId, binding).ackSummary())
     }
 
     @Test
@@ -157,7 +157,7 @@ class JiraAcknowledgeTest {
             val none = admin.ack(cleanBinding, item.fingerprint)
             assertEquals(HttpStatusCode.Conflict, none.status, "its own fingerprint, but there is nothing to acknowledge")
             assertEquals(STALE_DEVIATIONS_PROBLEM, none.jbProblem().type)
-            for (id in listOf(binding, cleanBinding)) assertNull(admin.ackItem(f.connectionId, id).acknowledgement)
+            for (id in listOf(binding, cleanBinding)) assertNull(admin.ackItem(f.connectionId, id).ackSummary())
         }
 
     @Test
@@ -181,7 +181,7 @@ class JiraAcknowledgeTest {
         assertTrue(open.items.isEmpty(), "an acknowledged item leaves the default list")
         assertEquals(listOf(0, 0, 0, 0, 1), with(open.totals) { listOf(warnings, infos, bindings, gone, acknowledged) })
         val acknowledged = admin.dvView("connectionId=${f.connectionId}&acknowledged=true").items.single()
-        val stored = assertNotNull(acknowledged.acknowledgement)
+        val stored = assertNotNull(acknowledged.ackSummary())
         assertEquals(listOf(given.acknowledgedAt, ownerName, true), listOf(stored.at, stored.by, stored.current))
         assertEquals(fingerprint, acknowledged.fingerprint, "acknowledging changes nothing about the fingerprint")
         assertEquals(listOf(binding), admin.dvView("connectionId=${f.connectionId}&all=true").items.map { it.bindingId })
@@ -191,9 +191,9 @@ class JiraAcknowledgeTest {
         jbSql("UPDATE users SET name = 'Display Owner' WHERE id = ?", w.streamOwner.userId.toInt())
         w.streamOwner.client.ack(binding, fingerprint).acknowledgement()
         TestPeople.softDelete(w.streamOwner.personId!!)
-        assertEquals("Display Owner", admin.ackItem(f.connectionId, binding).acknowledgement?.by, "no active person: the display name")
+        assertEquals("Display Owner", admin.ackItem(f.connectionId, binding).ackSummary()?.by, "no active person: the display name")
         TestUsers.softDelete(w.streamOwner.userId)
-        val orphaned = assertNotNull(admin.ackItem(f.connectionId, binding).acknowledgement, "a deleted login keeps its acknowledgement")
+        val orphaned = assertNotNull(admin.ackItem(f.connectionId, binding).ackSummary(), "a deleted login keeps its acknowledgement")
         assertNull(orphaned.by)
     }
 
@@ -214,12 +214,12 @@ class JiraAcknowledgeTest {
 
             // A change that alters no deviation (the man-day estimate has no Jira counterpart here) keeps it acknowledged.
             jbSql("UPDATE milestones SET estimate_md = 5 WHERE id = ?", id.toInt())
-            assertTrue(assertNotNull(admin.ackItem(f.connectionId, binding).acknowledgement).current)
+            assertTrue(assertNotNull(admin.ackItem(f.connectionId, binding).ackSummary()).current)
 
             // The plan moves the end further: another detail, another fingerprint.
             TestPlan.schedule(id, "2044-02-01", "2044-02-11")
             val reopened = admin.ackItem(f.connectionId, binding)
-            val stamp = assertNotNull(reopened.acknowledgement)
+            val stamp = assertNotNull(reopened.ackSummary())
             assertEquals(listOf(given.acknowledgedAt, given.acknowledgedBy, false), listOf(stamp.at, stamp.by, stamp.current))
             assertFalse(reopened.fingerprint == first.fingerprint)
             assertEquals(listOf(binding), admin.dvView("connectionId=${f.connectionId}").items.map { it.bindingId }, "open again")
@@ -230,10 +230,10 @@ class JiraAcknowledgeTest {
 
             // Jira's side moves too: back to the first plan end, Jira's end later - the list changes again.
             val again = w.projectOwner.client.ack(binding, reopened.fingerprint).acknowledgement()
-            assertTrue(assertNotNull(admin.ackItem(f.connectionId, binding).acknowledgement).current)
+            assertTrue(assertNotNull(admin.ackItem(f.connectionId, binding).ackSummary()).current)
             jbSql("UPDATE jira_observations SET end_date = DATE '2044-02-10' WHERE binding_id = ?", binding.toInt())
             val moved = admin.ackItem(f.connectionId, binding)
-            val stale = assertNotNull(moved.acknowledgement)
+            val stale = assertNotNull(moved.ackSummary())
             assertFalse(stale.current)
             assertEquals(again.acknowledgedAt, stale.at)
         }
@@ -249,13 +249,13 @@ class JiraAcknowledgeTest {
         admin.ack(binding, f.fingerprint(binding)).acknowledgement()
         assertEquals(HttpStatusCode.Forbidden, w.stranger.client.unack(binding).status)
         assertEquals(HttpStatusCode.NoContent, w.programOwner.client.unack(binding).status)
-        assertNull(admin.ackItem(f.connectionId, binding).acknowledgement)
+        assertNull(admin.ackItem(f.connectionId, binding).ackSummary())
         assertEquals(HttpStatusCode.NotFound, admin.unack(binding).status)
         assertEquals(listOf(binding), admin.dvView("connectionId=${f.connectionId}").items.map { it.bindingId }, "open again")
         // A STALE acknowledgement is withdrawn the same way.
         admin.ack(binding, f.fingerprint(binding)).acknowledgement()
         jbSql("UPDATE jira_observations SET summary = 'moved on' WHERE binding_id = ?", binding.toInt())
-        assertFalse(assertNotNull(admin.ackItem(f.connectionId, binding).acknowledgement).current)
+        assertFalse(assertNotNull(admin.ackItem(f.connectionId, binding).ackSummary()).current)
         assertEquals(HttpStatusCode.NoContent, admin.unack(binding).status)
     }
 
@@ -334,12 +334,12 @@ class JiraAcknowledgeTest {
         val item = admin.ackItem(f.connectionId, binding)
         assertEquals(setOf(ch.nokillswit.planning.DeviationKind.UNLINKED_IN_JIRA), item.kindSet())
         assertEquals(binding, admin.ack(binding, item.fingerprint).acknowledgement().bindingId, "the write recomputes the very same list")
-        assertTrue(assertNotNull(admin.ackItem(f.connectionId, binding).acknowledgement).current)
+        assertTrue(assertNotNull(admin.ackItem(f.connectionId, binding).ackSummary()).current)
         assertTrue(admin.dvView("connectionId=${f.connectionId}").items.none { it.bindingId == binding }, "acknowledged: not open")
 
         dvMirror(f.connectionId, "80003", level = 1, parent = "80001")
         val reopened = admin.ackItem(f.connectionId, binding)
-        assertEquals(false, assertNotNull(reopened.acknowledgement).current, "a new unplanned epic changes the list")
+        assertEquals(false, assertNotNull(reopened.ackSummary()).current, "a new unplanned epic changes the list")
         assertTrue(reopened.fingerprint != item.fingerprint)
         assertTrue(admin.dvView("connectionId=${f.connectionId}").items.any { it.bindingId == binding }, "and the item is open again")
         assertEquals(HttpStatusCode.Conflict, admin.ack(binding, item.fingerprint).status, "the old fingerprint is stale now")

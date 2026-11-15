@@ -67,7 +67,7 @@ class JiraAcknowledgeLinesTest {
         val after = f.item(two.binding)
         assertEquals(mapOf(end to true, renamed to null), after.lineStates())
         assertEquals(item.fingerprint, after.fingerprint, "the token a client echoes does not move")
-        assertEquals(false, assertNotNull(after.acknowledgement, "the deprecated summary").current, "not every listed line is current")
+        assertEquals(false, assertNotNull(after.ackSummary(), "the summary").current, "not every listed line is current")
         val ownerName = TestPlan.scalar("SELECT name FROM people WHERE id = ${f.w.projectOwner.personId}") { it.getString(1) }
         assertEquals(ownerName, after.deviations.first().acknowledgement?.by)
 
@@ -78,7 +78,7 @@ class JiraAcknowledgeLinesTest {
 
         f.owner.ack(two.binding, item.fingerprint, renamed).acknowledgement()
         assertTrue(f.admin.dvView("connectionId=${f.c}").items.isEmpty(), "every line acknowledged: the binding leaves the open list")
-        assertTrue(assertNotNull(f.item(two.binding).acknowledgement).current)
+        assertTrue(assertNotNull(f.item(two.binding).ackSummary()).current)
     }
 
     @Test
@@ -113,7 +113,7 @@ class JiraAcknowledgeLinesTest {
         assertEquals(listOf(null, fingerprint), listOf(given.kind, given.fingerprint))
         val item = f.item(two.binding)
         assertEquals(mapOf(end to true, renamed to true), item.lineStates())
-        assertEquals(listOf(given.acknowledgedAt, true), assertNotNull(item.acknowledgement).let { listOf(it.at, it.current) })
+        assertEquals(listOf(given.acknowledgedAt, true), assertNotNull(item.ackSummary()).let { listOf(it.at, it.current) })
         assertTrue(f.admin.dvView("connectionId=${f.c}").items.isEmpty())
         assertEquals(setOf(end.name, renamed.name), storedAcks(two.binding).keys)
     }

@@ -83,7 +83,7 @@ class JiraAcknowledgeRunTest {
                 assertEquals(listOf(DeviationKind.GONE), reopened.deviations.map { it.kind }, "a gone issue raises GONE alone")
                 assertFalse(reopened.fingerprint == first.fingerprint)
                 assertNull(reopened.deviations.single().acknowledgement, "the GONE line was never acknowledged: only it is open")
-                assertNull(reopened.acknowledgement, "the deprecated summary reads the listed lines only")
+                assertNull(reopened.ackSummary(), "the summary reads the listed lines only")
                 assertEquals(1, admin.dvView("connectionId=$connection").totals.gone, "an open gone issue counts")
                 assertEquals(first.deviations.map { it.kind }.toSet(), storedAcks(binding).keys.map(DeviationKind::valueOf).toSet())
 

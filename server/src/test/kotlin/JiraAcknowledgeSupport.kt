@@ -2,6 +2,7 @@ package ch.nokillswit
 
 import ch.nokillswit.jira.AcknowledgeRequest
 import ch.nokillswit.jira.Acknowledgement
+import ch.nokillswit.jira.DeviationAcknowledgement
 import ch.nokillswit.jira.DeviationItem
 import ch.nokillswit.jira.JiraLevel
 import ch.nokillswit.planning.DeviationKind
@@ -61,6 +62,15 @@ fun storeRetiredAck(bindingId: UInt, userId: UInt, kind: String = "RETIRED_KIND"
 
 /** Each listed line's acknowledgement state: null = never acknowledged, else its `current`. */
 fun DeviationItem.lineStates(): Map<DeviationKind, Boolean?> = deviations.associate { it.kind to it.acknowledgement?.current }
+
+/**
+ * The summary the item carried until 1.24 (the member left the wire; `jira-sync.md` "Acknowledge"), derived from its listed lines: null
+ * while no listed line is stamped, else the newest stamp among them, `current` only when every listed line is currently acknowledged.
+ */
+fun DeviationItem.ackSummary(): DeviationAcknowledgement? {
+    val newest = deviations.mapNotNull { it.acknowledgement }.maxByOrNull { it.at } ?: return null
+    return DeviationAcknowledgement(newest.at, newest.by, current = deviations.all { it.acknowledgement?.current == true })
+}
 
 suspend fun HttpResponse.acknowledgement(): Acknowledgement {
     assertEquals(HttpStatusCode.OK, status, bodyAsText())

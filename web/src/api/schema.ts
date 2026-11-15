@@ -1576,8 +1576,7 @@ export interface paths {
          *     the milestone's team; false for everyone else, whole-item). Each LINE in `deviations` carries its own `acknowledgement` (null until
          *     someone acknowledges that deviation; `at`, `by` - the acknowledging login's active person's name, else its display name, never the
          *     email, null once that login is deleted - and `current`, false when that line was acknowledged and CHANGED since, which makes it
-         *     open again). A line that leaves the list and returns identical is still acknowledged. The item-level `acknowledgement` is
-         *     DEPRECATED (a summary for readers that predate the lines). The writes are `POST` and `DELETE
+         *     open again). A line that leaves the list and returns identical is still acknowledged. The writes are `POST` and `DELETE
          *     /integrations/jira/bindings/{id}/acknowledge`.
          *
          *     **Deviations** (WARNING unless noted; `detail.days` is in WORKING days on the live calendar, POSITIVE = the plan is later):
@@ -5296,11 +5295,6 @@ export interface components {
             deviations: components["schemas"]["DeviationLine"][];
             /** @description The SHA-256 (lower-case hex) of the canonical JSON of the binding's FULL deviation list (`ESTIMATE_NOT_COMPARABLE` included even where `deviations` hides it): the token to send back to `POST .../acknowledge`, for one line (with `kind`) or for all. */
             fingerprint: string;
-            /**
-             * @deprecated
-             * @description DEPRECATED since 1.12 (the acknowledgements are per line, `deviations[].acknowledgement`): a summary over the listed lines for readers that predate them. Null while no listed line is stamped, else the newest stamp among them with `current` true only when EVERY listed line is currently acknowledged.
-             */
-            acknowledgement: components["schemas"]["DeviationAcknowledgement"] | null;
             can: components["schemas"]["DeviationCan"];
         };
         /** @description One listed deviation (a `Deviation`'s members, flat) with the state of its own acknowledgement (1.12). */
@@ -5310,7 +5304,7 @@ export interface components {
             detail: components["schemas"]["DeviationDetail"];
             acknowledgement: components["schemas"]["DeviationAcknowledgement"] | null;
         };
-        /** @description A stored acknowledgement (of one line, or the deprecated item-level summary). */
+        /** @description A stored acknowledgement of one line. */
         DeviationAcknowledgement: {
             /**
              * Format: int64

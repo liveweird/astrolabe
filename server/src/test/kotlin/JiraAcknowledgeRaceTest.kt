@@ -87,7 +87,7 @@ class JiraAcknowledgeRaceTest {
                 { f.owner.client.ack(binding, fingerprint) },
             ) { it.exec("UPDATE projects SET owner_person_id = ? WHERE id = ?", f.w.stranger.personId!!.toInt(), f.w.projectId.toInt()) }
             assertEquals(HttpStatusCode.Forbidden, response.status, "the guard ran again on the chain re-read under the lock")
-            assertNull(f.w.admin.client.ackItem(f.connectionId, binding).acknowledgement)
+            assertNull(f.w.admin.client.ackItem(f.connectionId, binding).ackSummary())
             assertTrue(audit.events.none { it.message == "jira.deviation_acknowledged" && it.hasKeyValue("bindingId", binding.toLong()) })
         }
     }
@@ -102,7 +102,7 @@ class JiraAcknowledgeRaceTest {
             { f.owner.client.ack(binding, fingerprint) },
         ) { it.exec("UPDATE people SET user_id = NULL WHERE id = ?", f.owner.personId!!.toInt()) }
         assertEquals(HttpStatusCode.Forbidden, response.status, "the person is resolved under a lock, fresh, inside the transaction")
-        assertNull(f.w.admin.client.ackItem(f.connectionId, binding).acknowledgement)
+        assertNull(f.w.admin.client.ackItem(f.connectionId, binding).ackSummary())
     }
 
     @Test
@@ -116,7 +116,7 @@ class JiraAcknowledgeRaceTest {
             { f.w.streamOwner.client.ack(binding, fingerprint) },
         ) { it.exec("UPDATE work_streams SET owner_person_id = ? WHERE id = ?", f.w.stranger.personId!!.toInt(), f.w.streamId.toInt()) }
         assertEquals(HttpStatusCode.Forbidden, response.status, "an ancestor's owner change is seen by the chain re-read")
-        assertNull(f.w.admin.client.ackItem(f.connectionId, binding).acknowledgement)
+        assertNull(f.w.admin.client.ackItem(f.connectionId, binding).ackSummary())
     }
 
     @Test
@@ -131,7 +131,7 @@ class JiraAcknowledgeRaceTest {
             ) { it.exec("UPDATE jira_observations SET summary = 'renamed while the request waited' WHERE binding_id = ?", binding.toInt()) }
             assertEquals(HttpStatusCode.Conflict, response.status)
             assertEquals(STALE_DEVIATIONS_PROBLEM, response.jbProblem().type)
-            assertNull(f.w.admin.client.ackItem(f.connectionId, binding).acknowledgement, "nothing was stored against the old reading")
+            assertNull(f.w.admin.client.ackItem(f.connectionId, binding).ackSummary(), "nothing was stored against the old reading")
             val now = f.w.admin.client.ackItem(f.connectionId, binding)
             assertFalse(now.fingerprint == seen.fingerprint, "the world did change")
         }
@@ -162,7 +162,7 @@ class JiraAcknowledgeRaceTest {
             { f.owner.client.unack(binding) },
         ) { it.exec("UPDATE projects SET owner_person_id = ? WHERE id = ?", f.w.stranger.personId!!.toInt(), f.w.projectId.toInt()) }
         assertEquals(HttpStatusCode.Forbidden, response.status)
-        assertNotNull(f.w.admin.client.ackItem(f.connectionId, binding).acknowledgement, "still acknowledged")
+        assertNotNull(f.w.admin.client.ackItem(f.connectionId, binding).ackSummary(), "still acknowledged")
     }
 
     private suspend fun Fixture.managedMilestoneBinding(): UInt = deviatingBinding(connectionId, JiraLevel.MILESTONE, managedMilestone())
@@ -187,7 +187,7 @@ class JiraAcknowledgeRaceTest {
                     f.setManager(teams.teamId, teams.otherManager.personId),
                 )
                 assertEquals(HttpStatusCode.Forbidden, response.status, "the manager guard ran again under the binding's row lock")
-                assertNull(f.w.admin.client.ackItem(f.connectionId, binding).acknowledgement)
+                assertNull(f.w.admin.client.ackItem(f.connectionId, binding).ackSummary())
                 val written = audit.events.filter { it.message == "jira.deviation_acknowledged" }
                 assertTrue(written.none { it.hasKeyValue("bindingId", binding.toLong()) })
                 val denied = assertNotNull(
@@ -211,7 +211,7 @@ class JiraAcknowledgeRaceTest {
                 f.setManager(teams.teamId, teams.otherManager.personId),
             )
             assertEquals(HttpStatusCode.Forbidden, response.status, "the team and its manager are read FOR SHARE, fresh")
-            assertNotNull(f.w.admin.client.ackItem(f.connectionId, binding).acknowledgement, "still acknowledged")
+            assertNotNull(f.w.admin.client.ackItem(f.connectionId, binding).ackSummary(), "still acknowledged")
         }
 
     @Test
@@ -226,7 +226,7 @@ class JiraAcknowledgeRaceTest {
             { teams.manager.client.ack(binding, fingerprint) },
         ) { it.exec("UPDATE milestones SET team_id = ? WHERE id = ?", teams.otherTeamId.toInt(), milestone.toInt()) }
         assertEquals(HttpStatusCode.Forbidden, response.status, "the old team's manager no longer manages the milestone's team")
-        assertNull(f.w.admin.client.ackItem(f.connectionId, binding).acknowledgement)
+        assertNull(f.w.admin.client.ackItem(f.connectionId, binding).ackSummary())
         assertEquals(HttpStatusCode.OK, teams.otherManager.client.ack(binding, fingerprint).status, "the new team's manager is")
     }
 

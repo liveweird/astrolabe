@@ -145,9 +145,8 @@ data class DeviationPlan(
 /**
  * One binding. [fingerprint] is the SHA-256 of the binding's FULL deviation list ([fingerprintOf]; it does not depend on the filters,
  * so `ESTIMATE_NOT_COMPARABLE` counts even where [deviations] hides it): the token a client echoes to acknowledge (the stored
- * acknowledgements are per line, [DeviationLine.acknowledgement]). [acknowledgement] is DEPRECATED since 1.12 (the old web UI's
- * summary, kept for readers that predate the lines): null while no listed line is stamped, else the newest stamp among the listed
- * lines, `current` = every listed line is currently acknowledged. [can] is the caller's right to acknowledge it.
+ * acknowledgements are per line, [DeviationLine.acknowledgement]; the item-level summary deprecated in 1.12 is gone). [can] is the
+ * caller's right to acknowledge it.
  */
 @Serializable
 data class DeviationItem(
@@ -159,7 +158,6 @@ data class DeviationItem(
     val plan: DeviationPlan,
     val deviations: List<DeviationLine>,
     val fingerprint: String,
-    val acknowledgement: DeviationAcknowledgement?,
     val can: DeviationCan,
 )
 

@@ -46,15 +46,6 @@ internal class LineState(val deviation: Deviation, val acknowledgement: Deviatio
 }
 
 /**
- * The item-level `acknowledgement` the old web UI reads (DEPRECATED since 1.12): null while no listed line is stamped, else the newest
- * stamp among them, `current` = every listed line is currently acknowledged.
- */
-private fun summaryOf(shown: List<LineState>): DeviationAcknowledgement? {
-    val newest = shown.mapNotNull { it.acknowledgement }.maxByOrNull { it.at } ?: return null
-    return DeviationAcknowledgement(newest.at, newest.by, current = shown.all { it.current })
-}
-
-/**
  * A live binding's computed row. [lines] is the kernel's FULL list with each line's acknowledgement state (what
  * [DeviationItem.fingerprint] hashes); [shown] the part the item LISTS (`ESTIMATE_NOT_COMPARABLE` only on request). A binding is OPEN
  * while at least one listed line is open, i.e. has no CURRENT acknowledgement (1.12: the acknowledgements are per line).
@@ -194,7 +185,6 @@ internal class World(
             ),
             deviations = shown.map(LineState::toWire),
             fingerprint = fingerprint,
-            acknowledgement = summaryOf(shown),
             can = DeviationCan(
                 acknowledge = actor?.let { PlanPermissions.canAcknowledgeDeviations(it, node.chain, node.teamId) } == true,
             ),

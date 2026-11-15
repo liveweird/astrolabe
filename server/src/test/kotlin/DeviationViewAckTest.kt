@@ -7,6 +7,7 @@ import ch.nokillswit.jira.fingerprintOf
 import ch.nokillswit.planning.DeviationKind
 import ch.nokillswit.planning.loadWorkingCalendar
 import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
@@ -18,6 +19,10 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 
 /**
  * What 1.3's acknowledgement does to `GET /views/deviations`: the default lists OPEN items, `acknowledged=`, `all`, the chips' implied
@@ -96,13 +101,27 @@ class DeviationViewAckTest {
             val chip = f.w.admin.client.dvView("connectionId=${f.c}&projectId=${f.w.projectId}")
             assertEquals(four.run { setOf(open, acked, stale, clean) }, chip.items.map { it.bindingId }.toSet(), "the chip implies all")
             val byBinding = chip.byBinding()
-            assertEquals(true, byBinding.getValue(four.acked).acknowledgement?.current)
-            assertEquals(false, byBinding.getValue(four.stale).acknowledgement?.current)
-            assertNull(byBinding.getValue(four.open).acknowledgement)
+            assertEquals(true, byBinding.getValue(four.acked).ackSummary()?.current)
+            assertEquals(false, byBinding.getValue(four.stale).ackSummary()?.current)
+            assertNull(byBinding.getValue(four.open).ackSummary())
             assertEquals(2, chip.totals.infos, "the open ones: the acknowledged item's deviation does not count")
             val hidden = f.w.admin.client.dvView("connectionId=${f.c}&projectId=${f.w.projectId}&all=false")
             assertEquals(setOf(four.open, four.stale), hidden.items.map { it.bindingId }.toSet())
         }
+
+    @Test
+    fun `an item carries no item-level acknowledgement, only its lines do`() = testApplication {
+        val f = fixture("dva10")
+        val four = f.four()
+        val response = f.w.admin.client.get("$DV_VIEW?connectionId=${f.c}&all=true")
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        val items = Json.parseToJsonElement(response.bodyAsText()).jsonObject.getValue("items").jsonArray.map { it.jsonObject }
+        assertEquals(4, items.size)
+        for (item in items) assertFalse("acknowledgement" in item.keys, "the member left the item: ${item.keys}")
+        val acked = items.single { it.getValue("bindingId").toString() == four.acked.toString() }
+        val lines: JsonArray = acked.getValue("deviations").jsonArray
+        assertTrue(lines.isNotEmpty() && lines.all { "acknowledgement" in it.jsonObject.keys }, "the lines keep theirs")
+    }
 
     @Test
     fun `a partly acknowledged binding is listed under every status with each line's state, counts its open lines and ranks by them`() =
@@ -126,9 +145,9 @@ class DeviationViewAckTest {
             assertEquals(mapOf(end to null, renamed to true), byBinding.getValue(b.binding).lineStates())
             assertEquals(listOf(1, 1, 2, 0, 3), open.totals.asList(), "the open LINES: B's WARNING, A's INFO")
             for (item in listOf(a, b).map { byBinding.getValue(it.binding) }) {
-                assertEquals(false, assertNotNull(item.acknowledgement, "the summary").current, "not every listed line is current")
+                assertEquals(false, assertNotNull(item.ackSummary(), "the summary").current, "not every listed line is current")
             }
-            val summary = assertNotNull(byBinding.getValue(a.binding).acknowledgement)
+            val summary = assertNotNull(byBinding.getValue(a.binding).ackSummary())
             assertEquals(byBinding.getValue(a.binding).deviations.first().acknowledgement?.at, summary.at)
 
             assertEquals(setOf(a.binding, b.binding, full.binding), f.ids(f.view("acknowledged=true")), "a current line is enough")
@@ -306,6 +325,6 @@ class DeviationViewAckTest {
             assertEquals(item.fingerprint, fingerprintOf(scoped))
 
             assertEquals(binding, w.projectOwner.client.ack(binding, item.fingerprint).acknowledgement().bindingId)
-            assertEquals(true, w.admin.client.ackItem(f.c, binding).acknowledgement?.current)
+            assertEquals(true, w.admin.client.ackItem(f.c, binding).ackSummary()?.current)
         }
 }

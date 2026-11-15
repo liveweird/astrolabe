@@ -186,7 +186,7 @@ class JiraFlagSourceTest {
         jbSql("UPDATE jira_observations SET summary = 'changed since' WHERE binding_id = ?", binding.toInt())
         val stale = ask(emptyList(), listOf(m)).milestone(m)
         assertEquals(listOf(DeviationKind.RENAMED to FlagSeverity.INFO), f.shape(stale.flags), "acknowledged, then changed: open again")
-        assertEquals(false, f.w.admin.client.ackItem(f.c, binding).acknowledgement?.current)
+        assertEquals(false, f.w.admin.client.ackItem(f.c, binding).ackSummary()?.current)
     }
 
     @Test
