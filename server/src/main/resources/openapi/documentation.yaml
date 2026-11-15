@@ -2692,14 +2692,10 @@ paths:
       tags: [jira]
       operationId: listJiraConnections
       summary: List Jira connections
-      description: |
-        ADMIN only (guarded before anything is read).
-
-        - Sortable fields: `id`, `name`, `createdAt`. Default `id` ascending.
-        - Filters: none.
-        - The API token is never returned; each row carries `hasApiToken`.
-        - Each row carries its connection's newest run as `lastRun` (the server's `running` verdict included) and its derived sync `status`
-          (`SyncStatus`: state, last success, failure streak, next poll), both read for the page's rows only.
+      description: >-
+        Lists Jira connections. ADMIN only, checked before anything is read. Sortable: `id`, `name`, `createdAt`; default `id`
+        ascending; no filters. The API token is never returned: each row carries `hasApiToken`. Each row also carries its
+        connection's newest run as `lastRun` and its derived sync `status`.
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
@@ -2719,10 +2715,10 @@ paths:
       tags: [jira]
       operationId: createJiraConnection
       summary: Create a Jira connection
-      description: |
-        ADMIN only (guarded before the body decodes - a non-admin's malformed body is still `403`). The `apiToken` is required; it is
-        encrypted before it is stored and never returned or logged. `siteUrl` is exactly `https://<tenant>.atlassian.net`. A
-        case-insensitive name clash with an active connection is `409`.
+      description: >-
+        Creates a connection. ADMIN only; a non-admin's malformed body is still `403`. `apiToken` is required, stored encrypted and
+        never returned or logged. `siteUrl` is exactly `https://<tenant>.atlassian.net`. A case-insensitive name clash with an
+        active connection is `409`.
       requestBody:
         required: true
         content:
@@ -2753,7 +2749,9 @@ paths:
       tags: [jira]
       operationId: getJiraConnection
       summary: Get a Jira connection
-      description: ADMIN only, guard before the id lookup (a non-admin gets a uniform `403`). The API token is never returned.
+      description: >-
+        Returns one connection. ADMIN only, checked before the id lookup, so a non-admin gets `403` whether or not the id exists.
+        The API token is never returned.
       responses:
         '200':
           description: The connection
@@ -2770,10 +2768,11 @@ paths:
       tags: [jira]
       operationId: updateJiraConnection
       summary: Update a Jira connection
-      description: |
-        ADMIN only, guard before the id lookup. A full replace of the name, account email, auth scheme, project keys and `enabled`; an
-        omitted or blank `apiToken` keeps the stored token, a present one rotates it. The site is the connection's identity: a different
-        `siteUrl` is `409` (create a new connection). A case-insensitive name clash with another active connection is `409` too.
+      description: >-
+        Replaces a connection's name, account email, auth scheme, project keys, `enabled` and `pollIntervalMinutes`. ADMIN only,
+        checked before the id lookup. An omitted or blank `apiToken` keeps the stored token; a present one rotates it. The site is
+        the connection's identity: a different `siteUrl` is `409` (create a new connection), as is a case-insensitive name clash
+        with another active connection.
       requestBody:
         required: true
         content:
@@ -2795,7 +2794,9 @@ paths:
       tags: [jira]
       operationId: deleteJiraConnection
       summary: Delete a Jira connection (soft)
-      description: ADMIN only, guard before the id lookup. Soft delete - the name is freed for reuse.
+      description: >-
+        Soft-deletes a connection and frees its name; its bindings are unbound and its runs deleted. ADMIN only, checked before the
+        id lookup.
       responses:
         '204':
           description: Deleted
@@ -2809,11 +2810,11 @@ paths:
       tags: [jira]
       operationId: testJiraConnectionAdHoc
       summary: Test a Jira connection that is not (yet) stored
-      description: |
-        ADMIN only (guarded before the body decodes), rate limited per IP (`jira-test`, 10 a minute by default). Probes the Jira site with the credentials in
-        the body - the same shape as a create (`apiToken` required) - and answers one row per endpoint probed. Never `502`: a failed probe, an
-        upstream failure and a timeout are rows in a `200`. Nothing is stored. The token travels only in the body and is never logged, audited or
-        echoed.
+      description: >-
+        Probes the Jira site with the credentials in the body (the shape of a create, `apiToken` required) and answers one row per
+        endpoint probed. Nothing is stored. ADMIN only, checked before the body decodes; rate limited per IP, 10 a minute by
+        default, one bucket shared with the stored-connection test and Peek. Never `502`: a failed probe, an upstream failure and a
+        timeout are rows in a `200`. The token is never logged or echoed.
       requestBody:
         required: true
         content:
@@ -2841,14 +2842,13 @@ paths:
       tags: [jira]
       operationId: testJiraConnection
       summary: Test a stored Jira connection
-      description: |
-        ADMIN only (guard before the id lookup), rate limited per IP (`jira-test`, 10 a minute by default). Probes the site with the STORED token (decrypted in
-        memory for the call only) and answers one row per endpoint probed. Never `502`; a stored token that cannot be decrypted (a changed
-        `DATA_ENCRYPTION_KEY`) is one failed `stored_token` row with code `TOKEN_UNREADABLE` - re-enter the token. The outcome is recorded on the
-        connection (`lastTestedAt`, `lastTestOk` - the real verdict -, and the `cloudId` once resolved), and the field and issue-type discovery is
-        stored whenever both the `field` and `issuetype` probes answered, even if another probe failed. `discoveredAt` in the answer is the
-        instant of the snapshot now stored (this test's, or an earlier one's); `recorded` is false when an edit of the connection raced the test
-        and the result was dropped.
+      description: >-
+        Probes the site with the stored token and answers one row per endpoint probed. ADMIN only, checked before the id lookup;
+        rate limited like the ad-hoc test. Never `502`: a stored token that cannot be decrypted is one failed `stored_token` row
+        with code `TOKEN_UNREADABLE` (enter the token again). The outcome is recorded on the connection (`lastTestedAt`,
+        `lastTestOk`, `cloudId`), and the field and issue-type discovery is stored whenever both the `field` and `issuetype` probes
+        answered, even if another probe failed. `discoveredAt` is the instant of the snapshot now stored; `recorded` is false when
+        an edit of the connection raced the test and the result was dropped.
       responses:
         '200':
           description: The probe rows (and the cloud id once `tenant_info` answered)
@@ -2869,13 +2869,12 @@ paths:
       tags: [jira]
       operationId: getJiraDiscovery
       summary: The stored field and issue-type discovery of a Jira connection
-      description: |
-        ADMIN only, guard before the id lookup. The snapshot a passing Test connection stored: the date, number and recognised fields, the issue
-        types, the hierarchy levels and what the name rules resolved (`markers`: Plans' "Target start"/"Target end" - by date-typed name, else by
-        their `jpo-custom-field-baseline-*` custom type -, "Start date", `duedate`, story points, the Team field and the legacy parent links - an
-        omitted marker is "not found"). `fieldsTruncated` says the site had more fields than the snapshot keeps. `409` with type
-        `urn:astrolabe:problem:jira-not-discovered` before any test has stored a snapshot (both `field` and `issuetype` must have answered). A bounded document (at most 2,000 fields and 500 issue
-        types), not a paged list.
+      description: >-
+        Returns the snapshot a passing connection test stored: the date, number and recognised fields, the issue types, the
+        hierarchy levels and the `markers` the name rules resolved. ADMIN only, checked before the id lookup. `409`
+        `urn:astrolabe:problem:jira-not-discovered` before any test has stored a snapshot (both the `field` and `issuetype` probes
+        must have answered). A bounded document, not a paged list: at most 2,000 fields and 500 issue types; `fieldsTruncated` says
+        the site had more fields.
       responses:
         '200':
           description: The discovery snapshot
@@ -2896,15 +2895,12 @@ paths:
       tags: [jira]
       operationId: getJiraCoverage
       summary: The coverage summary of a Jira connection (per mapped level)
-      description: |
-        ADMIN only, guard before the id lookup (like the connection page's other reads). Computed at request time from what the runs already
-        stored (the census mirror, the bindings and the effective mapping); nothing is fetched from Jira, written or locked. For each
-        mapped plan level: the issues of its hierarchy level in the connection's project keys (`inScope`), those an active binding names on
-        the same site (`linked`) and those not in the Done status category and not linked (`openUnlinked`: the issues the Deviations page
-        lists as "Not in plan" under a bound parent, and those under no bound parent). Counts only: no key, name or summary. `state`
-        `NOT_SYNCED` while no run ever censused the site, `MAPPING_UNUSABLE` while the mapping cannot name the levels and
-        `MAPPING_CHANGED` when the mapping was saved after the last successful run began (the mirror holds nothing for a newly mapped
-        level until a run reads under it; Refresh now): `levels` is empty in all three. `readAt` is when the last successful run finished.
+      description: >-
+        Counts, for each mapped plan level, the issues of its hierarchy level in the connection's project keys (`inScope`), those an
+        active binding names on the same site (`linked`) and those neither in the Done status category nor linked (`openUnlinked`).
+        ADMIN only, checked before the id lookup. Computed from what the runs already stored: nothing is fetched from Jira. Counts
+        only, no key, name or summary. `levels` is empty unless `state` is `READY`; `readAt` is when the last successful run
+        finished.
       responses:
         '200':
           description: The coverage summary
@@ -2924,13 +2920,11 @@ paths:
       tags: [jira]
       operationId: getJiraMapping
       summary: The field mapping of a Jira connection
-      description: |
-        ADMIN only, guard before the id lookup. `mapping` is the document last saved (null = never saved), `defaults` what the stored discovery
-        resolves by name and `schema.custom` (Plans' "Target start"/"Target end", else "Start date"/`duedate`; the first story-points number
-        field; the Team field; milestone = Epic level 1, project = 2 and program = 3 when the site has them; null before any discovery),
-        and `effective` the one a run would use (`mapping`, else `defaults`). A read never answers `409`: before a discovery `defaults`
-        and `effective` are null (and `mapping` too when it was never saved). `problems` lists why the stored mapping no longer fits the
-        current discovery (empty when it fits); the Team field must be the site's `atlassian-team` field.
+      description: >-
+        Returns the stored, default and effective field mapping. ADMIN only, checked before the id lookup. `mapping` is the document
+        last saved (null = never saved), `defaults` what the stored discovery resolves and `effective` the one a run would use
+        (`mapping`, else `defaults`). A read never answers `409`: before a discovery `defaults` and `effective` are null. `problems`
+        lists why the stored mapping no longer fits the current discovery (empty when it fits).
       responses:
         '200':
           description: The stored, default and effective mapping
@@ -2947,16 +2941,14 @@ paths:
       tags: [jira]
       operationId: updateJiraMapping
       summary: Save the field mapping of a Jira connection
-      description: |
-        ADMIN only, guard before the body. A full replace of the document, stored canonical; audited `jira.mapping_changed` with the SHA-256
-        of the canonical document before and after. The milestone level is required; present levels must be strictly decreasing
-        (program > project > milestone); hierarchy levels are 0 or more and every named one needs at least one non-sub-task issue type in the
-        discovery; start/end
-        fields must be `date` fields (a `datetime` is refused: its date depends on a time zone), the estimate field a `number` field and
-        the Team field the site's `atlassian-team` field; `manDaysPerUnit` is greater than 0 and at most 1000 with at most two decimals - each
-        violation a `400`. `409` with type `urn:astrolabe:problem:jira-not-discovered` when no Test connection has stored a discovery yet
-        (the rules are checked against it). Nothing else is rewritten: bindings and observations keep what they hold, and the next run
-        reads the mapped fields.
+      description: >-
+        Replaces the field mapping, stored canonical. ADMIN only, checked before the body. The milestone level is required; present
+        levels must be strictly decreasing (program above project above milestone); hierarchy levels are 0 or more and each named
+        one needs a non-sub-task issue type in the discovery; start and end fields must be `date` fields (a `datetime` is refused),
+        the estimate field a `number` field and the Team field the site's `atlassian-team` field; `manDaysPerUnit` is above 0 and at
+        most 1000 with at most two decimals. Each violation is `400`. `409` `urn:astrolabe:problem:jira-not-discovered` before any
+        discovery (the rules are checked against it). Bindings and observations are not rewritten; the next run reads the mapped
+        fields.
       requestBody:
         required: true
         content:
@@ -2981,17 +2973,15 @@ paths:
       tags: [jira]
       operationId: peekJiraIssue
       summary: Read one Jira issue through the mapping
-      description: |
-        ADMIN only, guard before the id lookup, rate limited per IP (`jira-test`, 10 a minute by default, shared with Test connection). Reads the issue
-        `key` (`ABC-12`) from the site with the STORED token - the cheapest way to see what the mapping reads on a real site before any
-        binding - and answers its system fields, the values the mapping resolves (the Astrolabe level its hierarchy level maps to, start,
-        end, estimate, unit, team name) and `raw`: the mapped fields' values exactly as the site sent them, and nothing else of the issue.
-        Uses the stored mapping, else the defaults - the bind's own resolution: a mapping that no longer fits the discovery, or cannot be
-        read, is a `409` `urn:astrolabe:problem:jira-mapping-invalid`, not a read through a mapping the bind and the run would refuse. Not stored, not audited. `400` for a key that is not an issue key or whose project is not
-        one of the connection's project keys (a moved issue is judged by its new key; a repeated `key` is a `400` too); `404` for an unknown connection or a key Jira does
-        not know; `409` before a discovery (`urn:astrolabe:problem:jira-not-discovered`), when the stored token cannot be decrypted
-        (`urn:astrolabe:problem:jira-token-unreadable`, enter it again) or for an unusable mapping (above); `502` (`urn:astrolabe:problem:jira-upstream`) when Jira cannot
-        be reached or refuses - the detail names the failure code only (a `SyncFailureCode`).
+      description: >-
+        Reads the issue `key` with the stored token through the effective mapping (`mapping`, else `defaults`) and answers its
+        system fields, the values the mapping resolves and `raw`, the mapped fields' values as the site sent them. ADMIN only,
+        checked before the id lookup; rate limited like the connection test (same bucket). Nothing is stored. `400` for a malformed or
+        repeated `key` or a project outside the connection's project keys (a moved issue is judged by its new key); `404` for an
+        unknown connection or an issue Jira does not know. `409`: `urn:astrolabe:problem:jira-not-discovered` before a discovery,
+        `jira-token-unreadable` for a stored token that cannot be decrypted, `jira-mapping-invalid` for a mapping that no longer
+        fits the discovery or cannot be read (same prefix). `502` `urn:astrolabe:problem:jira-upstream` when Jira cannot be reached
+        or refuses; the detail names the failure code only.
       parameters:
         - name: key
           in: query
@@ -3021,80 +3011,17 @@ paths:
       tags: [jira]
       operationId: previewJiraImport
       summary: Preview an import from Jira into one work stream
-      description: |
-        ADMIN, or an owner of every target the import touches: any `defaults.programId` / `defaults.projectId`, every existing node a
-        created row would land under or a bound row would bind to, and the picked work stream when a program would be created (the owner
-        of a work stream owns everything under it; the owner of a program or project owns that subtree). A login that owns no plan node
-        at all is refused up front; a caller who owns neither the work stream, any target nor any node of the work stream's tree is refused too.
-        A caller who owns only nodes of the tree (no target) gets the rows, with the same redaction of skipped rows. The `403` names the first
-        target the caller does not own. The connection's existence is public (`GET /views/deviations`), so this route does not hide it.
-
-        **Order** (the plan's read-before-guard): the per-USER bucket (`jira-import`, 5 a minute, shared with the apply, spent BEFORE
-        everything else, so an over-limit caller gets `429` whatever the request would have answered) -> the connection (`404`) -> the body
-        (`400`) -> the named targets' chains (`404`: `Work stream not found`, `Program not found`, `Project not found`; with `root`, the root's
-        own node) -> the guard on
-        each named default and on the root's chain (`403`; before it, a `403` for a login that owns no active work stream, program or project) -> the shape (`400`: `projectKeys` a subset of the connection's keys, `ownerPersonId` an active person,
-        `defaults.teamId` an active team, `defaults.programId` / `defaults.projectId` and `root` under the picked work stream; with `root`, no
-        `defaults.programId`, and `defaults.projectId` only a project of the root program) -> the connection
-        enabled (`400`), its token (`409` `urn:astrolabe:problem:jira-token-unreadable`), discovery (`409`
-        `urn:astrolabe:problem:jira-not-discovered`) and effective mapping (`409` `urn:astrolabe:problem:jira-mapping-invalid`) -> with
-        `root`, the root's ACTIVE link through THIS connection (`409` `urn:astrolabe:problem:jira-root-unusable` when there is none) -> ONE
-        paged read of the connection's scope from the site with the stored token, outside any transaction, stopped at 2,000 issues
-        (`502` `urn:astrolabe:problem:jira-upstream`, the detail names the failure code only; a connection deleted or disabled while it
-        is read ends the preview with `404` / `400`) -> one read-only snapshot of the plan -> the pure rules -> with `root`, the root's own
-        row must read `ALREADY_BOUND` to the root node (else the same `409 jira-root-unusable`: the link changed, preview again) -> the
-        resolved-target guards (`403`).
-
-        **A rooted preview** (`root{level, nodeId}`, 1.14) reads the root's Jira item by id (a `404` of that read, another id, a key outside the
-        connection's projects, or a Jira level the mapping does not give the root's plan level is the `409 urn:astrolabe:problem:jira-root-unusable`;
-        any other failure is the `502`) and then only what Jira lists under it by `parent`, at the levels the connection maps below the root's
-        (a program: its projects, then their milestones; a project: its milestones), at most 2,000 rows in all (the root counts). With `root`,
-        `items` are the root's descendants only: the root is not a row, and `totals` count what is listed. Under an active filter a level that has
-        children to walk is read without the filter at the source, and the server keeps a project the filter does not admit only while a kept
-        item hangs under it (`KEPT_AS_PARENT`); no parent is read by id. What is created lands under the root's own node, and only there: a child
-        project whose Jira item is already linked to a plan project of ANOTHER program of the same work stream is not created again
-        (`ALREADY_BOUND`), and what hangs under it is skipped `OUTSIDE_ROOT` for every caller (ADMIN and the work stream's owner included;
-        they import those milestones from that project). The request cannot steer a row anywhere
-        else: with `root`, `defaults.programId` is a `400`, `defaults.projectId` must be a project of the root program (a `400` otherwise, and
-        always for a project root). A milestone-level item directly under a root program follows today's rule (the default project, else
-        skipped `NO_PARENT`). The whole rooted read shares ONE budget of 200 requests (the root read and every search page of every round); the
-        request past it is the `502` with code `LIMIT_EXCEEDED`. The rooted read adds no right: the
-        root is one more named target, so the caller must own its chain (or be ADMIN), and the redaction of skipped rows for a non-admin is
-        unchanged.
-
-        **Suggested matches** (1.15). Linking is by exact name, so a Jira item renamed since its plan item was made previews as a new one. A
-        CREATE row under an existing plan item (a program: under the picked work stream) that has the same words as exactly ONE unlinked,
-        unclaimed sibling - case, accents, punctuation and word order aside; the longer name may only add words, the shorter one holds at
-        least half of its letters, numbering words (a digit, one character, a Roman numeral up to ix) must be equal - and whose sibling
-        looks like no other row, carries `suggestion` (the sibling's id and name). A replaced word or a typo is not matched, and an
-        ambiguous pair proposes nothing, and a scope with an excessive number of comparisons proposes nothing. Nothing is ever linked by a suggestion: `matches[{jiraId, nodeId}]` is the user's confirmation,
-        sent with the next preview; the server honours an entry only when it equals its own current suggestion for that row (any other is
-        ignored), and the row then reads BIND with the info `MATCH_CONFIRMED`, its children landing under the existing item. Such a BIND is guarded first as the CREATE it replaces (the parent's owner chain, or the work stream for a program, with the CREATE wording of the `403`), then as every BIND. A redacted
-        row never carries a suggestion.
-
-        **The filter** (`filter{excludeDone, updatedWithinDays}`, 1.13.2): `updatedWithinDays` must be a whole number from 1 to
-        3,650 (`400` otherwise, after the up-front `403`s; the resolved-target `403` comes after the browse). An active filter narrows the read of every mapped level inside the search query (the
-        window is sent in minutes) and the server also applies the rule to every entry it receives. The direct parent of each item that
-        is read, when the filter left it out and no plan node is linked to it, is then fetched from Jira by id, two rounds at most (a
-        milestone's project, then its program), and kept (`KEPT_AS_PARENT`); at most 200 such reads, each inside the same 170-second
-        read and preceded by the connection's liveness check. A parent that answers `404` (deleted, or not visible to the connection's account)
-        makes its child `NO_PARENT` with `PARENT_UNREADABLE`, never the default parent; any other failure, a `401`, a `403` (the account's scope
-        is wrong, as for the search) or a `429` that outlasted the transport's retries included, ends the browse as the `502`. No count of what was left out is reported.
-
-        Answers, per Jira item and top-down (programs, projects, milestones; Jira ids ascending inside a level), whether it would be
-        created, bound to an unbound same-name node, or skipped and why. Nothing is stored and nothing is audited (a read), except that an ANSWERED rooted
-        preview audits `jira.import_previewed` (ids and the row count, no Jira text). The
-        caller's right to schedule shows only in `canSchedule` (a milestone's dates are copied only where the caller may schedule the
-        team) - never as a refusal. `totals.truncated` = more than 2,000 issues were in scope (the parents read by id count), or more than 200
-        parents would have to be read: narrow `projectKeys` or the filter (an apply refuses a truncated scope); with `root` more than 2,000 rows lie
-        under the linked item, and the way out is the filter or a root further down. The whole read is bounded to
-        170 seconds (`502`, code `TIMEOUT`).
-
-        **For a caller who is not ADMIN, a skipped row other than `ALREADY_BOUND` carries no Jira text:** `summary` is empty, `name` is the
-        issue key and `infos` is empty (key, level, type name, `reason` and parent keys stay; `totals` and the order are the full ones), and
-        `unmatchedTeams` lists the Jira team names of the rows that would be created only. Without this a skipped row, which no ownership
-        guard looks at, would hand a plan-node owner every summary in scope. Residual, inherent in "ADMIN or an owner of every target": rows
-        that land on the caller's own targets are shown in full, and the owner of the picked work stream sees the whole tree under it.
+      description: >-
+        Previews importing the connection's Jira scope into one work stream: per Jira item, top-down (programs, projects,
+        milestones; Jira ids ascending within a level), whether it would be created, bound to an unbound same-name node, or skipped
+        and why. Writes nothing. ADMIN, or an owner of every target the import touches (the defaults, the nodes a row would land
+        under or bind to, the work stream when a program would be created; when it touches none, an owner of the work stream or of a node under it); a login that owns no plan node is `403` up front, and
+        the `403` names the first target not owned. Order: `429` (per-user bucket, 5 a minute, shared with the apply, spent first),
+        `404` connection, `400` body, `404` then `403` for the named targets, `400` shape, `400` connection disabled, `409`
+        `urn:astrolabe:problem:jira-token-unreadable`, `jira-not-discovered`, `jira-mapping-invalid` or (with `root`)
+        `jira-root-unusable`, `502` `urn:astrolabe:problem:jira-upstream` (detail: the failure code only; `TIMEOUT` past 170
+        seconds), `403` for the resolved targets. The read stops at 2,000 issues (`totals.truncated`; an apply refuses a truncated
+        scope).
       requestBody:
         required: true
         content:
@@ -3125,51 +3052,17 @@ paths:
       tags: [jira]
       operationId: applyJiraImport
       summary: Apply an import from Jira into one work stream
-      description: |
-        Creates the ticked programs, projects and milestones under the picked work stream and binds each to its Jira item, or binds an
-        existing unbound same-name node, in ONE plan write: exactly one plan-revision bump, also when every item is skipped. It never
-        updates an existing node. The only Jira write that moves the plan; nothing is written to Jira. Rights: ADMIN, or an owner of the
-        target of EVERY ticked CREATE or BIND row (the picked work stream when a program is created, the existing parent a row lands
-        under, the node a BIND binds); a ticked row whose target the caller does not own is a `403` for the whole request, with nothing
-        written and no bump. This is deliberately NOT the preview's rule: the preview is refused when ANY row of the whole scope targets a
-        node the caller does not own, while an owner may apply the rows they tick onto their own targets even then. Each apply is
-        audited (`jira.import_applied`) and leaves visible rows.
-
-        **Order:** the same checks as the preview up to and including the browse (the per-USER `jira-import` bucket, shared with the
-        preview, then the connection `404`, the body, the named targets `404`/`403`, the shape `400` - which also covers the items: each
-        `jiraId` a numeric Jira id named once, 1 to 2,000 items, and every `overrides.teamId` an active team and every `overrides.ownerPersonId` an active person - then the connection state
-        `400`/`409`, then the browse `502`); a browse that stopped at the 2,000-issue cap, or at the 200 parent reads of a filtered browse, is a
-        `400` before any write, because a parent cut away cannot be told from an orphan. The apply re-browses and re-reads the parents under
-        ITS request's `filter` (the one its preview was read under): an item the filter now leaves out is `CHANGED`, nothing is re-homed. Then ONE plan write that takes the plan lock, the bind lock, the connection row and
-        the caller's person, re-reads the plan and re-runs every guard under them (a connection deleted meanwhile is `404`, disabled or
-        out of scope `400`, its mapping or discovery changed `409`; an ownership revoked meanwhile `403`), recomputes the rows with the preview's rules
-        over rows read under the lock, and writes. The lock is never held while Jira is called.
-
-        **Suggested matches** (1.15): `matches` repeats the confirmations of the preview (the web spreads the preview's scope). The apply
-        recomputes them under the plan lock, and a confirmation counts only while it still equals the server's own suggestion for that row
-        (the plan item unlinked, unrenamed and the only candidate): a ticked row that was previewed as a BIND through a confirmation that
-        no longer holds, or whose confirmation is missing from the request, is planned as a CREATE, which is not what was expected -
-        `CHANGED`, nothing created and nothing linked. `jira.import_applied` lists the bindings made this way.
-
-        **No update, no guess:** each ticked item is compared with `expected` (what the preview showed) after the re-browse and the re-read;
-        a difference, or an item the site no longer holds, is skipped `CHANGED`; for a CREATE the difference includes where it would land
-        (`expected.parent`), so a row is never silently re-homed under another parent. A BIND target bound elsewhere meanwhile is `NAME_TAKEN`. An item whose parent row was left out is skipped
-        `PARENT_SKIPPED`. A name taken by another node is decided under the lock (`NAME_TAKEN`). A milestone is scheduled only when
-        `copyDates` is on, its dates are valid, the caller manages its team (ADMIN: any) and the span holds a working day; otherwise it is
-        created unscheduled. A dead-node holder of a written item's issue (this connection or another of the same site) is released and
-        audited. A uniqueness violation that still escapes is the whole-request `409`.
-
-        **A rooted apply** (`root{level, nodeId}`, 1.14) carries the root its preview was read under and runs the preview's checks, the
-        root included: its chain is read (`404`) and guarded (`403`) up front and again under the plan lock, its ACTIVE link through this
-        connection must exist (`409 urn:astrolabe:problem:jira-root-unusable`), and after the recomputation under the lock the root's own row
-        must still read `ALREADY_BOUND` to the root node (else the same `409`, a rollback: nothing written, no bump). Only the root's
-        descendants are browsed, so a ticked id outside its subtree is answered like a vanished one (`CHANGED`, no key). What is created is
-        written under the root's own node and nowhere else (a row the kernel finds outside the root's subtree is skipped `OUTSIDE_ROOT`, in an
-        apply as in the preview: a project moved out of the root program meanwhile turns its ticked rows into such skips); no program is created. The same `defaults` rules as the
-        preview apply (`400`).
-
-        The answer lists ids, keys and reasons, plus the `name` of each created row - which IS the Jira summary (cut at 100 characters) of an issue on the caller's own target; a skipped row carries no text. `revision` is the plan
-        revision after the bump.
+      description: >-
+        Creates the ticked programs, projects and milestones under the picked work stream and binds each to its Jira item, or binds
+        an existing unbound same-name node, in one plan write with exactly one revision bump (also when every item is skipped). It
+        never updates an existing node; nothing is written to Jira. ADMIN, or an owner of the target of every ticked CREATE or BIND
+        row; a ticked row whose target the caller does not own is `403` for the whole request, nothing written (the preview, by
+        contrast, is refused when any row of the scope targets a node the caller does not own). The checks and their order are the
+        preview's through the browse; the items join the `400`s (1 to 2,000, each `jiraId` numeric and named once, every override
+        team and owner active), and a browse cut at its caps is `400`. The write re-runs the guards and the connection's state:
+        deleted `404`, disabled or out of scope `400`, mapping or discovery changed `409`, ownership revoked `403`. Each item is
+        compared with `expected`; a difference, or an item the site no longer holds, is skipped `CHANGED`, never re-homed. A
+        uniqueness violation is `409`. `revision` is the plan revision after the bump.
       requestBody:
         required: true
         content:
@@ -3198,14 +3091,11 @@ paths:
       tags: [jira]
       operationId: listJiraBindings
       summary: List Jira bindings
-      description: |
-        Any authenticated user (the node names are already public to every reader of the plan). ACTIVE bindings of LIVE nodes only: a
-        binding whose node, or any ancestor of it, was deleted is absent (the next bind of its issue releases it, and `DELETE` still
-        unbinds it). Each row carries the node and where it sits, the issue, its browse `url` and the latest observation.
-
-        - Sortable fields: `id`, `createdAt`, `issueKey`. Default `id` ascending.
-        - Filters: `connectionId` (equality), `level` (equality, by name), `q` (case- and accent-insensitive substring of the NODE's
-          own name, at most 100 characters). A repeated key is a `400`.
+      description: >-
+        Lists active bindings of live nodes; a binding whose node, or any ancestor of it, was deleted is absent. Any authenticated
+        user. Each row carries the node and where it sits, the issue, its browse `url` and the latest observation. Sortable: `id`,
+        `createdAt`, `issueKey`; default `id` ascending. Filters: `connectionId` and `level` (equality, `level` by name) and `q`
+        (case- and accent-insensitive substring of the node's name, at most 100 characters); a repeated key is `400`.
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
@@ -3227,29 +3117,17 @@ paths:
       tags: [jira]
       operationId: createJiraBinding
       summary: Link a plan node to a Jira issue
-      description: |
-        The owner chain of the node (the work stream's, the program's or the project's owner; a milestone has the project's chain) or
-        ADMIN. **Read-before-guard**, the plan nodes' idiom: the node is in the body, so the body is decoded first (a body that does not
-        decode, an unknown `level` included, is a `400` before any guard); then the node's chain (`404` for an unknown or deleted node, for
-        every caller), then the guard (`403`: a team manager as such has no say), then `issueKey`'s shape and the rest (`400`).
-
-        The server reads the issue from the connection's site ONCE, outside any transaction, and refuses (`400`) a key outside the
-        connection's project keys, an unknown issue, a disabled or unknown connection, a level the mapping does not map, and an issue
-        whose hierarchy level is not the one the mapping gives the level (the message names both). The connection must be discovered
-        and its mapping, as stored or by default, must still fit the site as it is now: otherwise `409`
-        (`urn:astrolabe:problem:jira-not-discovered`, `urn:astrolabe:problem:jira-mapping-invalid` - an administrator must fix it - or
-        `urn:astrolabe:problem:jira-token-unreadable`). `502` (`urn:astrolabe:problem:jira-upstream`, the detail names the failure
-        code only) when Jira cannot be reached or refuses; the code is `BUSY` when the outbound permits stayed taken for longer than `jira.bindPermitWaitMillis` (default 5 s; the pool
-        is shared with the administrators' Test connection and the runs: a bind never queues behind them for long - try again).
-
-        Rate limited per signed-in USER (`jira-bind`, 30 a minute), BEFORE the guard: an over-limit caller gets `429` whatever the request
-        would have answered.
-
-        Bindings are 1:1: `409` `urn:astrolabe:problem:already-bound` when the node is linked to another issue, or the issue is linked
-        to another node - on this connection or on another active connection of the same site - unless that node was deleted, in which
-        case its binding is released (soft-deleted, audited) and the bind goes through. The first observation of the issue is stored with
-        the binding. A binding is not plan state: no plan lock, no revision bump. Audited `jira.binding_created` (and
-        `jira.binding_released` for each released binding).
+      description: >-
+        Links a plan node to a Jira issue and stores the issue's first observation. The node's owner chain (the work stream's,
+        program's or project's owner; a milestone has its project's chain) or ADMIN; a team manager as such may not. Order: `429`
+        (per-user bucket, 30 a minute, spent first), `400` for a body that does not decode (an unknown `level` included), `404` for
+        an unknown or deleted node for every caller, `403`, then the body's values (`400`, see the members). `409`
+        `urn:astrolabe:problem:jira-not-discovered`, `jira-mapping-invalid` (an administrator must fix it) or
+        `jira-token-unreadable` unless the connection is discovered and its mapping, stored or default, fits the site now. `502`
+        `urn:astrolabe:problem:jira-upstream` when Jira cannot be reached or refuses (the detail names the failure code only; `BUSY`
+        when the outbound permits stayed taken for 5 seconds by default: try again). Bindings are 1:1: `409`
+        `urn:astrolabe:problem:already-bound` when the node is linked to another issue or the issue to another node (on any active
+        connection of the same site), unless that node was deleted: its binding is then released and the bind goes through. Moves no plan revision.
       requestBody:
         required: true
         content:
@@ -3283,7 +3161,9 @@ paths:
       tags: [jira]
       operationId: getJiraBinding
       summary: Get a Jira binding
-      description: Any authenticated user. `404` for an unknown or unbound binding, and for one whose node (or an ancestor) was deleted.
+      description: >-
+        Returns one binding. Any authenticated user. `404` for an unknown or unbound binding and for one whose node, or any ancestor
+        of it, was deleted.
       responses:
         '200':
           description: The binding
@@ -3299,11 +3179,10 @@ paths:
       tags: [jira]
       operationId: deleteJiraBinding
       summary: Unlink a plan node from its Jira issue
-      description: |
-        The owner chain of the bound node, or ADMIN; read-before-guard (`404`, then `403`). A binding whose node was deleted since is
-        unbound by whoever passes `requireOwnerOrAdmin` on the chain the node had when it was last stored (the chain is read without
-        the active filter for the guard only). A soft delete: the row stays as history and both the node and the issue are free to be
-        bound again. Audited `jira.binding_deleted`.
+      description: >-
+        Unlinks a node from its Jira issue. A soft delete: the row stays as history and both the node and the issue may be bound
+        again. The owner chain of the bound node or ADMIN; `404` before `403`. A binding whose node was deleted since is guarded by
+        the chain the node had when it was last stored.
       responses:
         '204':
           description: Unlinked
@@ -3319,24 +3198,16 @@ paths:
       tags: [jira]
       operationId: acknowledgeJiraDeviations
       summary: Acknowledge a binding's deviations until they change
-      description: |
-        The owner chain of the bound node (the work stream's, the program's or the project's owner; a milestone has the project's chain)
-        or ADMIN, the bind's guard; since 1.12 also, on a MILESTONE binding only, the ACTIVE manager of the milestone's team (its STORED
-        team, whoever stamped the acknowledgement). A team manager on a program or project binding, a manager of another team, a roadmap
-        editor, a person-less login and a stranger are `403`.
-        **Read-before-guard**: the binding is in the PATH, so its node's ACTIVE chain is read first and an unknown or unbound binding,
-        or one whose node or any ancestor was deleted, is `404` for EVERY caller; then the guard (`403`, whatever the body is); then the
-        body (`400`: `fingerprint` is 64 lower-case hexadecimal characters). The write runs in ONE short transaction: the binding row is
-        locked, the node's chain and a milestone's stored team re-read and the guard run AGAIN against them (a request can be held open,
-        so only this verdict authorizes the write), and the binding's deviations are RECOMPUTED in that transaction: `409`
-        `urn:astrolabe:problem:stale-deviations` when `fingerprint` (always the ITEM's list fingerprint) is not the one of the deviations
-        now (the plan or Jira moved since the client read), when the binding has none, or when `kind` names a deviation the list does not
-        hold now; otherwise the time and the login are stored. **Per line (1.12):** with a `kind`, that ONE line is acknowledged;
-        without one (every request before 1.12) the lines that have no current acknowledgement are, or every line when each has one.
-        Each stamped line stores ITS OWN fingerprint (never on the wire); acknowledging again restamps. A line stays acknowledged while
-        its own deviation is byte-identical: a change that alters it makes THAT line open again (`current` false on the line in
-        `GET /views/deviations`) and no other. Not plan state: no plan lock, no revision bump, no rate bucket (nothing calls Jira).
-        Audited `jira.deviation_acknowledged` once per stamped line; the kind-less form adds `jira.deviations_acknowledged` before them.
+      description: >-
+        Acknowledges a binding's deviations until they change. The owner chain of the bound node (the work stream's, program's or
+        project's owner; a milestone has its project's chain) or ADMIN; on a milestone binding also the active manager of the
+        milestone's team. A manager on a program or project binding, a manager of another team, a roadmap editor, a person-less
+        login and a stranger are `403`. Order: `404` for every caller when the binding is unknown or unbound or its node or any
+        ancestor was deleted; `403`, whatever the body; `400` unless `fingerprint` is 64 lower-case hexadecimal characters. `409`
+        `urn:astrolabe:problem:stale-deviations` when `fingerprint` (always the item's list fingerprint) is not that of the
+        deviations now, when the binding has none, or when `kind` names a deviation the list does not hold now. With `kind` that one
+        line is acknowledged; without one, the lines with no current acknowledgement (every line when each has one). Acknowledging
+        again restamps; a change to a line's deviation reopens that line only. Moves no plan revision.
       requestBody:
         required: true
         content:
@@ -3362,14 +3233,12 @@ paths:
       tags: [jira]
       operationId: unacknowledgeJiraDeviations
       summary: Withdraw a binding's acknowledgement
-      description: |
-        The same audience and order as the acknowledge (`404` for every caller when the binding is unknown, unbound or its node is
-        gone, then `403`; the binding row is locked and the guard run again in the transaction; since 1.12 a milestone's team manager may
-        withdraw too). With `kind` it clears that line's acknowledgement; without one it clears EVERY stored acknowledgement of the
-        binding, a retired kind's included (1.12). Current or stale alike; `404` when none is stored (decided under the lock, after the
-        guard); the `kind` parameter is parsed after the guard (`400` when unknown, blank or repeated; and `400` for a query parameter of any
-        other NAME, e.g. a misspelt `kinds` or `kind[]`, which would otherwise withdraw every acknowledgement). Audited
-        `jira.deviation_unacknowledged` once per cleared row; the kind-less form adds `jira.deviations_unacknowledged` before them.
+      description: >-
+        Withdraws acknowledgements: with `kind` that line's, without it every stored acknowledgement of the binding (a retired
+        kind's included), current or stale alike. The same audience and order as the acknowledge (`404` for every caller when the
+        binding is unknown, unbound or its node is gone, then `403`). `404` when none is stored. The `kind` parameter is checked
+        after the guard: `400` for an unknown, blank or repeated value and for a query parameter of any other name (a misspelt
+        `kinds`).
       parameters:
         - name: kind
           in: query
@@ -6324,8 +6193,8 @@ components:
     AcknowledgeRequest:
       type: object
       description: >-
-        `kind` (1.12, optional, nullable) is the ONE deviation to acknowledge; absent or null acknowledges the lines without a current
-        acknowledgement (every line when each has one), the pre-1.12 call.
+        `kind`, optional and nullable, is the one deviation to acknowledge; absent or null acknowledges the lines without a current
+        acknowledgement (every line when each has one).
       required: [fingerprint]
       properties:
         fingerprint:
@@ -7699,8 +7568,8 @@ components:
           # No `default:` here on purpose: openapi-typescript would make the member REQUIRED in the web's request type (as it does for `enabled`),
           # and the server's omitted-means-15 rule is stated in the description instead.
           description: >-
-            Minutes between scheduled runs. Omitted means 15 (a PUT is a full replace, so a PUT without the member resets it to 15); an explicit `null`
-            means manual only (Refresh now still works).
+            Minutes between scheduled runs. Omitted means 15 (a PUT is a full replace, so a PUT without the member resets it to 15); an
+            explicit `null` means manual only (a manual refresh still works).
     JiraConnection:
       type: object
       required: [id, name, siteUrl, email, hasApiToken, authScheme, projectKeys, enabled, pollIntervalMinutes, cloudId, discoveredAt, lastTestedAt, lastTestOk, mappingSet, lastRun, status, createdAt, updatedAt, stub]
@@ -7732,7 +7601,7 @@ components:
         status: { $ref: '#/components/schemas/SyncStatus' }
         createdAt: { type: integer, format: int64, description: Epoch millis }
         updatedAt: { type: integer, format: int64, description: Epoch millis }
-        stub: { type: boolean, description: "True when this connection's calls go to the development Jira stub rather than Atlassian (development mode, JIRA_STUB_BASE_URL set, and a site label starting with stub-). Derived per request, never stored." }
+        stub: { type: boolean, description: "True when this connection's calls go to the development Jira stub rather than Atlassian (development mode, a site label starting with `stub-`). Derived per request, never stored." }
     JiraConnectionPage:
       type: object
       required: [items, page, pageSize, total]
@@ -7770,7 +7639,7 @@ components:
         cloudId: { type: string, nullable: true, description: "The site's cloud id once `tenant_info` answered (validated as a UUID)." }
         discoveredAt: { type: integer, format: int64, nullable: true, description: Epoch millis of the discovery snapshot now stored on the connection (stored-token variant); null when none or ad hoc. }
         recorded: { type: boolean, description: "Whether the result was stored on the connection (false for an ad-hoc test, or when an edit raced the test)." }
-        stub: { type: boolean, description: "True when the probes were answered by the development Jira stub (development mode, JIRA_STUB_BASE_URL set, and a site label starting with stub-), not by Atlassian." }
+        stub: { type: boolean, description: "True when the probes were answered by the development Jira stub (development mode, a site label starting with `stub-`), not by Atlassian." }
     JiraDiscoveredField:
       type: object
       required: [id, name]
@@ -7797,7 +7666,9 @@ components:
           items: { type: string }
     JiraDiscoveryMarkers:
       type: object
-      description: What the name and `schema.custom` rules resolved; an absent member is "not found".
+      description: >-
+        What the name rules resolved: Plans' Target start and Target end (by date-typed name, else by their custom type), Start date,
+        `duedate`, story points, the Team field and the two legacy parent links. An absent member is "not found".
       properties:
         targetStart: { $ref: '#/components/schemas/JiraDiscoveredField' }
         targetEnd: { $ref: '#/components/schemas/JiraDiscoveredField' }
@@ -7885,7 +7756,10 @@ components:
             - $ref: '#/components/schemas/JiraMapping'
         defaults:
           nullable: true
-          description: What the stored discovery resolves; null before any discovery.
+          description: >-
+            What the stored discovery resolves: start and end from Plans' Target start and Target end, else Start date and `duedate`; the
+            estimate from the first story-points number field; the Team field; milestone = hierarchy level 1, project = 2, program = 3
+            when the site has them. Null before any discovery.
           allOf:
             - $ref: '#/components/schemas/JiraMapping'
         effective:
@@ -7898,9 +7772,8 @@ components:
           type: array
           items: { type: string }
           description: >-
-            Why the stored `mapping` no longer fits the discovery as it is now (a later Test connection can replace the snapshot: a level the
-            site lost, a field that changed type) or cannot be read at all. Empty when it fits or none is saved. Nothing is rewritten: save a
-            corrected mapping.
+            Why the stored `mapping` no longer fits the discovery as it is now (a level the site lost, a field that changed type) or
+            cannot be read at all. Empty when it fits or none is saved. Nothing is rewritten: save a corrected mapping.
     JiraCoverageLevel:
       type: object
       description: One mapped plan level's counts over the connection's census mirror. Counts only; never a key, name or summary.
@@ -7969,7 +7842,9 @@ components:
           description: The mapped fields' values exactly as the site sent them, keyed by field id (a field the issue lacks is absent); nothing else of the issue.
     JiraImportDefaults:
       type: object
-      description: The parent of an orphan row and the team of a milestone with no name match. Each id must lie under the picked work stream / be active. With a `root` (1.14) `programId` is a `400`, and `projectId` must be a project of the root program (a `400` for a project root).
+      description: >-
+        The parent of an orphan row and the team of a milestone with no name match. Each id must lie under the picked work stream / be
+        active. With a `root`, `programId` is `400` and `projectId` must be a project of the root program (`400` for a project root).
       properties:
         programId: { type: integer, format: int32, minimum: 0, nullable: true, description: "The parent program of a project whose Jira parent is neither in the plan nor in the browse." }
         projectId: { type: integer, format: int32, minimum: 0, nullable: true, description: "The parent project of a milestone, likewise." }
@@ -7997,18 +7872,24 @@ components:
           allOf:
             - $ref: '#/components/schemas/JiraImportFilter'
           nullable: true
-          description: "What the browse leaves out (1.13.2); null or absent reads everything, as before. The apply must carry the filter its preview was read under."
+          description: >-
+            What the browse leaves out; null or absent reads everything. The apply must carry the filter its preview was read under.
         root:
           allOf:
             - $ref: '#/components/schemas/JiraImportRoot'
           nullable: true
-          description: "Start the import from one linked node (1.14): only what Jira lists under that node's Jira item is read, and the root itself is never a row. Null or absent = the whole scope, as before. The apply must carry the root its preview was read under."
+          description: >-
+            Starts the import from one linked node: only what Jira lists under that node's Jira item is read, and the root itself is never
+            a row. Null or absent = the whole scope. The apply must carry the root its preview was read under.
         matches:
           type: array
           nullable: true
           maxItems: 2000
           items: { $ref: '#/components/schemas/JiraImportMatch' }
-          description: "The suggested matches the user confirmed (1.15), each Jira item named once (`400` otherwise; `jiraId` a numeric Jira id). Honoured only when equal to the server's own current suggestion for that row; null, absent or empty = none. The apply must carry the matches its preview was read under."
+          description: >-
+            The suggested matches the user confirmed, each Jira item named once (`400` otherwise; `jiraId` a numeric Jira id). Honoured
+            only when equal to the server's own current suggestion for that row; null, absent or empty = none. The apply must carry the
+            matches its preview was read under.
     JiraImportMatch:
       type: object
       required: [jiraId, nodeId]
@@ -8023,25 +7904,24 @@ components:
         nodeName: { type: string }
     JiraImportRoot:
       type: object
+      description: >-
+        The linked node a rooted import starts from: a program or project of the picked work stream with an active link through this
+        connection (else `409` `urn:astrolabe:problem:jira-root-unusable`; so too when its Jira item cannot be read, lies outside the
+        connection's projects or sits at a level the mapping does not give the node). Only what Jira lists under that item is read, at
+        most 2,000 rows (more: `truncated`) and one budget of 200 requests (`502`, code `LIMIT_EXCEEDED`). Created rows land under the
+        root's own node only; no program is created. The caller must own the root's chain or be ADMIN.
       required: [level, nodeId]
-      description: |
-        The linked node a rooted import starts from (1.14): a program or a project of the picked work stream with an ACTIVE link through
-        THIS connection. Its Jira item is read by id first; then only what Jira lists under it at the levels the connection maps below
-        the root's own (a program: its projects, then their milestones; a project: its milestones). What is created lands under the root's own
-        node and only there (what hangs under a child project already linked to a plan project of ANOTHER program of the same work stream is
-        skipped `OUTSIDE_ROOT`, for every caller), and a rooted import never creates a program. The caller must own the root's chain (the work stream's, the program's or,
-        for a project, the project's owner) or be ADMIN; no other rule changes. A `MILESTONE` root does not decode (`400`).
       properties:
-        level: { type: string, enum: [PROGRAM, PROJECT], description: "The plan level of the root node." }
+        level: { type: string, enum: [PROGRAM, PROJECT], description: "The plan level of the root node; a `MILESTONE` root is `400`." }
         nodeId: { type: integer, format: int32, minimum: 0, description: "The id of the program or project; it must lie under `workStreamId`." }
     JiraImportFilter:
       type: object
-      description: |
-        What an import's browse leaves out, per request (nothing is stored): done items and items not updated for a while. Every mapped
-        level is narrowed inside the search query, so a project with long history fits under the 2,000-issue cap. The direct parent of
-        every item that is read is fetched from Jira BY ID when the filter left it out, and kept (marked `KEPT_AS_PARENT`) - when it is inside
-        the import's projects, within the 200-read cap and readable by the connection's account. Both members off (or the object absent) reads everything. Only the import reads through it: the
-        sync run, the Deviations view and the roll-ups read everything. The answer does not say how many items were left out.
+      description: >-
+        What an import's browse leaves out, per request (nothing is stored): done items and items not updated for a while; both off reads
+        everything. Every mapped level is narrowed in the search query. The direct parent of an item that is read is fetched by id when
+        the filter left it out and kept (`KEPT_AS_PARENT`), if it is inside the import's projects and readable by the account; more than
+        200 such reads make the scope `truncated`. Only the import reads through the filter. The answer does not say how many items were
+        left out.
       properties:
         excludeDone: { type: boolean, default: false, description: "Leave out the items whose Jira status category is Done." }
         updatedWithinDays:
@@ -8050,7 +7930,8 @@ components:
           minimum: 1
           maximum: 3650
           nullable: true
-          description: "Read only the items Jira updated within this many days; null or absent = any age."
+          description: >-
+            Read only the items Jira updated within this many days (1 to 3,650, `400` otherwise); null or absent = any age.
     JiraImportParent:
       type: object
       required: [kind, nodeName]
@@ -8078,6 +7959,11 @@ components:
         rule: { type: string, enum: [MATCHED, DEFAULT], description: "By the Jira Team value's name, or the default team." }
     JiraImportItem:
       type: object
+      description: >-
+        For a caller who is not ADMIN a skipped row other than `ALREADY_BOUND` carries no Jira text: `summary` is empty, `name` is the
+        issue key and `infos` is empty; without a `filter`, key, level, type name, `reason` and parent keys stay and the row order is the
+        full one; under an active `filter` the key, parent keys and `name` go too and such rows follow every visible row. `totals` are the full
+        ones.
       required: [jiraId, issueKey, summary, level, action, name, canSchedule, scheduled, infos]
       properties:
         jiraId: { type: string, description: "The numeric Jira issue id; `hidden-<row position>` on a row redacted for a non-admin under an active filter." }
@@ -8104,7 +7990,7 @@ components:
           nullable: true
         name: { type: string, maxLength: 100, description: "The plan name: the summary with control characters and runs of whitespace collapsed, cut at 100 characters; the issue key when blank. Blank (\"\") on a row redacted for a non-admin under an active `filter`, whose key is withheld." }
         estimateMd: { type: number, format: double, nullable: true, description: "A milestone's converted man-days (0 when none or not convertible)." }
-        startDate: { type: string, format: date, nullable: true, description: "A milestone: Jira's start, shown when `copyDates` is on (it is written only if `scheduled`). A project that would be CREATED (1.14): the start of the TARGET WINDOW it will be created with - present only when `copyDates` is on and Jira gives both dates in order (else null with the `TARGET_NOT_COPIED` info, or no dates at all); never on a BIND or skipped project." }
+        startDate: { type: string, format: date, nullable: true, description: "A milestone: Jira's start, shown when `copyDates` is on (written only if `scheduled`). A project that would be created: the start of its target window, present only when `copyDates` is on and Jira gives both dates in order; never on a BIND or skipped project." }
         endDate: { type: string, format: date, nullable: true, description: "As `startDate`: a milestone's Jira end, or the end of a created project's target window." }
         team:
           allOf:
@@ -8115,18 +8001,18 @@ components:
         infos:
           type: array
           items: { type: string, enum: [NAME_TRUNCATED, ESTIMATE_NOT_CONVERTED, DATES_NOT_COPIED, DATES_INVALID, NO_WORKING_DAY, TARGET_NOT_COPIED, KEPT_AS_PARENT, PARENT_UNREADABLE, MATCH_CONFIRMED] }
-          description: |
-            `TARGET_NOT_COPIED` (1.14, a PROJECT that would be created, `copyDates` on): Jira gives only one of its two dates, or an end before
-            the start, so the project is created WITHOUT a target window (the target window is both dates or neither); the row is not refused.
-            `KEPT_AS_PARENT` (1.13.2): the filter would have left this item out, but an item that is read sits under it, so it was fetched by id and
-            kept. `PARENT_UNREADABLE`: its parent in Jira could not be read with the connection's account (Jira answered `404` by id: that it does not
-            exist or is not visible); the row is skipped `NO_PARENT` and is never put under a default parent.
-            `MATCH_CONFIRMED` (1.15, a BIND): the user confirmed the suggested match, so the row links a plan item whose name differs from the
-            Jira item's.
+          description: >-
+            Notes on the row. `TARGET_NOT_COPIED`: a PROJECT to be created gets no target window (Jira gives one date, or an end before
+            the start). `KEPT_AS_PARENT`: the filter would have left the item out but a read item sits under it. `PARENT_UNREADABLE`: its
+            Jira parent answered `404` for the connection's account, so the row is skipped `NO_PARENT`. `MATCH_CONFIRMED`: a BIND through
+            a confirmed suggestion.
         suggestion:
           allOf:
             - $ref: '#/components/schemas/JiraImportSuggestion'
-          description: "Absent unless the row is a CREATE that looks like exactly one unlinked plan item of its level under the same parent (1.15); never on a redacted row. Confirm it by sending `matches` with the next preview."
+          description: >-
+            Absent unless the row is a CREATE whose name has the same words as exactly one unlinked, unclaimed plan item of its level
+            under the same parent (case, accents, punctuation and word order aside; the longer name may only add words); never on a
+            redacted row. Confirm it by sending `matches` with the next preview.
     JiraImportTotals:
       type: object
       required: [items, create, bind, skip, truncated]
@@ -8183,7 +8069,7 @@ components:
       type: object
       properties:
         teamId: { type: integer, format: int32, minimum: 0, nullable: true, description: "The team of this milestone; an ACTIVE team, else 400. Ignored on a program or project row." }
-        ownerPersonId: { type: integer, format: int32, minimum: 0, nullable: true, description: "The owner of this program or project when the apply CREATES it, instead of the request's `ownerPersonId`; an ACTIVE person, else 400 (checked wherever it is sent). Ignored on a milestone row, a BIND row and a skipped row; the dialog-level owner rules apply to it unchanged (no extra guard)." }
+        ownerPersonId: { type: integer, format: int32, minimum: 0, nullable: true, description: "The owner of this program or project when the apply creates it, instead of the request's `ownerPersonId`; an active person, else `400` (checked wherever it is sent). Ignored on a milestone, BIND or skipped row; no extra guard applies." }
     JiraImportApplyItem:
       type: object
       required: [jiraId, expected]
@@ -8215,8 +8101,8 @@ components:
         kind: { $ref: '#/components/schemas/PlanLevel' }
         id: { type: integer, format: int32, minimum: 0, description: "The new node's id." }
         bindingId: { type: integer, format: int32, minimum: 0 }
-        name: { type: string, maxLength: 100 }
-        scheduled: { type: boolean, description: "A milestone created with Jira's dates." }
+        name: { type: string, maxLength: 100, description: "The plan name the node was created with: the Jira summary cut at 100 characters (the key when blank)." }
+        scheduled: { type: boolean, description: "A milestone created with Jira's dates: only when `copyDates` is on, its dates are valid, the caller manages its team (ADMIN: any) and the span holds a working day; otherwise it is created unscheduled." }
     JiraImportBound:
       type: object
       required: [jiraId, issueKey, kind, id, bindingId]
@@ -8232,7 +8118,7 @@ components:
       properties:
         jiraId: { type: string }
         issueKey: { type: string, nullable: true, description: "Null for an item the re-browse no longer finds and, for a non-admin under an active `filter`, for a ticked id the same-scope preview redacts (answered `CHANGED`, exactly like an absent id)." }
-        reason: { type: string, enum: [ALREADY_BOUND, NO_PARENT, NAME_TAKEN, LEVEL_UNMAPPED, NO_TEAM, PARENT_SKIPPED, OUTSIDE_ROOT, CHANGED] }
+        reason: { type: string, enum: [ALREADY_BOUND, NO_PARENT, NAME_TAKEN, LEVEL_UNMAPPED, NO_TEAM, PARENT_SKIPPED, OUTSIDE_ROOT, CHANGED], description: "`CHANGED`: the item differs from the preview's `expected`, or the site no longer holds it. `NAME_TAKEN` also covers a BIND target bound elsewhere meanwhile; `PARENT_SKIPPED` an item whose parent row was skipped; `OUTSIDE_ROOT` a row outside the root's subtree. The rest are the preview's." }
     JiraImportResult:
       type: object
       required: [revision, created, bound, skipped]
@@ -8245,10 +8131,10 @@ components:
       type: object
       required: [connectionId, level, nodeId, issueKey]
       properties:
-        connectionId: { type: integer, format: int32, minimum: 0 }
-        level: { allOf: [{ $ref: '#/components/schemas/PlanLevel' }], description: "The kind of plan node; `nodeId` is the id of a program, project or milestone accordingly." }
+        connectionId: { type: integer, format: int32, minimum: 0, description: "The connection; `400` when it is unknown, deleted or disabled." }
+        level: { allOf: [{ $ref: '#/components/schemas/PlanLevel' }], description: "The kind of plan node; `nodeId` is the id of a program, project or milestone accordingly. `400` when the connection's mapping does not map the level." }
         nodeId: { type: integer, format: int32, minimum: 0 }
-        issueKey: { type: string, pattern: '^[A-Z][A-Z0-9_]{1,9}-[0-9]{1,10}$', maxLength: 21, description: "The Jira issue key, e.g. `ABC-12`; trimmed." }
+        issueKey: { type: string, pattern: '^[A-Z][A-Z0-9_]{1,9}-[0-9]{1,10}$', maxLength: 21, description: "The Jira issue key, e.g. `ABC-12`; trimmed. `400` for a key outside the connection's project keys, an unknown issue, or an issue whose hierarchy level is not the one the mapping gives `level` (the message names both)." }
     JiraBindingNode:
       type: object
       required: [kind, id, name]
@@ -8291,7 +8177,10 @@ components:
           type: string
           nullable: true
           enum: [DELETED, OUT_OF_SCOPE, MOVED_OUT, NOT_LISTED, FORBIDDEN]
-          description: "Why the issue is gone. `OUT_OF_SCOPE` is the sweep's verdict until the per-issue probe answers (a failed, cut or over-cap probe is retried by a later run), `MOVED_OUT` is what a probe's 200 reads when the key it carried is outside the connection's project keys (or carried none usable): Jira still has the issue and the account can read it by id, but it is absent from the connection's listing, so it moved out of the connection's projects; `NOT_LISTED` is a 200 whose key is inside the connection's project keys (archived, a changed type, a listing that came back empty by mistake: Jira has it where the connection looks, but no longer lists it). Both are derived on read against the connection's CURRENT project keys, never stored. `DELETED` is the probe's 404 (Jira answers the same 404 for an issue the connection's account cannot see), `FORBIDDEN` its 403."
+          description: >-
+            Why the issue is gone. `DELETED`: the probe's `404`; `FORBIDDEN`: its `403`; `OUT_OF_SCOPE`: the sweep's verdict until the
+            probe answers; `MOVED_OUT`: Jira still has the issue but its key is outside the connection's project keys; `NOT_LISTED`: its
+            key is inside them but the listing no longer holds it. The last two are derived on read against the current keys.
     JiraBinding:
       type: object
       required: [id, connectionId, level, node, issueId, issueKey, url, createdAt]
