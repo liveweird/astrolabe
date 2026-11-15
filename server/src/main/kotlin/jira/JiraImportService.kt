@@ -29,7 +29,6 @@ private val programs = ProgramService.Programs
 private val projects = ProjectService.Projects
 private val milestones = MilestoneService.Milestones
 private val bindings = JiraBindingService.Bindings
-private val connections = JiraConnectionService.Connections
 
 /** The owner chain of the rooted import's node, inside the caller's transaction: a missing or deleted one is the named-target `404`. */
 internal suspend fun rootChain(root: JiraImportRoot): OwnerChain =
@@ -329,9 +328,7 @@ class JiraImportService(
 
     private suspend fun readHolders(siteUrl: String, issueIds: Collection<String>): List<ImportHolder> {
         if (issueIds.isEmpty()) return emptyList()
-        val siteConnectionIds = connections.select(connections.id)
-            .where { connections.active() and (LowerCase(connections.siteUrl) eq siteUrl.lowercase()) }
-            .toList().map { it[connections.id].value }
+        val siteConnectionIds = JiraConnectionService.siteConnectionIds(siteUrl)
         if (siteConnectionIds.isEmpty()) return emptyList()
         val rows = issueIds.distinct().chunked(ID_CHUNK).flatMap { chunk ->
             bindings.selectAll().where {

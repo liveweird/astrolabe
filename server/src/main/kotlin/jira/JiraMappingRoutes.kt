@@ -9,7 +9,6 @@ import ch.nokillswit.authz.requireAdmin
 import ch.nokillswit.infra.fetch.FetchException
 import ch.nokillswit.infra.paging.singleValue
 import ch.nokillswit.plugins.RateLimits
-import ch.nokillswit.plugins.respondProblem
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource
 import io.ktor.server.plugins.BadRequestException
@@ -89,8 +88,7 @@ internal fun Route.jiraMappingRoutes(connections: JiraConnectionService, mapping
                 val issue = connector.peek(target, token, key, mapping) ?: throw NotFoundException("Jira issue not found")
                 peekResponse(issue, mapping, discovery)
             } catch (failure: FetchException) {
-                // The code only: the exception's text names an endpoint; nothing of the upstream body or the credentials reaches a client.
-                call.respondProblem(HttpStatusCode.BadGateway, "Jira did not answer (${failure.code})", type = JIRA_UPSTREAM_PROBLEM)
+                call.respondJiraUpstream(failure)
                 return@get
             }
             // A moved issue answers under its NEW key: that project must be in scope too.

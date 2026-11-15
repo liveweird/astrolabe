@@ -91,6 +91,19 @@ class JiraConnectionService(
         override val markedAsDeleted = bool("marked_as_deleted").default(false)
     }
 
+    companion object {
+        /**
+         * The ids of the ACTIVE connections of one Jira site (D1: a site's issue is held once across its connections), the site matched
+         * case-insensitively. Joins the CALLER's transaction (it opens none): the bind and the import read it under their locks.
+         */
+        suspend fun siteConnectionIds(site: String): List<UInt> {
+            val connections = Connections
+            return connections.select(connections.id)
+                .where { connections.active() and (LowerCase(connections.siteUrl) eq site.lowercase()) }
+                .toList().map { it[connections.id].value }
+        }
+    }
+
     override val encryptedRowLabel = "Jira API token"
 
     /** Every column but the discovery blob: the registry's reads and locks never pull the snapshot. */

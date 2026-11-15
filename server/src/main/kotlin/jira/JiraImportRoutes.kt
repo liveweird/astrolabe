@@ -14,7 +14,6 @@ import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.infra.fetch.FetchException
 import ch.nokillswit.people.PersonService
 import ch.nokillswit.plugins.RateLimits
-import ch.nokillswit.plugins.respondProblem
 import ch.nokillswit.sync.RunnableState
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource
@@ -222,8 +221,7 @@ private suspend fun RoutingContext.browseOrBadGateway(
         browseScope(connector, context, ready.token, admitted.keys, ready.mapping, ready.discovery, now, stop, filter = filter)
     }
 } catch (failure: FetchException) {
-    // The code only: the exception's text names an endpoint; nothing of the upstream body or the credentials reaches a client.
-    call.respondProblem(HttpStatusCode.BadGateway, "Jira did not answer (${failure.code})", type = JIRA_UPSTREAM_PROBLEM)
+    call.respondJiraUpstream(failure)
     null
 }
 

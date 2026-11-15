@@ -1,20 +1,17 @@
 package ch.nokillswit.flow
 
 import ch.nokillswit.infra.db.nowMillis
-import ch.nokillswit.infra.fetch.BACKOFF_MS_KEY
-import ch.nokillswit.infra.fetch.CallTally
 import ch.nokillswit.infra.fetch.FetchException
-import ch.nokillswit.infra.fetch.RATE_LIMITED_KEY
-import ch.nokillswit.infra.fetch.TENANT_PAUSED_MS_KEY
 import ch.nokillswit.sync.ClaimedRun
 import ch.nokillswit.sync.Connector
 import ch.nokillswit.sync.ConnectorConnection
-import ch.nokillswit.sync.SyncCounts
+import ch.nokillswit.sync.RunProblem
+import ch.nokillswit.sync.RunProgress
 import ch.nokillswit.sync.SyncKind
 import ch.nokillswit.sync.SyncResult
+import ch.nokillswit.sync.runWithTally
 import io.ktor.server.plugins.BadRequestException
 import io.ktor.util.AttributeKey
-import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.time.DateTimeException
 import java.time.Instant
@@ -33,32 +30,6 @@ internal object FlowRunCodes {
     const val CONNECTION_GONE = "CONNECTION_GONE"
     const val CONNECTION_DISABLED = "CONNECTION_DISABLED"
     const val TIME_ZONE_INVALID = "TIME_ZONE_INVALID"
-}
-
-/** A typed run failure the connector reports as `FAILED` + [code]. The detail is fixed text: never a URL, a token or a value from Flow. */
-private class RunProblem(val code: String, val detail: String) : RuntimeException(detail)
-
-/**
- * The run's tally of its own work (the registry's counters). Every change calls [onChange], which publishes the counters to the run's
- * meter, so a run cut from outside (its deadline, a shutdown) keeps what it had spent.
- */
-private class RunProgress {
-    var onChange: () -> Unit = {}
-    var calls = 0
-        set(value) {
-            field = value
-            onChange()
-        }
-    var observed = 0
-        set(value) {
-            field = value
-            onChange()
-        }
-    var gone = 0
-        set(value) {
-            field = value
-            onChange()
-        }
 }
 
 /**
@@ -98,30 +69,8 @@ class FlowObserver internal constructor(
     override suspend fun connections(queryTimeoutSeconds: Int): List<ConnectorConnection> = connections.pollRows(queryTimeoutSeconds)
 
     override suspend fun run(run: ClaimedRun): SyncResult {
-        val tally = CallTally()
         val progress = RunProgress()
-
-        fun counts(): SyncCounts {
-            val throttle = tally.snapshot()
-            return SyncCounts(
-                observed = progress.observed,
-                gone = progress.gone,
-                calls = progress.calls,
-                rateLimited = (throttle[RATE_LIMITED_KEY] ?: 0L).toInt(),
-                backoffMs = (throttle[BACKOFF_MS_KEY] ?: 0L) + (throttle[TENANT_PAUSED_MS_KEY] ?: 0L),
-            )
-        }
-        progress.onChange = { run.meter.counts = counts() }
-        return withContext(tally) {
-            try {
-                execute(run, progress)
-                SyncResult.succeeded(counts())
-            } catch (problem: RunProblem) {
-                SyncResult.failed(problem.code, problem.detail, counts())
-            } catch (failure: FetchException) {
-                SyncResult.failed(failure.code, fetchDetail(failure), counts())
-            }
-        }
+        return runWithTally(run, progress, FLOW_SOURCE.label) { execute(run, progress) }
     }
 
     private suspend fun execute(run: ClaimedRun, progress: RunProgress) {
@@ -182,10 +131,6 @@ class FlowObserver internal constructor(
     } catch (_: DateTimeException) {
         throw RunProblem(FlowRunCodes.TIME_ZONE_INVALID, "The connection's time zone is not known to this server")
     }
-
-    /** The failure text of a run: the typed code and the status, never the URL (its query) the exception's own message quotes. */
-    private fun fetchDetail(failure: FetchException): String =
-        "Flow fetch failed: ${failure.code}" + (failure.status?.let { " ($it)" } ?: "")
 
     private companion object {
         const val GONE_DETAIL = "The Flow connection was deleted during the run"

@@ -144,7 +144,7 @@ internal class LockedApply(
         val nodeIds = insertNodes(writes)
         val dated = writes.filter { it.span != null }.map { ValidatedBatchItem(nodeIds.getValue(it.item.jiraId), it.span) }
         writeSchedules(dated, revision + 1)
-        return bind(writes, nodeIds, siteConnectionIds(connection.siteUrl), plan, withheld)
+        return bind(writes, nodeIds, JiraConnectionService.siteConnectionIds(connection.siteUrl), plan, withheld)
     }
 
     /**
@@ -220,14 +220,6 @@ internal class LockedApply(
     private suspend fun canSchedule(): Set<UInt>? {
         if (caller.isAdmin()) return null
         return teams.activeManagedTeamIds(caller.userId).filter { teams.lockedIsActiveManager(it, caller.userId) }.toSet()
-    }
-
-    /** The EXISTING connections of the site (D1), the command's own included: what [JiraBindingService.insertBoundLocked] checks over. */
-    private suspend fun siteConnectionIds(siteUrl: String): List<UInt> {
-        val connections = JiraConnectionService.Connections
-        return connections.select(connections.id)
-            .where { connections.active() and (LowerCase(connections.siteUrl) eq siteUrl.lowercase()) }
-            .toList().map { it[connections.id].value }
     }
 
     /** Top-down: a CREATE inserts its node (the parent's id is the one returned a moment earlier), a BIND locks its target. */

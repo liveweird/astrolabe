@@ -4,6 +4,8 @@ import ch.nokillswit.infra.config.requireConfigInt
 import ch.nokillswit.infra.config.requireConfigLong
 import ch.nokillswit.infra.db.R2dbcDatabaseKey
 import ch.nokillswit.infra.fetch.OutboundPermits
+import ch.nokillswit.infra.fetch.TransportBounds
+import ch.nokillswit.infra.fetch.readTransportConfig
 import ch.nokillswit.infra.outbound.Origin
 import ch.nokillswit.infra.outbound.guardedKtorClient
 import ch.nokillswit.infra.outbound.guardedOkHttpClient
@@ -45,15 +47,20 @@ fun Application.configureJira() {
     if (!developmentMode && stubBaseUrl != null) {
         error("Config \"jira.stubBaseUrl\" must be blank outside development mode (a stub must never be reachable in production)")
     }
-    val requestTimeoutSeconds = requireConfigLong(config, "jira.requestTimeoutSeconds", MIN_TIMEOUT_SECONDS, MAX_TIMEOUT_SECONDS)
-    val requestDeadlineSeconds = requireConfigLong(config, "jira.requestDeadlineSeconds", MIN_DEADLINE_SECONDS, MAX_DEADLINE_SECONDS)
-    val maxResponseBytes = requireConfigLong(config, "jira.maxResponseBytes", MIN_RESPONSE_BYTES, MAX_RESPONSE_BYTES)
-    val maxConcurrentRequests = requireConfigInt(config, "jira.maxConcurrentRequests", MIN_CONCURRENCY, MAX_CONCURRENCY)
-    val maxRetries = requireConfigInt(config, "jira.maxRetries", MIN_RETRIES, MAX_RETRIES)
+    val transport = readTransportConfig(
+        config, "jira",
+        TransportBounds(
+            requestTimeoutSeconds = MIN_TIMEOUT_SECONDS..MAX_TIMEOUT_SECONDS,
+            requestDeadlineSeconds = MIN_DEADLINE_SECONDS..MAX_DEADLINE_SECONDS,
+            maxResponseBytes = MIN_RESPONSE_BYTES..MAX_RESPONSE_BYTES,
+            maxConcurrentRequests = MIN_CONCURRENCY..MAX_CONCURRENCY,
+            maxRetries = MIN_RETRIES..MAX_RETRIES,
+        ),
+    )
     val pageSize = requireConfigInt(config, "jira.pageSize", MIN_PAGE_SIZE, MAX_PAGE_SIZE)
     val overlapMinutes = requireConfigLong(config, "jira.incrementalOverlapMinutes", MIN_OVERLAP_MINUTES, MAX_OVERLAP_MINUTES)
     val censusHours = requireConfigInt(config, "jira.censusHours", MIN_CENSUS_HOURS, MAX_CENSUS_HOURS)
-    requireHeapFitsJiraCeilings(maxResponseBytes, maxConcurrentRequests)
+    requireHeapFitsJiraCeilings(transport.maxResponseBytes, transport.maxConcurrentRequests)
     val stub = stubBaseUrl?.let(::validatedStubOrigin)
     val stubHost = stub?.host
 
@@ -68,16 +75,16 @@ fun Application.configureJira() {
         // The transport-level rule (JiraBootTest pins this wiring): https:443 to an allowed Jira host, or the dev stub's exact origin. It
         // also refuses an IP-literal URL, which OkHttp never hands to the DNS guard.
         originAllowed = { scheme, host, port -> isAllowedJiraOrigin(scheme, host, port, stub, developmentMode) },
-        requestTimeoutSeconds = requestTimeoutSeconds,
+        requestTimeoutSeconds = transport.requestTimeoutSeconds,
     )
     // ONE long-lived client for the app's whole life: closing it on ApplicationStopped releases the OkHttp dispatcher/connection-pool
     // threads (a stopped Application otherwise leaks them - the test suite starts and stops hundreds).
     attributes.put(JiraHttpClientKey, httpClient)
     monitor.subscribe(ApplicationStopped) { httpClient.close() }
-    val permits = OutboundPermits(maxConcurrentRequests)
+    val permits = OutboundPermits(transport.maxConcurrentRequests)
     val jiraHttp = createJiraHttp(
-        httpClient, maxRetries, maxResponseBytes, maxConcurrentRequests,
-        requestDeadlineMillis = requestDeadlineSeconds * MILLIS_PER_SECOND, permits = permits,
+        httpClient, transport.maxRetries, transport.maxResponseBytes, transport.maxConcurrentRequests,
+        requestDeadlineMillis = transport.requestDeadlineSeconds * MILLIS_PER_SECOND, permits = permits,
     )
     val routing = JiraStubRouting(stub, developmentMode)
     attributes.put(JiraStubRoutingKey, routing)

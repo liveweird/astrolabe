@@ -17,7 +17,6 @@ import ch.nokillswit.infra.paging.parsePaging
 import ch.nokillswit.infra.paging.toPage
 import ch.nokillswit.people.PersonService
 import ch.nokillswit.plugins.RateLimits
-import ch.nokillswit.plugins.respondProblem
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource
@@ -95,8 +94,7 @@ internal fun Route.jiraBindingRoutes(
                 // of an administrator's Test connection for long (the pool is shared, and its size is what the heap was sized on).
                 withContext(PermitWait(bindPermitWaitMillis)) { observeForBind(connections, connector, checked) }
             } catch (failure: FetchException) {
-                // The code only: the exception's text names an endpoint; nothing of the upstream body or the credentials reaches a client.
-                call.respondProblem(HttpStatusCode.BadGateway, "Jira did not answer (${failure.code})", type = JIRA_UPSTREAM_PROBLEM)
+                call.respondJiraUpstream(failure)
                 return@post
             }
             val command = JiraBindCommand(checked.connectionId, checked.level, checked.nodeId, observation, caller.userId)

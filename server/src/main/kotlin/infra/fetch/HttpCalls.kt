@@ -21,8 +21,6 @@ internal class PendingCall(
     val pauseKey: String?,
     /** The sync job's [CallTally] when the call runs inside one, else null. */
     val tally: CallTally?,
-    /** Told the size of the response body on the wire, once it is read (the size a character-per-run ceiling charges). */
-    val onWireBytes: ((Int) -> Unit)?,
     /**
      * Applied to the parsed tree (and the response headers) while the big-parse lock is still held (`SourceHttp.requestAs`);
      * identity for a plain request.

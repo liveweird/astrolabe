@@ -10,9 +10,6 @@ import kotlinx.serialization.json.encodeToJsonElement
 /** `409` problem type: the stored API token cannot be decrypted (a changed `DATA_ENCRYPTION_KEY`); re-enter it. */
 const val JIRA_TOKEN_UNREADABLE_PROBLEM = "urn:astrolabe:problem:jira-token-unreadable"
 
-/** `502` problem type: Jira did not answer a Peek (the failure code rides in the detail; never a URL, a body or a token). */
-const val JIRA_UPSTREAM_PROBLEM = "urn:astrolabe:problem:jira-upstream"
-
 /** The stored value of a connection nobody mapped yet (`jira_connections.mapping` default). */
 const val EMPTY_MAPPING = "{}"
 

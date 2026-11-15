@@ -106,10 +106,8 @@ class SourceHttp(
         repeatedQuery: List<Pair<String, String>> = emptyList(),
         // The tenant whose rate-limit pause this call sets and obeys (`HttpJiraClient`: the gateway base, i.e. the cloud id).
         pauseKey: String? = null,
-        // Told the byte size of the body that came back (not of a failed attempt), for a stream that charges a run ceiling for it.
-        onWireBytes: ((Int) -> Unit)? = null,
     ): JsonElement = requestAs(
-        method, url, query, jsonBody, authHeader, statusCodeOverrides, repeatedQuery, pauseKey, onWireBytes, transform = { it },
+        method, url, query, jsonBody, authHeader, statusCodeOverrides, repeatedQuery, pauseKey, transform = { it },
     )
 
     /**
@@ -125,10 +123,9 @@ class SourceHttp(
         statusCodeOverrides: Map<Int, String> = emptyMap(),
         repeatedQuery: List<Pair<String, String>> = emptyList(),
         pauseKey: String? = null,
-        onWireBytes: ((Int) -> Unit)? = null,
         transform: (JsonElement, Headers) -> T,
     ): T = execute(
-        method, url, query, jsonBody, authHeader, statusCodeOverrides, repeatedQuery, pauseKey, onWireBytes, transform,
+        method, url, query, jsonBody, authHeader, statusCodeOverrides, repeatedQuery, pauseKey, transform,
     )
 
     /**
@@ -146,10 +143,9 @@ class SourceHttp(
         statusCodeOverrides: Map<Int, String> = emptyMap(),
         repeatedQuery: List<Pair<String, String>> = emptyList(),
         pauseKey: String? = null,
-        onWireBytes: ((Int) -> Unit)? = null,
         transform: (JsonElement) -> T,
     ): T = execute(
-        method, url, query, jsonBody, authHeader, statusCodeOverrides, repeatedQuery, pauseKey, onWireBytes,
+        method, url, query, jsonBody, authHeader, statusCodeOverrides, repeatedQuery, pauseKey,
     ) { json, _ -> transform(json) }
 
     @Suppress("UNCHECKED_CAST") // `Done.value` holds exactly what `transform` returned for this call; the cast restores its type.
@@ -162,12 +158,11 @@ class SourceHttp(
         statusCodeOverrides: Map<Int, String>,
         repeatedQuery: List<Pair<String, String>>,
         pauseKey: String?,
-        onWireBytes: ((Int) -> Unit)?,
         transform: (JsonElement, Headers) -> T,
     ): T {
         val tally = currentCoroutineContext()[CallTally]
         val call = PendingCall(
-            method, url, query.toList() + repeatedQuery, jsonBody, authHeader, statusCodeOverrides, pauseKey, tally, onWireBytes, transform,
+            method, url, query.toList() + repeatedQuery, jsonBody, authHeader, statusCodeOverrides, pauseKey, tally, transform,
         )
         val permit = Permit(semaphore)
         try {
@@ -316,7 +311,6 @@ class SourceHttp(
         } else {
             call.transform(parseJsonBody(bytes, source, status, url), response.headers)
         }
-        call.onWireBytes?.invoke(bytes.size)
         return Done(value)
     }
 

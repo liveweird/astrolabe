@@ -1,8 +1,9 @@
 package ch.nokillswit.flow
 
 import ch.nokillswit.infra.config.requireConfigInt
-import ch.nokillswit.infra.config.requireConfigLong
 import ch.nokillswit.infra.fetch.OutboundPermits
+import ch.nokillswit.infra.fetch.TransportBounds
+import ch.nokillswit.infra.fetch.readTransportConfig
 import ch.nokillswit.infra.outbound.FlowOrigins
 import ch.nokillswit.infra.outbound.TlsTrust
 import ch.nokillswit.infra.outbound.guardedKtorClient
@@ -50,11 +51,16 @@ fun Application.configureFlow() {
     if (!developmentMode && text("flow.insecureOrigins").isNotEmpty()) {
         error("Config \"flow.insecureOrigins\" must be blank outside development mode (production never reaches a plain-http Flow)")
     }
-    val requestTimeoutSeconds = requireConfigLong(config, "flow.requestTimeoutSeconds", MIN_TIMEOUT_SECONDS, MAX_TIMEOUT_SECONDS)
-    val requestDeadlineSeconds = requireConfigLong(config, "flow.requestDeadlineSeconds", MIN_DEADLINE_SECONDS, MAX_DEADLINE_SECONDS)
-    val maxResponseBytes = requireConfigLong(config, "flow.maxResponseBytes", MIN_RESPONSE_BYTES, MAX_RESPONSE_BYTES)
-    val maxConcurrentRequests = requireConfigInt(config, "flow.maxConcurrentRequests", MIN_CONCURRENCY, MAX_CONCURRENCY)
-    val maxRetries = requireConfigInt(config, "flow.maxRetries", MIN_RETRIES, MAX_RETRIES)
+    val transport = readTransportConfig(
+        config, "flow",
+        TransportBounds(
+            requestTimeoutSeconds = MIN_TIMEOUT_SECONDS..MAX_TIMEOUT_SECONDS,
+            requestDeadlineSeconds = MIN_DEADLINE_SECONDS..MAX_DEADLINE_SECONDS,
+            maxResponseBytes = MIN_RESPONSE_BYTES..MAX_RESPONSE_BYTES,
+            maxConcurrentRequests = MIN_CONCURRENCY..MAX_CONCURRENCY,
+            maxRetries = MIN_RETRIES..MAX_RETRIES,
+        ),
+    )
     val sprintsSinceDays = requireConfigInt(config, "flow.sprintsSinceDays", MIN_SPRINTS_SINCE_DAYS, MAX_SPRINTS_SINCE_DAYS)
     val hosts = parseSelfManagedHosts(text("flow.allowedHosts"), text("flow.allowedCidrs"), "flow.allowedHosts", "flow.allowedCidrs")
     val insecure = parseFlowInsecureOrigins(text("flow.insecureOrigins"), "flow.insecureOrigins")
@@ -62,15 +68,16 @@ fun Application.configureFlow() {
     val origins = FlowOrigins(hosts, insecure, developmentMode)
     attributes.put(FlowOriginsKey, origins)
 
-    val httpClient = buildGuardedFlowHttpClient(origins, tls, requestTimeoutSeconds = requestTimeoutSeconds)
+    val httpClient = buildGuardedFlowHttpClient(origins, tls, requestTimeoutSeconds = transport.requestTimeoutSeconds)
     // ONE long-lived client for the app's whole life: closing it on ApplicationStopped releases the OkHttp dispatcher/connection-pool
     // threads (a stopped Application otherwise leaks them - the test suite starts and stops hundreds).
     attributes.put(FlowHttpClientKey, httpClient)
     monitor.subscribe(ApplicationStopped) { httpClient.close() }
     // Flow's own permit pool (not Jira's): a slow Flow can never hold a Jira call behind it, nor the reverse.
     val flowHttp = createFlowHttp(
-        httpClient, maxRetries, maxResponseBytes, maxConcurrentRequests,
-        requestDeadlineMillis = requestDeadlineSeconds * MILLIS_PER_SECOND, permits = OutboundPermits(maxConcurrentRequests),
+        httpClient, transport.maxRetries, transport.maxResponseBytes, transport.maxConcurrentRequests,
+        requestDeadlineMillis = transport.requestDeadlineSeconds * MILLIS_PER_SECOND,
+        permits = OutboundPermits(transport.maxConcurrentRequests),
     )
     val connector = FlowConnector({ baseUrl, token -> HttpFlowClient(flowHttp, baseUrl, token) }, sprintsSinceDays)
     attributes.put(FlowConnectorKey, connector)

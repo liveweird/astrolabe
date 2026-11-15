@@ -121,10 +121,7 @@ class JiraBindingService(private val database: R2dbcDatabase) {
         if (!lockNodeShared(command.level, command.nodeId)) throw NotFoundException("${command.level.title()} not found")
         guard(activeChain(command.level, command.nodeId) ?: throw NotFoundException("${command.level.title()} not found"))
 
-        val siteConnections = connections.select(connections.id)
-            .where { connections.active() and (LowerCase(connections.siteUrl) eq site.lowercase()) }
-            .toList().map { it[connections.id].value }
-        val inserted = insertBoundLocked(command, siteConnections)
+        val inserted = insertBoundLocked(command, JiraConnectionService.siteConnectionIds(site))
         val binding = checkNotNull(readOne(Bindings.id eq inserted.bindingId)) { "the binding just inserted is readable" }
         JiraBindOutcome(binding, inserted.released)
     }

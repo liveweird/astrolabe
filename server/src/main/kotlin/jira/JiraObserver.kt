@@ -2,24 +2,21 @@ package ch.nokillswit.jira
 
 import ch.nokillswit.audit.audit
 import ch.nokillswit.infra.db.nowMillis
-import ch.nokillswit.infra.fetch.BACKOFF_MS_KEY
-import ch.nokillswit.infra.fetch.CallTally
 import ch.nokillswit.infra.fetch.FetchException
 import ch.nokillswit.infra.fetch.LIMIT_EXCEEDED_CODE
-import ch.nokillswit.infra.fetch.RATE_LIMITED_KEY
-import ch.nokillswit.infra.fetch.TENANT_PAUSED_MS_KEY
 import ch.nokillswit.infra.time.MILLIS_PER_MINUTE
 import ch.nokillswit.sync.ClaimedRun
 import ch.nokillswit.sync.Connector
 import ch.nokillswit.sync.ConnectorConnection
+import ch.nokillswit.sync.RunProblem
+import ch.nokillswit.sync.RunProgress
 import ch.nokillswit.sync.RunnableState
-import ch.nokillswit.sync.SyncCounts
 import ch.nokillswit.sync.SyncKind
 import ch.nokillswit.sync.SyncResult
 import ch.nokillswit.sync.SyncRunService
+import ch.nokillswit.sync.runWithTally
 import io.ktor.server.plugins.BadRequestException
 import io.ktor.util.AttributeKey
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import org.slf4j.LoggerFactory
@@ -28,33 +25,10 @@ val JiraObserverKey = AttributeKey<JiraObserver>("JiraObserver")
 
 private val log = LoggerFactory.getLogger("ch.nokillswit.sync")
 
-/** Typed run failures the connector reports as `FAILED` + [code]; none involves a call to Jira. */
-private class RunProblem(val code: String, val detail: String) : RuntimeException(detail)
-
-/**
- * The run's mutable tally of its own work (the registry's counters); the Jira throttling figures come from the [CallTally]. Every change
- * calls [onChange], which publishes the counters to the run's meter, so a run cut from outside keeps what it had spent.
- */
-private class RunProgress {
-    var onChange: () -> Unit = {}
-
+/** The shared counters ([RunProgress]) and the Jira run's own state: the per-page stop. */
+private class JiraRunProgress : RunProgress() {
     /** Run before every search page: ends the run (`RunProblem`) once its connection is deleted or disabled. */
     var beforePage: suspend () -> Unit = {}
-    var calls = 0
-        set(value) {
-            field = value
-            onChange()
-        }
-    var observed = 0
-        set(value) {
-            field = value
-            onChange()
-        }
-    var gone = 0
-        set(value) {
-            field = value
-            onChange()
-        }
 }
 
 /** How a run reads the bound issues: everything of the mapped types, or what changed since the last succeeded run started. */
@@ -110,37 +84,11 @@ class JiraObserver internal constructor(
     override suspend fun connections(queryTimeoutSeconds: Int): List<ConnectorConnection> = connections.pollRows(queryTimeoutSeconds)
 
     override suspend fun run(run: ClaimedRun): SyncResult {
-        val tally = CallTally()
-        val progress = RunProgress()
-
-        fun counts(): SyncCounts {
-            val throttle = tally.snapshot()
-            return SyncCounts(
-                observed = progress.observed,
-                gone = progress.gone,
-                calls = progress.calls,
-                rateLimited = (throttle[RATE_LIMITED_KEY] ?: 0L).toInt(),
-                backoffMs = (throttle[BACKOFF_MS_KEY] ?: 0L) + (throttle[TENANT_PAUSED_MS_KEY] ?: 0L),
-            )
-        }
-        progress.onChange = { run.meter.counts = counts() }
-        return withContext(tally) {
-            try {
-                execute(run, progress)
-                SyncResult.succeeded(counts())
-            } catch (problem: RunProblem) {
-                SyncResult.failed(problem.code, problem.detail, counts())
-            } catch (failure: FetchException) {
-                SyncResult.failed(failure.code, fetchDetail(failure), counts())
-            }
-        }
+        val progress = JiraRunProgress()
+        return runWithTally(run, progress, JIRA_SOURCE.label) { execute(run, progress) }
     }
 
-    /** The failure text of a run: the typed code and the status, never the endpoint the exception's own message quotes. */
-    private fun fetchDetail(failure: FetchException): String =
-        "${JIRA_SOURCE.label} fetch failed: ${failure.code}" + (failure.status?.let { " ($it)" } ?: "")
-
-    private suspend fun execute(run: ClaimedRun, progress: RunProgress) {
+    private suspend fun execute(run: ClaimedRun, progress: JiraRunProgress) {
         val context = connections.readForBind(run.connectionId)
             ?: throw connectionGone(run.connectionId)
         if (!context.enabled) throw RunProblem("CONNECTION_DISABLED", "The Jira connection is disabled")
@@ -262,7 +210,7 @@ class JiraObserver internal constructor(
         discovery: JiraDiscovery,
         byIssue: Map<String, BoundIssue>,
         census: JiraCensus,
-        progress: RunProgress,
+        progress: JiraRunProgress,
     ): Set<String> {
         val written = LinkedHashSet<String>()
         val pending = ArrayList<Pair<UInt, JiraObservation>>()
@@ -307,7 +255,7 @@ class JiraObserver internal constructor(
         sweepTypes: Set<String>,
         inScope: Set<String>,
         observed: Set<String>,
-        progress: RunProgress,
+        progress: JiraRunProgress,
     ): List<BoundIssue> {
         val gone = bound.filter { it.issueId !in inScope && it.issueId !in observed && it.typeId in sweepTypes }
         val back = bound.filter { it.gone && it.issueId in inScope && it.issueId !in observed }
@@ -350,7 +298,7 @@ class JiraObserver internal constructor(
         client: JiraClient,
         jql: () -> String,
         fields: String,
-        progress: RunProgress,
+        progress: JiraRunProgress,
         onPage: suspend (JsonArray) -> Unit,
     ) = searchPages(client, jql, fields, connector.pageSize, { progress.beforePage() }, { progress.calls++ }, onPage = onPage)
 
