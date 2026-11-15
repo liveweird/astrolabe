@@ -120,7 +120,7 @@ Source files sit flat under `server/src/main/kotlin/<area>/` but declare `packag
 - `infra/fetch/` — the bounded outbound transport (Flow's, ported): retry/backoff, permits, size and page ceilings.
 - `jira/` — the Jira sync (V21–V23, V27–V30, `/api/v1/integrations/jira`, `GET /views/deviations`, `GET /views/jira-links`): the ADMIN registry (token encrypted), probes, mapping, 1:1 bindings, observer, census, deviation kernel, import, acknowledge, flag source; routes per concern (`jira-sync.md`).
 - `flow/` — the Flow sync (V24, `/api/v1/integrations/flow`, `GET /teams/{id}/flow`, `GET /views/capacity-deviations`; stub-proven): the ADMIN registry (token encrypted), probes, run, mirror, bindings by name, the capacity import (preview, apply via `teams/`), the deviation kernel, the per-sprint and all-open acknowledge (V26), `FlowFlagSource` (the team view's capacity flag and, for every team at once, the roadmap rows' flag, through `planning`'s seam); `sync/`, `planning/`, `teams/` name nothing of it, nor it of `jira/` (`flow-sync.md`).
-- `sync/` — the connector-agnostic run registry (`sync_runs`, unique-index claim), its executor, the poll scheduler, the connection status and the shared acknowledge vocabulary (`Acknowledge.kt`) and the one `already-bound` problem type (`Bindings.kt`).
+- `sync/` — the connector-agnostic run registry (`sync_runs`, unique-index claim), its executor, the poll scheduler, the connection status and the shared acknowledge vocabulary (`Acknowledge.kt`) and the one `already-bound` problem type (`Bindings.kt`); `sync.md`.
 - `telemetry/` — per-process JVM/cgroup/request/storage samples in `ops.*` (V9), 90 days, hourly, ADMIN read API (`observability.md`).
 
 **Feature template — copy `teams/`** (a small ADMIN-curated registry; the only shape the foundation ships). Before adding a feature, route, service, migration or page, read `.claude/docs/conventions.md` in full.
@@ -152,6 +152,7 @@ disagree, the doc wins. The always-loaded set (this file plus the two imports) s
 | `.claude/docs/security.md` | auth/JWT/MFA/password reset, rate limits, headers/CSP, outbound HTTP (the SSRF guard), secrets/encryption at rest, production fail-closed startup checks, payload validation |
 | `.claude/docs/authorization.md` | any route: its guard (ADMIN vs any authenticated), 403-before-400/404 ordering, existence disclosure, the error/`ProblemDetail` mapping |
 | `.claude/docs/observability.md` | any mutation or denial path (it needs an `audit(...)` event, listed there), logging, OpenTelemetry, health probes, the telemetry panel's server side |
+| `.claude/docs/sync.md` | a sync run or its claim, the runner, the poll scheduler, a connection's status, the failure codes, the acknowledge vocabulary, a stored token's life |
 | `.claude/docs/jira-sync.md` | the Jira sync: gateway, probes, mapping, bindings, run, deviations, stub, real-site walk-through, assumptions ledger |
 | `.claude/docs/flow-sync.md` | the Flow sync: transport, probes, run, bindings, capacity import, stub, real-Flow walk-through, ledger |
 | `.claude/docs/ci.md` | a CI job (ids, list), Dependabot rule, static-analysis config; the full-stack/Kubernetes notes, the sibling port table |

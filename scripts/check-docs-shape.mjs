@@ -48,7 +48,6 @@ const NOT_YET = [
   ".claude/docs/flow-sync.md",
   ".claude/docs/jira-sync.md",
   ".claude/docs/list-endpoints.md",
-  ".claude/docs/observability.md",
   ".claude/docs/planning-model.md",
   ".claude/docs/testing.md",
   ".claude/docs/web-internals.md",
