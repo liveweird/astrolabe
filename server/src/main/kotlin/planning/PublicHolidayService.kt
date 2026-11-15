@@ -1,6 +1,6 @@
 package ch.nokillswit.planning
 
-import ch.nokillswit.authz.NotFoundException
+import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.infra.db.insertRowsIgnoringConflicts
 import ch.nokillswit.infra.db.localDate
 import ch.nokillswit.infra.db.nowMillis
@@ -74,7 +74,7 @@ class PublicHolidayService(private val database: R2dbcDatabase) {
     /** Hard-deletes a holiday; a missing id is the 404 (rolled back, so no bump). The answer is the removed row. */
     suspend fun delete(id: UInt): PlanWrite<PublicHolidayResponse> = database.withPlanWrite {
         val existing = PublicHolidays.selectAll().where { PublicHolidays.id eq id }.toList().singleOrNull()?.toResponse()
-            ?: throw NotFoundException("Public holiday not found")
+            .orNotFound("Public holiday")
         PublicHolidays.deleteWhere { PublicHolidays.id eq id }
         existing
     }

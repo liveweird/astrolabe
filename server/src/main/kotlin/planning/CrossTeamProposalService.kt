@@ -124,7 +124,7 @@ private fun CrossTeamSnapshot.hypotheticalSpans(items: List<ValidatedBatchItem>)
     for (item in items) {
         val teamSpans = spans.getValue(teamOf.getValue(item.milestoneId))
         val span = item.span
-        if (span == null) teamSpans.remove(item.milestoneId) else teamSpans[item.milestoneId] = DaySpan(span.start, span.end)
+        if (span == null) teamSpans.remove(item.milestoneId) else teamSpans[item.milestoneId] = span
     }
     return spans
 }

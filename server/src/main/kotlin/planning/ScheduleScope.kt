@@ -184,5 +184,5 @@ class ScopeToken(hash: String) {
  */
 fun acceptsOnlyFreshDates(items: List<ValidatedBatchItem>, fresh: Map<UInt, DaySpan>): Boolean = items.all { item ->
     val span = item.span
-    span != null && fresh[item.milestoneId] == DaySpan(span.start, span.end)
+    span != null && fresh[item.milestoneId] == span
 }

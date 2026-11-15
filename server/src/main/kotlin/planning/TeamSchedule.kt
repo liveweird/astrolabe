@@ -73,8 +73,8 @@ data class AcceptedSchedule(
     val milestoneId: UInt,
     /** The milestone's STORED team (read under the lock): the team the audit line is attributed to, whatever team the request named. */
     val teamId: UInt,
-    val from: MilestoneSpan?,
-    val to: MilestoneSpan?,
+    val from: DaySpan?,
+    val to: DaySpan?,
     val pinCleared: Boolean = false,
 )
 
@@ -91,7 +91,7 @@ data class TeamBatchOutcome(
 )
 
 /** A validated item: its span is null for the unschedule pair. */
-data class ValidatedBatchItem(val milestoneId: UInt, val span: MilestoneSpan?)
+data class ValidatedBatchItem(val milestoneId: UInt, val span: DaySpan?)
 
 private val SCOPE_HASH = Regex("^[0-9a-f]{64}$")
 

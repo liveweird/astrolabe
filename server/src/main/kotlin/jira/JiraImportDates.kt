@@ -2,7 +2,7 @@ package ch.nokillswit.jira
 
 import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.infra.validation.LAST_PLAN_DAY
-import ch.nokillswit.planning.MilestoneSpan
+import ch.nokillswit.planning.DaySpan
 import ch.nokillswit.planning.TargetWindow
 import java.time.LocalDate
 
@@ -10,7 +10,7 @@ import java.time.LocalDate
 private const val FIRST_PLAN_YEAR = 1900
 
 /** A milestone's dates after the rules: the span to write (null = unscheduled) and the one info that says why. */
-internal class DatesVerdict(val span: MilestoneSpan?, val info: JiraImportInfo?)
+internal class DatesVerdict(val span: DaySpan?, val info: JiraImportInfo?)
 
 /** A created project's window verdict (1.14): the [window] to write, else the [info] saying why not (none when Jira has no dates). */
 internal class WindowVerdict(val window: TargetWindow?, val info: JiraImportInfo?)
@@ -35,7 +35,7 @@ internal class ImportDateRules(
             end.isBefore(start) || !inPlanYears(start) || !inPlanYears(end) -> DatesVerdict(null, JiraImportInfo.DATES_INVALID)
             !canSchedule -> DatesVerdict(null, JiraImportInfo.DATES_NOT_COPIED)
             !calendar.containsWorkingDay(start, end) -> DatesVerdict(null, JiraImportInfo.NO_WORKING_DAY)
-            else -> DatesVerdict(MilestoneSpan(start, end), null)
+            else -> DatesVerdict(DaySpan(start, end), null)
         }
     }
 

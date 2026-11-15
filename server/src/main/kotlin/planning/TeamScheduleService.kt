@@ -14,7 +14,7 @@ import java.time.LocalDate
 val TeamScheduleServiceKey = AttributeKey<TeamScheduleService>("TeamScheduleService")
 
 /** The milestone columns the batch decides on (and audits a cleared pin from), as stored at the lock. */
-private class StoredSchedule(val teamId: UInt, val span: MilestoneSpan?, val scheduleRevision: Long, val pinned: Boolean)
+private class StoredSchedule(val teamId: UInt, val span: DaySpan?, val scheduleRevision: Long, val pinned: Boolean)
 
 /**
  * The schedule batch writer: the team-scoped batch accept of an auto-proposal (v0.8.0), "N schedule PUTs in ONE plan write under the
@@ -227,7 +227,7 @@ class TeamScheduleService(private val database: R2dbcDatabase) {
 
     private fun skipReason(
         row: StoredSchedule?,
-        span: MilestoneSpan?,
+        span: DaySpan?,
         teamIds: Set<UInt>,
         expectedRevision: Long,
         calendar: WorkingCalendar,
@@ -263,7 +263,7 @@ class TeamScheduleService(private val database: R2dbcDatabase) {
                 val end = row[milestones.endDate]
                 row[milestones.id].value to StoredSchedule(
                     teamId = row[milestones.teamId].value,
-                    span = if (start != null && end != null) MilestoneSpan(start, end) else null,
+                    span = spanOf(start, end),
                     scheduleRevision = row[milestones.scheduleRevision],
                     pinned = row[milestones.pinned],
                 )

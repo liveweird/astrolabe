@@ -11,7 +11,6 @@ import ch.nokillswit.infra.validation.sanitizedDescription
 import io.ktor.server.plugins.BadRequestException
 import kotlinx.serialization.Serializable
 import java.math.BigDecimal
-import java.time.LocalDate
 
 /**
  * Milestones (V14), the fourth level of the plan, under a project: a name (unique among the ACTIVE milestones of the SAME project), an
@@ -118,9 +117,6 @@ data class MilestoneListFilter(
 
 data class MilestoneListResult(val items: List<MilestoneListItem>, val total: Long)
 
-/** A validated milestone schedule: an inclusive span of days. */
-data class MilestoneSpan(val start: LocalDate, val end: LocalDate)
-
 /** What a plan-field update replaced, for the audit delta: the STORED team before the write. */
 data class MilestoneUpdateOutcome(val teamFrom: UInt)
 
@@ -128,7 +124,7 @@ data class MilestoneUpdateOutcome(val teamFrom: UInt)
  * What a schedule write replaced: the STORED span before it (null = unscheduled), the team it was checked against, the new revision and
  * whether the write CLEARED a pin ([pinCleared]: an unschedule of a pinned milestone, audited as `milestone.unpinned`).
  */
-data class ScheduleOutcome(val from: MilestoneSpan?, val teamId: UInt, val revision: Long, val pinCleared: Boolean = false)
+data class ScheduleOutcome(val from: DaySpan?, val teamId: UInt, val revision: Long, val pinCleared: Boolean = false)
 
 /** What a pin write found: the STORED pin [before], the team the guard checked and the plan revision the write left behind. */
 data class PinOutcome(val before: Boolean, val teamId: UInt, val revision: Long)
@@ -163,7 +159,7 @@ fun validateManDays(value: Double, field: String): BigDecimal {
 }
 
 /** The schedule request rules: a non-negative `expectedRevision` (400, as the spec's `minimum: 0` promises), then [validateSchedule]. */
-fun validateScheduleRequest(request: MilestoneScheduleRequest): MilestoneSpan? {
+fun validateScheduleRequest(request: MilestoneScheduleRequest): DaySpan? {
     if (request.expectedRevision < 0) throw BadRequestException("expectedRevision must not be negative")
     return validateSchedule(request.startDate, request.endDate)
 }
@@ -176,7 +172,7 @@ const val NO_WORKING_DAY_MESSAGE = "A milestone must cover at least one working 
  * start, and at least one Monday-Friday day inside the span ([NO_WORKING_DAY_MESSAGE]). This is the pure, calendar-free half: it runs
  * before any lock and knows no holidays; `MilestoneService.schedule` adds the holiday-aware check under the plan lock (D2).
  */
-fun validateSchedule(startDate: String?, endDate: String?): MilestoneSpan? {
+fun validateSchedule(startDate: String?, endDate: String?): DaySpan? {
     if ((startDate == null) != (endDate == null)) {
         throw BadRequestException("Start date and end date must be set together or both omitted")
     }
@@ -187,5 +183,5 @@ fun validateSchedule(startDate: String?, endDate: String?): MilestoneSpan? {
     if (!WorkingCalendar.MON_FRI.containsWorkingDay(start, end)) {
         throw BadRequestException(NO_WORKING_DAY_MESSAGE)
     }
-    return MilestoneSpan(start, end)
+    return DaySpan(start, end)
 }

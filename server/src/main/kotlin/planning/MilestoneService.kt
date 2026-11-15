@@ -1,7 +1,7 @@
 package ch.nokillswit.planning
 
 import ch.nokillswit.authz.ConflictException
-import ch.nokillswit.authz.NotFoundException
+import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.infra.db.SoftDeletable
 import ch.nokillswit.infra.db.containsNormalized
 import ch.nokillswit.infra.db.active
@@ -20,7 +20,7 @@ import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 
 val MilestoneServiceKey = AttributeKey<MilestoneService>("MilestoneService")
 
-private const val MILESTONE_NOT_FOUND = "Milestone not found"
+private const val MILESTONE = "Milestone"
 
 /** The schedule guard the service re-runs INSIDE the plan lock, against the milestone's chain (and STORED team) re-read there. */
 typealias ScheduleGuard = suspend (MilestoneChain) -> Unit
@@ -154,7 +154,7 @@ class MilestoneService(private val database: R2dbcDatabase) {
     suspend fun create(projectId: UInt, request: MilestoneCreateRequest, guard: PlanGuard): UInt {
         val estimate = validateMilestoneFields(request.name, request.description, request.estimateMd)
         return database.withPlanWrite { revision ->
-            guard(projectChain(projectId) ?: throw NotFoundException("Project not found"))
+            guard(projectChain(projectId).orNotFound("Project"))
             requireActiveTeam(request.teamId)
             val stamp = nowMillis()
             insertMilestoneRow(projectId, request.teamId, request.name, request.description, estimate, revision + 1, stamp)
@@ -169,9 +169,9 @@ class MilestoneService(private val database: R2dbcDatabase) {
     suspend fun update(id: UInt, request: MilestoneUpdateRequest, guard: PlanGuard): MilestoneUpdateOutcome {
         val estimate = validateMilestoneFields(request.name, request.description, request.estimateMd)
         return database.withPlanWrite {
-            guard((milestoneChain(id) ?: throw NotFoundException(MILESTONE_NOT_FOUND)).owners)
+            guard(milestoneChain(id).orNotFound(MILESTONE).owners)
             val before = Milestones.select(Milestones.teamId).where { (Milestones.id eq id) and Milestones.active() }
-                .toList().singleOrNull() ?: throw NotFoundException(MILESTONE_NOT_FOUND)
+                .toList().singleOrNull().orNotFound(MILESTONE)
             requireActiveTeam(request.teamId)
             Milestones.update({ (Milestones.id eq id) and Milestones.active() }) {
                 it[name] = request.name
@@ -198,7 +198,7 @@ class MilestoneService(private val database: R2dbcDatabase) {
     suspend fun schedule(id: UInt, request: MilestoneScheduleRequest, guard: ScheduleGuard): ScheduleOutcome {
         val span = validateScheduleRequest(request)
         val write = database.withPlanWrite { revision ->
-            val chain = milestoneChain(id) ?: throw NotFoundException(MILESTONE_NOT_FOUND)
+            val chain = milestoneChain(id).orNotFound(MILESTONE)
             guard(chain)
             // The holiday-aware half of "at least one working day" (D2): the calendar is read HERE, under the lock, so the verdict is
             // the dictionary as of this write. After the re-guard (a stranger never learns it) and before the stale check.
@@ -207,7 +207,7 @@ class MilestoneService(private val database: R2dbcDatabase) {
             }
             val before = Milestones.select(Milestones.startDate, Milestones.endDate, Milestones.scheduleRevision, Milestones.pinned)
                 .where { (Milestones.id eq id) and Milestones.active() }
-                .toList().singleOrNull() ?: throw NotFoundException(MILESTONE_NOT_FOUND)
+                .toList().singleOrNull().orNotFound(MILESTONE)
             // Stale in BOTH directions: a revision below this milestone's own means it moved since the client's view; one above the
             // current plan revision (read under the lock) is a view from the future - never a state the server produced - and must
             // not slip past the check (a client sending Long.MAX_VALUE would overwrite another manager's reschedule).
@@ -229,7 +229,7 @@ class MilestoneService(private val database: R2dbcDatabase) {
             val start = before[Milestones.startDate]
             val end = before[Milestones.endDate]
             ScheduleOutcome(
-                from = if (start != null && end != null) MilestoneSpan(start, end) else null,
+                from = spanOf(start, end),
                 teamId = chain.teamId,
                 revision = 0,
                 pinCleared = span == null && before[Milestones.pinned],
@@ -249,11 +249,11 @@ class MilestoneService(private val database: R2dbcDatabase) {
      */
     suspend fun pin(id: UInt, pinned: Boolean, guard: ScheduleGuard): PinOutcome {
         val write = database.withPlanWrite {
-            val chain = milestoneChain(id) ?: throw NotFoundException(MILESTONE_NOT_FOUND)
+            val chain = milestoneChain(id).orNotFound(MILESTONE)
             guard(chain)
             val before = Milestones.select(Milestones.startDate, Milestones.pinned)
                 .where { (Milestones.id eq id) and Milestones.active() }
-                .toList().singleOrNull() ?: throw NotFoundException(MILESTONE_NOT_FOUND)
+                .toList().singleOrNull().orNotFound(MILESTONE)
             if (pinned && before[Milestones.startDate] == null) {
                 throw ConflictException(
                     "An unscheduled milestone cannot be pinned: schedule it first",
@@ -276,12 +276,12 @@ class MilestoneService(private val database: R2dbcDatabase) {
      * feed the audit (`dependencyCount`, `dependencyIds`, `successorProjectIds`).
      */
     suspend fun delete(id: UInt, guard: PlanGuard): DeletedDependencies = database.withPlanWrite {
-        guard((milestoneChain(id) ?: throw NotFoundException(MILESTONE_NOT_FOUND)).owners)
+        guard(milestoneChain(id).orNotFound(MILESTONE).owners)
         val affected = Milestones.update({ (Milestones.id eq id) and Milestones.active() }) {
             it[markedAsDeleted] = true
             it[updatedAt] = nowMillis()
         }
-        if (affected == 0) throw NotFoundException(MILESTONE_NOT_FOUND)
+        affected.orNotFound(MILESTONE)
         removeFromTeamOrder(id)
         deleteDependenciesOf(milestoneIds = listOf(id), projectIds = emptyList())
     }.value

@@ -1,7 +1,7 @@
 package ch.nokillswit.planning
 
-import ch.nokillswit.authz.NotFoundException
 import ch.nokillswit.authz.OwnerChain
+import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.infra.db.SoftDeletable
 import ch.nokillswit.infra.db.containsNormalized
 import ch.nokillswit.infra.db.active
@@ -125,7 +125,7 @@ class ProjectService(private val database: R2dbcDatabase) {
     suspend fun create(programId: UInt, request: ProjectCreateRequest, guard: PlanGuard): UInt {
         val window = validateProjectCreate(request)
         return database.withPlanWrite {
-            guard(programChain(programId) ?: throw NotFoundException("Program not found"))
+            guard(programChain(programId).orNotFound("Program"))
             requireActiveOwner(request.ownerPersonId)
             val stamp = nowMillis()
             insertProjectRow(programId, request.name, request.description, request.ownerPersonId, window, stamp)
@@ -139,9 +139,9 @@ class ProjectService(private val database: R2dbcDatabase) {
     suspend fun update(id: UInt, request: ProjectUpdateRequest, guard: PlanGuard): ProjectUpdateOutcome {
         validateProjectFields(request.name, request.description)
         return database.withPlanWrite {
-            guard(projectChain(id) ?: throw NotFoundException("Project not found"))
+            guard(projectChain(id).orNotFound("Project"))
             val before = Projects.select(Projects.ownerPersonId).where { (Projects.id eq id) and Projects.active() }
-                .toList().singleOrNull() ?: throw NotFoundException("Project not found")
+                .toList().singleOrNull().orNotFound("Project")
             requireActiveOwner(request.ownerPersonId)
             Projects.update({ (Projects.id eq id) and Projects.active() }) {
                 it[name] = request.name
@@ -157,10 +157,10 @@ class ProjectService(private val database: R2dbcDatabase) {
     suspend fun setTargetWindow(id: UInt, request: TargetWindowRequest, guard: PlanGuard): TargetWindowOutcome {
         val window = validateTargetWindow(request.targetStart, request.targetEnd)
         return database.withPlanWrite {
-            guard(projectChain(id) ?: throw NotFoundException("Project not found"))
+            guard(projectChain(id).orNotFound("Project"))
             val before = Projects.select(Projects.targetStart, Projects.targetEnd)
                 .where { (Projects.id eq id) and Projects.active() }
-                .toList().singleOrNull() ?: throw NotFoundException("Project not found")
+                .toList().singleOrNull().orNotFound("Project")
             Projects.update({ (Projects.id eq id) and Projects.active() }) {
                 it[targetStart] = window?.start
                 it[targetEnd] = window?.end
@@ -180,7 +180,7 @@ class ProjectService(private val database: R2dbcDatabase) {
      * nothing (the outcome says so).
      */
     suspend fun move(id: UInt, programId: UInt, guards: MoveGuards): MoveOutcome = database.withPlanWrite {
-        val source = projectChainRow(id, listOf(Projects.programId)) ?: throw NotFoundException("Project not found")
+        val source = projectChainRow(id, listOf(Projects.programId)).orNotFound("Project")
         guards.source(source.chain)
         guards.target(programChain(programId) ?: unknownMoveTarget("program", programId))
         val from = source.row[Projects.programId].value
@@ -203,12 +203,12 @@ class ProjectService(private val database: R2dbcDatabase) {
      * ([removeFromTeamOrders]: the same compaction per team).
      */
     suspend fun delete(id: UInt, guard: PlanGuard): ProjectDeleteOutcome = database.withPlanWrite { revision ->
-        guard(projectChain(id) ?: throw NotFoundException("Project not found"))
+        guard(projectChain(id).orNotFound("Project"))
         val affected = Projects.update({ (Projects.id eq id) and Projects.active() }) {
             it[markedAsDeleted] = true
             it[updatedAt] = nowMillis()
         }
-        if (affected == 0) throw NotFoundException("Project not found")
+        affected.orNotFound("Project")
         val milestoneIds = activeMilestoneIdsOf(id)
         val dependencies = deleteDependenciesOf(milestoneIds, listOf(id))
         removeFromTeamOrders(milestoneIds)

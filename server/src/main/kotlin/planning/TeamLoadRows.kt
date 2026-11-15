@@ -5,6 +5,7 @@ import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.people.PersonService
 import ch.nokillswit.teams.TeamCapacityService
 import ch.nokillswit.teams.TeamService
+import ch.nokillswit.teams.activeCapacityPeriods
 import kotlinx.coroutines.flow.toList
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.r2dbc.*
@@ -33,8 +34,7 @@ internal suspend fun teamWeeks(calendar: WorkingCalendar): Map<UInt, List<WeekLo
         }
     if (scheduled.isEmpty()) return emptyMap()
     val periods = TeamCapacityService.CapacityPeriods
-    val byTeam = periods.selectAll().where { (periods.teamId inList scheduled.keys) and periods.active() }
-        .orderBy(periods.effectiveFrom to SortOrder.ASC, periods.id to SortOrder.ASC)
+    val byTeam = activeCapacityPeriods(scheduled.keys)
         .toList()
         .groupBy({ it[periods.teamId].value }) {
             CapacityPeriod(it[periods.effectiveFrom], it[periods.mdPerWeek], it[periods.wipLimit])

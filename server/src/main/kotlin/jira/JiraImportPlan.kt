@@ -1,7 +1,7 @@
 package ch.nokillswit.jira
 
 import ch.nokillswit.infra.time.WorkingCalendar
-import ch.nokillswit.planning.MilestoneSpan
+import ch.nokillswit.planning.DaySpan
 import ch.nokillswit.planning.TargetWindow
 import java.math.BigDecimal
 
@@ -125,7 +125,7 @@ data class ImportRow(
     val item: JiraImportItem,
     val observation: JiraObservation,
     val estimate: BigDecimal?,
-    val span: MilestoneSpan?,
+    val span: DaySpan?,
     val releases: List<ImportHolder>,
     val apply: ImportApply?,
     /** A created PROJECT's target window, copied from Jira's dates (1.14): both dates valid and `copyDates` on; else null. */

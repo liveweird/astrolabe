@@ -1,7 +1,7 @@
 package ch.nokillswit.planning
 
 import ch.nokillswit.authz.ConflictException
-import ch.nokillswit.authz.NotFoundException
+import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.infra.db.SoftDeletable
 import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.db.insertRows
@@ -24,8 +24,6 @@ import org.jetbrains.exposed.v1.r2dbc.update
 import java.time.LocalDate
 
 val BaselineServiceKey = AttributeKey<BaselineService>("BaselineService")
-
-private const val BASELINE_NOT_FOUND = "Baseline not found"
 
 /**
  * The baselines registry (V20): named, immutable copies of the plan's dated structure. `baselines` is a soft-deleted business entity
@@ -187,7 +185,7 @@ class BaselineService(private val database: R2dbcDatabase) {
     /** The ACTIVE row locked `FOR NO KEY UPDATE` (persistence.md "Row locks vs. FK locks"), or the 404. */
     private suspend fun lockedActive(id: UInt) = Baselines.selectAll().where { (Baselines.id eq id) and Baselines.active() }
         .forUpdate(ForUpdateOption.PostgreSQL.ForNoKeyUpdate).toList().singleOrNull()
-        ?: throw NotFoundException(BASELINE_NOT_FOUND)
+        .orNotFound("Baseline")
 
     private suspend fun insertProjects(baselineId: UInt, snapshot: RoadmapSnapshot) {
         BaselineProjects.insertRows(snapshot.projects) { p ->

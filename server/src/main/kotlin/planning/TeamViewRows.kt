@@ -3,8 +3,9 @@ package ch.nokillswit.planning
 import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.teams.CapacityPeriodResponse
-import ch.nokillswit.teams.CapacitySource
 import ch.nokillswit.teams.TeamCapacityService
+import ch.nokillswit.teams.activeCapacityPeriods
+import ch.nokillswit.teams.toCapacityPeriodResponse
 import kotlinx.coroutines.flow.toList
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.r2dbc.*
@@ -60,7 +61,7 @@ internal suspend fun teamMilestoneRows(
             val start = row[milestones.startDate]
             val end = row[milestones.endDate]
             val rank = row.getOrNull(ranks.position) // null: the LEFT JOIN found no entry (unranked)
-            val span = if (start != null && end != null) DaySpan(start, end) else null
+            val span = spanOf(start, end)
             TeamMilestoneRow(
                 span = span,
                 estimate = row[milestones.estimateMd],
@@ -102,22 +103,7 @@ internal suspend fun teamMilestoneRows(
 /** The team's ACTIVE capacity periods by `effectiveFrom`: the wire form and the kernel's input, from the same rows. */
 internal suspend fun teamCapacityRows(teamId: UInt): Pair<List<CapacityPeriodResponse>, List<CapacityPeriod>> {
     val periods = TeamCapacityService.CapacityPeriods
-    val rows = periods.selectAll().where { (periods.teamId eq teamId) and periods.active() }
-        .orderBy(periods.effectiveFrom to SortOrder.ASC, periods.id to SortOrder.ASC)
-        .toList()
-    val wire = rows.map {
-        CapacityPeriodResponse(
-            id = it[periods.id].value,
-            teamId = teamId,
-            effectiveFrom = it[periods.effectiveFrom].toString(),
-            mdPerWeek = it[periods.mdPerWeek].toDouble(),
-            wipLimit = it[periods.wipLimit],
-            createdAt = it[periods.createdAt],
-            updatedAt = it[periods.updatedAt],
-            source = CapacitySource.valueOf(it[periods.capacitySource]),
-            flowSprintName = it[periods.flowSprintName],
-        )
-    }
+    val rows = activeCapacityPeriods(teamId).toList()
     val kernel = rows.map { CapacityPeriod(it[periods.effectiveFrom], it[periods.mdPerWeek], it[periods.wipLimit]) }
-    return wire to kernel
+    return rows.map { it.toCapacityPeriodResponse() } to kernel
 }

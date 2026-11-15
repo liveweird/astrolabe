@@ -1,8 +1,8 @@
 package ch.nokillswit.planning
 
 import ch.nokillswit.audit.audit
-import ch.nokillswit.authz.NotFoundException
 import ch.nokillswit.authz.caller
+import ch.nokillswit.authz.orNotFound
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource
 import io.ktor.server.application.*
@@ -44,7 +44,7 @@ private fun Route.proposalRoute(d: PlanRouteDeps) {
         d.requireTeamManager(caller, route.id)
         val request = call.receive<ScheduleProposalRequest>()
         val asOf = validateProposalRequest(request)
-        call.respond(HttpStatusCode.OK, d.scheduling.proposal.propose(route.id, asOf) ?: throw NotFoundException("Team not found"))
+        call.respond(HttpStatusCode.OK, d.scheduling.proposal.propose(route.id, asOf).orNotFound("Team"))
     }
 }
 

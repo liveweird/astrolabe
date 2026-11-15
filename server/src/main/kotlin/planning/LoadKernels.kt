@@ -1,5 +1,6 @@
 package ch.nokillswit.planning
 
+import ch.nokillswit.infra.time.MAN_DAY_SCALE
 import ch.nokillswit.infra.time.WORKING_DAYS_PER_WEEK
 import ch.nokillswit.infra.time.WorkingCalendar
 import java.math.BigDecimal
@@ -24,7 +25,6 @@ import java.time.temporal.TemporalAdjusters
 const val MAX_LOAD_WEEKS = 520
 
 private const val DAYS_PER_WEEK = 7L
-private const val MONEY_SCALE = 2
 private const val SHARE_SCALE = 6
 
 /** A scheduled milestone as the load sees it: its inclusive [span] and its man-day [estimateMd]. */
@@ -86,7 +86,7 @@ fun weekCapacity(monday: LocalDate, periods: List<CapacityPeriod>, calendar: Wor
     if (shares.isEmpty()) return null
     val divisor = BigDecimal(WORKING_DAYS_PER_WEEK)
     return shares.fold(BigDecimal.ZERO) { sum, md -> sum + md.divide(divisor, SHARE_SCALE, RoundingMode.HALF_UP) }
-        .setScale(MONEY_SCALE, RoundingMode.HALF_UP)
+        .setScale(MAN_DAY_SCALE, RoundingMode.HALF_UP)
 }
 
 /** The WIP limit in force on [day] ([periodOn]'s); null = no limit (no period yet, or a period without one). */
@@ -168,7 +168,7 @@ private fun weekRow(
 ): WeekLoad {
     val sunday = monday.plusDays(DAYS_PER_WEEK - 1)
     val exact = items.fold(Fraction.ZERO) { sum, item -> sum + shareIn(item, monday, sunday, calendar) }
-    val load = BigDecimal(exact.num).divide(BigDecimal(exact.den), MONEY_SCALE, RoundingMode.HALF_UP)
+    val load = BigDecimal(exact.num).divide(BigDecimal(exact.den), MAN_DAY_SCALE, RoundingMode.HALF_UP)
     val capacity = weekCapacity(monday, periods, calendar)
     val overloaded = capacity != null && load > capacity
     val days = workingDaysOf(monday, calendar)

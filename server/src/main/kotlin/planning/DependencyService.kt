@@ -1,9 +1,9 @@
 package ch.nokillswit.planning
 
 import ch.nokillswit.authz.ConflictException
-import ch.nokillswit.authz.NotFoundException
 import ch.nokillswit.authz.OwnerChain
 import ch.nokillswit.authz.ProblemCycleNode
+import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.infra.db.SoftDeletable
 import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.db.nowMillis
@@ -18,7 +18,7 @@ import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 
 val DependencyServiceKey = AttributeKey<DependencyService>("DependencyService")
 
-private const val DEPENDENCY_NOT_FOUND = "Dependency not found"
+private const val DEPENDENCY = "Dependency"
 
 /** The 409 detail of an already-linked pair: the unique index's wording (`UNIQUE_CONSTRAINT_DETAILS`), shared by the reverse-pair check. */
 private const val ALREADY_LINKED = "These two endpoints are already linked"
@@ -91,7 +91,7 @@ class DependencyService(private val database: R2dbcDatabase) {
     suspend fun create(projectId: UInt, request: DependencyCreateRequest, guard: PlanGuard): UInt {
         validateDependencyCreate(request)
         return database.withPlanWrite {
-            guard(projectChain(projectId) ?: throw NotFoundException("Project not found"))
+            guard(projectChain(projectId).orNotFound("Project"))
             requireSuccessorInProject(request.successor, projectId)
             requireActivePredecessor(request.predecessor)
             val edge = DependencyEdge(request.predecessor, request.successor, request.type)
@@ -121,7 +121,7 @@ class DependencyService(private val database: R2dbcDatabase) {
     suspend fun update(id: UInt, request: DependencyUpdateRequest, guard: PlanGuard): DependencyUpdate {
         validateDependencyUpdate(request)
         return database.withPlanWrite {
-            val chain = dependencyChain(id) ?: throw NotFoundException(DEPENDENCY_NOT_FOUND)
+            val chain = dependencyChain(id).orNotFound(DEPENDENCY)
             guard(chain.owners)
             val links = Dependencies
             val stored = links.select(links.type, links.lagDays).where { (links.id eq id) and links.active() }.toList().single()
@@ -146,13 +146,13 @@ class DependencyService(private val database: R2dbcDatabase) {
      * Frees the ordered pair. Returns the chain read under the lock (both ends as stored) for the audit.
      */
     suspend fun delete(id: UInt, guard: PlanGuard): DependencyChain = database.withPlanWrite {
-        val chain = dependencyChain(id) ?: throw NotFoundException(DEPENDENCY_NOT_FOUND)
+        val chain = dependencyChain(id).orNotFound(DEPENDENCY)
         guard(chain.owners)
         val affected = Dependencies.update({ (Dependencies.id eq id) and Dependencies.active() }) {
             it[markedAsDeleted] = true
             it[updatedAt] = nowMillis()
         }
-        if (affected == 0) throw NotFoundException(DEPENDENCY_NOT_FOUND)
+        affected.orNotFound(DEPENDENCY)
         chain
     }.value
 

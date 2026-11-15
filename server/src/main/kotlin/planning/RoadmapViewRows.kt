@@ -187,7 +187,7 @@ internal suspend fun milestoneFacts(projectIds: Collection<UInt>? = null): List<
                     id = row[milestones.id].value,
                     projectId = row[milestones.projectId].value,
                     teamId = row[milestones.teamId].value,
-                    span = if (start != null && end != null) DaySpan(start, end) else null,
+                    span = spanOf(start, end),
                 ),
                 teamName = row[teams.name],
                 name = row[milestones.name],

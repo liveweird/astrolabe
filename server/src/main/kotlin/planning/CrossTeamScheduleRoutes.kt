@@ -1,8 +1,8 @@
 package ch.nokillswit.planning
 
 import ch.nokillswit.audit.audit
-import ch.nokillswit.authz.NotFoundException
 import ch.nokillswit.authz.caller
+import ch.nokillswit.authz.orNotFound
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource
 import io.ktor.server.application.*
@@ -59,7 +59,7 @@ private fun Route.runRoute(d: PlanRouteDeps) {
         val teamIds = validateTeamIds(request.teamIds)
         d.requireTeamManagers(caller, teamIds)
         val asOf = validateAsOf(request.asOf)
-        call.respond(HttpStatusCode.OK, d.scheduling.crossTeam.propose(teamIds, asOf) ?: throw NotFoundException("Team not found"))
+        call.respond(HttpStatusCode.OK, d.scheduling.crossTeam.propose(teamIds, asOf).orNotFound("Team"))
     }
 }
 
@@ -131,6 +131,6 @@ private fun Route.checkRoute(d: PlanRouteDeps) {
         val teamIds = validateTeamIds(request.teamIds)
         d.requireTeamManagers(caller, teamIds)
         val items = validateScheduleCheck(request)
-        call.respond(HttpStatusCode.OK, d.scheduling.crossTeam.check(teamIds, items) ?: throw NotFoundException("Team not found"))
+        call.respond(HttpStatusCode.OK, d.scheduling.crossTeam.check(teamIds, items).orNotFound("Team"))
     }
 }

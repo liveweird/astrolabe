@@ -14,7 +14,6 @@ import io.ktor.util.AttributeKey
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.jetbrains.exposed.v1.core.ResultRow
-import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.dao.id.UIntIdTable
 import org.jetbrains.exposed.v1.core.eq
@@ -90,7 +89,7 @@ class TeamCapacityService(
             .where { (CapacityPeriods.id eq id) and CapacityPeriods.active() and teams.active() }
             .toList()
             .singleOrNull()
-            ?.toResponse()
+            ?.toCapacityPeriodResponse()
     }
 
     /** The team an ACTIVE period of an ACTIVE team belongs to — the routes' read-before-guard lookup; null = 404. */
@@ -181,10 +180,8 @@ class TeamCapacityService(
      * caller's transaction when there is one.
      */
     internal suspend fun periodsOf(teamId: UInt): List<CapacityPeriodResponse> = suspendTransaction(database) {
-        CapacityPeriods.selectAll()
-            .where { (CapacityPeriods.teamId eq teamId) and CapacityPeriods.active() }
-            .orderBy(CapacityPeriods.effectiveFrom to SortOrder.ASC, CapacityPeriods.id to SortOrder.ASC)
-            .map { it.toResponse() }
+        activeCapacityPeriods(teamId)
+            .map { it.toCapacityPeriodResponse() }
             .toList()
     }
 
@@ -193,9 +190,7 @@ class TeamCapacityService(
      * (`flow/`), read-only and nesting into the caller's transaction like [periodsOf].
      */
     suspend fun importRowsOf(teamId: UInt): List<CapacityPeriodRow> = suspendTransaction(database) {
-        CapacityPeriods.selectAll()
-            .where { (CapacityPeriods.teamId eq teamId) and CapacityPeriods.active() }
-            .orderBy(CapacityPeriods.effectiveFrom to SortOrder.ASC, CapacityPeriods.id to SortOrder.ASC)
+        activeCapacityPeriods(teamId)
             .map { it.toImportRow() }
             .toList()
     }
@@ -207,9 +202,7 @@ class TeamCapacityService(
     suspend fun importRowsOfTeams(teamIds: Collection<UInt>): Map<UInt, List<CapacityPeriodRow>> {
         if (teamIds.isEmpty()) return emptyMap()
         return suspendTransaction(database) {
-            CapacityPeriods.selectAll()
-                .where { (CapacityPeriods.teamId inList teamIds) and CapacityPeriods.active() }
-                .orderBy(CapacityPeriods.effectiveFrom to SortOrder.ASC, CapacityPeriods.id to SortOrder.ASC)
+            activeCapacityPeriods(teamIds)
                 .map { it[CapacityPeriods.teamId].value to it.toImportRow() }
                 .toList()
                 .groupBy({ it.first }, { it.second })
@@ -338,18 +331,6 @@ class TeamCapacityService(
         val values = CapacityPeriodValues(row[CapacityPeriods.effectiveFrom], row[CapacityPeriods.mdPerWeek], row[CapacityPeriods.wipLimit])
         return LockedPeriod(teamId, values, CapacitySource.valueOf(row[CapacityPeriods.capacitySource]), locks)
     }
-
-    private fun ResultRow.toResponse() = CapacityPeriodResponse(
-        id = this[CapacityPeriods.id].value,
-        teamId = this[CapacityPeriods.teamId].value,
-        effectiveFrom = this[CapacityPeriods.effectiveFrom].toString(),
-        mdPerWeek = this[CapacityPeriods.mdPerWeek].toDouble(),
-        wipLimit = this[CapacityPeriods.wipLimit],
-        createdAt = this[CapacityPeriods.createdAt],
-        updatedAt = this[CapacityPeriods.updatedAt],
-        source = CapacitySource.valueOf(this[CapacityPeriods.capacitySource]),
-        flowSprintName = this[CapacityPeriods.flowSprintName],
-    )
 }
 
 /**

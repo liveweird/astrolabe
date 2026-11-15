@@ -1,8 +1,8 @@
 package ch.nokillswit.planning
 
 import ch.nokillswit.authz.ConflictException
-import ch.nokillswit.authz.NotFoundException
 import ch.nokillswit.authz.OwnerChain
+import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.infra.db.SoftDeletable
 import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.db.localDate
@@ -84,9 +84,9 @@ class WorkStreamService(private val database: R2dbcDatabase) {
     suspend fun update(id: UInt, request: WorkStreamUpdateRequest, guard: PlanGuard): WorkStreamUpdateOutcome {
         val dates = validateWorkStream(request)
         return database.withPlanWrite {
-            guard(workStreamChain(id) ?: throw NotFoundException("Work stream not found"))
+            guard(workStreamChain(id).orNotFound("Work stream"))
             val before = WorkStreams.selectAll().where { (WorkStreams.id eq id) and WorkStreams.active() }
-                .toList().singleOrNull() ?: throw NotFoundException("Work stream not found")
+                .toList().singleOrNull().orNotFound("Work stream")
             requireActiveOwner(request.ownerPersonId)
             WorkStreams.update({ (WorkStreams.id eq id) and WorkStreams.active() }) {
                 it[name] = request.name
@@ -109,7 +109,7 @@ class WorkStreamService(private val database: R2dbcDatabase) {
     suspend fun delete(id: UInt, guard: PlanGuard) {
         database.withPlanWrite {
             val programs = ProgramService.Programs
-            guard(workStreamChain(id) ?: throw NotFoundException("Work stream not found"))
+            guard(workStreamChain(id).orNotFound("Work stream"))
             val hasPrograms = programs.select(programs.id)
                 .where { (programs.workStreamId eq id) and programs.active() }.count() > 0
             if (hasPrograms) throw ConflictException("Work stream has active programs")

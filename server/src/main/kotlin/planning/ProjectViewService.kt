@@ -59,7 +59,7 @@ class ProjectViewService(private val database: R2dbcDatabase, private val extern
             .map { it.copy(critical = it.id in critical.result.criticalDependencies) }
         val (scheduled, unscheduled) = milestones.partition { it.span != null }
         val span = SpanKernels.derivedSpan(scheduled.mapNotNull { it.span })
-        val target = if (targetStart != null && targetEnd != null) DaySpan(targetStart, targetEnd) else null
+        val target = spanOf(targetStart, targetEnd)
 
         ProjectView(
             revision = revision,
@@ -125,7 +125,7 @@ class ProjectViewService(private val database: R2dbcDatabase, private val extern
                 val teamId = row[milestones.teamId].value
                 val start = row[milestones.startDate]
                 val end = row[milestones.endDate]
-                val span = if (start != null && end != null) DaySpan(start, end) else null
+                val span = spanOf(start, end)
                 MilestoneRow(
                     span = span,
                     live = LiveMilestone(id, projectId, teamId, row[milestones.name], row[milestones.estimateMd], span),

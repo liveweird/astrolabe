@@ -13,7 +13,6 @@ import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.r2dbc.select
 import org.jetbrains.exposed.v1.r2dbc.selectAll
 import java.math.BigDecimal
-import java.time.LocalDate
 
 /*
  * The baseline row loaders: the capture side (`baselineMilestoneFacts`, read under the plan lock by `BaselineService.create`) and the
@@ -89,8 +88,6 @@ internal suspend fun activeBaseline(id: UInt): BaselineHeader? {
     return baselines.selectAll().where { (baselines.id eq id) and baselines.active() }.toList().singleOrNull()?.toBaselineHeader()
 }
 
-private fun span(start: LocalDate?, end: LocalDate?): DaySpan? = if (start != null && end != null) DaySpan(start, end) else null
-
 private fun ResultRow.toFrozenProject(): FrozenProjectRow {
     val rows = BaselineService.BaselineProjects
     return FrozenProjectRow(
@@ -101,8 +98,8 @@ private fun ResultRow.toFrozenProject(): FrozenProjectRow {
         programName = this[rows.programName],
         workStreamName = this[rows.workStreamName],
         rankPosition = this[rows.rankPosition],
-        target = span(this[rows.targetStart], this[rows.targetEnd]),
-        span = span(this[rows.spanStart], this[rows.spanEnd]),
+        target = spanOf(this[rows.targetStart], this[rows.targetEnd]),
+        span = spanOf(this[rows.spanStart], this[rows.spanEnd]),
     )
 }
 
@@ -127,7 +124,7 @@ private fun ResultRow.toFrozenMilestone(): FrozenMilestoneRow {
         teamId = this[rows.teamId],
         name = this[rows.name],
         estimateMd = this[rows.estimateMd],
-        span = span(this[rows.startDate], this[rows.endDate]),
+        span = spanOf(this[rows.startDate], this[rows.endDate]),
     )
 }
 
@@ -204,7 +201,7 @@ internal suspend fun baselineMilestoneFacts(): List<MilestoneCapture> {
                 teamId = row[milestones.teamId].value,
                 name = row[milestones.name],
                 estimateMd = row[milestones.estimateMd],
-                span = span(row[milestones.startDate], row[milestones.endDate]),
+                span = spanOf(row[milestones.startDate], row[milestones.endDate]),
             )
         }
 }

@@ -6,7 +6,6 @@ import ch.nokillswit.planning.DaySpan
 import ch.nokillswit.planning.DependencyType
 import ch.nokillswit.planning.EndpointKind
 import ch.nokillswit.planning.EndpointRef
-import ch.nokillswit.planning.MilestoneSpan
 import ch.nokillswit.planning.OrderKey
 import ch.nokillswit.planning.PlanLinkFact
 import ch.nokillswit.planning.PlanMilestoneFact
@@ -198,7 +197,7 @@ class ScheduleScopeTest {
     @Test
     fun `the look-again accepts a batch only when every item carries both dates and equals the fresh span`() {
         fun item(id: UInt, start: String?, end: String?) =
-            ValidatedBatchItem(id, if (start != null && end != null) MilestoneSpan(day(start), day(end)) else null)
+            ValidatedBatchItem(id, if (start != null && end != null) DaySpan(day(start), day(end)) else null)
         val fresh = mapOf(10u to span("2027-02-01", "2027-02-02"), 11u to span("2027-02-03", "2027-02-03"))
         val same = listOf(item(10u, "2027-02-01", "2027-02-02"), item(11u, "2027-02-03", "2027-02-03"))
         assertTrue(acceptsOnlyFreshDates(same, fresh))

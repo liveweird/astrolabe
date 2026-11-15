@@ -1,8 +1,8 @@
 package ch.nokillswit.planning
 
 import ch.nokillswit.authz.ConflictException
-import ch.nokillswit.authz.NotFoundException
 import ch.nokillswit.authz.OwnerChain
+import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.infra.db.SoftDeletable
 import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.db.nowMillis
@@ -61,7 +61,7 @@ class ProgramService(private val database: R2dbcDatabase) {
     suspend fun create(workStreamId: UInt, request: ProgramCreateRequest, guard: PlanGuard): UInt {
         validateProgram(request)
         return database.withPlanWrite {
-            guard(workStreamChain(workStreamId) ?: throw NotFoundException("Work stream not found"))
+            guard(workStreamChain(workStreamId).orNotFound("Work stream"))
             requireActiveOwner(request.ownerPersonId)
             val stamp = nowMillis()
             insertProgramRow(workStreamId, request.name, request.description, request.ownerPersonId, stamp)
@@ -75,9 +75,9 @@ class ProgramService(private val database: R2dbcDatabase) {
     suspend fun update(id: UInt, request: ProgramUpdateRequest, guard: PlanGuard): ProgramUpdateOutcome {
         validateProgram(request)
         return database.withPlanWrite {
-            guard(programChain(id) ?: throw NotFoundException("Program not found"))
+            guard(programChain(id).orNotFound("Program"))
             val before = Programs.select(Programs.ownerPersonId).where { (Programs.id eq id) and Programs.active() }
-                .toList().singleOrNull() ?: throw NotFoundException("Program not found")
+                .toList().singleOrNull().orNotFound("Program")
             requireActiveOwner(request.ownerPersonId)
             Programs.update({ (Programs.id eq id) and Programs.active() }) {
                 it[name] = request.name
@@ -96,10 +96,10 @@ class ProgramService(private val database: R2dbcDatabase) {
      * along, the ranking is untouched, and a move to the current work stream writes nothing (the outcome says so).
      */
     suspend fun move(id: UInt, workStreamId: UInt, guards: MoveGuards): MoveOutcome = database.withPlanWrite {
-        guards.source(programChain(id) ?: throw NotFoundException("Program not found"))
+        guards.source(programChain(id).orNotFound("Program"))
         guards.target(workStreamChain(workStreamId) ?: unknownMoveTarget("work stream", workStreamId))
         val from = Programs.select(Programs.workStreamId).where { (Programs.id eq id) and Programs.active() }
-            .toList().singleOrNull()?.get(Programs.workStreamId)?.value ?: throw NotFoundException("Program not found")
+            .toList().singleOrNull()?.get(Programs.workStreamId)?.value.orNotFound("Program")
         if (from != workStreamId) {
             Programs.update({ (Programs.id eq id) and Programs.active() }) {
                 it[this.workStreamId] = workStreamId
@@ -113,7 +113,7 @@ class ProgramService(private val database: R2dbcDatabase) {
     suspend fun delete(id: UInt, guard: PlanGuard) {
         database.withPlanWrite {
             val projects = ProjectService.Projects
-            guard(programChain(id) ?: throw NotFoundException("Program not found"))
+            guard(programChain(id).orNotFound("Program"))
             val hasProjects = projects.select(projects.id)
                 .where { (projects.programId eq id) and projects.active() }.count() > 0
             if (hasProjects) throw ConflictException("Program has active projects")

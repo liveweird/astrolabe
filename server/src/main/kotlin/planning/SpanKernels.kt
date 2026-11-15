@@ -8,6 +8,9 @@ import java.time.temporal.ChronoUnit
 /** An inclusive span of calendar days (`start <= end`): the neutral input and output of the span kernels. */
 data class DaySpan(val start: LocalDate, val end: LocalDate)
 
+/** The span of a stored date pair, or null while either date is missing (the pair is both-or-neither, `ck_milestones_schedule`). */
+internal fun spanOf(start: LocalDate?, end: LocalDate?): DaySpan? = if (start != null && end != null) DaySpan(start, end) else null
+
 /**
  * How far a derived span sits from a target window, in calendar days; POSITIVE = later than the target. [startDays] is
  * `span.start - target.start`, [endDays] is `span.end - target.end` (zero = on target, negative = ahead). The wire shape of the

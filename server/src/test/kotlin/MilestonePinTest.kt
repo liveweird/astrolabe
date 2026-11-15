@@ -1,11 +1,11 @@
 package ch.nokillswit
 
+import ch.nokillswit.planning.DaySpan
 import ch.nokillswit.planning.MILESTONE_UNSCHEDULED_PROBLEM
 import ch.nokillswit.planning.MilestonePageResponse
 import ch.nokillswit.planning.MilestonePinRequest
 import ch.nokillswit.planning.MilestoneResponse
 import ch.nokillswit.planning.MilestoneScheduleRequest
-import ch.nokillswit.planning.MilestoneSpan
 import ch.nokillswit.planning.MilestoneUpdateRequest
 import ch.nokillswit.planning.ProjectView
 import ch.nokillswit.planning.ScheduleResponse
@@ -363,7 +363,7 @@ class MilestonePinTest {
         val cleared = scheduledPinned(w, t.teamId)
         val kept = scheduledPinned(w, t.teamId)
         val database = sharedDatabaseForTests()
-        val span = MilestoneSpan(LocalDate.parse("2026-11-16"), LocalDate.parse("2026-11-20"))
+        val span = DaySpan(LocalDate.parse("2026-11-16"), LocalDate.parse("2026-11-20"))
         // `writeSchedules` is what the Jira import's apply and the batch accept both call; the unschedule pair must clear in the statement.
         database.withPlanWrite { revision ->
             writeSchedules(listOf(ValidatedBatchItem(cleared, null), ValidatedBatchItem(kept, span)), revision + 1)
