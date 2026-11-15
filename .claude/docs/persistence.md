@@ -1,6 +1,6 @@
 # Persistence
 
-Owns: the database stack (Flyway, Exposed + R2DBC, the pool), the migrations list, the cross-feature read/write matrix with its lock protocols, the soft-delete and column idioms, and what each table's DDL does not say. Not here: the DDL (the migration files are the source), the plan lock's contract (`planning-model.md` "The `plan_state` lock protocol"), the guard order (`authorization.md`), the sync runs and the token's life (`sync.md`, `jira-sync.md`, `flow-sync.md`).
+Owns: the database stack (Flyway, Exposed + R2DBC, the pool), the migrations list, the cross-feature read/write matrix with its lock protocols, the soft-delete and column idioms, and what each table's DDL does not say. Not here: the DDL (the migration files are the source), the plan lock's contract (`planning-model.md` "The lock protocol"), the guard order (`authorization.md`), the sync runs and the token's life (`sync.md`, `jira-sync.md`, `flow-sync.md`).
 
 ## Rules
 
