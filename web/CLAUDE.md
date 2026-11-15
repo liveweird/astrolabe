@@ -54,6 +54,7 @@ The OpenAPI spec is the contract (hand-maintained, not generated from routes; Sw
   identities. `ApiError` fields are read through the `detail`/`instance`/`type` getters, never by hand-casting `err.body`; `jsonRequest<T>()`/`voidRequest()`
   back every ordinary endpoint wrapper; `buildQuery()` backs list wrappers (`false` and `0` ARE sent). Every transport fetch carries `timeoutSignal()` — new
   `fetch` call sites in `api/` must attach it.
+- **`revalidate.ts`**: the ten view GET wrappers use `revalidatedRequest` — `If-None-Match` + the kept text answers a `304` (memory only, per session identity, 16 documents / 8 M characters, emptied at the session boundary); a new view wrapper whose server read has a validator joins it, nothing else does; tests reset it with `forgetRevalidated()` in `afterEach`. Rules: web-internals "`revalidate.ts`".
 - **`session.ts`**: token/roles/userId under the `astrolabe.auth.*` keys; ADMIN-dependent components use `useAdmin()` from `auth.tsx`. **Session boundary**
   (`components/SessionBoundary.tsx`, `utils/sessionQueryCache.ts`): binds the root `QueryClient` to the logical session identity — a different sign-in, sign-out
   or cross-tab change must synchronously remove caller-scoped query data before the next account renders, a token rotation within one identity must retain it,

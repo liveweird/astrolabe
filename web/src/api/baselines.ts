@@ -3,6 +3,7 @@
 // server computes with the guard's own arithmetic). Thin endpoint wrappers: transport (authedFetch/ApiError) in ./http, types from ./schema.
 
 import { ApiError, buildQuery, jsonRequest, voidRequest } from "./http";
+import { revalidatedRequest } from "./revalidate";
 import type { components } from "./schema";
 
 type Schemas = components["schemas"];
@@ -82,5 +83,5 @@ export function baselineViewKey(id: number, against: number | null) {
  */
 export async function getBaselineView(id: number, against?: number | null): Promise<BaselineView> {
   const query = buildQuery({ against });
-  return jsonRequest<BaselineView>(`/api/v1/views/baseline/${id}${query === "" ? "" : `?${query}`}`);
+  return revalidatedRequest<BaselineView>(`/api/v1/views/baseline/${id}${query === "" ? "" : `?${query}`}`);
 }

@@ -1,6 +1,8 @@
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { getSessionSnapshot, persistRefreshedSession, persistSession } from "../api/session";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { jsonResponse, notModified } from "../test/http";
+import { forgetRevalidated, revalidatedRequest } from "../api/revalidate";
+import { clearSession, getSessionSnapshot, persistRefreshedSession, persistSession } from "../api/session";
 import type { components } from "../api/schema";
 import { bindSessionQueryCache } from "./sessionQueryCache";
 
@@ -37,6 +39,8 @@ describe("session query cache", () => {
   afterEach(() => {
     unbind();
     queryClient.clear();
+    forgetRevalidated();
+    vi.unstubAllGlobals();
   });
 
   test("a replacement login removes the previous caller's cached notifications", () => {
@@ -96,5 +100,56 @@ describe("session query cache", () => {
     expect(persistRefreshedSession(session(1, "token-a2"), beforeRefresh)).not.toBeNull();
 
     expect(queryClient.getQueryData(["notifications", "unread"])).toEqual({ total: 4 });
+  });
+
+  describe("the kept view documents", () => {
+    const sentTag = (call: unknown[]) => new Headers((call[1] as RequestInit | undefined)?.headers).get("If-None-Match");
+
+    async function keepOne() {
+      const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>();
+      vi.stubGlobal("fetch", fetchMock);
+      fetchMock.mockImplementationOnce(async () => jsonResponse(200, { n: 1 }, { ETag: 'W/"a"' }));
+      await revalidatedRequest("/api/v1/views/home");
+      return fetchMock;
+    }
+
+    // Each case puts the OLD identity string back after the change, so that the entry's own identity check cannot hide a missing
+    // `forgetRevalidated()`: only the boundary's call can make the next read go out without a tag.
+    const IDENTITY_KEY = "astrolabe.auth.sessionIdentity";
+
+    async function expectEmptiedBy(change: () => void) {
+      persistSession(session(1, "token-a"));
+      const identityA = localStorage.getItem(IDENTITY_KEY) ?? "";
+      const fetchMock = await keepOne();
+      change();
+      localStorage.setItem(IDENTITY_KEY, identityA);
+      fetchMock.mockImplementationOnce(async () => jsonResponse(200, { n: 2 }, { ETag: 'W/"b"' }));
+      await revalidatedRequest("/api/v1/views/home");
+      expect(sentTag(fetchMock.mock.calls[1])).toBeNull();
+    }
+
+    test("a replacement login empties them", async () => {
+      await expectEmptiedBy(() => persistSession(session(2, "token-b")));
+    });
+
+    test("a sign-out empties them", async () => {
+      await expectEmptiedBy(() => clearSession());
+    });
+
+    test("another tab changing the stored identity empties them", async () => {
+      await expectEmptiedBy(() => {
+        localStorage.setItem(IDENTITY_KEY, "external-session-b");
+        window.dispatchEvent(new StorageEvent("storage", { key: IDENTITY_KEY, newValue: "external-session-b", storageArea: localStorage }));
+      });
+    });
+
+    test("a token rotation within one identity keeps them", async () => {
+      persistSession(session(1, "token-a"));
+      const fetchMock = await keepOne();
+      expect(persistRefreshedSession(session(1, "token-a2"), getSessionSnapshot())).not.toBeNull();
+      fetchMock.mockImplementationOnce(async () => notModified('W/"a"'));
+      expect(await revalidatedRequest("/api/v1/views/home")).toEqual({ n: 1 });
+      expect(sentTag(fetchMock.mock.calls[1])).toBe('W/"a"');
+    });
   });
 });

@@ -1,4 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
+import { forgetRevalidated } from "../api/revalidate";
 import { getSessionSnapshot, subscribeSessionIdentityChange } from "../api/session";
 
 const AUTH_STORAGE_PREFIX = "astrolabe.auth.";
@@ -34,6 +35,8 @@ export function bindSessionQueryCache(queryClient: QueryClient): () => void {
     // during the identity handoff; reset() also cancels that query without starting a refetch.
     queryClient.getQueryCache().getAll().forEach((query) => query.reset());
     queryClient.clear();
+    // The kept view documents (api/revalidate.ts) are caller-scoped answers too: emptied at the same boundary.
+    forgetRevalidated();
   }
 
   return subscribeLogicalSession(resetForIdentityChange);

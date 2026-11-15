@@ -5,7 +5,8 @@ import { Route, Routes, useLocation, useNavigationType } from "react-router-dom"
 import i18n from "../i18n";
 import { renderWithProviders, screen, waitFor, within } from "../test/render";
 import { headingOutline } from "../test/headings";
-import { jsonResponse } from "../test/http";
+import { jsonResponse, notModified } from "../test/http";
+import { forgetRevalidated } from "../api/revalidate";
 import { TEAM_LOAD_KEY } from "../api/teamLoad";
 import { teamLoadRow, teamLoadView, teamLoadWeek } from "../test/teamLoad";
 import TeamLoad from "./TeamLoad";
@@ -65,6 +66,7 @@ describe("Team load page", () => {
   afterEach(async () => {
     vi.unstubAllGlobals();
     localStorage.clear();
+    forgetRevalidated();
     await i18n.changeLanguage("en");
   });
 
@@ -214,6 +216,26 @@ describe("Team load page", () => {
     expect(await screen.findByText("Could not load the teams' load")).toBeInTheDocument();
     expect(screen.queryByText("There are no teams yet")).toBeNull();
     expect(screen.queryByRole("table")).toBeNull();
+  });
+
+  test("a re-read answered 304 keeps the rows with no alert and no spinner; a 200 after it replaces them", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    answer = () => jsonResponse(200, teamLoadView(ALL), { ETag: 'W/"one"' });
+    renderPage("/team-load", queryClient);
+    await screen.findByRole("table", { name: "Load of every team" });
+    const sent: (string | null)[] = [];
+    mockFetch.mockImplementation((_url: string, init?: RequestInit) => {
+      sent.push(new Headers(init?.headers).get("If-None-Match"));
+      return Promise.resolve(sent.length === 1 ? notModified('W/"one"') : jsonResponse(200, teamLoadView([BOTH]), { ETag: 'W/"two"' }));
+    });
+    await queryClient.refetchQueries({ queryKey: TEAM_LOAD_KEY });
+    expect(sent).toEqual(['W/"one"']);
+    expect(teamNames()).toEqual(["Backend", "Frontend", "Data", "Mobile"]);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("status", { name: "Loading…" })).toBeNull();
+    await queryClient.refetchQueries({ queryKey: TEAM_LOAD_KEY });
+    expect(sent).toEqual(['W/"one"', 'W/"one"']);
+    await waitFor(() => expect(teamNames()).toEqual(["Backend"]));
   });
 
   test("speaks Polish in the bundle's own words", async () => {

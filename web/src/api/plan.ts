@@ -4,6 +4,7 @@
 // types from ./schema.
 
 import { buildQuery, jsonRequest, voidRequest } from "./http";
+import { revalidatedRequest } from "./revalidate";
 import type { components } from "./schema";
 
 type Schemas = components["schemas"];
@@ -28,7 +29,7 @@ export async function listProjects(q: ProjectListQuery): Promise<ProjectPage> {
 }
 
 export async function getPlanView(): Promise<PlanView> {
-  return jsonRequest<PlanView>("/api/v1/views/plan");
+  return revalidatedRequest<PlanView>("/api/v1/views/plan");
 }
 
 export async function createWorkStream(body: WorkStreamBody): Promise<Schemas["WorkStreamResponse"]> {

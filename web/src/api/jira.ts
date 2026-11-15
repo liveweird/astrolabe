@@ -4,6 +4,7 @@
 // request body and never in a response.
 
 import { ApiError, buildQuery, jsonRequest, voidRequest } from "./http";
+import { revalidatedRequest } from "./revalidate";
 import type { components } from "./schema";
 
 type Schemas = components["schemas"];
@@ -175,5 +176,5 @@ export async function applyJiraImport(id: number, body: JiraImportApplyRequest, 
  * Milestone links are not listed; `truncated` = the server's 2,000-link cap dropped some.
  */
 export async function getJiraLinks(): Promise<JiraLinksView> {
-  return jsonRequest<JiraLinksView>("/api/v1/views/jira-links");
+  return revalidatedRequest<JiraLinksView>("/api/v1/views/jira-links");
 }

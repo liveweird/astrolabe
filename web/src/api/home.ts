@@ -1,7 +1,7 @@
 // Home API (`/api/v1/views/home`, 1.18) - the plan's figures and the caller's own items in one read. A read for everyone signed in; nothing is written
 // through it. Thin endpoint wrapper: transport in ./http, types from ./schema.
 
-import { jsonRequest } from "./http";
+import { revalidatedRequest } from "./revalidate";
 import type { components } from "./schema";
 
 type Schemas = components["schemas"];
@@ -23,5 +23,5 @@ export const HOME_STALE_MS = 60_000;
 
 /** The caller's Home document; it takes no parameter (it is always the caller's own). */
 export async function getHomeView(): Promise<HomeView> {
-  return jsonRequest<HomeView>("/api/v1/views/home");
+  return revalidatedRequest<HomeView>("/api/v1/views/home");
 }

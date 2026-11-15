@@ -1,7 +1,8 @@
 // Programs API (`/api/v1/views/programs`, v0.6) — the plan as a tree for the programs timeline: work stream -> program -> project, with the derived
 // spans and the flag roll-ups. A read for everyone signed in; nothing is written through it. Thin endpoint wrapper: transport in ./http, types from ./schema.
 
-import { buildQuery, jsonRequest } from "./http";
+import { buildQuery } from "./http";
+import { revalidatedRequest } from "./revalidate";
 import type { components } from "./schema";
 
 type Schemas = components["schemas"];
@@ -22,5 +23,5 @@ export const programsViewKey = (baseline: number | null, criticalPath: number | 
  */
 export async function getProgramsView(baseline?: number | null, criticalPath?: number | null): Promise<ProgramsView> {
   const query = buildQuery({ baseline, criticalPath });
-  return jsonRequest<ProgramsView>(`/api/v1/views/programs${query === "" ? "" : `?${query}`}`);
+  return revalidatedRequest<ProgramsView>(`/api/v1/views/programs${query === "" ? "" : `?${query}`}`);
 }

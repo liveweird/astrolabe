@@ -4,6 +4,7 @@
 
 import { baselineSuffix } from "./baselines";
 import { ApiError, buildQuery, jsonRequest, voidRequest } from "./http";
+import { revalidatedRequest } from "./revalidate";
 import type { components, paths } from "./schema";
 
 export type TeamPage = paths["/api/v1/teams"]["get"]["responses"]["200"]["content"]["application/json"];
@@ -74,7 +75,7 @@ export type CapacityPeriodBody = Schemas["CapacityPeriodRequest"];
 
 /** `baseline` (v0.9) is the id of the baseline to compare with: the document then gains its `baseline` block; absent or null = the plain view. */
 export async function getTeamView(id: number, baseline?: number | null): Promise<TeamView> {
-  return jsonRequest<TeamView>(`/api/v1/views/team/${id}${baselineSuffix(baseline)}`);
+  return revalidatedRequest<TeamView>(`/api/v1/views/team/${id}${baselineSuffix(baseline)}`);
 }
 
 export async function createCapacityPeriod(teamId: number, body: CapacityPeriodBody): Promise<CapacityPeriod> {

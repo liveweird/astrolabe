@@ -149,6 +149,35 @@ is intentional; Orval/Kiota are not used).
   `TimeoutError` DOMException instead of pending forever; new `fetch` call sites in `api/` must
   attach it.
 
+### `revalidate.ts` — the revalidating view reads (1.22)
+
+Every `/api/` answer is `Cache-Control: no-store` (`security.md` "Caching"), so the browser never revalidates by itself; the ten view GETs that answer
+through a server validator (`getPlanView`, `getHomeView`, `getTeamLoadView`, `getDependencyListView`, `getRoadmapView`, `getProgramsView`, `getProjectView`,
+`getTeamView`, `getBaselineView`, `getJiraLinks`) therefore call `revalidatedRequest<T>(path)` instead of `jsonRequest`; the two deviation reads, the list
+wrappers and every write keep the old helpers. The module keeps the last `ETag` and the exact response TEXT per address and sends `If-None-Match`; a `304`
+resolves a fresh `JSON.parse` of the kept text (a page that mutated its copy can never corrupt a later `304`; measured in Node on a synthetic 336 KB document, one parse takes about 0.8 ms).
+The seven rules (binding):
+
+1. A `304` is answered ONLY with the text that arrived with the tag that was sent, for the same session identity: never TanStack Query's data, never an
+   optimistic state, so a failed write's rollback refetch gets the server's document back whatever the cache held. A `200` that does not parse drops the old entry.
+2. Memory only: a module-level `Map`; nothing in `localStorage`, `sessionStorage`, IndexedDB or the Cache API.
+3. Session boundary: `bindSessionQueryCache` calls `forgetRevalidated()` beside `queryClient.clear()`; each entry carries the `getSessionSnapshot().identity`
+   it was read under (an entry of another identity is dropped, neither sent nor returned) and an answer is kept only if the identity is still the one the
+   request went out with (a token rotation keeps the identity, so keeps the entries).
+4. With no kept tag the request is exactly `authedFetch(path)` with no init; with one, the only difference is the header (the 401, silent refresh and retry
+   path is `authedFetch`'s and carries it).
+5. A `200` with an `ETag` replaces the entry, a `200` without one drops it, an error throws `ApiError` as `jsonRequest` does and leaves the entry alone.
+6. A `304` whose kept text is gone while the SAME session identity is still current (evicted, forgotten, or replaced by a newer answer while the request
+   was out) is answered by ONE plain re-read without the header: never a guess, never a loop (a second `304` there is an `ApiError`). If the identity
+   CHANGED while the request was out (another login, a sign-out here or in another tab) NO request is made for the new identity (nothing is retried across
+   identities) and the read rejects with a plain "session changed" error, never the previous identity's text; the boundary has already discarded the query.
+7. Bounded: 16 documents and 8,000,000 characters (a single document over the bound is never kept), least recently used first out; reading an address makes
+   it the most recent.
+
+TanStack Query sees an ordinary resolved read: the fresh copy is structurally equal, so it keeps the previous `data` reference and re-renders nothing;
+`dataUpdatedAt` moves and `isFetching` toggles as for any read. No `staleTime`, key or hook changed. Tests: `test/http.ts` `jsonResponse(status, body, headers)`
+and `notModified(etag)`; any test that keeps a tagged document calls `forgetRevalidated()` in `afterEach` (the map is module-level and survives between the tests of one file; `setup.ts` resets modules per file).
+
 ### `session.ts`
 
 - **`session.ts`**: token/roles/userId storage under the `astrolabe.auth.*` localStorage keys, written
@@ -169,7 +198,7 @@ is intentional; Orval/Kiota are not used).
   within the same identity must retain them. Keep this at the session boundary rather than
   clearing individual page keys, because user/team/account queries all contain caller-specific
   projections. Late requests from the previous identity must not repopulate the new account's UI
-  or cache.
+  or cache. The same boundary empties the kept view documents of `revalidate.ts` (`forgetRevalidated()`).
 
 ### Sign-out and the return destination
 

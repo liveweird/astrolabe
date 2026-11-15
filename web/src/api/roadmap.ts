@@ -3,6 +3,7 @@
 // Thin endpoint wrappers: transport (authedFetch/ApiError) in ./http, types from ./schema.
 
 import { ApiError, buildQuery, jsonRequest } from "./http";
+import { revalidatedRequest } from "./revalidate";
 import type { components } from "./schema";
 
 type Schemas = components["schemas"];
@@ -30,7 +31,7 @@ const STALE_REVISION_TYPE = "urn:astrolabe:problem:stale-revision";
  */
 export async function getRoadmapView(baseline?: number | null, criticalPath?: number | null): Promise<RoadmapView> {
   const query = buildQuery({ baseline, criticalPath });
-  return jsonRequest<RoadmapView>(`/api/v1/views/roadmap${query === "" ? "" : `?${query}`}`);
+  return revalidatedRequest<RoadmapView>(`/api/v1/views/roadmap${query === "" ? "" : `?${query}`}`);
 }
 
 /**

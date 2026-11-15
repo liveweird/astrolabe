@@ -2,7 +2,7 @@
 // for everyone signed in, the same for every caller; nothing is written through it. The WIRE document names each end by kind and id and states the
 // names once (1.21); `utils/dependencyListRows.ts` joins them back onto the rows. Thin endpoint wrapper: transport in ./http, types from ./schema.
 
-import { jsonRequest } from "./http";
+import { revalidatedRequest } from "./revalidate";
 import type { components } from "./schema";
 
 type Schemas = components["schemas"];
@@ -14,5 +14,5 @@ export const DEPENDENCY_LIST_KEY = ["plan", "dependencies"] as const;
 
 /** The dependencies document; it takes no parameter (the filters narrow the rows that arrived, in the browser). */
 export async function getDependencyListView(): Promise<DependencyListView> {
-  return jsonRequest<DependencyListView>("/api/v1/views/dependencies");
+  return revalidatedRequest<DependencyListView>("/api/v1/views/dependencies");
 }
