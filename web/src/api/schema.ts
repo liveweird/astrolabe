@@ -4128,7 +4128,7 @@ export interface components {
                 editRank: boolean;
             };
             /** @description The active teams with at least one active milestone in the plan, by name (case-insensitive) and id. */
-            teams: components["schemas"]["RoadmapTeam"][];
+            teams: components["schemas"]["TeamRef"][];
             /** @description The ranked projects in position order. */
             ranked: components["schemas"]["RoadmapRankedProject"][];
             /** @description The active projects without a position, by name. */
@@ -4175,7 +4175,8 @@ export interface components {
             /** Format: int32 */
             successorProjectId: number;
         };
-        RoadmapTeam: {
+        /** @description A team named by its id and its name. */
+        TeamRef: {
             /** Format: int32 */
             id: number;
             name: string;
@@ -4598,7 +4599,7 @@ export interface components {
             /** @description The projects the listed rows name: a project end, and the project of every milestone in `milestones`; each once, by ascending id. */
             projects: components["schemas"]["DependencyListProject"][];
             /** @description The teams of the milestones in `milestones`, each once, by ascending id. */
-            teams: components["schemas"]["RoadmapTeam"][];
+            teams: components["schemas"]["TeamRef"][];
             /** @description The milestones the listed rows name as an end, each once, by ascending id. */
             milestones: components["schemas"]["DependencyListMilestone"][];
             /** @description The dependencies in the project view's order (violated first), at most 1000. */
@@ -4668,7 +4669,7 @@ export interface components {
              */
             revision: number;
             /** @description The roadmap view's `teams` (active teams with milestones in the plan, by name). */
-            teams: components["schemas"]["RoadmapTeam"][];
+            teams: components["schemas"]["TeamRef"][];
             /** @description The roadmap view's `links` (the dependencies between projects, rolled up per ordered pair). */
             links: components["schemas"]["RoadmapLink"][];
             /** @description Open work streams first, then closed ones, each by name (case-insensitive) then id. */
@@ -4971,14 +4972,9 @@ export interface components {
             /** @description The links touching the team (an end among its milestones, or a project end holding one of them whose span changes) whose verdict is or was VIOLATED - on the stored dates or with the items applied; violated-after first. A link between two listed teams is in both blocks. */
             dependencies: components["schemas"]["ScheduleProposalLink"][];
         };
-        ProposalTeam: {
-            /** Format: int32 */
-            id: number;
-            name: string;
-        };
         /** @description The teams a cross-team run may include - bounded by the active teams (about 15), not paged. */
         ProposalTeamList: {
-            items: components["schemas"]["ProposalTeam"][];
+            items: components["schemas"]["TeamRef"][];
         };
         /** @description RFC 7807 problem detail. Served as `application/problem+json`; instance is the request path without query parameters. */
         ProblemDetail: {
@@ -6384,11 +6380,6 @@ export interface components {
             teamsAt: number | null;
             items: components["schemas"]["FlowTeamListItem"][];
         };
-        FlowPanelTeam: {
-            /** Format: int32 */
-            id: number;
-            name: string;
-        };
         /** @description The caller's rights on the team's Flow link - ADMIN or the team's ACTIVE manager; the three flags carry the same verdict today. */
         FlowPanelCan: {
             link: boolean;
@@ -6457,7 +6448,7 @@ export interface components {
             enabled: boolean;
         };
         FlowTeamPanel: {
-            team: components["schemas"]["FlowPanelTeam"];
+            team: components["schemas"]["TeamRef"];
             can: components["schemas"]["FlowPanelCan"];
             binding: components["schemas"]["FlowPanelBinding"] | null;
             roster: components["schemas"]["FlowRoster"] | null;
@@ -6594,11 +6585,6 @@ export interface components {
              */
             teamsAt: number | null;
         };
-        CapacityDeviationTeam: {
-            /** Format: int32 */
-            id: number;
-            name: string;
-        };
         CapacityDeviationFlowTeam: {
             /** Format: int32 */
             id: number;
@@ -6615,7 +6601,7 @@ export interface components {
             bindingId: number;
             /** Format: int32 */
             connectionId: number;
-            team: components["schemas"]["CapacityDeviationTeam"];
+            team: components["schemas"]["TeamRef"];
             flowTeam: components["schemas"]["CapacityDeviationFlowTeam"];
             /**
              * Format: int64

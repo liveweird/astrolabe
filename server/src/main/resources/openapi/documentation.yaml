@@ -6169,7 +6169,7 @@ components:
           type: array
           description: The active teams with at least one active milestone in the plan, by name (case-insensitive) and id.
           items:
-            $ref: '#/components/schemas/RoadmapTeam'
+            $ref: '#/components/schemas/TeamRef'
         ranked:
           type: array
           description: The ranked projects in position order.
@@ -6234,8 +6234,9 @@ components:
       properties:
         predecessorProjectId: { type: integer, format: int32, minimum: 0 }
         successorProjectId: { type: integer, format: int32, minimum: 0 }
-    RoadmapTeam:
+    TeamRef:
       type: object
+      description: A team named by its id and its name.
       required: [id, name]
       properties:
         id: { type: integer, format: int32, minimum: 0 }
@@ -6663,7 +6664,7 @@ components:
           maxItems: 2000
           description: The teams of the milestones in `milestones`, each once, by ascending id.
           items:
-            $ref: '#/components/schemas/RoadmapTeam'
+            $ref: '#/components/schemas/TeamRef'
         milestones:
           type: array
           maxItems: 2000
@@ -6729,7 +6730,7 @@ components:
           type: array
           description: The roadmap view's `teams` (active teams with milestones in the plan, by name).
           items:
-            $ref: '#/components/schemas/RoadmapTeam'
+            $ref: '#/components/schemas/TeamRef'
         links:
           type: array
           description: The roadmap view's `links` (the dependencies between projects, rolled up per ordered pair).
@@ -7190,12 +7191,6 @@ components:
             verdict is or was VIOLATED - on the stored dates or with the items applied; violated-after first. A link between two listed
             teams is in both blocks.
           items: { $ref: '#/components/schemas/ScheduleProposalLink' }
-    ProposalTeam:
-      type: object
-      required: [id, name]
-      properties:
-        id: { type: integer, format: int32, minimum: 0 }
-        name: { type: string }
     ProposalTeamList:
       type: object
       required: [items]
@@ -7204,7 +7199,7 @@ components:
         items:
           type: array
           maxItems: 1000
-          items: { $ref: '#/components/schemas/ProposalTeam' }
+          items: { $ref: '#/components/schemas/TeamRef' }
 
     ProblemDetail:
       type: object
@@ -8507,12 +8502,6 @@ components:
           maxItems: 1000
           items:
             $ref: '#/components/schemas/FlowTeamListItem'
-    FlowPanelTeam:
-      type: object
-      required: [id, name]
-      properties:
-        id: { type: integer, format: int32, minimum: 0 }
-        name: { type: string }
     FlowPanelCan:
       type: object
       description: The caller's rights on the team's Flow link - ADMIN or the team's ACTIVE manager; the three flags carry the same verdict today.
@@ -8585,7 +8574,7 @@ components:
       type: object
       required: [team, can, binding, roster, sprints, connections]
       properties:
-        team: { $ref: '#/components/schemas/FlowPanelTeam' }
+        team: { $ref: '#/components/schemas/TeamRef' }
         can: { $ref: '#/components/schemas/FlowPanelCan' }
         binding:
           allOf:
@@ -8738,12 +8727,6 @@ components:
         enabled: { type: boolean }
         status: { $ref: '#/components/schemas/SyncStatus' }
         teamsAt: { type: integer, format: int64, nullable: true, description: "Epoch millis the connection last replaced its mirror; null before any run." }
-    CapacityDeviationTeam:
-      type: object
-      required: [id, name]
-      properties:
-        id: { type: integer, format: int32, minimum: 0 }
-        name: { type: string }
     CapacityDeviationFlowTeam:
       type: object
       required: [id, name]
@@ -8762,7 +8745,7 @@ components:
       properties:
         bindingId: { type: integer, format: int32, minimum: 0 }
         connectionId: { type: integer, format: int32, minimum: 0 }
-        team: { $ref: '#/components/schemas/CapacityDeviationTeam' }
+        team: { $ref: '#/components/schemas/TeamRef' }
         flowTeam: { $ref: '#/components/schemas/CapacityDeviationFlowTeam' }
         observedAt: { type: integer, format: int64, nullable: true, description: "Epoch millis the mirror last saw the Flow team; null when it is gone." }
         zone: { type: string, description: "The connection's IANA time zone id, the zone of the sprint dates." }
