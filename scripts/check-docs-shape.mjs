@@ -50,7 +50,6 @@ const NOT_YET = [
   ".claude/docs/jira-sync.md",
   ".claude/docs/list-endpoints.md",
   ".claude/docs/observability.md",
-  ".claude/docs/persistence.md",
   ".claude/docs/planning-model.md",
   ".claude/docs/security.md",
   ".claude/docs/test-fixtures.md",
