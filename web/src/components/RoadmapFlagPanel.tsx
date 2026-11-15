@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Anchor, Button, SegmentedControl, Stack, Table, Text, Title } from "@mantine/core";
-import { IconTarget } from "@tabler/icons-react";
+import { Anchor, Button, SegmentedControl, Stack, Table, Text, Title, VisuallyHidden } from "@mantine/core";
+import { IconTarget, IconUsersGroup } from "@tabler/icons-react";
 import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { JiraSite } from "../api/roadmap";
@@ -8,6 +8,7 @@ import { flagSentence, type FlagNames } from "../utils/flagSentences";
 import { siteUrls } from "../utils/jiraBars";
 import { projectPath } from "../utils/planLinks";
 import type { FlagEntry } from "../utils/roadmapRows";
+import { teamPath } from "../utils/teamLinks";
 import JiraKeyLink from "./JiraKeyLink";
 import ScrollRegion from "./ScrollRegion";
 import SeverityBadge from "./SeverityBadge";
@@ -17,6 +18,17 @@ const TABLE_MAX_HEIGHT = 420;
 
 /** The panel's severity filter: page state only (never stored, not in the URL), and it narrows the LIST, never the row icons. */
 type SeverityFilter = "ALL" | FlagEntry["flag"]["severity"];
+
+/** The icon-only link beside a Flow capacity flag's sentence: to the team's page, where the sprints are (the sentence names the team; the link is the way there). */
+function TeamLink({ teamId, name }: { teamId: number; name: string }) {
+  const { t } = useTranslation();
+  return (
+    <Anchor component={RouterLink} to={teamPath(teamId)} inherit>
+      <IconUsersGroup size="0.85em" aria-hidden style={{ marginInlineStart: "0.25em", verticalAlign: "-0.1em" }} />
+      <VisuallyHidden component="span">{` ${t("teams.openAria", { name })}`}</VisuallyHidden>
+    </Anchor>
+  );
+}
 
 /**
  * The Flags section: the ACCESSIBLE surface of the row icons. One table row per flag of the visible projects (warnings first, then by rank) with its
@@ -97,6 +109,9 @@ export default function RoadmapFlagPanel({
                             {flagSentence(t, flag, names, project.jira?.issueKey ?? null)}
                             {flag.kind === "JIRA_DEVIATION" && project.jira !== null && (
                               <JiraKeyLink issueKey={project.jira.issueKey} siteUrl={sites.get(project.jira.connectionId)} iconOnly />
+                            )}
+                            {flag.kind === "FLOW_CAPACITY_MILESTONES" && flag.teamId !== undefined && names.team(flag.teamId) !== "" && (
+                              <TeamLink teamId={flag.teamId} name={names.team(flag.teamId)} />
                             )}
                           </Text>
                         </Table.Td>

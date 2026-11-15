@@ -54,6 +54,17 @@ describe("flagSentence", () => {
     expect(flagSentence(pl, at(1.5), NAMES, null)).toBe("1.5 kamienia milowego zespołu T4 przypada na sprinty, w których przepustowość różni się od Flow");
   });
 
+  test("a Flow capacity flag whose team is not named reads without it, in all plural forms of both languages (1.23)", () => {
+    const unnamed = { project: () => "", team: () => "" };
+    const at = (count: number, teamId?: number) => flag("FLOW_CAPACITY_MILESTONES", "INFO", { count, ...(teamId === undefined ? {} : { teamId }) });
+    expect(flagSentence(en, at(1, 4), unnamed, null)).toBe("1 milestone is scheduled in a sprint whose capacity differs from Flow");
+    expect(flagSentence(en, at(2), NAMES, null)).toBe("2 milestones are scheduled in sprints whose capacity differs from Flow");
+    expect(flagSentence(pl, at(1), NAMES, null)).toBe("1 kamień milowy przypada na sprint, w którym przepustowość różni się od Flow");
+    expect(flagSentence(pl, at(3), NAMES, null)).toBe("3 kamienie milowe przypadają na sprinty, w których przepustowość różni się od Flow");
+    expect(flagSentence(pl, at(5), NAMES, null)).toBe("5 kamieni milowych przypada na sprinty, w których przepustowość różni się od Flow");
+    expect(flagSentence(pl, at(1.5), NAMES, null)).toBe("1.5 kamienia milowego przypada na sprinty, w których przepustowość różni się od Flow");
+  });
+
   test("a milestone's calendar flag, alone or beside a Jira one, in both languages", () => {
     const calendar = flag("NO_WORKING_DAY", "WARNING");
     expect(flagSentence(en, calendar, NAMES, null)).toBe("Covers no working day: only weekends or holidays");

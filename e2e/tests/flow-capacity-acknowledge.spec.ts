@@ -4,7 +4,7 @@
 // team page's Flow section or on the Deviations page's "Capacity from Flow" section; an acknowledged row leaves the Open list, is listed under Status Acknowledged and All, and stops counting in the team
 // page's "Capacity vs Flow" fact, in the header's flag (ONE roll-up of the OPEN rows) and in the marks of the weeks strip; a change of THAT sprint's figures (a capacity period edited in the plan) opens it
 // again and touches no other row. Since 1.10 the manager can also acknowledge every open row of the team at once ("Acknowledge all (N)"), and an acknowledgement goes when
-// its sprint comes back in line, so the same difference returning reads open. "E2E Flow Team" is dated in 2047 (six two-week sprints from Monday 2047-01-07, ten working days each), which nothing writes a holiday in. Every figure is read from
+// its sprint comes back in line, so the same difference returning reads open. Since 1.23 the project holding the team's milestone carries a Flow capacity flag on the Roadmap and the Programs page while a difference over its dates is open (its team linked from the Roadmap's Flags section), and none once every difference is acknowledged. "E2E Flow Team" is dated in 2047 (six two-week sprints from Monday 2047-01-07, ten working days each), which nothing writes a holiday in. Every figure is read from
 // `sample-data/flow/expected.json` (`flowStub()`), never copied.
 // Owns: ONE Flow connection (`e2e-capack-connection-*`, manual only, made through the API and tested + refreshed in the beforeAll: one call of the per-IP `flow-test` bucket per worker start), a throwaway world
 // (a team-manager login and its person, the team `e2e-capack-team-*` linked to "E2E Flow Team" and the team `e2e-capack-gone-*` linked to the stub's "Billing", both through that connection, so no other spec's
@@ -63,6 +63,8 @@ interface World {
   goneTeamId: number;
   goneBindingId: number;
   connection: { id: number; name: string };
+  /** The owner's plan holding the team's milestone (1.23): the Roadmap and the Programs page are narrowed to `programId`. */
+  plan: { stream: string; program: string; programId: number; project: string };
 }
 
 let world: World;
@@ -145,9 +147,12 @@ test.beforeAll(async () => {
     const goneTeam = uniqueText("e2e-capack-gone");
     const goneTeamId = await create(api, "/api/v1/teams", { name: goneTeam, managerPersonId });
     // The owner's plan: one milestone of the team scheduled over sprints 1-3, so the team view's weekly load (and its strip) covers them. The admin schedules it: dates are the team's manager's or ADMIN's.
-    const streamId = await create(api, "/api/v1/work-streams", { name: uniqueText("e2e-capack-stream"), ownerPersonId, startDate: "2026-01-05" });
-    const programId = await create(api, `/api/v1/work-streams/${streamId}/programs`, { name: uniqueText("e2e-capack-program"), ownerPersonId }, "/api/v1/programs");
-    const projectId = await create(api, `/api/v1/programs/${programId}/projects`, { name: uniqueText("e2e-capack-project"), ownerPersonId }, "/api/v1/projects");
+    const stream = uniqueText("e2e-capack-stream");
+    const program = uniqueText("e2e-capack-program");
+    const project = uniqueText("e2e-capack-project");
+    const streamId = await create(api, "/api/v1/work-streams", { name: stream, ownerPersonId, startDate: "2026-01-05" });
+    const programId = await create(api, `/api/v1/work-streams/${streamId}/programs`, { name: program, ownerPersonId }, "/api/v1/programs");
+    const projectId = await create(api, `/api/v1/programs/${programId}/projects`, { name: project, ownerPersonId }, "/api/v1/projects");
     const milestoneId = await create(api, `/api/v1/projects/${projectId}/milestones`, { name: uniqueText("e2e-capack-milestone"), teamId, estimateMd: 30 }, "/api/v1/milestones");
     const view = (await (await api.get(`/api/v1/views/team/${teamId}`)).json()) as { revision: number };
     const scheduled = await api.put(`/api/v1/milestones/${milestoneId}/schedule`, { data: { expectedRevision: view.revision, startDate: SCHEDULE_START, endDate: SCHEDULE_END } });
@@ -159,7 +164,7 @@ test.beforeAll(async () => {
     await refreshFlowConnectionViaApi(runner.api, connectionId);
     const teamBindingId = await bindFlowTeamViaApi(api, connectionId, teamId, E2E_TEAM);
     const goneBindingId = await bindFlowTeamViaApi(api, connectionId, goneTeamId, GONE_TEAM);
-    world = { manager: account, managerPerson, team, teamId, teamBindingId, goneTeam, goneTeamId, goneBindingId, connection: { id: connectionId, name: connectionName } };
+    world = { manager: account, managerPerson, team, teamId, teamBindingId, goneTeam, goneTeamId, goneBindingId, connection: { id: connectionId, name: connectionName }, plan: { stream, program, programId, project } };
     // Day one's capacity is imported (20 / 18 / 22 / ... man-days a week) as the manager; then day two: Flow lowers sprint 2, raises sprint 3 and drops "Billing". The flip is undone at once.
     const manager = await apiAsManager();
     try {
@@ -293,6 +298,63 @@ async function scanBothSchemes(page: Page, url: string, ready: () => Promise<voi
   }
   await page.emulateMedia({ colorScheme: "light" });
 }
+
+/** The Roadmap narrowed to the world's own program (the address names the pick, so the remembered one is left alone and no other spec's project is met). */
+async function openRoadmap(page: Page): Promise<void> {
+  await page.goto(`/roadmap?programId=${world.plan.programId}`);
+  await expect(page.getByRole("grid", { name: "Roadmap timeline" })).toBeVisible();
+  await expect(page.getByRole("link", { name: `Open ${world.plan.project}`, exact: true })).toBeVisible();
+}
+
+/** The Roadmap's row of the world's project; its Flags cell's `data-flags` reads "warnings,infos" and is absent when the row has no flag. */
+const roadmapRow = (page: Page): Locator =>
+  page.getByRole("grid", { name: "Roadmap timeline" }).getByRole("row").filter({ has: page.getByRole("link", { name: `Open ${world.plan.project}`, exact: true }) });
+
+/** The Programs page narrowed to the world's own program; the work stream opens expanded, the program folded. */
+async function openPrograms(page: Page): Promise<void> {
+  await page.goto(`/programs?programId=${world.plan.programId}`);
+  await expect(page.getByRole("grid", { name: "Programs timeline" })).toBeVisible();
+  await expect(page.getByRole("button", { name: `Program ${world.plan.program}`, exact: true })).toBeVisible();
+}
+
+/** The Programs page's row of a work stream or program (the one holding its chevron button) and of the world's project (the one holding its "Open" link). */
+const nodeRow = (page: Page, label: string): Locator =>
+  page.getByRole("grid", { name: "Programs timeline" }).getByRole("row").filter({ has: page.getByRole("button", { name: label, exact: true }) });
+const programsProjectRow = (page: Page): Locator =>
+  page.getByRole("grid", { name: "Programs timeline" }).getByRole("row").filter({ has: page.getByRole("link", { name: `Open ${world.plan.project}`, exact: true }) });
+
+test("the Roadmap and the Programs page flag the project scheduled in a disputed sprint and name its team", async ({ page }) => {
+  const manager = await apiAsManager();
+  try {
+    await withdrawAll(manager, world.teamId);
+  } finally {
+    await manager.dispose();
+  }
+  await login(page, world.manager.email, world.manager.password);
+
+  // The Roadmap narrowed to the world's program: one row, the project, whose milestone lies over sprints 2 (a WARNING: the plan has more) and 3 (an INFO) - ONE flag for the team, the worst severity.
+  await openRoadmap(page);
+  await expect(roadmapRow(page).locator("[data-flags]")).toHaveAttribute("data-flags", "1,0");
+
+  // The Flags section lists that one flag in words with the team, and the team's page is one click away: its header counts the two open differences.
+  await page.getByRole("button", { name: /^Show the \d+ flags?$/ }).click();
+  const flags = page.getByRole("table", { name: "Flags of the projects shown" });
+  await expect(flags.getByRole("row")).toHaveCount(2); // the header and the project's one flag
+  const line = flags.getByRole("row").filter({ hasText: world.plan.project });
+  await expect(line).toContainText("Warning");
+  await expect(line).toContainText(`1 milestone on ${world.team} is scheduled in a sprint whose capacity differs from Flow`);
+  await line.getByRole("link", { name: `Open team ${world.team}` }).click();
+  await expect(page).toHaveURL(new RegExp(`/teams/${world.teamId}$`));
+  await expect(page.getByRole("heading", { level: 2, name: world.team })).toBeVisible();
+  await expect(headerFlag(page)).toHaveText("Capacity differs from Flow: 2 open differences");
+
+  // The Programs page: the project's row, its program's and its work stream's roll-ups all read the one warning.
+  await openPrograms(page);
+  await expect(nodeRow(page, `Work stream ${world.plan.stream}`).locator("[data-flags]")).toHaveAttribute("data-flags", "1,0");
+  await expect(nodeRow(page, `Program ${world.plan.program}`).locator("[data-flags]")).toHaveAttribute("data-flags", "1,0");
+  await page.getByRole("button", { name: `Program ${world.plan.program}`, exact: true }).click();
+  await expect(programsProjectRow(page).locator("[data-flags]")).toHaveAttribute("data-flags", "1,0");
+});
 
 test("the team's manager acknowledges one sprint's difference on the team page: the line reads acknowledged, the Capacity vs Flow fact counts one open difference and one acknowledged, and the header flag and the weeks strip follow", async ({ page }) => {
   const { more, less } = daySprints();
@@ -520,6 +582,11 @@ test("the team's manager acknowledges every open difference of the team in one c
   await expect(headerFlag(page)).toHaveCount(0);
   await expect(page.locator("[data-flow-capacity]")).toHaveCount(0);
   await expect(allButton).toHaveCount(0);
+
+  // 1.23: every difference acknowledged, the Roadmap's row of the project that holds the team's milestone carries no flag and its Flags section says there is none.
+  await openRoadmap(page);
+  await expect(roadmapRow(page).locator("[data-flags]")).toHaveCount(0);
+  await expect(page.getByText("No flags on the projects shown.")).toBeVisible();
 });
 
 test("the team's manager withdraws every acknowledgement of the team in one click", async ({ page }) => {

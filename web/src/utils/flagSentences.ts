@@ -46,7 +46,8 @@ export function flagSentence(t: TFunction, flag: PlanFlag, names: FlagNames, jir
     // A project's share of one team's open Flow capacity differences (1.23): its scheduled milestones on the team that lie in the disputed days.
     case "FLOW_CAPACITY_MILESTONES": {
       const team = flag.teamId === undefined ? "" : names.team(flag.teamId);
-      return t("roadmap.flag.flowCapacityMilestones", { count: flag.count ?? 0, team });
+      // The server always names the team; a team the document does not list reads without its name, as a rank inversion without a shared team does.
+      return team === "" ? t("roadmap.flag.flowCapacityMilestonesNoTeam", { count: flag.count ?? 0 }) : t("roadmap.flag.flowCapacityMilestones", { count: flag.count ?? 0, team });
     }
   }
 }

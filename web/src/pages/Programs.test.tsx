@@ -229,6 +229,27 @@ describe("Programs page", () => {
     expect(screen.getByRole("menuitem", { name: "Dependencies of Invoices" })).toHaveAttribute("href", "/dependencies?projectId=1");
   });
 
+  test("a project's Flow capacity flag (1.23) counts in its row, and the program's and the work stream's roll-ups and the facts line show the server's figures", async () => {
+    const capacity = (severity: PlanFlag["severity"]): PlanFlag => ({ kind: "FLOW_CAPACITY_MILESTONES", severity, teamId: 4, count: 2 });
+    const warned = project(5, "Warned", { teamIds: [4], span: { start: "2026-03-02", end: "2026-03-13" }, flags: [capacity("WARNING")] });
+    const noted = project(6, "Noted", { teamIds: [4], span: { start: "2026-03-16", end: "2026-03-27" }, flags: [capacity("INFO")] });
+    // The roll-ups are the server's: 2 warnings and 1 info for the program although its projects below hold one flag each (the page sums nothing it is given).
+    const program: ProgramsProgram = { id: 20, name: "Capacity", ownerName: "Pat Program", span: { start: "2026-03-02", end: "2026-03-27" }, flags: { warnings: 2, infos: 1 }, projects: [warned, noted] };
+    const stream: ProgramsWorkStream = { id: 9, name: "Delivery", ownerName: "Sam Stream", startDate: "2026-01-05", endDate: null, span: program.span, flags: { warnings: 2, infos: 1 }, programs: [program] };
+    view = viewOf({ workStreams: [stream], teams: [{ id: 4, name: "Backend" }], links: [] });
+    const user = userEvent.setup();
+    renderWithProviders(<Programs />);
+    await waitForGrid();
+    await user.click(screen.getByRole("button", { name: "Expand all" }));
+    expect(rowOfNode("Work stream Delivery").querySelector("[data-flags]")).toHaveAttribute("data-flags", "2,1");
+    expect(rowOfNode("Program Capacity").querySelector("[data-flags]")).toHaveAttribute("data-flags", "2,1");
+    expect(rowOfLeaf("Warned").querySelector("[data-flags]")).toHaveAttribute("data-flags", "1,0");
+    expect(rowOfLeaf("Noted").querySelector("[data-flags]")).toHaveAttribute("data-flags", "0,1");
+    const facts = screen.getByRole("group", { name: "Programs facts" });
+    expect(within(facts).getByText("2 warnings")).toBeInTheDocument();
+    expect(within(facts).getByText("1 info")).toBeInTheDocument();
+  });
+
   test("Month / Quarter / Year with Quarter by default, remembered under the plan pages' own zoom key", async () => {
     const user = userEvent.setup();
     renderWithProviders(<Programs />);

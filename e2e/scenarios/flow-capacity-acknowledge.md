@@ -1,12 +1,12 @@
-# Flow capacity acknowledge (the per-sprint acknowledge on the team page and the Deviations page, the Status filter, the header flag and the marked weeks)
+# Flow capacity acknowledge (the per-sprint acknowledge on the team page and the Deviations page, the Status filter, the header flag and the marked weeks, and the project's Flow capacity flag on the Roadmap and the Programs page)
 
 - **Spec**: [tests/flow-capacity-acknowledge.spec.ts](../tests/flow-capacity-acknowledge.spec.ts)
 - **Actors**: the seed administrator (the API seeding, the connection's test, the Deviations page scenario, the teardown), a throwaway ADMINISTRATOR of the file's own (`e2e-capack-runner-*`, made in the beforeAll
   and deleted in the afterAll) who asks for every connection refresh through the API (a manual run rides a per-USER `sync-run` bucket, 10 a minute, so the file asks as its own account), a throwaway TEAM MANAGER login (a user with no administrator right, linked to a person who manages both world teams) who imports the capacity
-  through the API, acknowledges on the team page and edits a capacity period through the API.
+  through the API, acknowledges on the team page and edits a capacity period through the API; since 1.23 the same manager reads the Roadmap and the Programs page.
 - **Owns** (exclusive server-side state): ONE Flow connection (`e2e-capack-connection-*`, base URL `E2E_FLOW_STUB_ORIGIN`, the stub's one public service token from `sample-data/flow/expected.json`, `Europe/Warsaw`, **manual only**, made through the API, tested
   once - one call of the per-IP `flow-test` bucket per worker start - and refreshed in the beforeAll); a throwaway world (the manager login, its person, the team `e2e-capack-team-*` linked to the stub's "E2E Flow Team" and the team `e2e-capack-gone-*` linked to "Billing", both
-  through that connection; a login-less owner's person, work stream, program and project holding ONE milestone of the team scheduled **2047-01-07 .. 2047-02-15**, so the team view's weekly load - and its strip - covers sprints 1-3); the six capacity periods the import writes
+  through that connection; a login-less owner's person, work stream, program and project holding ONE milestone of the team scheduled **2047-01-07 .. 2047-02-15**, so the team view's weekly load - and its strip - covers sprints 1-3; the project has no target window and no rank, so since 1.23 its Roadmap row carries this team's capacity flag and no other); the six capacity periods the import writes
   (they go with the team); the throwaway administrator (deleted in the afterAll); the acknowledgements the scenarios make (they go with the binding; each scenario starts by withdrawing every one of the world through the API, so none depends on an earlier one); and the stub's **`flow-day2` SCENARIO**, which this file flips too - the
   second flipper beside `flow-capacity-deviation.spec.ts` - under the Playwright lock **`flow-stub-scenario`** shared with both Flow specs. The beforeAll puts the scenario back to `Started` (and fails fast naming `flow-outage` if a walk left that one on), imports day one's capacity,
   flips to day two only to refresh the mirror once and resets at once; the afterAll resets it even after a failure. Since 1.10 the last scenario flips it again (to day one and back to day two, each followed by a refresh) and resets it in a `finally`, so the mirror ends on day two as the beforeAll leaves it. Everything is removed through the API (the connection first, then the plan, the teams, the people and the user). **Every date is in 2047** ("E2E Flow Team": six
@@ -14,6 +14,16 @@
 - **Needs**: the compose stack with its Flow stub (`flow-stub`, `FLOW_INSECURE_ORIGINS=http://flow-stub:8080`, `FLOW_TEST_RATE_LIMIT_PER_MINUTE=30`) and `E2E_FLOW_STUB_URL` pointing at the stub of the same stack as `E2E_BASE_URL`. The figures are read from `expected.json`
   (`e2e.preview`, `day2.capacityChanges`, `day2.gone`), never copied: after the day-one import (20 / 18 / 22 man-days a week for sprints 1-3) day two reads sprint 2 (`E2E Flow Sprint 2`, 2047-01-21 – 2047-02-01) as a WARNING (the plan has 36.00, Flow 30.00) and sprint 3
   (2047-02-04 – 2047-02-15) as an INFO (the plan has 44.00, Flow 48.00); "Billing" is gone.
+
+## Scenario: the Roadmap and the Programs page flag the project scheduled in a disputed sprint and name its team
+
+1. (Setup) Every acknowledgement of the team is withdrawn through the API, so both of the stub's day-two differences are open (sprint 2 a WARNING, sprint 3 an INFO). The team's manager signs in and opens `/roadmap?programId=<the spec's program>` (the address names the pick, so the Roadmap shows that program's projects alone).
+   - *Expected*: one row, the spec's project (a link "Open <project>"); its Flags cell carries `data-flags="1,0"` (one warning, no info: ONE flag for the team, the worst severity of the two sprints its milestone lies over).
+2. They open the Flags section (**Show the 1 flag**).
+   - *Expected*: the table has exactly one flag row, a warning for the spec's project reading "1 milestone on <the spec's team> is scheduled in a sprint whose capacity differs from Flow"; beside the sentence a link named "Open team <the spec's team>". They follow it.
+   - *Expected*: the address is `/teams/<team>`, the page's heading is the team's name and its header flag reads "Capacity differs from Flow: 2 open differences".
+3. They open `/programs?programId=<the spec's program>`.
+   - *Expected*: the work stream's row and the program's row (folded) each carry `data-flags="1,0"`; after they open the program, the project's row carries `data-flags="1,0"` too.
 
 ## Scenario: the team's manager acknowledges one sprint's difference on the team page: the line reads acknowledged, the Capacity vs Flow fact counts one open difference and one acknowledged, and the header flag and the weeks strip follow
 
@@ -57,6 +67,8 @@
    - *Expected*: zero violations in both.
 3. They press the button.
    - *Expected*: both lines read "Acknowledged by <the manager's person> on <date>" with their Unacknowledge buttons; the fact reads "No open difference" and "2 acknowledged"; the header has no flag; no strip cell carries `data-flow-capacity`; the batch button is gone.
+4. (1.23) They open `/roadmap?programId=<the spec's program>`.
+   - *Expected*: the spec's project row carries no flag (no `data-flags` in its Flags cell) and the Flags section reads "No flags on the projects shown." (every difference is acknowledged, so the project's Flow capacity flag is gone).
 
 ## Scenario: the team's manager withdraws every acknowledgement of the team in one click
 
@@ -85,6 +97,7 @@
 
 ## Not covered here (and why)
 
+- The Flow capacity flag's date test and its count (a milestone touching a disputed sprint by one day, two milestones of one project on one team, the worst severity among the ranges met), a disabled connection, a team gone from Flow, an unscheduled milestone and each acknowledgement state: `RoadmapKernelsTest` and `RoadmapFlowFlagTest` (server). Home's figures: `HomeViewTest`. The Polish wording: vitest (`Roadmap.flow.test.tsx`).
 - Who may acknowledge (another team's manager, a stranger: 403; the 409 for a changed fingerprint; the audit events): the server's `CapacityAcknowledgeTest` and `CapacityAcknowledgeRaceTest`; the page shows no button without `can.acknowledge` (`CapacityAckCell.test.tsx`).
 - The folded "sprints without capacity" line with its per-row cells, the missing-table's Acknowledgement column and the Polish wording: the web unit tests (`CapacityDeviationList.test.tsx`).
 - A disabled connection (its rows list and can be acknowledged, the team view raises no flag) and a never-mirrored one: `CapacityDeviationViewTest` and `FlowFlagSourceTest` (server).

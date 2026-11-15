@@ -112,6 +112,8 @@
     "flowCapacity_other": "Capacity differs from Flow: {{count}} open differences",
     "flowCapacityMilestones_one": "{{count}} milestone on {{team}} is scheduled in a sprint whose capacity differs from Flow",
     "flowCapacityMilestones_other": "{{count}} milestones on {{team}} are scheduled in sprints whose capacity differs from Flow",
+    "flowCapacityMilestonesNoTeam_one": "{{count}} milestone is scheduled in a sprint whose capacity differs from Flow",
+    "flowCapacityMilestonesNoTeam_other": "{{count}} milestones are scheduled in sprints whose capacity differs from Flow",
     "show": "Show in timeline",
     "showAria": "Show in timeline: {{name}}"
   },
