@@ -7927,6 +7927,15 @@ export interface components {
         };
     };
     responses: {
+        /** @description The view's `ETag` is listed in `If-None-Match` (weak comparison), or `If-None-Match` is `*` and the view succeeded: the document is the one the caller already holds, and there is no body. Carries the same `ETag` and `Cache-Control` as the `200` would. (Over HTTP/1.1 the engine adds `Content-Length: 0`.) */
+        NotModified: {
+            headers: {
+                ETag: components["headers"]["ViewETag"];
+                "Cache-Control": components["headers"]["ViewCacheControl"];
+                [name: string]: unknown;
+            };
+            content?: never;
+        };
         /** @description Request body must use application/json. A missing body or Content-Type remains a 400. */
         UnsupportedMediaType: {
             headers: {
@@ -8020,6 +8029,8 @@ export interface components {
         };
     };
     parameters: {
+        /** @description A previously received view `ETag` (or a list of them, or `*`). A weak match answers `304` with no body. Evaluated only after authentication, request validation and the view's own `404`/`400`: a refused request is never `304`. The view itself is still computed; the `304` saves the transfer. */
+        IfNoneMatch: string;
         ResourceId: number;
         /**
          * @description The id of an ACTIVE baseline to compare the view with (`baselines` registry). Absent: no comparison, and the document is exactly
@@ -8052,6 +8063,10 @@ export interface components {
     headers: {
         /** @description Whole seconds to wait before retrying. Sent by the rate-bucket 429s only, never by an account-lockout 429. */
         RetryAfter: number;
+        /** @description The weak validator (`W/"..."`) of this view answer: a hash of the caller's user id and the document exactly as it is sent, so it changes whenever the document does and means nothing to another login. Send it back as `If-None-Match`. See the server's caching policy. */
+        ViewETag: string;
+        /** @description Always `no-store`: no browser or proxy cache may keep the answer. The `ETag` serves a client that sends `If-None-Match` itself and keeps the document in its own memory. */
+        ViewCacheControl: string;
     };
     pathItems: never;
 }
@@ -9953,7 +9968,10 @@ export interface operations {
     getPlanView: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description A previously received view `ETag` (or a list of them, or `*`). A weak match answers `304` with no body. Evaluated only after authentication, request validation and the view's own `404`/`400`: a refused request is never `304`. The view itself is still computed; the `304` saves the transfer. */
+                "If-None-Match"?: components["parameters"]["IfNoneMatch"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -9962,12 +9980,15 @@ export interface operations {
             /** @description The plan tree */
             200: {
                 headers: {
+                    ETag: components["headers"]["ViewETag"];
+                    "Cache-Control": components["headers"]["ViewCacheControl"];
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["PlanView"];
                 };
             };
+            304: components["responses"]["NotModified"];
             401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalServerError"];
         };
@@ -9975,7 +9996,10 @@ export interface operations {
     getHomeView: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description A previously received view `ETag` (or a list of them, or `*`). A weak match answers `304` with no body. Evaluated only after authentication, request validation and the view's own `404`/`400`: a refused request is never `304`. The view itself is still computed; the `304` saves the transfer. */
+                "If-None-Match"?: components["parameters"]["IfNoneMatch"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -9984,12 +10008,15 @@ export interface operations {
             /** @description The home document */
             200: {
                 headers: {
+                    ETag: components["headers"]["ViewETag"];
+                    "Cache-Control": components["headers"]["ViewCacheControl"];
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["HomeView"];
                 };
             };
+            304: components["responses"]["NotModified"];
             401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalServerError"];
         };
@@ -9997,7 +10024,10 @@ export interface operations {
     getTeamLoadView: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description A previously received view `ETag` (or a list of them, or `*`). A weak match answers `304` with no body. Evaluated only after authentication, request validation and the view's own `404`/`400`: a refused request is never `304`. The view itself is still computed; the `304` saves the transfer. */
+                "If-None-Match"?: components["parameters"]["IfNoneMatch"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -10006,12 +10036,15 @@ export interface operations {
             /** @description The team-load document */
             200: {
                 headers: {
+                    ETag: components["headers"]["ViewETag"];
+                    "Cache-Control": components["headers"]["ViewCacheControl"];
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["TeamLoadView"];
                 };
             };
+            304: components["responses"]["NotModified"];
             401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalServerError"];
         };
@@ -10019,7 +10052,10 @@ export interface operations {
     getDependencyListView: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description A previously received view `ETag` (or a list of them, or `*`). A weak match answers `304` with no body. Evaluated only after authentication, request validation and the view's own `404`/`400`: a refused request is never `304`. The view itself is still computed; the `304` saves the transfer. */
+                "If-None-Match"?: components["parameters"]["IfNoneMatch"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -10028,12 +10064,15 @@ export interface operations {
             /** @description The dependency list document */
             200: {
                 headers: {
+                    ETag: components["headers"]["ViewETag"];
+                    "Cache-Control": components["headers"]["ViewCacheControl"];
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["DependencyListView"];
                 };
             };
+            304: components["responses"]["NotModified"];
             401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalServerError"];
         };
@@ -10050,7 +10089,10 @@ export interface operations {
                  */
                 baseline?: components["parameters"]["BaselineQuery"];
             };
-            header?: never;
+            header?: {
+                /** @description A previously received view `ETag` (or a list of them, or `*`). A weak match answers `304` with no body. Evaluated only after authentication, request validation and the view's own `404`/`400`: a refused request is never `304`. The view itself is still computed; the `304` saves the transfer. */
+                "If-None-Match"?: components["parameters"]["IfNoneMatch"];
+            };
             path: {
                 id: components["parameters"]["ResourceId"];
             };
@@ -10061,12 +10103,15 @@ export interface operations {
             /** @description The project view */
             200: {
                 headers: {
+                    ETag: components["headers"]["ViewETag"];
+                    "Cache-Control": components["headers"]["ViewCacheControl"];
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectView"];
                 };
             };
+            304: components["responses"]["NotModified"];
             /** @description Malformed request (an id, or `baseline`, that is not a non-negative integer; a repeated `baseline`), or `baseline` names an unknown or deleted baseline (`type` `urn:astrolabe:problem:unknown-baseline`). */
             400: {
                 headers: {
@@ -10093,7 +10138,10 @@ export interface operations {
                  */
                 baseline?: components["parameters"]["BaselineQuery"];
             };
-            header?: never;
+            header?: {
+                /** @description A previously received view `ETag` (or a list of them, or `*`). A weak match answers `304` with no body. Evaluated only after authentication, request validation and the view's own `404`/`400`: a refused request is never `304`. The view itself is still computed; the `304` saves the transfer. */
+                "If-None-Match"?: components["parameters"]["IfNoneMatch"];
+            };
             path: {
                 id: components["parameters"]["ResourceId"];
             };
@@ -10104,12 +10152,15 @@ export interface operations {
             /** @description The team view */
             200: {
                 headers: {
+                    ETag: components["headers"]["ViewETag"];
+                    "Cache-Control": components["headers"]["ViewCacheControl"];
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["TeamView"];
                 };
             };
+            304: components["responses"]["NotModified"];
             /** @description Malformed request (an id, or `baseline`, that is not a non-negative integer; a repeated `baseline`), or `baseline` names an unknown or deleted baseline (`type` `urn:astrolabe:problem:unknown-baseline`). */
             400: {
                 headers: {
@@ -10138,7 +10189,10 @@ export interface operations {
                 /** @description The id of an ACTIVE project to show the critical chain toward (the page's pick; the roadmap's and, since 1.16, the programs page's). Absent: no `criticalPath` block, and the document is byte-identical to the one without the parameter; a blank value (`?criticalPath=`) means absent. A repeated key or a value that is not a non-negative integer is a `400`, as is an id that is unknown or soft-deleted (a plain `400`: plan ids are no secret and the page clears its own pick). When `baseline` is also given, the baseline's own errors are answered first (malformed: `400`; unknown or deleted: the typed `unknown-baseline` `400`), then the project id is checked. */
                 criticalPath?: components["parameters"]["CriticalPathQuery"];
             };
-            header?: never;
+            header?: {
+                /** @description A previously received view `ETag` (or a list of them, or `*`). A weak match answers `304` with no body. Evaluated only after authentication, request validation and the view's own `404`/`400`: a refused request is never `304`. The view itself is still computed; the `304` saves the transfer. */
+                "If-None-Match"?: components["parameters"]["IfNoneMatch"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -10147,12 +10201,15 @@ export interface operations {
             /** @description The programs view */
             200: {
                 headers: {
+                    ETag: components["headers"]["ViewETag"];
+                    "Cache-Control": components["headers"]["ViewCacheControl"];
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ProgramsView"];
                 };
             };
+            304: components["responses"]["NotModified"];
             /** @description Malformed request (an id, `baseline` or `criticalPath` that is not a non-negative integer; a repeated `baseline` or `criticalPath`), `baseline` names an unknown or deleted baseline (`type` `urn:astrolabe:problem:unknown-baseline`), or `criticalPath` names an unknown or deleted project (a plain `400`). */
             400: {
                 headers: {
@@ -10180,7 +10237,10 @@ export interface operations {
                 /** @description The id of an ACTIVE project to show the critical chain toward (the page's pick; the roadmap's and, since 1.16, the programs page's). Absent: no `criticalPath` block, and the document is byte-identical to the one without the parameter; a blank value (`?criticalPath=`) means absent. A repeated key or a value that is not a non-negative integer is a `400`, as is an id that is unknown or soft-deleted (a plain `400`: plan ids are no secret and the page clears its own pick). When `baseline` is also given, the baseline's own errors are answered first (malformed: `400`; unknown or deleted: the typed `unknown-baseline` `400`), then the project id is checked. */
                 criticalPath?: components["parameters"]["CriticalPathQuery"];
             };
-            header?: never;
+            header?: {
+                /** @description A previously received view `ETag` (or a list of them, or `*`). A weak match answers `304` with no body. Evaluated only after authentication, request validation and the view's own `404`/`400`: a refused request is never `304`. The view itself is still computed; the `304` saves the transfer. */
+                "If-None-Match"?: components["parameters"]["IfNoneMatch"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -10189,12 +10249,15 @@ export interface operations {
             /** @description The ranking */
             200: {
                 headers: {
+                    ETag: components["headers"]["ViewETag"];
+                    "Cache-Control": components["headers"]["ViewCacheControl"];
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["RoadmapView"];
                 };
             };
+            304: components["responses"]["NotModified"];
             /** @description Malformed request (`baseline` or `criticalPath` that is not a non-negative integer, or repeated), `baseline` names an unknown or deleted baseline (`type` `urn:astrolabe:problem:unknown-baseline`), or `criticalPath` names an unknown or deleted project. */
             400: {
                 headers: {
@@ -10249,7 +10312,10 @@ export interface operations {
     getJiraLinksView: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description A previously received view `ETag` (or a list of them, or `*`). A weak match answers `304` with no body. Evaluated only after authentication, request validation and the view's own `404`/`400`: a refused request is never `304`. The view itself is still computed; the `304` saves the transfer. */
+                "If-None-Match"?: components["parameters"]["IfNoneMatch"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -10258,12 +10324,15 @@ export interface operations {
             /** @description The connections and the links */
             200: {
                 headers: {
+                    ETag: components["headers"]["ViewETag"];
+                    "Cache-Control": components["headers"]["ViewCacheControl"];
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["JiraLinksView"];
                 };
             };
+            304: components["responses"]["NotModified"];
             401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalServerError"];
         };
@@ -10313,7 +10382,10 @@ export interface operations {
                  */
                 against?: number;
             };
-            header?: never;
+            header?: {
+                /** @description A previously received view `ETag` (or a list of them, or `*`). A weak match answers `304` with no body. Evaluated only after authentication, request validation and the view's own `404`/`400`: a refused request is never `304`. The view itself is still computed; the `304` saves the transfer. */
+                "If-None-Match"?: components["parameters"]["IfNoneMatch"];
+            };
             path: {
                 id: components["parameters"]["ResourceId"];
             };
@@ -10324,12 +10396,15 @@ export interface operations {
             /** @description The comparison */
             200: {
                 headers: {
+                    ETag: components["headers"]["ViewETag"];
+                    "Cache-Control": components["headers"]["ViewCacheControl"];
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["BaselineView"];
                 };
             };
+            304: components["responses"]["NotModified"];
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];

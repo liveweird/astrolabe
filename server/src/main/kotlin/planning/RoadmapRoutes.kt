@@ -4,6 +4,7 @@ import ch.nokillswit.audit.audit
 import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.requireRoadmapEditorOrAdmin
 import ch.nokillswit.infra.paging.optionalUInt
+import ch.nokillswit.plugins.respondRevalidated
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource
 import io.ktor.server.application.*
@@ -39,7 +40,7 @@ internal fun ApplicationCall.criticalPathParam(): UInt? = request.queryParameter
 internal fun Route.roadmapRoutes(d: PlanRouteDeps) {
     get<RoadmapViewRoute> {
         val caller = call.caller()
-        call.respond(HttpStatusCode.OK, d.views.roadmap.view(d.actor(caller), call.baselineParam(), call.criticalPathParam()))
+        call.respondRevalidated(caller.userId, d.views.roadmap.view(d.actor(caller), call.baselineParam(), call.criticalPathParam()))
     }
     put<RoadmapRankingRoute> {
         val caller = call.caller()

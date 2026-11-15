@@ -71,9 +71,8 @@ back the bump with everything else, so a rejected write never moves the revision
 - **Views read the revision FIRST, then the rows, in one transaction** (no `REPEATABLE READ`): a row newer than the revision only makes a client PUT carrying that revision answer a conservative 409.
 - The wholesale ranking PUT (V13) compares `expectedRevision` under the lock against the RANKING's own revision (`plan_state.ranking_revision`, V18 — not the plan revision) and answers `409` with `type = urn:astrolabe:problem:stale-revision` (below, "The global project rank"). Like a milestone's `schedule_revision` and a team's `team_order_state.revision` (V17), it is stamped with the new plan revision by the writes that change the thing it guards, so a plan write elsewhere never stales it; the plan revision stays the upper bound of each (a value above it is a view from the future).
 
-**Designed, not built (v0.3 view ETags).** A view's validator must cover everything in its body, so it is `W/"p<plan revision>-n<max(people.updated_at, teams.updated_at)>-c<hash of the
-caller's can-flags>"` (people/team renames change owner names without a plan revision; the flags make the validator per-caller). v0.2 offers no ETag. (Baselines, which record the `revision` they were taken at —
-monotonic, so any later state orders against them — are built since V20, "Baselines" below.)
+**View ETags (built, 1.22).** A view's validator is a hash of its rendered document and the caller's user id, not a stamp of inputs; see "View validators (1.22)" below. (Baselines, which record the `revision` they were taken at -
+monotonic, so any later state orders against them - are built since V20, "Baselines" below.)
 
 ### API (all under `/api/v1`, `openapi/documentation.yaml`, tag `plan`)
 
@@ -637,6 +636,25 @@ A **baseline** is a named, immutable copy of the plan's DATED STRUCTURE taken at
 **Batch commands.** `POST /teams/{id}/milestone-schedules` takes `{expectedRevision, items[1..1000], scopeHash?}` and answers `{revision, accepted[], skipped[{milestoneId, reason}]}`: unpaged; a per-item failure is data in `200`. `…/schedule-proposal`, `POST /schedule-proposals` (`{asOf, teamIds[1..50]}`, `teams[]` ≤ 50), `…/import-preview` and `…/import` (`items[1..2,000]`) answer one unpaged document each. `POST /schedule-proposals/accept` takes `{expectedRevision, scopeHash, teamIds, items[1..2,000]}` and answers the batch's `{revision, accepted[], skipped[]}`; `…/check` takes `{teamIds, items}` and answers per team `{weeks, dependencies}`.
 
 The `planning/` package at a glance (moved from `CLAUDE.md` "Package layout"): work streams, programs, projects (V12), milestones (V14: dates only by the team's manager/ADMIN), dependencies (V15: the SUCCESSOR's chain writes, cycle-checked), `GET /views/plan`, `GET /views/project/{id}` (derived span + drift, `criticalPath` + slack: pure `CriticalPathKernels`), `GET /views/team/{id}` (weekly load vs capacity and WIP: pure `LoadKernels`); both views' `idleGaps` (pure `IdleGapKernels`), the global project rank (V13, `/roadmap/ranking`; `GET /views/roadmap` and `/views/programs`: pure `RoadmapKernels`), the team milestone order (V17, `PUT /teams/{id}/milestone-order`: the team's own execution order), the v0.8 auto-proposal (`POST /teams/{id}/schedule-proposal`: pure `ScheduleKernels`, nothing stored; `POST …/milestone-schedules`: the batch accept, per-milestone stale + scope checks, one revision bump), the 1.8 cross-team run (`/schedule-proposals`: propose, accept, check — pure `proposeMany`), the public-holiday dictionary (V19, `/public-holidays`: ADMIN registry + Polish preset, read once per view into the `WorkingCalendar`), the baselines (V20, `/baselines` by ADMIN or `ROADMAP_EDITOR`: frozen rows; the views' `?baseline=` and `GET /views/baseline/{id}`: movement in working days, pure `BaselineKernels`): owner-scoped writes under the `plan_state` lock; pure `PlanPermissions` kernel.
+
+## View validators (1.22; `plugins/ResponseValidators.kt`, `ViewValidatorsTest`, `ViewValidatorInputsTest`, `ViewNotModifiedWireTest`)
+
+Ten view reads answer `ETag` and `304` (`security.md` "Caching" owns the mechanism: a weak hash of the caller's user id and the rendered document; it saves the transfer, not the view's work). **Order of evaluation:** `call.caller()` (`401`), the parameters (`400`), the view (its own `404`/`400`), the tag, `If-None-Match`, then `304` or `200`; a malformed or unauthorised request is never a `304`, a `404`/`400`/`401` never carries a tag, `If-None-Match: *` answers `304` once the view has succeeded. **What each view reads beyond plan state** (the tables whose every write runs in `withPlanWrite`; it is why the hash is of the ANSWER - every cell is covered without being named):
+
+| Read | Beyond plan state | The caller's own | A clock |
+|---|---|---|---|
+| plan | `people` (owner names) | every node's `can` | none |
+| home | `teams`, `people`, `team_capacity_periods`; the Jira side for the plan; the Flow side per managed team | all of `me` | the Jira sites' states, the deviations' "today" |
+| team-load | `teams` with managers, `team_capacity_periods` | none | none |
+| dependencies | `teams` (a milestone's team name) | none | none |
+| roadmap (`?baseline`, `?criticalPath`) | `people`, `teams`, the Jira side; its `revision` is the RANKING's | `can.editRank`, each project's `can.editTargetWindow` | as home |
+| programs | the roadmap's plus the owners of streams and programs | each project's `can.editTargetWindow` | as home |
+| project (`?baseline`) | `people`, `teams` (names, the managers behind `can.schedule`), the Jira side | `can` on the project, each milestone and dependency | as home |
+| team (`?baseline`) | the team row, its manager, `team_capacity_periods`, the Jira side, the Flow side | `team.can`, each milestone's and dependency's `can` | as home, Flow's "today" |
+| baseline (`?against`) | `teams` (deleted too), `users`/`people` (who took it) | none | none |
+| jira-links | `jira_connections`, `jira_bindings` with `jira_observations.gone`; no plan revision | none | none |
+
+**Left out, each with its reason** (`ViewValidatorsTest.LEFT_OUT`; `GET /views/deviations` and `GET /views/capacity-deviations`): each lists its connections with `status.nextPollAt`, which is the read's own instant while a poll is due, so two reads are never equal and the test database always holds such connections; they stay full answers until that member is stable. `GET /integrations/flow/teams` is not a view document. **The rule for a new view:** answer through `respondRevalidated` and declare the `IfNoneMatch` parameter, the `ETag`/`Cache-Control` headers and `'304'` in the spec, or join `LEFT_OUT` with its reason - the sweep over every `/api/v1/views/` GET of the spec fails otherwise. **A pre-check** ("nothing this view reads has changed, skip it") would save the view's work too, but it needs this table as a ledger kept complete for ever; it is not built (a `BACKLOG.md` line, to be justified by a measurement). While anyone writes the plan, every plan page's next read is a `200`, rightly: the plan's revision is in every plan document.
 
 ## Standing design notes (the v0.2 sketch, all built since)
 

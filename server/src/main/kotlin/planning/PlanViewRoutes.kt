@@ -3,11 +3,10 @@ package ch.nokillswit.planning
 import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.infra.paging.optionalUInt
-import io.ktor.http.HttpStatusCode
+import ch.nokillswit.plugins.respondRevalidated
 import io.ktor.resources.Resource
 import io.ktor.server.application.*
 import io.ktor.server.resources.get
-import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import kotlinx.serialization.Serializable
 
@@ -69,38 +68,39 @@ internal fun ApplicationCall.baselineParam(): UInt? = request.queryParameters.op
 internal fun Route.planViewRoutes(d: PlanRouteDeps) {
     get<PlanViewRoute> {
         val caller = call.caller()
-        call.respond(HttpStatusCode.OK, d.views.plan.view(d.actor(caller)))
+        call.respondRevalidated(caller.userId, d.views.plan.view(d.actor(caller)))
     }
     get<HomeViewRoute> {
         val caller = call.caller()
-        call.respond(HttpStatusCode.OK, d.views.home.view(HomeCaller(caller.userId)))
+        call.respondRevalidated(caller.userId, d.views.home.view(HomeCaller(caller.userId)))
     }
     get<TeamLoadViewRoute> {
-        call.caller()
-        call.respond(HttpStatusCode.OK, d.views.teamLoad.view())
+        val caller = call.caller()
+        call.respondRevalidated(caller.userId, d.views.teamLoad.view())
     }
     get<DependencyListViewRoute> {
-        call.caller()
-        call.respond(HttpStatusCode.OK, d.views.dependencyList.view())
+        val caller = call.caller()
+        call.respondRevalidated(caller.userId, d.views.dependencyList.view())
     }
     get<ProjectViewRoute> { route ->
         val caller = call.caller()
         val baseline = call.baselineParam()
         val view = d.views.project.view(route.id, d.actor(caller, withManagedTeams = true), baseline)
-        call.respond(HttpStatusCode.OK, view.orNotFound("Project"))
+        call.respondRevalidated(caller.userId, view.orNotFound("Project"))
     }
     get<ProgramsViewRoute> {
         val caller = call.caller()
-        call.respond(HttpStatusCode.OK, d.views.programs.view(d.actor(caller), call.baselineParam(), call.criticalPathParam()))
+        call.respondRevalidated(caller.userId, d.views.programs.view(d.actor(caller), call.baselineParam(), call.criticalPathParam()))
     }
     get<TeamViewRoute> { route ->
         val caller = call.caller()
         val baseline = call.baselineParam()
-        call.respond(HttpStatusCode.OK, d.views.team.view(route.id, d.actor(caller, withManagedTeams = true), baseline).orNotFound("Team"))
+        val view = d.views.team.view(route.id, d.actor(caller, withManagedTeams = true), baseline)
+        call.respondRevalidated(caller.userId, view.orNotFound("Team"))
     }
     get<BaselineViewRoute> { route ->
-        call.caller()
+        val caller = call.caller()
         val against = call.request.queryParameters.optionalUInt("against")
-        call.respond(HttpStatusCode.OK, d.views.baseline.view(route.id, against).orNotFound("Baseline"))
+        call.respondRevalidated(caller.userId, d.views.baseline.view(route.id, against).orNotFound("Baseline"))
     }
 }

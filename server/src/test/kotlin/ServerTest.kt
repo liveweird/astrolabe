@@ -93,6 +93,19 @@ class ServerTest {
     }
 
     @Test
+    fun `a validated view answer carries exactly one no-store, on the 200 and on the 304`() = testApplication {
+        usePostgresTestcontainer()
+        val client = seededClient("server-test-view")
+        val ok = client.get("/api/v1/views/team-load")
+        assertEquals(HttpStatusCode.OK, ok.status)
+        assertEquals(listOf("no-store"), ok.headers.getAll(HttpHeaders.CacheControl), "a validated 200: one Cache-Control, not two")
+        val etag = assertNotNull(ok.headers[HttpHeaders.ETag])
+        val notModified = client.get("/api/v1/views/team-load") { header(HttpHeaders.IfNoneMatch, etag) }
+        // The status is pinned by ViewValidatorsTest (another test may have moved the document between the reads); the header, always.
+        assertEquals(listOf("no-store"), notModified.headers.getAll(HttpHeaders.CacheControl), "a validated 304 (or re-sent 200): one")
+    }
+
+    @Test
     fun `static SPA assets keep their caching - hashed css and js cached a day, index html always revalidated`() = testApplication {
         val staticDir = Files.createTempDirectory("server-test-static")
         try {
@@ -195,6 +208,26 @@ class ServerTest {
         }
         assertEquals(HttpStatusCode.OK, response.status)
         assertEquals("https://app.example.com", response.headers[HttpHeaders.AccessControlAllowOrigin])
+    }
+
+    @Test
+    fun `a configured CORS preflight allows If-None-Match and a cross-origin answer exposes ETag - both or neither`() = testApplication {
+        configureApp("http.corsHosts" to "app.example.com")
+        startApplication()
+        val preflight = client.options("/api/v1/views/team-load") {
+            header(HttpHeaders.Origin, "https://app.example.com")
+            header(HttpHeaders.AccessControlRequestMethod, "GET")
+            header(HttpHeaders.AccessControlRequestHeaders, "If-None-Match")
+        }
+        assertEquals(HttpStatusCode.OK, preflight.status)
+        val allowed = preflight.headers[HttpHeaders.AccessControlAllowHeaders].orEmpty().split(',').map { it.trim().lowercase() }
+        assertTrue("if-none-match" in allowed, "If-None-Match is allowed: $allowed")
+        // A view GET from the allowed origin: the tag is exposed to its script (the 401 of an anonymous call carries no tag to expose).
+        val client = seededClient("server-test-cors")
+        val answer = client.get("/api/v1/views/team-load") { header(HttpHeaders.Origin, "https://app.example.com") }
+        assertEquals(HttpStatusCode.OK, answer.status)
+        val exposed = answer.headers[HttpHeaders.AccessControlExposeHeaders].orEmpty().split(',').map { it.trim().lowercase() }
+        assertTrue("etag" in exposed, "ETag is exposed: $exposed")
     }
 
     @Test

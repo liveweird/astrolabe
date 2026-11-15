@@ -1800,13 +1800,19 @@ paths:
         to the paged envelope, bounded by the plan's scale of about 5 streams, 20 programs and 100 projects), open work streams first
         and then closed ones, each level by name. Every node carries `can`, the actions THIS caller may take, computed with the same
         rules the writes enforce. `revision` is the plan revision read before the rows.
+      parameters:
+        - $ref: '#/components/parameters/IfNoneMatch'
       responses:
         '200':
           description: The plan tree
+          headers:
+            ETag: { $ref: '#/components/headers/ViewETag' }
+            Cache-Control: { $ref: '#/components/headers/ViewCacheControl' }
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PlanView'
+        '304': { $ref: '#/components/responses/NotModified' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/views/home:
@@ -1825,13 +1831,19 @@ paths:
         `me` holds at most 100 rows in the order of the Plan and Programs pages (`truncated` says one was cut). A row's figures are the
         page's own (the project's Roadmap flags, the team page's header figures); nothing here is new to a login. `revision` is the plan
         revision read before the rows (informational: Home offers no write, so there is no `can`).
+      parameters:
+        - $ref: '#/components/parameters/IfNoneMatch'
       responses:
         '200':
           description: The home document
+          headers:
+            ETag: { $ref: '#/components/headers/ViewETag' }
+            Cache-Control: { $ref: '#/components/headers/ViewCacheControl' }
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HomeView'
+        '304': { $ref: '#/components/responses/NotModified' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/views/team-load:
@@ -1854,13 +1866,19 @@ paths:
         `totals.wipExceededTeams` are `plan.overloadedTeams` and `plan.wipExceededTeams` of `GET /views/home`. `managerName` is null
         when the team has no active manager. `revision` is the plan revision read before the rows (informational: the view offers no
         write, so there is no `can`).
+      parameters:
+        - $ref: '#/components/parameters/IfNoneMatch'
       responses:
         '200':
           description: The team-load document
+          headers:
+            ETag: { $ref: '#/components/headers/ViewETag' }
+            Cache-Control: { $ref: '#/components/headers/ViewCacheControl' }
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TeamLoadView'
+        '304': { $ref: '#/components/responses/NotModified' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/views/dependencies:
@@ -1880,13 +1898,19 @@ paths:
         resolves, and a row the cut dropped contributes nothing. The check is the project view's, on working days. `totals.violated` is
         `plan.conflicts` of `GET /views/home`. Filtering by status, team or project is the client's. `revision` is the plan revision
         read before the rows (informational: the view offers no write, so there is no `can`).
+      parameters:
+        - $ref: '#/components/parameters/IfNoneMatch'
       responses:
         '200':
           description: The dependency list document
+          headers:
+            ETag: { $ref: '#/components/headers/ViewETag' }
+            Cache-Control: { $ref: '#/components/headers/ViewCacheControl' }
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DependencyListView'
+        '304': { $ref: '#/components/responses/NotModified' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/views/project/{id}:
@@ -1897,6 +1921,7 @@ paths:
       operationId: getProjectView
       summary: One project with its milestones, the derived span and its drift
       parameters:
+        - $ref: '#/components/parameters/IfNoneMatch'
         - $ref: '#/components/parameters/BaselineQuery'
       description: |
         Any authenticated user; `404` when the project, its program or its work stream is deleted, for every caller. One document (a
@@ -1941,10 +1966,14 @@ paths:
       responses:
         '200':
           description: The project view
+          headers:
+            ETag: { $ref: '#/components/headers/ViewETag' }
+            Cache-Control: { $ref: '#/components/headers/ViewCacheControl' }
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProjectView'
+        '304': { $ref: '#/components/responses/NotModified' }
         '400':
           description: >-
             Malformed request (an id, or `baseline`, that is not a non-negative integer; a repeated `baseline`), or `baseline` names an
@@ -1963,6 +1992,7 @@ paths:
       operationId: getTeamView
       summary: One team's milestones, weekly load against capacity, and WIP
       parameters:
+        - $ref: '#/components/parameters/IfNoneMatch'
         - $ref: '#/components/parameters/BaselineQuery'
       description: |
         Any authenticated user; `404` when the team is deleted, for every caller. One document (a deliberate exception to the paged
@@ -2018,10 +2048,14 @@ paths:
       responses:
         '200':
           description: The team view
+          headers:
+            ETag: { $ref: '#/components/headers/ViewETag' }
+            Cache-Control: { $ref: '#/components/headers/ViewCacheControl' }
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TeamView'
+        '304': { $ref: '#/components/responses/NotModified' }
         '400':
           description: >-
             Malformed request (an id, or `baseline`, that is not a non-negative integer; a repeated `baseline`), or `baseline` names an
@@ -2038,6 +2072,7 @@ paths:
       operationId: getProgramsView
       summary: The plan tree with derived spans, flag roll-ups and each project's roadmap row
       parameters:
+        - $ref: '#/components/parameters/IfNoneMatch'
         - $ref: '#/components/parameters/BaselineQuery'
         - $ref: '#/components/parameters/CriticalPathQuery'
       description: |
@@ -2069,10 +2104,14 @@ paths:
       responses:
         '200':
           description: The programs view
+          headers:
+            ETag: { $ref: '#/components/headers/ViewETag' }
+            Cache-Control: { $ref: '#/components/headers/ViewCacheControl' }
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProgramsView'
+        '304': { $ref: '#/components/responses/NotModified' }
         '400':
           description: >-
             Malformed request (an id, `baseline` or `criticalPath` that is not a non-negative integer; a repeated `baseline` or
@@ -2089,6 +2128,7 @@ paths:
       operationId: getRoadmapView
       summary: The global project ranking with spans, flags and rolled-up links
       parameters:
+        - $ref: '#/components/parameters/IfNoneMatch'
         - $ref: '#/components/parameters/BaselineQuery'
         - $ref: '#/components/parameters/CriticalPathQuery'
       description: |
@@ -2134,10 +2174,14 @@ paths:
       responses:
         '200':
           description: The ranking
+          headers:
+            ETag: { $ref: '#/components/headers/ViewETag' }
+            Cache-Control: { $ref: '#/components/headers/ViewCacheControl' }
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/RoadmapView'
+        '304': { $ref: '#/components/responses/NotModified' }
         '400':
           description: >-
             Malformed request (`baseline` or `criticalPath` that is not a non-negative integer, or repeated), `baseline` names an
@@ -2313,13 +2357,19 @@ paths:
         **`links`** lists one entry per ACTIVE binding of an ACTIVE connection on a LIVE program or project, programs first, then
         projects, each by node id; a link through a DISABLED connection is listed (its connection says `enabled: false`). A
         milestone binding is never listed. Capped at 2,000: `truncated` says links were dropped.
+      parameters:
+        - $ref: '#/components/parameters/IfNoneMatch'
       responses:
         '200':
           description: The connections and the links
+          headers:
+            ETag: { $ref: '#/components/headers/ViewETag' }
+            Cache-Control: { $ref: '#/components/headers/ViewCacheControl' }
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/JiraLinksView'
+        '304': { $ref: '#/components/responses/NotModified' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/views/capacity-deviations:
@@ -2427,6 +2477,7 @@ paths:
       operationId: getBaselineView
       summary: The comparison of one baseline with the plan now, or with a second baseline
       parameters:
+        - $ref: '#/components/parameters/IfNoneMatch'
         - name: against
           in: query
           required: false
@@ -2465,10 +2516,14 @@ paths:
       responses:
         '200':
           description: The comparison
+          headers:
+            ETag: { $ref: '#/components/headers/ViewETag' }
+            Cache-Control: { $ref: '#/components/headers/ViewCacheControl' }
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/BaselineView'
+        '304': { $ref: '#/components/responses/NotModified' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -4544,8 +4599,27 @@ components:
     RetryAfter:
       description: Whole seconds to wait before retrying. Sent by the rate-bucket 429s only, never by an account-lockout 429.
       schema: { type: integer }
+    ViewETag:
+      description: >-
+        The weak validator (`W/"..."`) of this view answer: a hash of the caller's user id and the document exactly as it is sent, so it
+        changes whenever the document does and means nothing to another login. Send it back as `If-None-Match`. See the server's caching policy.
+      schema: { type: string }
+    ViewCacheControl:
+      description: >-
+        Always `no-store`: no browser or proxy cache may keep the answer. The `ETag` serves a client that sends `If-None-Match` itself
+        and keeps the document in its own memory.
+      schema: { type: string }
 
   parameters:
+    IfNoneMatch:
+      name: If-None-Match
+      in: header
+      required: false
+      schema: { type: string }
+      description: >-
+        A previously received view `ETag` (or a list of them, or `*`). A weak match answers `304` with no body. Evaluated only after
+        authentication, request validation and the view's own `404`/`400`: a refused request is never `304`. The view itself is still
+        computed; the `304` saves the transfer.
     ResourceId:
       name: id
       in: path
@@ -4607,6 +4681,14 @@ components:
         sortable-field whitelist; unknown fields are rejected with `400`. `id` ascending is
         always appended as a deterministic tiebreaker.
   responses:
+    NotModified:
+      description: >-
+        The view's `ETag` is listed in `If-None-Match` (weak comparison), or `If-None-Match` is `*` and the view succeeded: the
+        document is the one the caller already holds, and there is no body. Carries the same `ETag` and `Cache-Control` as the `200`
+        would. (Over HTTP/1.1 the engine adds `Content-Length: 0`.)
+      headers:
+        ETag: { $ref: '#/components/headers/ViewETag' }
+        Cache-Control: { $ref: '#/components/headers/ViewCacheControl' }
     UnsupportedMediaType:
       description: Request body must use application/json. A missing body or Content-Type remains a 400.
       content:

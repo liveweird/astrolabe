@@ -17,12 +17,14 @@ import ch.nokillswit.planning.PlanActor
 import ch.nokillswit.planning.RoadmapViewService
 import ch.nokillswit.planning.TeamLoadView
 import ch.nokillswit.planning.TeamLoadViewService
+import ch.nokillswit.plugins.bodyEtag
 import ch.nokillswit.users.UserRole
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.DefaultRequest
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.statement.bodyAsText
 import io.ktor.client.statement.bodyAsBytes
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -297,6 +299,41 @@ class HomeViewSizeTest {
                     "${sampleDocument.projects.size} projects, ${sampleDocument.teams.size} teams",
             )
             assertTrue(sampleLinkBytes <= DEPENDENCIES_MAX_BYTES, "the dependency list is $sampleLinkBytes bytes, over the gate")
+
+            // The view validators (1.22): the sample's largest team view as a `200` and as a `304` (bytes, gzip, the median of five warm
+            // reads each) and the hash of its text alone. NON-BINDING figures for `timeline.md` "Measured figures (1.22)": no gate.
+            val largestTeam = sampleRows.maxBy { it.milestones }.id
+            val teamPath = "/api/v1/views/team/$largestTeam"
+            val teamBody = personless.bare.get(teamPath)
+            val teamText = teamBody.bodyAsText()
+            val teamTag = assertNotNull(teamBody.headers[HttpHeaders.ETag])
+            val teamMilestones = sampleRows.maxOf { it.milestones }
+            val teamBytes = teamText.toByteArray().size
+            ScaleFigures.printBytes("validators: the largest sample team view ($teamMilestones milestones) 200 size", teamBytes)
+            ScaleFigures.printBytes(
+                "validators: the largest sample team view 200 gzip",
+                personless.bare.get(teamPath) { header(HttpHeaders.AcceptEncoding, "gzip") }.bodyAsBytes().size,
+            )
+            personless.bare.get(teamPath)
+            val ok200 = List(RUNS) {
+                val started = System.nanoTime()
+                assertEquals(HttpStatusCode.OK, personless.bare.get(teamPath).status)
+                (System.nanoTime() - started) / NANOS_PER_MILLI
+            }
+            ScaleFigures.printSeries("validators: the largest sample team view, a 200", ok200)
+            var notModifiedBytes = -1
+            val ok304 = List(RUNS) {
+                val started = System.nanoTime()
+                val answer = personless.bare.get(teamPath) { header(HttpHeaders.IfNoneMatch, teamTag) }
+                val elapsed = (System.nanoTime() - started) / NANOS_PER_MILLI
+                assertEquals(HttpStatusCode.NotModified, answer.status)
+                notModifiedBytes = answer.bodyAsBytes().size
+                elapsed
+            }
+            ScaleFigures.printSeries("validators: the largest sample team view, a 304", ok304)
+            ScaleFigures.printBytes("validators: the largest sample team view, a 304 body", notModifiedBytes)
+            val hashing = ScaleFigures.series(5, RUNS) { bodyEtag(personless.userId, teamText) }
+            ScaleFigures.printSeries("validators: the hash of that document alone", hashing)
 
             val managerSql = homeStatements("one manager of one team", manager.userId)
             val nothingSql = homeStatements("a person with nothing", nothing.userId)

@@ -623,6 +623,21 @@ One-off, **NON-BINDING**, this machine only (Apple M5 Max, 2026-11-15, in-proces
 - **Latency and statements.** Unchanged in kind: the weeks are `teamWeeks`' own, so the six statements stay six (a per-team read would break the pin) and the median stays at the 1.19 level.
 - **Dependencies (names once).** The calculated 121 KB for the sample (about a third less) held: 108,305-110,259 B for 300 links (two runs, the second inside the full server gate), with 455 milestones, 100 projects and 15 teams named once. A row is now about 245 B (two refs, the type, the lag and the check, which is the half that stays); a named milestone is about 90 B. At the 1,000-row cap that is about 340 KB against 600 KB. The wire is gzip either way: about 11,100-11,250 B against 17-20 KB in 1.20. Statements still **exactly 5**, the median at the 1.20 level.
 
+#### Measured figures (1.22)
+
+One-off, **NON-BINDING**, this machine only (Apple M5 Max, 2026-11-15, in-process `testApplication` against the Postgres container; re-measure rather than quote). The method is `HomeViewSizeTest`'s (1.18): the sample plan (15 teams, 1,000 milestones), the largest team's `GET /views/team/{id}` (301 milestones), one warm-up and five timed reads through a bare bearer client, `scale-figure` lines, no gate. The `200` is the document's text as rendered by `respondRevalidated` (the same bytes `call.respond` sends for a default request: `ViewValidatorsTest` pins it; the one deliberate difference is that it is always UTF-8 `application/json`, whatever `Accept-Charset` asks); the `304` is the same read sent with the tag it just answered.
+
+| Figure | Value |
+|---|---|
+| The largest team's view, the `200`'s bytes / gzip | 226,495 B / 15,245 B |
+| The same read answered `304`: bytes of body | **0 B** (headers only) |
+| The `200`'s median of five, with the helper (three runs) | 37.5-40.3 ms |
+| The same, before the change (`call.respond`, three runs, one temporary revert) | 31.0-46.6 ms: the same within this machine's noise, so the 2 ms stop line holds |
+| The `304`'s median of five (three runs) | 31.5-38.8 ms |
+| The hash alone (sha256 over the 226 KB text, median of five after five warm-ups) | 0.1 ms |
+
+- **What a `304` saves.** The transfer and its compression (226 KB, 15 KB gzipped, become headers), NOT the view's work: the statements and kernels run before the tag can be known, so the `304` is only 2-9 ms under the `200` here (the in-process client pays no network, so the saved bytes cost nothing in this figure; over a real link they are the saving). The tag costs about 0.1 ms and the extra rendering step none (the text is rendered once, by the helper, instead of by `ContentNegotiation`).
+
 #### Deliberate departures from the bootstrap sketch
 
 A div grid instead of a `<table>` (virtual rows); `top` instead of `translateY` for virtual rows (stacking); the tray's drag is pointer-only with an explicit Schedule button; the row handle is pointer-only like the tray's (the row menu's Move items are the keyboard path); dnd-kit's live region is the single announcer for drags (the page's polite region announces only non-drag changes).

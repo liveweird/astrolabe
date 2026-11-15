@@ -9,6 +9,7 @@ import ch.nokillswit.people.PersonServiceKey
 import ch.nokillswit.planning.DeviationKind
 import ch.nokillswit.planning.DeviationSeverity
 import ch.nokillswit.planning.PlanActor
+import ch.nokillswit.plugins.respondRevalidated
 import ch.nokillswit.teams.TeamServiceKey
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource
@@ -51,8 +52,8 @@ fun Application.configureDeviationRoutes() {
     routing {
         authenticate {
             get<JiraLinksViewRoute> {
-                call.caller()
-                call.respond(HttpStatusCode.OK, deviations.links())
+                val caller = call.caller()
+                call.respondRevalidated(caller.userId, deviations.links())
             }
             get<DeviationViewRoute> {
                 val caller = call.caller()
