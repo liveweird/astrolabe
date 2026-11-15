@@ -52,7 +52,7 @@ The executor runs claimed runs in the background, after the request that claimed
 
 ### Log lines
 
-All on the `ch.nokillswit.sync` logger. None carries a URL with a query, a credential or an issue summary.
+All on the `ch.nokillswit.sync` logger.
 
 - INFO `Sync run {id} ({kind} connection {id}) succeeded: observed=, gone=, calls=, rateLimited=, backoffMs=`.
 - WARN `Sync run {id} ({kind} connection {id}) failed: {code} observed=, gone=, calls=` (the code, never the detail).
@@ -92,7 +92,8 @@ Files: `sync/SyncScheduler.kt`, `SchedulePolicy.kt`.
 - **The interval.** A connection's `pollIntervalMinutes` is 5..1440 (`requirePollInterval`, `sync/ConnectionRules.kt`) or null for manual only (Refresh now still works); an omitted member is 15 for Jira and 60 for Flow.
 - **Config.** `sync.scheduler.enabled` (`SYNC_SCHEDULER_ENABLED`, default true, strict boolean; false starts no loop and publishes no `SyncSchedulerKey`) and `sync.tickSeconds` (`SYNC_TICK_SECONDS`, default 60, 15..600, validated on every boot, the scheduler enabled or not). The first tick lands 10 s after start. `sync.maxRunMinutes` (`SYNC_MAX_RUN_MINUTES`, default 10, 1..60, boot-validated) is the claim's lifetime.
 - **A tick** runs under half a tick of budget (`withTimeoutOrNull`). Per connector it reads the poll rows (`Connector.connections()`: never a token or the discovery snapshot), the pollable connections' newest 50 runs in one transaction (`SyncRunService.recentRuns`), and decides with the pure `decide` (`sync/SchedulePolicy.kt`), which stores nothing.
-- **The due rule.** Never for a disabled, not ready (Jira: no discovery; Flow: never tested and never run) or manual-only (`pollIntervalMinutes` null) connection. While the newest run is unfinished and younger than `sync.maxRunMinutes` it is running (skipped); older, it is a crash and the connection is due (the claim abandons the row). No run at all is due. A change after the newest run started (`changedAt`: Jira's `GREATEST(updated_at, mapping_changed_at, discovered_at)`, Flow's later of `updated_at` and `last_tested_at`) is due at once, so a fixed token is not left waiting out a back-off.
+- **The due rule.** Never for a disabled, not ready or manual-only (`pollIntervalMinutes` null) connection. Ready is Jira: a discovery; Flow: a passing test (`last_test_ok`) OR a mirrored document (`teams_at`), sticky, so a token or zone `PUT` or a Test that hit an outage never stops a connection that has run.
+  While the newest run is unfinished and younger than `sync.maxRunMinutes` it is running (skipped); older, it is a crash and the connection is due (the claim abandons the row). No run at all is due. A change after the newest run started (`changedAt`: Jira's `GREATEST(updated_at, mapping_changed_at, discovered_at)`, Flow's later of `updated_at` and `last_tested_at`) is due at once, so a fixed token is not left waiting out a back-off.
 - Otherwise the connection is due when `now` reaches the newest run's finish + `max(interval, min(interval x 2^(n-1), 6 h))` for `n` consecutive trailing failed or abandoned runs (the first retry waits one interval, then doubling, capped at six hours; a success resets; an interval longer than the cap is never shortened), plus, after a failure only, a deterministic per-connection jitter.
 - **Jitter after an outage.** After a shared outage every connection fails in the same tick and would retry in the same tick, on the shared outbound permits. The wait therefore grows by `fraction x min(backoff / 2, interval / 2, 1 h)` (`failureJitterMillis`), in practice up to half an interval. The fraction is NOT a random draw but a hash of the connection id and the newest run's id (`failureJitterFraction`, the splitmix64 finalizer):
   the schedule is never stored, so a draw per read would make `nextPollAt` flicker and two replicas disagree. The same two ids always give the same offset, so the scheduler, every replica and the status agree to the millisecond; the next failure (a new run id) draws a new offset. A success is never jittered, and a change to the connection stays "due at once". Not covered: connections that merely come due DURING a database outage (nothing failed, so nothing is spread) all claim on the first tick after it, and the shared permits queue them.
@@ -172,7 +173,6 @@ What each means:
 - A run's code is stored in `sync_runs.error_code` (`VARCHAR(40)`), so a value is never renamed or removed. A test row's code is wire-only (a connection stores only whether its last test passed).
 - A new code is one constant in its object and one value of `SyncFailureCode`, in one commit. `SyncFailureCodeTest` adds the four objects up against the enum, forbids a code literal at a call site, and serves a stored row of every code through the conformance client.
 - The read is tolerant: nothing validates a code on read, an unknown stored code is served as it is, and a client treats an unknown value as unknown (a newer server may write a code an older client's list lacks, and a rolled-back server may serve one a newer version stored).
-- `SKIPPED` and `PROJECT_NOT_VISIBLE` are test-row codes only; `TOKEN_UNREADABLE` is both a run's and a test row's.
 - Which probe raises which row code: `jira-sync.md` "Test connection and the probes", `flow-sync.md` "Test connection and the probes".
 
 ## The acknowledge vocabulary
@@ -195,7 +195,7 @@ Files: `sync/Acknowledge.kt`, `sync/Bindings.kt`.
 - At boot `EncryptedAtRest` wraps any legacy plaintext and, with `DATA_ENCRYPTION_KEY_PREVIOUS` set, re-encrypts every row (soft-deleted ones too; NULLs skipped), audited `crypto.reencrypted` (`observability.md`).
 - A `PUT` with a token rotates it; a changed token clears the last test verdict (the last test judged the old one); a blank or omitted token keeps the stored one.
 - **Jira.** The three readers are `JiraConnectionService.readForTest` (Test connection), `readForPeek` (Peek) and `readForBind` (the bind; the two import routes and the run are further callers of it, not further readers). `JiraTestRecorder` and `JiraMappingStore` (the Test result and the mapping document) never select or see the token. A changed token, email, auth scheme or project-key set clears `last_tested_at/ok`; the site cannot be changed (`409`).
-- **Flow.** `flow-sync.md` "The token's life".
+- **Flow.** A changed token or zone clears `last_tested_at/ok`; a connection delete also soft-deletes its bindings and removes its runs, mirror and the bindings' capacity acknowledgements in one transaction.
 
 ## Pinned by
 

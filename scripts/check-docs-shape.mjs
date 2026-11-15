@@ -43,7 +43,6 @@ const ENFORCE_REFS = false;
 // an entry that names no file fails. The main session edits it when it commits a D step; nobody else.
 const NOT_YET = [
   ".claude/docs/build-times.md",
-  ".claude/docs/flow-sync.md",
 ];
 
 // ---- What is read ------------------------------------------------------------------------------------------------------

@@ -162,6 +162,7 @@ Later answers on this topic: Release history 1.6.0, 1.9.0, 1.10.0, 1.11.0 (withd
   1.6.0 = the capacity deviation. (Q7a) A Flow connection polls **every 60 minutes** by default.
 - **Acknowledge and the flag (1.9.0; the user's answers of 2026-11-10, the 1.9 plan's Q1-Q4, as Q8a-Q11a).** The capacity deviation is acknowledged **per sprint** by the team's manager or ADMIN; a closing sprint reopens nothing, a new sprint arrives open. The team view carries a header flag and a weeks-strip marker over the OPEN rows only: acknowledged rows do not flag (they stay listed under the Status filter).
   Roadmap and programs carried none until 1.23 (a per-team flag on project rows, "v1.23.0 — what shipped"). Nothing is ever written to Flow.
+- **The project rows' flag (decided 2026-11-15, 1.23 Q2 a; reverses 1.9 "team view only" in part).** A project row of the Roadmap and Programs carries ONE Flow capacity flag per team, only when a scheduled milestone of the project on that team lies in days an OPEN capacity difference covers; a WARNING when the plan holds more capacity than Flow, an INFO otherwise. Acknowledged differences, a disabled connection, a gone Flow team and unscheduled milestones raise nothing.
 
 ### Home and the lists
 
