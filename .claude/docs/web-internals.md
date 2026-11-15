@@ -302,14 +302,14 @@ The template and its rules: `web/CLAUDE.md` "Shared list-page building blocks". 
   `useDialogFocus(open)`** in its owner (`hooks/useDialogFocus.ts`): Mantine records no opener for it, so without the hook the focus lands on `body`. Focus
   returns to the opener when it closes (the kebab for a row-menu item, else the button that held the focus); for 5 seconds after that a refetch cannot lose it
   (a focus blurred to `body` by a row moving in the DOM goes back to the opener, or to `#main-content` if the opener is gone; a focus parked in a closing
-  menu or dialog is in transit and does not end the watch); a dialog that opens only after an
+  menu or dialog is in transit and does not end the watch). **1.23:** a focus inside a `[role="dialog"]` that appeared AFTER the editor closed ends the watch, because another flow has taken over - the same row's Delete confirmation within seconds of an edit; a dialog already open at the close (ours fading, or one beneath it) stays exempt. Before this, a delete after an edit of the same row lost the title focus whenever the editor's `useDialogFocus` was declared before the page's `useDeleteConfirm` (ten files were), so the order of the two hooks no longer matters. The hook tests and the edit-then-delete cases on the project page (a milestone) and Teams go red without the change; the Dependencies page and the project page's dependency cases are order and regression pins. Those page cases render inside a `main#main-content`, as the shell does (without it the watch has nowhere to send the focus and the race does not show in vitest), and answer the DELETE after ~30 ms (Mantine's 10 ms return-focus timer would otherwise race a confirm click no person can make). A dialog that opens only after an
   await wraps the awaited promise in the returned `claim(...)` (Teams' Edit). **The two paths the 1.13.1 review left open are settled (after 1.13.4,
   `useDialogFocus.menu.test.tsx`: the real `RowActionsMenu` + Mantine `Modal` harness).** (A) `menuOpener.ts`'s `setTimeout(0)` expiry cannot beat the hook's
   effect: the click is a discrete event, React commits it and flushes the passive effect before any timer; the kebab-return tests (click, Escape, keyboard)
   passed 100 of 100 shuffled runs and never failed, so no change was needed and the tests are the pin. (B) Reproduced: within the 5 s watch, another row's
   kebab and an action that dropped the focus to `body` (its row removed or re-sorted) was answered at the next render with the FIRST kebab. Fixed: while
   the dialog is closed the hook listens to `focusin` (a no-op while no opener is held) and ends the watch when the focus lands anywhere but the opener, a dialog or the opener's own
-  menu (`isChoiceAwayFrom`), so the second row's kebab ends it at once. The next render finds nothing to restore. Accepted: a focus inside another `[role="dialog"]` (a palette) does not end the watch.
+  menu (`isChoiceAwayFrom`), so the second row's kebab ends it at once. The next render finds nothing to restore. (The limitation accepted here until 1.23, a focus inside another `[role="dialog"]` such as a palette, no longer holds: a dialog that appeared after the close ends the watch.)
 
 ### Registries and forms
 

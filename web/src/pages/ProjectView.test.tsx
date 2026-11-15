@@ -150,6 +150,9 @@ function serve(mockFetch: FetchMock) {
   });
 }
 
+/** Holds an answer back by a realistic ~30 ms (see the 1.23 edit-then-delete cases). */
+const afterDelay = <T,>(answer: Promise<T>): Promise<T> => new Promise((resolve) => setTimeout(() => resolve(answer), 30));
+
 const calls = (mockFetch: FetchMock, method: string, matcher: RegExp) =>
   mockFetch.mock.calls
     .filter(([url, init]) => matcher.test(url as string) && ((init as RequestInit | undefined)?.method ?? "GET") === method)
@@ -158,11 +161,14 @@ const schedulePuts = (mockFetch: FetchMock) => calls(mockFetch, "PUT", /\/schedu
 const viewGets = (mockFetch: FetchMock) => calls(mockFetch, "GET", /views\/project\/7$/).length;
 
 function renderPage(queryClient?: QueryClient) {
+  // The shell's focus target (`useFocusMainOnNavigation`, and where `useDialogFocus` sends a focus whose opener has gone).
   return renderWithProviders(
-    <Routes>
-      <Route path="/projects/:id" element={<ProjectView />} />
-      <Route path="/plan" element={<p>The plan</p>} />
-    </Routes>,
+    <main id="main-content" tabIndex={-1}>
+      <Routes>
+        <Route path="/projects/:id" element={<ProjectView />} />
+        <Route path="/plan" element={<p>The plan</p>} />
+      </Routes>
+    </main>,
     { route: "/projects/7", queryClient },
   );
 }
@@ -749,6 +755,38 @@ describe("Project view page: schedule writes", () => {
     await waitFor(() => expect(calls(mockFetch, "DELETE", /milestones\/2$/)).toHaveLength(1));
   });
 
+  test("a delete right after an edit of the same milestone ends with the focus on the page title (1.23)", async () => {
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      if (init?.method === "PUT" && url === "/api/v1/milestones/1") return Promise.resolve(new Response(null, { status: 204 }));
+      if (init?.method === "DELETE" && url === "/api/v1/milestones/1") {
+        view = { ...viewOf({ scheduled: [BUILD] }), revision: 11 };
+        // A DELETE takes a realistic ~30 ms: Mantine's return-focus timer (`useFocusReturn`, 10 ms after the row menu closes) may put the
+        // focus on the kebab if the body holds it then; a synchronous mock lets the confirm click land inside that window, which no person can.
+        return afterDelay(Promise.resolve(new Response(null, { status: 204 })));
+      }
+      if (url === "/api/v1/views/project/7") return Promise.resolve(jsonResponse(200, view));
+      if (url.startsWith("/api/v1/teams?")) {
+        return Promise.resolve(jsonResponse(200, { items: [{ id: 3, name: "Backend" }, { id: 4, name: "Design" }], page: 1, pageSize: 50, total: 2 }));
+      }
+      return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    await user.click(screen.getByRole("button", { name: "Operations for Discovery" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Edit Discovery" }));
+    await user.click(within(await screen.findByRole("dialog", { name: "Edit milestone" })).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Operations for Discovery" })).toHaveFocus());
+    await user.click(screen.getByRole("button", { name: "Operations for Discovery" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete Discovery" }));
+    await user.click(within(await screen.findByRole("dialog", { name: "Delete milestone?" })).getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Operations for Discovery" })).toBeNull());
+    await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: "Invoices" })).toHaveFocus());
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(screen.getByRole("heading", { level: 2, name: "Invoices" })).toHaveFocus();
+  });
+
   test("deleting the project states how many milestones go with it, then returns to the plan", async () => {
     const user = userEvent.setup();
     renderPage();
@@ -1183,6 +1221,34 @@ describe("Project view page: dependencies", () => {
     expect(screen.queryByText(/conflict/)).toBeNull();
     // no ghost row any more: the link to a1 is gone
     expect(screen.queryByRole("link", { name: /open project Alpha$/ })).toBeNull();
+  });
+
+  test("a delete right after an edit of the same link ends with the focus on the Dependencies heading (1.23)", async () => {
+    const user = userEvent.setup();
+    view = viewOf({ dependencies: [VIOLATED_LINK, OK_LINK] });
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    const name = "a1 · Alpha → Discovery";
+    // A DELETE takes a realistic ~30 ms: Mantine's return-focus timer (`useFocusReturn`, 10 ms after the row menu closes) may put the focus on
+    // the kebab if the body holds it then. A synchronous mock would let the confirm click land inside that window, which no person can.
+    const served = mockFetch.getMockImplementation() as (url: string, init?: RequestInit) => Promise<Response>;
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => (init?.method === "DELETE" ? afterDelay(served(url, init)) : served(url, init)));
+    await user.click(screen.getByRole("button", { name: `Operations for ${name}` }));
+    await user.click(await screen.findByRole("menuitem", { name: `Edit ${name}` }));
+    const before = viewGets(mockFetch);
+    await user.click(within(await screen.findByRole("dialog", { name: "Edit dependency" })).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(viewGets(mockFetch)).toBeGreaterThan(before));
+    await waitFor(() => expect(screen.getByRole("button", { name: `Operations for ${name}` })).toHaveFocus());
+    await user.click(screen.getByRole("button", { name: `Operations for ${name}` }));
+    await user.click(await screen.findByRole("menuitem", { name: `Delete ${name}` }));
+    const dialog = await screen.findByRole("dialog", { name: "Delete dependency?" });
+    view = { ...viewOf({ dependencies: [OK_LINK] }), revision: 11 };
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(tableRows()).toHaveLength(1));
+    await waitFor(() => expect(screen.getByRole("heading", { level: 3, name: "Dependencies" })).toHaveFocus());
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(screen.getByRole("heading", { level: 3, name: "Dependencies" })).toHaveFocus();
   });
 
   test("two links with the same bare names from different projects have distinct menu and confirm names", async () => {

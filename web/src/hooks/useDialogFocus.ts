@@ -15,9 +15,15 @@ function focusedOpener(): HTMLElement | null {
   return active instanceof HTMLElement && active !== document.body && !isFocusInTransit(active) ? active : null;
 }
 
-/** A focus that arrives somewhere the user chose: not the opener, not a dialog (ours fading, or the next one) and not the opener's own menu. */
-function isChoiceAwayFrom(trigger: HTMLElement, target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement) || target === trigger || target.closest('[role="dialog"]') !== null) return false;
+/**
+ * A focus that arrives somewhere the user chose: not the opener, not a dialog that was already there when ours closed (ours fading, or one
+ * beneath it) and not the opener's own menu. A focus inside a dialog that appeared AFTER the close is another flow taking over (the same row's
+ * Delete confirmation, a palette): the watch is over.
+ */
+function isChoiceAwayFrom(trigger: HTMLElement, target: EventTarget | null, dialogsAtClose: ReadonlySet<Element>): boolean {
+  if (!(target instanceof HTMLElement) || target === trigger) return false;
+  const dialog = target.closest('[role="dialog"]');
+  if (dialog !== null) return !dialogsAtClose.has(dialog);
   return target.closest('[role="menu"]') === null || menuTriggerOf(target) !== trigger;
 }
 
@@ -37,7 +43,10 @@ function isChoiceAwayFrom(trigger: HTMLElement, target: EventTarget | null): boo
  * not the only witness: a `focusin` anywhere but the opener, a dialog or the opener's own menu (another row's kebab or menu) ends the watch as
  * it happens, since that row's action may drop the focus to `body` before the next render and must not be answered with the first kebab. The
  * listener is attached whenever the dialog is closed and does nothing while no opener is held (after the watch, or before any dialog opened).
- * Accepted limitation: a focus inside ANOTHER `[role="dialog"]` (a palette opened by a shortcut) does not end the watch, like our own fading dialog.
+ * A focus inside a `[role="dialog"]` that was NOT in the document when this dialog closed ends the watch too (1.23): another flow has taken over,
+ * typically the same row's Delete confirmation within seconds of an edit, whose own focus rule (`useDeleteConfirm`) must find the page as the
+ * delete leaves it, not a focus the watch put back on a kebab that is about to go. The dialogs there at the close (ours fading, one beneath it)
+ * stay exempt. The hook's order against `useDeleteConfirm` in a component therefore no longer matters.
  *
  * Pass "either is open" for a flow of several dialogs (a confirm followed by a reveal), so the focus returns after the last one.
  *
@@ -49,6 +58,14 @@ export function useDialogFocus(opened: boolean): { claim: <T>(pending: Promise<T
   const opener = useRef<HTMLElement | null>(null);
   const claimed = useRef<HTMLElement | null>(null);
   const watchUntil = useRef(0);
+  // The dialogs in the document when ours closed: a focus inside one of them is not a choice, inside a later one it is.
+  const dialogsAtClose = useRef<ReadonlySet<Element>>(new Set());
+
+  // The watch is over: no opener to look after, and no detached dialog kept until the next close.
+  const endWatch = () => {
+    opener.current = null;
+    dialogsAtClose.current = new Set();
+  };
 
   // Every render, after the DOM is committed: the refetch that moves or removes the opener is such a render.
   useEffect(() => {
@@ -60,17 +77,20 @@ export function useDialogFocus(opened: boolean): { claim: <T>(pending: Promise<T
     wasOpened.current = opened;
     const trigger = opener.current;
     if (opened || trigger === null) return;
-    if (closing) watchUntil.current = Date.now() + WATCH_AFTER_CLOSE_MS;
+    if (closing) {
+      watchUntil.current = Date.now() + WATCH_AFTER_CLOSE_MS;
+      dialogsAtClose.current = new Set(document.querySelectorAll('[role="dialog"]'));
+    }
     if (Date.now() > watchUntil.current) {
-      opener.current = null;
+      endWatch();
     } else if (!trigger.isConnected) {
-      opener.current = null;
+      endWatch();
       if (focusIsOnBody()) document.getElementById("main-content")?.focus({ preventScroll: true });
     } else if (closing || focusIsOnBody()) {
       trigger.focus();
     } else if (document.activeElement !== trigger && !isFocusInTransit(document.activeElement)) {
       // Somewhere the user chose: the watch ends. A focus parked in a closing menu or dialog is in transit and keeps it.
-      opener.current = null;
+      endWatch();
     }
   });
 
@@ -79,7 +99,7 @@ export function useDialogFocus(opened: boolean): { claim: <T>(pending: Promise<T
     if (opened) return undefined;
     const onFocusIn = (event: FocusEvent) => {
       const trigger = opener.current;
-      if (trigger !== null && isChoiceAwayFrom(trigger, event.target)) opener.current = null;
+      if (trigger !== null && isChoiceAwayFrom(trigger, event.target, dialogsAtClose.current)) endWatch();
     };
     document.addEventListener("focusin", onFocusIn);
     return () => document.removeEventListener("focusin", onFocusIn);

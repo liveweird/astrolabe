@@ -74,11 +74,14 @@ function Probe() {
 }
 
 function renderPage(queryClient?: QueryClient) {
+  // The shell's focus target (`useFocusMainOnNavigation`, and where `useDialogFocus` sends a focus whose opener has gone).
   return renderWithProviders(
-    <Routes>
-      <Route path="/teams" element={<Teams />} />
-      <Route path="/teams/:id" element={<Probe />} />
-    </Routes>,
+    <main id="main-content" tabIndex={-1}>
+      <Routes>
+        <Route path="/teams" element={<Teams />} />
+        <Route path="/teams/:id" element={<Probe />} />
+      </Routes>
+    </main>,
     { route: "/teams", queryClient },
   );
 }
@@ -240,7 +243,9 @@ describe("Teams page", () => {
       const method = init?.method ?? "GET";
       if (method === "DELETE" && url === "/api/v1/teams/2") {
         deleted = true;
-        return Promise.resolve(new Response(null, { status: 204 }));
+        // A DELETE takes a realistic ~30 ms: Mantine's return-focus timer (`useFocusReturn`, 10 ms after the row menu closes) may put the
+        // focus on the kebab if the body holds it then; a synchronous mock lets the confirm click land inside that window, which no person can.
+        return new Promise((resolve) => setTimeout(() => resolve(new Response(null, { status: 204 })), 30));
       }
       if (method === "GET" && url.startsWith("/api/v1/teams?")) {
         return Promise.resolve(jsonResponse(200, deleted ? { ...PAGE, items: PAGE.items.slice(0, 1), total: 1 } : PAGE));
@@ -258,6 +263,38 @@ describe("Teams page", () => {
     await new Promise((resolve) => setTimeout(resolve, 60));
     expect(screen.getByRole("heading", { level: 2, name: "Teams" })).toHaveFocus();
     expect(screen.getByRole("heading", { level: 2, name: "Teams" })).toHaveAttribute("tabindex", "-1");
+  });
+
+  test("a delete right after an edit of the same team ends with the focus on the page heading (1.23)", async () => {
+    let deleted = false;
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      if (method === "PUT" && url === "/api/v1/teams/1") return Promise.resolve(new Response(null, { status: 204 }));
+      if (method === "DELETE" && url === "/api/v1/teams/1") {
+        deleted = true;
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+      if (method === "GET" && url.startsWith("/api/v1/teams?")) {
+        return Promise.resolve(jsonResponse(200, deleted ? { ...PAGE, items: PAGE.items.slice(1), total: 1 } : PAGE));
+      }
+      if (method === "GET" && url === "/api/v1/teams/1") return Promise.resolve(jsonResponse(200, DETAIL));
+      if (method === "GET" && url.startsWith("/api/v1/people?")) return Promise.resolve(jsonResponse(200, PEOPLE));
+      return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Operations for Payments" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Edit Payments" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: /^save$/i }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Operations for Payments" })).toHaveFocus());
+    await user.click(screen.getByRole("button", { name: "Operations for Payments" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete Payments" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: /^delete$/i }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Operations for Payments" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: "Teams" })).toHaveFocus());
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(screen.getByRole("heading", { level: 2, name: "Teams" })).toHaveFocus();
   });
 
   test("a failed delete keeps the focus in the open dialog; Cancel then returns it to the row's menu button", async () => {

@@ -22,10 +22,13 @@ let write: () => Response;
 let mockFetch: ReturnType<typeof vi.fn>;
 
 function renderPage(route = "/dependencies", queryClient?: QueryClient) {
+  // The shell's focus target (`useFocusMainOnNavigation`, and where `useDialogFocus` sends a focus whose opener has gone).
   return renderWithProviders(
-    <Routes>
-      <Route path="/dependencies" element={<Dependencies />} />
-    </Routes>,
+    <main id="main-content" tabIndex={-1}>
+      <Routes>
+        <Route path="/dependencies" element={<Dependencies />} />
+      </Routes>
+    </main>,
     { route, queryClient },
   );
 }
@@ -175,6 +178,34 @@ describe("Dependencies page: changing a dependency from its row", () => {
     expect(writes()).toEqual([{ method: "DELETE", url: "/api/v1/dependencies/77", body: undefined }]);
     expect(await screen.findByText("The plan has no dependencies yet")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: "Dependencies" })).toHaveFocus());
+  });
+
+  test("a delete right after an edit of the same row still ends with the focus on the page title (1.23: the editor's watch does not take it back)", async () => {
+    const user = userEvent.setup();
+    answer = () => jsonResponse(200, dependencyListView([MAY_BOTH]));
+    renderPage();
+    await openMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: `Edit ${NAME}` }));
+    await user.click(within(await screen.findByRole("dialog", { name: "Edit dependency" })).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Edit dependency" })).toBeNull());
+    await waitFor(() => expect(readCalls()).toHaveLength(2));
+    await waitFor(() => expect(kebab()).toHaveFocus());
+    // A DELETE takes a realistic ~30 ms: Mantine's return-focus timer (`useFocusReturn`, 10 ms after the row menu closes) may put the
+    // focus on the kebab if the body holds it then; a synchronous mock lets the confirm click land inside that window, which no person can.
+    const served = mockFetch.getMockImplementation() as (url: string, init?: RequestInit) => Promise<Response>;
+    mockFetch.mockImplementation((url: string, init?: RequestInit) =>
+      init?.method === "DELETE" ? new Promise((resolve) => setTimeout(() => resolve(served(url, init)), 30)) : served(url, init),
+    );
+    await openMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: `Delete ${NAME}` }));
+    const dialog = await screen.findByRole("dialog", { name: "Delete dependency?" });
+    answer = () => jsonResponse(200, dependencyListView([]));
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Delete dependency?" })).toBeNull());
+    expect(await screen.findByText("The plan has no dependencies yet")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: "Dependencies" })).toHaveFocus());
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(screen.getByRole("heading", { level: 2, name: "Dependencies" })).toHaveFocus();
   });
 
   test("a failed delete keeps the dialog with its error and re-reads nothing", async () => {

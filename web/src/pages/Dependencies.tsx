@@ -73,9 +73,8 @@ export default function Dependencies() {
   const titleRef = useRef<HTMLHeadingElement>(null);
   const [editing, setEditing] = useState<DependencyListRow | null>(null);
   const refresh = () => refreshQueriesAfterMutation(queryClient, ["plan"], ["roadmap"]);
-  // The delete flow is declared BEFORE the editor's focus hook: their effects run in this order after every render, and a delete made within
-  // seconds of a save must find the title focused by the delete's rule before the editor's watch (its kebab is gone with the row) could
-  // send the focus to the shell.
+  // The delete flow is declared before the editor's focus hook, as it always was; since 1.23 the order no longer matters: the editor's watch
+  // ends when the focus enters the delete confirmation (`useDialogFocus`), so a delete made within seconds of a save is never answered by it.
   const removal = useDeleteConfirm<DependencyListRow>({
     mutationFn: (row) => deleteDependency(row.id),
     onSuccess: refresh,

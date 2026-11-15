@@ -201,7 +201,7 @@ describe("useDialogFocus", () => {
     expect(kebab).toHaveFocus();
   });
 
-  // `isChoiceAwayFrom`, the `[role="dialog"]` branch: a focus inside a dialog (ours fading, or the next one) is not a choice of the user either.
+  // `isChoiceAwayFrom`, the `[role="dialog"]` branch: a focus inside a dialog (ours fading, or one already there) is not a choice of the user either.
   test("a focus inside a dialog after the close does not end the watch: dropping it to body returns the focus to the kebab", () => {
     const { kebab, item, inside } = scaffold();
     const hook = mount();
@@ -213,6 +213,59 @@ describe("useDialogFocus", () => {
     expect(inside).toHaveFocus();
     inside.blur();
     expect(document.activeElement).toBe(document.body);
+    act(() => hook.rerender({ opened: false }));
+    expect(kebab).toHaveFocus();
+  });
+
+  // 1.23: a dialog that appeared AFTER the close is another flow (the same row's Delete confirmation): its focus ends the watch.
+  function appendDialog() {
+    const next = document.createElement("section");
+    next.setAttribute("role", "dialog");
+    next.innerHTML = '<button id="confirm">Delete</button>';
+    document.body.append(next);
+    return { next, confirm: document.getElementById("confirm")! };
+  }
+
+  test("a focus inside a dialog that appeared after the close ends the watch: a later focus on body is not answered with the kebab", () => {
+    const { kebab, item, inside } = scaffold();
+    const hook = mount();
+    openFromMenu(hook, item);
+    inside.focus();
+    act(() => hook.rerender({ opened: false }));
+    expect(kebab).toHaveFocus();
+    const { next, confirm } = appendDialog();
+    confirm.focus();
+    next.remove();
+    expect(document.activeElement).toBe(document.body);
+    act(() => hook.rerender({ opened: false }));
+    expect(kebab).not.toHaveFocus();
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  test("a focus inside a later dialog, then the kebab going away: the focus is not sent to main", () => {
+    const { main, kebab, item, inside } = scaffold();
+    const hook = mount();
+    openFromMenu(hook, item);
+    inside.focus();
+    act(() => hook.rerender({ opened: false }));
+    const { next, confirm } = appendDialog();
+    confirm.focus();
+    next.remove();
+    kebab.remove();
+    act(() => hook.rerender({ opened: false }));
+    expect(main).not.toHaveFocus();
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  test("a dialog that was there at the close stays exempt even when a later one exists: a focus in it does not end the watch", () => {
+    const { kebab, item, inside } = scaffold();
+    const hook = mount();
+    openFromMenu(hook, item);
+    inside.focus();
+    act(() => hook.rerender({ opened: false }));
+    appendDialog();
+    inside.focus();
+    inside.blur();
     act(() => hook.rerender({ opened: false }));
     expect(kebab).toHaveFocus();
   });
