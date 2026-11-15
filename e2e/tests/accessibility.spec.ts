@@ -86,18 +86,53 @@ test("login screen has no WCAG A/AA violations", async ({ page }) => {
   await scan(page);
 });
 
-// One test per page keeps the report line-per-page.
-const AUTHED_PAGES: { path: string; heading: string }[] = [
-  { path: "/", heading: "Astrolabe" },
-  { path: "/milestones", heading: "Milestones" },
-  { path: "/team-load", heading: "Team load" },
+// A page's data state: what the scan waits for between the heading and the scan, so it meets the page with its data (or its empty state)
+// and not the shared loader. A body row of the page's own table is a data row or the empty-state row, after the loader.
+type Settled = (page: Page) => Promise<void>;
+
+/** A list page: a body row of the table named `name` (a data row, or the empty-state row once the loader is gone). */
+function tableRow(name: string | RegExp): Settled {
+  return async (page) => {
+    await expect(page.getByRole("table", { name, exact: typeof name === "string" }).locator("tbody tr").first()).toBeVisible();
+  };
+}
+
+/** The Home page has no loader: its two figure groups are in the DOM empty until the read answers. */
+const homeFigures: Settled = async (page) => {
+  for (const name of ["The plan in figures", "The roadmap in figures"]) {
+    await expect(page.getByRole("group", { name, exact: true })).not.toBeEmpty();
+  }
+};
+
+// One test per page keeps the report line-per-page. `settled` is the page's data state; a form or static page names none (the heading and
+// the loader check are all there is to wait for).
+const AUTHED_PAGES: { path: string; heading: string; settled?: Settled }[] = [
+  { path: "/", heading: "Astrolabe", settled: homeFigures },
+  { path: "/milestones", heading: "Milestones", settled: tableRow("Milestones") },
+  {
+    path: "/team-load",
+    heading: "Team load",
+    // The table, or the sentence a page without rows says (no team, or none with the chosen warning).
+    settled: async (page) => {
+      await expect(
+        page.getByRole("table", { name: "Load of every team", exact: true }).or(page.getByText(/^(There are no teams yet|No team has this warning)$/)),
+      ).toBeVisible();
+    },
+  },
   { path: "/schedule-proposals", heading: "Schedule proposals" },
-  { path: "/teams", heading: "Teams" },
-  { path: "/people", heading: "People" },
-  { path: "/public-holidays", heading: "Public holidays" },
-  { path: "/users", heading: "Users" },
+  { path: "/teams", heading: "Teams", settled: tableRow("Teams") },
+  { path: "/people", heading: "People", settled: tableRow("People") },
+  {
+    path: "/public-holidays",
+    heading: "Public holidays",
+    // The year's table, or the empty sentence (a year without a holiday shows no table at all).
+    settled: async (page) => {
+      await expect(page.getByRole("table", { name: /^Public holidays of \d{4}$/ }).or(page.getByText(/^There are no public holidays in \d{4}\./))).toBeVisible();
+    },
+  },
+  { path: "/users", heading: "Users", settled: tableRow("Users") },
   { path: "/users/new", heading: "New user" },
-  { path: "/feature-flags", heading: "Feature flags" },
+  { path: "/feature-flags", heading: "Feature flags", settled: tableRow("Feature flags") },
   { path: "/change-password", heading: "Change password" },
   { path: "/changelog", heading: "Changelog" },
 ];
@@ -106,13 +141,16 @@ const AUTHED_PAGES: { path: string; heading: string }[] = [
 // the app's `auto` default follows) repeats the set under a suffix, so a finding names its scheme.
 function registerAuthedPageScans(scheme: Scheme): void {
   const suffix = scheme === "dark" ? " in the dark scheme" : "";
-  for (const { path, heading } of AUTHED_PAGES) {
+  for (const { path, heading, settled } of AUTHED_PAGES) {
     test(`${path} has no WCAG A/AA violations${suffix}`, async ({ page }) => {
       await login(page);
       await page.goto(path);
       // The page title is the first heading.
       await expect(page.getByRole("heading", { name: heading }).first()).toBeVisible();
       await expectScheme(page, scheme);
+      // The data state: no shared loader is left (every list page shows one while its first read runs), then the page's own settled marker.
+      await expect(page.getByRole("status", { name: "Loading…", exact: true })).toHaveCount(0);
+      await settled?.(page);
       await scan(page);
     });
   }

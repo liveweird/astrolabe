@@ -22,7 +22,8 @@ generated from a list, so a single scenario section stands in for each list.
 
 ## Scenario: `<path>` has no WCAG A/AA violations
 
-1. The admin signs in, opens `<path>`, and waits for its heading.
+1. The admin signs in, opens `<path>`, and waits for its heading and for its data (no shared loader left, then a body row of the page's own table - a
+   data row or the empty-state row - or, on Home, both figure groups filled; a form or static page waits for the heading and the loader only).
    - *Expected*: an axe scan (same tags) reports zero violations.
 
 The list covers the Home page, the Milestones page and the Team load page (1.19: whatever the shared stack holds, no fixture of their own), the Schedule proposals page (1.8: the team picker; the administrator is offered every team, and no run is requested here), the Teams list, the People list, the Users list and its create form, the
@@ -118,7 +119,7 @@ states, so nothing here depends on `jira-sync.spec.ts`'s flips or rows. Each tes
 
 1. The browser context emulates the dark colour scheme (Playwright `colorScheme: "dark"`; the
    app's `auto` default follows it). The admin signs in, opens `<path>` (the same list as above)
-   and waits for its heading.
+   and waits for its heading and for its data, as above.
    - *Expected*: `<html>` carries `data-mantine-color-scheme="dark"` — the scan really runs in the
      dark palette — and an axe scan (same tags, `color-contrast` included) reports zero violations.
 
