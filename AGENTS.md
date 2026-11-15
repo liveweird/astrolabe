@@ -8,7 +8,8 @@ package, migration-range or command summaries into this file.
 
 1. `CLAUDE.md` (repo root) — product and roadmap, commands, architecture, package layout, the
    feature template, the OpenAPI contract. Its "Cross-cutting conventions" table lists the topic
-   docs in `.claude/docs/`; read the row for the area you touch **in full** before editing it.
+   docs in `.claude/docs/`; for the area you touch, read the doc's Rules in full and the sections
+   on what you touch.
 2. `web/CLAUDE.md` for anything under `web/` (transport, typed i18n with EN/PL parity, theming and
    the colour vocabulary, test setup).
 3. `api-guidelines/API-GUIDELINES.md` for any API work; cite its stable rule IDs in reviews.

@@ -565,18 +565,18 @@ Method, so a run can be repeated:
 | `GET /views/team/{id}`, Platform (301 milestones) | 28.2 / 42.7 ms | 198 KB, 18 KB (226,495 B, 15,245 B in the 304 test) | 20 concurrent: p50 155, p95 361 ms (recorded, not gated) | 1.0.0 |
 | The same, every milestone bound, three flags a row, `?baseline=` (CI) | request median 114 ms | 367,729 B, 7,907 B | `TEAM_VIEW_GATE_BYTES` 400,000 B, gzip 40,000 B | 1.16 |
 | The same read answered `304` | median 31.5-38.8 ms vs 37.5-40.3 ms for the `200` | body 0 B; the tag costs 0.1 ms | helper within 2 ms of `call.respond` | 1.22 |
-| `GET /views/project/{id}`, the largest | 22.4 / 30.0 ms | 12.2 KB, 1.8 KB; bound with the overlay 12,616 B | budget p50 30 / p95 45 ms (0.8 budget, on the largest project); 40,000 B size gate (with the overlay) | 1.0.0, 1.16 |
+| `GET /views/project/{id}`, the largest | 22.4 / 30.0 ms | 12.2 KB, 1.8 KB; bound with the overlay 12,616 B | 40,000 B size gate (with the overlay); the 0.8 latency budget p50 30 / p95 45 ms has no test | 1.0.0, 1.16 |
 | `GET /views/roadmap` / `/views/programs` | 20.6 / 26.1 ms, 20.1 / 23.5 ms | 81.1 KB, 7.9 KB; 83.3 KB, 8.2 KB | none | 1.0.0 |
 | `GET /views/plan` | 5.1 / 10.1 ms | 36.6 KB, 3.8 KB | none | 1.0.0 |
 | `GET /views/team-load`, the sample's 15 teams, 203 warning weeks | 20.8 ms; exactly 6 statements | 27,928 B, 2,557 B (about 123 B a listed week) | 42,000 B | 1.22 |
 | `GET /views/dependencies`, 300 links | 13.2-16.4 ms; exactly 5 statements | 117,984 B, 11,020 B (about 360 B a row; 1,000 rows about 340 KB) | 170,000 B | 1.22 |
-| `POST …/schedule-proposal`, Platform (275 moves) | 43.3 / 54.3 ms | 85.5 KB, 9.6 KB | p50 80, p95 120 ms, 150 KB | 1.0.0 |
-| `POST …/milestone-schedules`, 275 items | warm p50 36.5 / p95 37.7 ms (first call 63 ms) | | p50 60 ms warm | 0.9 |
+| `POST …/schedule-proposal`, Platform (275 moves) | 43.3 / 54.3 ms | 85.5 KB, 9.6 KB | none (no test gates it) | 1.0.0 |
+| `POST …/milestone-schedules`, 275 items | warm p50 36.5 / p95 37.7 ms (first call 63 ms) | | none (no test gates it) | 0.9 |
 | The same, 1,000 items with a token whose holidays changed (the look-again) | about 160 ms (plain batch 121-201 ms) | | median ≤ 5,000 ms (plan-lock hold, `TeamScheduleBatchHoldTimeTest`, `MAX_BATCH_SCHEDULE_ITEMS`) | 1.13.1 |
 | The cross-team run, 15 teams (kernel; response) | 285-318 ms, 4 passes; the accept's hold not measured | 472,470 B | 600,000 B; median ≤ 20,000 ms (`ScheduleKernelsScaleTest` CROSS_TRIPWIRE_MS) | 1.8 |
 | Baseline overlay reads (`EXPLAIN (ANALYZE, BUFFERS)` through `psql`) | index scans only: the header and the by-id read by primary key, `baseline_projects` and `baseline_milestones` by `(baseline_id, …)`, the team's rows by `idx_baseline_milestones_team`; none under 0.1 ms; no index missing | | | 0.9 |
-| `POST /baselines` (1,000 + 100 rows under the plan lock) | p50 61 ms | 129.4 KB stored per baseline | p50 150 ms, 250 KB | 0.9 |
-| `GET /views/baseline/{id}` (920 changed milestone rows) | 36.8 / 38.3 ms | 320,765 B, 30,902 B | 340 KB, p50 40, p95 60 ms | 0.9 |
+| `POST /baselines` (1,000 + 100 rows under the plan lock) | p50 61 ms | 129.4 KB stored per baseline | none (no test gates it) | 0.9 |
+| `GET /views/baseline/{id}` (920 changed milestone rows) | 36.8 / 38.3 ms | 320,765 B, 30,902 B | none (no test gates it) | 0.9 |
 | Kernels at the cap (`LoadKernelsScaleTest`, `ScheduleKernelsScaleTest`): `weeklyLoad` 520 weeks x 300 items; `propose` 300 milestones | 10-12 ms; 70-79 ms | | median 2,000 ms; 5,000 ms | 1.0.0 |
 | The Jira fold in the roadmap service, 1,100 bindings; the team service, 301 | +50 ms (about 45 µs a binding); +16 ms | | HTTP tripwire 1,000 ms | 1.4 |
 

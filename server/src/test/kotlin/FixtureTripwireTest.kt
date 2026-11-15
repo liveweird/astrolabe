@@ -19,7 +19,7 @@ internal object TripwireProbe {
 }
 
 /**
- * Pins [FixtureTripwire] itself (`.claude/docs/test-fixtures.md` "Shared synced fixture"): the fixtures' mutation check is only as
+ * Pins [FixtureTripwire] itself (`.claude/docs/test-fixtures.md` "Fixture tripwires"): the fixtures' mutation check is only as
  * good as this class, and nothing else exercises its failure and gating paths (the real fixtures never fail).
  */
 class FixtureTripwireTest {

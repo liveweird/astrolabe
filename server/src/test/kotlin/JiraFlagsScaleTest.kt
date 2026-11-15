@@ -40,7 +40,7 @@ import kotlin.test.assertTrue
  * flag, so the second pass, plain only, is the same documents without the flags and the dates: the difference is what the flags and
  * dates cost, not the link itself); the roadmap service is also timed with and without the source, to isolate the Jira computation.
  * Sizes (plain and gzipped) and the median of five warm reads are `scale-figure` lines ([ScaleFigures]), recorded in `timeline.md`
- * "Measured figures (1.3)" (before the roll-up) and "(1.4)". The asserted bounds are the documented size gates and loose time
+ * "Measured figures" (the 1.4 row; the 1.3 figure was before the roll-up). The asserted bounds are the documented size gates and loose time
  * tripwires (at least 5x the dev-machine figure), never the machine's speed. The Jira source's statement count is pinned too
  * ([assertLoaderStatementsAreFlat]): the same number whatever the size, which the timing of 1,000 rows cannot show.
  */
@@ -238,11 +238,11 @@ class JiraFlagsScaleTest {
 
         /**
          * The documented size gate of the team view WITH the overlay: 301 rows, every one bound with three flags (this world), revised from
-         * v0.9's 260 KB to the measurement (`timeline.md` "Measured figures (1.3)"). It is NOT the ceiling: the kernel can raise seven
+         * v0.9's 260 KB to the measurement (`timeline.md` "Measured figures"). It is NOT the ceiling: the kernel can raise seven
          * flags on a milestone (about 745 KB on the sample plan), which no realistic plan reaches. The wire is gzip: the realistic
          * projection is about 38 KB there (this synthetic world compresses 50:1, the real Platform view 11.6:1), so the gzip gate has
          * little headroom. 1.15 slimmed the blocks (a flag's null members and an evidence's severity are absent, `timeline.md`
-         * "Measured figures (1.15)"): the gate went from 500,000 to 400,000 B (measured 367,689 B on CI).
+         * "Measured figures"): the gate went from 500,000 to 400,000 B (measured 367,689 B on CI).
          */
         private const val TEAM_VIEW_GATE_BYTES = 400_000
         private const val TEAM_VIEW_GZIP_GATE_BYTES = 40_000

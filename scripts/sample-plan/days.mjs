@@ -5,7 +5,7 @@
 // (`infra/time/WorkingCalendar.kt`, `WorkingCalendar.MON_FRI`) with an EMPTY holiday table: Monday to Friday, `workIndex` flat over a weekend and consecutive Friday -> Monday.
 // The generator, its statistics (`summary.json`) and the self-test are holiday-free BY CONSTRUCTION and stay so whatever the stack's holiday
 // dictionary holds: the loader's `--polish-holidays` (v0.7) only fills the server's dictionary, after which the server's own load/overload/
-// dependency figures differ from `summary.json` (the measured shift: `timeline.md` "Measured figures (v0.7)"), never these helpers.
+// dependency figures differ from `summary.json` (the measured shift: `timeline.md` "Measured figures"), never these helpers.
 // The one holiday-aware helper is `extendedEnd` below, used by the LOADER only: the server refuses a milestone span without a working day (a
 // span wholly on weekends and the dictionary's holidays), so the loader asks it for the dictionary and moves such an end forward.
 

@@ -19,7 +19,7 @@ import kotlin.test.assertTrue
  * ([CrossTeamSampleFixture]: 1,000 milestones, about 300 links of which about 30 % cross teams, WIP limits, a capacity step) is at most
  * [MAX_BYTES] bytes uncompressed and answers within [TRIPWIRE_MS] (a loose tripwire, not a budget). The real sample plan is loaded only
  * by `scripts/sample-plan/load.mjs`, which no test touches, so its figure is never gated. The rows are hard-deleted in a `finally`.
- * Prints the size, the passes, `settled` and both times (`ScaleFigures`) for `timeline.md` "Measured figures (1.8)".
+ * Prints the size, the passes, `settled` and both times (`ScaleFigures`) for `timeline.md` "Measured figures".
  */
 class CrossTeamProposalSizeTest {
     private val json = Json { ignoreUnknownKeys = true }

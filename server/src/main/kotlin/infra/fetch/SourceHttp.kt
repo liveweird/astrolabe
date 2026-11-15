@@ -267,7 +267,7 @@ class SourceHttp(
             // [LOW-5] Deliberately no `initCause`: HttpRequestTimeoutException's own message
             // embeds the full request URL INCLUDING its query string (which may carry a token) —
             // `endpoint` (host+path only, no query — query params are never string-concatenated
-            // into `url`) is the safe substitute (`.claude/docs/security.md` "never log secrets").
+            // into `url`) is the safe substitute (`.claude/docs/security.md` "Log hygiene").
             throw FetchException(source, FetchCodes.TIMEOUT, null, call.url)
         } catch (cause: IOException) {
             Retry(null, pausesOthers = false) {

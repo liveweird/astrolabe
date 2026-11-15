@@ -36,8 +36,8 @@ const TO_PLACE = /^to place\b/i;
 // Limit 6 (CLAUDE.md's table names exactly the on-demand docs), limit 7 (an in-doc anchor names a heading of that doc) and
 // limit 8 (a section reference resolves) carry no number.
 
-// Limit 8 is counted, not enforced, until D26 has swept the references and set this true with zero misses.
-const ENFORCE_REFS = false;
+// Limit 8 is enforced: a section reference that names no heading of its doc fails the gate (`--refs` lists them).
+const ENFORCE_REFS = true;
 
 // The docs that do not pass limits 1-5 yet. The list can only shrink: a listed file that passes fails ("remove it from NOT_YET"),
 // an entry that names no file fails. The main session edits it when it commits a D step; nobody else.

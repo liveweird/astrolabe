@@ -59,8 +59,8 @@ import kotlin.test.assertTrue
  * managed team nothing (1.23: the loader asks the seam for every team once); ten projects and ten milestones are bound to a live
  * connection in the test itself, so the leak is reproduced in every run).
  * The roadmap view is timed on the same plan for comparison (what Home adds to the loader it runs). The sizes (plain and
- * gzip), the medians and the statement counts are `scale-figure` lines ([ScaleFigures]), recorded in `timeline.md` "Measured figures
- * (1.18)". The asserted time bounds are loose tripwires (at least 5x the figure measured on the dev machine), never the machine's
+ * gzip), the medians and the statement counts are `scale-figure` lines ([ScaleFigures]), recorded in `timeline.md` "Measured figures".
+ * The asserted time bounds are loose tripwires (at least 5x the figure measured on the dev machine), never the machine's
  * speed. The team-load document (`GET /views/team-load`, 1.19.0) is read once more on the same plan (bytes, median, statements, pinned
  * at [TEAM_LOAD_STATEMENTS]: it runs no external source, so its count does not depend on what other classes left behind). The
  * dependency list (`GET /views/dependencies`, 1.20.0) is read the same way (bytes, gzip, median, statements pinned at
@@ -303,7 +303,7 @@ class HomeViewSizeTest {
             assertTrue(sampleLinkBytes <= DEPENDENCIES_MAX_BYTES, "the dependency list is $sampleLinkBytes bytes, over the gate")
 
             // The view validators (1.22): the sample's largest team view as a `200` and as a `304` (bytes, gzip, the median of five warm
-            // reads each) and the hash of its text alone. NON-BINDING figures for `timeline.md` "Measured figures (1.22)": no gate.
+            // reads each) and the hash of its text alone. NON-BINDING figures for `timeline.md` "Measured figures": no gate.
             val largestTeam = sampleRows.maxBy { it.milestones }.id
             val teamPath = "/api/v1/views/team/$largestTeam"
             val teamBody = personless.bare.get(teamPath)
@@ -432,7 +432,7 @@ class HomeViewSizeTest {
 
         /**
          * A loose tripwire for every caller's median, the person-less login included (every team's load runs for every caller):
-         * about eight times the worst case measured on the dev machine (`timeline.md` "Measured figures (1.18)"). The plan's STOP LINE
+         * about eight times the worst case measured on the dev machine (`timeline.md` "Measured figures"). The plan's STOP LINE
          * is 250 ms on the dev machine: a median past it is reported before anything is tuned, so it is not asserted on a CI runner.
          */
         const val P50_TRIPWIRE_MS = 500.0

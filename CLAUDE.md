@@ -143,7 +143,7 @@ Two docs apply to nearly every change, always loaded:
 @.claude/docs/list-endpoints.md
 
 Every other convention doc is **read on demand, not imported** (together they exceed the size budget) but binding:
-**before touching an area, read its doc in full** (and name it in any implementer/reviewer brief). When a doc and this file
+**read the doc's Rules in full and the sections on what you touch** (and name it in any implementer/reviewer brief). When a doc and this file
 disagree, the doc wins. The always-loaded set (this file plus the two imports) stays under 36,000 bytes (`AlwaysLoadedDocsBudgetTest`).
 
 | Doc | Read before you touch |

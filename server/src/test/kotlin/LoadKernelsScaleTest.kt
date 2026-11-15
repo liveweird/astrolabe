@@ -17,7 +17,7 @@ import kotlin.test.assertTrue
  * `weeklyLoad` at the team view's cap: [MAX_LOAD_WEEKS] weeks (a ten-year window) by 300 items (Platform on the sample plan has 301),
  * once on the plain Monday-Friday calendar and once with the Polish public holidays of the whole window. Pure: no server, no database.
  * It prints the milliseconds per call (`ScaleFigures`) and asserts a loose tripwire - the bound is far above the measured figure, so
- * only an order-of-magnitude regression trips it (`timeline.md` "Measured figures (1.0.0)" records the figure and the margin).
+ * only an order-of-magnitude regression trips it (`timeline.md` "Measured figures" records the figure and the margin).
  */
 class LoadKernelsScaleTest {
     private val anchor = LocalDate.parse("2027-01-04") // a Monday

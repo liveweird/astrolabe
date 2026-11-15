@@ -17,7 +17,7 @@ import kotlin.test.assertTrue
 
 /**
  * The import routes decrypt the stored token only AFTER the up-front checks: a login that owns no plan node, or names a default it
- * does not own, is refused first (`security.md` "A caller refused by the up-front checks never makes the server decrypt"). The seam is
+ * does not own, is refused first (`security.md` "The credential columns"). The seam is
  * the decrypt-failure log of `JiraConnectionService.targetOf`: the connection's envelope is made undecryptable, so every decrypt of it
  * leaves one WARN line naming the connection id (the class only, never the envelope) - a refused caller must leave none, an admitted
  * one exactly one (the positive control that proves the seam fires).

@@ -3,7 +3,7 @@
 # OrbStack's local cluster does (verified: allowed flows pass, everything else is dropped), as do
 # Calico and Cilium; on a CNI that does not (e.g. plain flannel) the objects are accepted and simply
 # inert — never a reason to skip them. Cluster assumptions (DNS labels, SMTP ports, IPv6) are listed in
-# .claude/docs/security.md, "Kubernetes pod and network hardening".
+# .claude/docs/security.md, "Pods and network policies".
 #
 # Traffic this namespace needs (and nothing else):
 #   client/LoadBalancer -> app:8086       (allowed below — the port is the restriction, see that policy)

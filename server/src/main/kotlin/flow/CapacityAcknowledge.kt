@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 
 /*
  * The per-sprint acknowledge of a capacity deviation (1.9): the wire DTOs and the shape rule. The write is
- * [CapacityAcknowledgeService], the routes `CapacityAcknowledgeRoutes.kt`, the document `flow-sync.md` "Acknowledge (1.9)"; 1.10 adds
+ * [CapacityAcknowledgeService], the routes `CapacityAcknowledgeRoutes.kt`, the document `flow-sync.md` "Acknowledge"; 1.10 adds
  * the batch, 1.11 the batch withdrawal.
  */
 

@@ -82,7 +82,7 @@ services:
       # (JIRA_STUB_BASE_URL= docker compose up) disables the stub; only an UNSET variable gets the default below.
       JIRA_STUB_BASE_URL: ${JIRA_STUB_BASE_URL-http://jira-stub:8080}
       # The per-IP Test connection / Peek bucket: 30/min here (the e2e suite drives the Jira specs from one host and a retried group
-      # would exhaust the default 10); the shipped production manifests keep the default (security.md "Per-IP login bucket").
+      # would exhaust the default 10); the shipped production manifests keep the default (security.md "Per-IP buckets").
       JIRA_TEST_RATE_LIMIT_PER_MINUTE: "30"
       # The Flow stub (below), the origin a Flow connection may name: a comma-separated list of exact `http://host[:port]` origins, development mode
       # ONLY (production startup refuses a non-blank value). Read from v1.5.0 C3 on; until then the app ignores it. Like the Jira stub there is

@@ -386,7 +386,7 @@ both registration loops in `plugins/RateLimits.kt` apply (a new bucket inherits 
 - **`jira-bind`** - for `POST /api/v1/integrations/jira/bindings` ONLY (the reads and the unbind are database-only):
   `jira/JiraBindingRoutes.kt` mounts it inside `authenticate {}` around the POST. Any owner of a plan node can trigger a bind, which
   makes up to two outbound calls with the connection's stored token, so the bound protects the shared Jira quota and caps the
-  enumeration the pre-flight answers (`authorization.md` "what a node owner can learn"). It runs BEFORE the handler and so before the
+  enumeration the pre-flight answers (`authorization.md` "What a node owner can learn"). It runs BEFORE the handler and so before the
   guard: a request that would be 404, 403 or 400 spends a token too, and an over-limit caller gets `429` whatever the request would
   have answered (`JiraBindingTest`). Not `jira-test`: that one is per IP and shared with Test connection and Peek (ADMIN-only).
   Audit: bucket `jira-bind`, `byUserId`.
@@ -624,7 +624,7 @@ development mode refuses startup, so production can never reach one (`JiraBootTe
 host is reachable, the stub's included").
 
 **The keys** (`jira.requestTimeoutSeconds`, `requestDeadlineSeconds`, `maxResponseBytes` 64 KiB..16 MiB, `maxConcurrentRequests` 1..8, `maxRetries`,
-`pageSize`, `incrementalOverlapMinutes`, `censusHours`; the defaults and bounds are `jira-sync.md`'s) are boot-validated through
+`pageSize`, `incrementalOverlapMinutes`, `censusHours`; the defaults and bounds are `jira-sync.md` "The transport and the gateway") are boot-validated through
 `requireConfigInt`/`requireConfigLong`. `jira/JiraHeapFit.kt` refuses the boot when `maxResponseBytes` and `maxConcurrentRequests` do
 not fit the JVM's old generation: one big parsed tree (112 B a node, the node ceiling of the cap) + the other in-flight trees below
 the 1 MiB lock threshold + every in-flight body + a 96 MiB reserve (the defaults need 174 MiB of the shipped `-Xmx256m -Xmn64m`
@@ -854,7 +854,7 @@ new secret-bearing class does the same. Pinned by `SecretToStringTest`.
 
 - `infra/db/Flyway.kt`'s startup log line renders the operator-supplied JDBC URL through `jdbcUrlForLogging()` - `host:port/db`
   only, no userinfo or query string - so a `jdbc:postgresql://host/db?user=...&password=...` form never lands a credential in the
-  log (`observability.md` "never log secrets"); covered by `FlywayLogTest`.
+  log (`observability.md` "Never log secrets"); covered by `FlywayLogTest`.
 - `POST /api/v1/logout`'s malformed-body debug line (`auth/AuthRoutes.kt`) logs only the parse failure's exception CLASS NAME, never
   the throwable - the cause chain can embed a body excerpt (kotlinx's decode-error message), the same `errorType`-only rule as
   `login.mfa_send_failed`/`password_reset.send_failed`; covered by `LogoutTest`.

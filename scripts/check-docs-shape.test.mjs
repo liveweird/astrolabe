@@ -167,12 +167,9 @@ describe("limit 7: in-doc anchors", () => {
 
 describe("limit 8: section references", () => {
   const target = "# T\n\n## View validators (the ten)\n\nx\n\n## Caching\n\nx\n";
-  it("counts a reference to a missing heading, and fails it once enforced", () => {
+  it("fails a reference to a missing heading (ENFORCE_REFS is on)", () => {
     const root = tree({ docs: { "t.md": target, "r.md": '# R\n\nSee `t.md` "Nothing like it".\n' } });
-    const soft = run(root);
-    assert.equal(soft.code, 0, soft.out);
-    assert.match(soft.out, /1 unresolved \(limit 8 not enforced yet\)/);
-    const hard = run(root, "--enforce-refs");
+    const hard = run(root);
     assert.equal(hard.code, 1);
     assert.match(hard.out, /r\.md:3: \[limit 8\]/);
   });

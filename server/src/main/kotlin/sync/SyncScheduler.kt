@@ -24,7 +24,7 @@ const val DEFAULT_FIRST_TICK_DELAY_MILLIS = 10_000L
 private const val TICK = "tick"
 
 /**
- * The in-process poller (`.claude/docs/observability.md` "Sync runs"; Flow's `ingest/IngestWorker.kt` loop shape, `while (isActive) { tick;
+ * The in-process poller (`.claude/docs/sync.md` "The scheduler"; Flow's `ingest/IngestWorker.kt` loop shape, `while (isActive) { tick;
  * delay }`, without its leases): every [tickMillis] it asks each connector for its connections, decides per connection with the pure
  * [decide] over the connection's `sync_runs`, and for a DUE one claims a run (`SCHEDULED`, no requesting user) and hands it to the
  * [runner] like the manual route does.

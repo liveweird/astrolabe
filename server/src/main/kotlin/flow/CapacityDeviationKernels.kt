@@ -114,7 +114,7 @@ private class CapacityFingerprintInput(
  * The fingerprint of one row (1.9): the shared [fingerprintOf] idiom over `{kind, severity, detail}` with `detail.sprintName` nulled, so
  * the name is not written. A rename in Flow reopens nothing; a change of the sprint's dates, held days, working days, either figure, the
  * gap or the severity does. `TEAM_GONE` (every detail member null) has one too. A later release that changes a rule or the detail's
- * figures un-acknowledges everything: by design (`flow-sync.md` "Acknowledge (1.9)").
+ * figures un-acknowledges everything: by design (`flow-sync.md` "Acknowledge").
  */
 fun capacityFingerprint(kind: CapacityDeviationKind, severity: DeviationSeverity, detail: CapacityDeviationDetail): String =
     fingerprintOf(CapacityFingerprintInput.serializer(), CapacityFingerprintInput(kind, severity, detail.copy(sprintName = null)))
