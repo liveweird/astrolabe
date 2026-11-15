@@ -263,13 +263,19 @@ jobs:
       - name: Always-loaded docs budget
         working-directory: ${{ github.workspace }}
         run: node scripts/check-docs-budget.mjs
+      # The shape of the instruction docs: a line, a section and a heading stay small, a long area doc opens with `## Rules`, CLAUDE.md's table
+      # matches the docs folder, in-doc anchors resolve. Docs not yet restructured are listed in the script's NOT_YET (the list only shrinks);
+      # section references are counted, not yet enforced. Here for the budget check's reason: a Markdown-only PR skips the `server` job.
+      - name: Docs shape
+        working-directory: ${{ github.workspace }}
+        run: node scripts/check-docs-shape.mjs
       # Also repo-level: the self-tests of the deterministic sample-plan generator (determinism, counts, Zipf sizes, acyclicity, the
       # server's limits; the committed sample-data/plan must equal a fresh run) and of its API loader (the development-stack check, the
       # reset matching, the preflight; against http stubs). Node built-ins only, no install. The test files are named (never globbed: a glob
       # that matches nothing exits 0) and run one per `node --test` call (with two named files node silently skips a missing one), so a
       # renamed or deleted test file fails this step instead of running nothing. The Jira stub generator's self-test is the third file (two runs
       # byte-identical, the committed sample-data/jira-stub and expected.json equal to a fresh run, the planted counts, the match regexes). The Flow
-      # stub generator's is the fourth (the same checks for sample-data/flow-stub, plus the contract's field names and the sprint cadence against Intl).
+      # stub generator's is the fourth (the same checks for sample-data/flow-stub, plus the contract's field names and the sprint cadence against Intl). The docs shape check's is the fifth (scripts/check-docs-shape.test.mjs: each limit and the NOT_YET rule against temporary trees).
       - name: Sample plan generator and loader self-tests
         working-directory: ${{ github.workspace }}
         run: |
@@ -277,6 +283,7 @@ jobs:
           node --test scripts/sample-plan/load.test.mjs
           node --test sample-data/jira/generate.test.mjs
           node --test sample-data/flow/generate.test.mjs
+          node --test scripts/check-docs-shape.test.mjs
       # Last on purpose (see the web job): an overnight advisory must not hide the real gates. Everything
       # in e2e/ is a dev tool (Playwright and its lint stack), so the full tree is audited.
       - name: Audit dependencies (high+)
