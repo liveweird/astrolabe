@@ -9,7 +9,7 @@ import { saveErrorMessage } from "./saveError";
 export function linkFailure(err: unknown, t: TFunction): ReactNode {
   const lead = saveErrorMessage(err, t, {
     forbidden: "flow.teams.linkForbidden",
-    notFound: "flow.saveGone",
+    notFound: "sync.connection.saveGone",
     conflict: "flow.teams.linkConflict",
     invalid: "flow.teams.linkInvalid",
     failed: "flow.teams.linkFailed",

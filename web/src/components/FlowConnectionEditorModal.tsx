@@ -67,7 +67,7 @@ export default function FlowConnectionEditorModal({
 
   const isEdit = target !== null;
   // `hasApiToken` is all the server ever says about the token: "leave blank to keep" only when one is stored.
-  const tokenHint = !isEdit ? t("flow.field.apiTokenHint") : target.hasApiToken ? t("flow.field.apiTokenKeep") : t("flow.field.apiTokenMissing");
+  const tokenHint = !isEdit ? t("flow.field.apiTokenHint") : target.hasApiToken ? t("sync.connection.field.apiTokenKeep") : t("sync.connection.field.apiTokenMissing");
   // The operator's list, asked on create only (an existing connection's address is fixed); a failed or pending read shows the plain hint.
   const origins = useQuery({ queryKey: ["flow", "origins"], queryFn: getFlowOrigins, enabled: !isEdit });
   const baseUrlHint = isEdit ? t("flow.field.baseUrlFixed") : allowedOriginsHint(t("flow.field.baseUrlHint"), origins.data?.items, t);
@@ -84,16 +84,16 @@ export default function FlowConnectionEditorModal({
       if (target) {
         await updateFlowConnection(target.id, toFlowConnectionRequest(values));
         // A new token or time zone clears the last verdict (the server's rule): say it is time to test again.
-        showSuccessToast(t(clearsVerdict(values, target) ? "flow.toast.savedRetest" : "flow.toast.saved"));
+        showSuccessToast(t(clearsVerdict(values, target) ? "sync.connection.toast.savedRetest" : "sync.connection.toast.saved"));
       } else {
         saved = await createFlowConnection(toFlowConnectionRequest(values));
-        showSuccessToast(t("flow.toast.created"));
+        showSuccessToast(t("sync.connection.toast.created"));
       }
       await onSaved(saved);
     } catch (err) {
       // The 409 is about THIS control (the case-insensitive name clash) - mark the field.
       if (err instanceof ApiError && err.status === 409) {
-        form.setFieldError("name", t("flow.saveConflict"));
+        form.setFieldError("name", t("sync.connection.saveConflict"));
       } else if (err instanceof ApiError && err.status === 400 && err.detail) {
         // The server's own sentence says which rule (it never quotes the token or the rejected address): shown under the fixed lead.
         setError(
@@ -205,11 +205,11 @@ export default function FlowConnectionEditorModal({
             autoComplete="new-password"
             {...form.getInputProps("apiToken")}
           />
-          <Switch label={t("flow.field.enabled")} {...form.getInputProps("enabled", { type: "checkbox" })} />
+          <Switch label={t("sync.connection.field.enabled")} {...form.getInputProps("enabled", { type: "checkbox" })} />
           <PollingFields form={form} hint={t("flow.field.pollIntervalHint")} />
 
           <Button type="button" variant="default" loading={testing} onClick={() => void runTest()}>
-            {t("flow.testConnection")}
+            {t("sync.connection.testConnection")}
           </Button>
           <ConnectionTestStatus result={testResult} />
           {testError && <FormErrorAlert>{testError}</FormErrorAlert>}

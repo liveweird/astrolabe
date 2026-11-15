@@ -103,7 +103,7 @@ export default function JiraConnections() {
   const remove = useDeleteConfirm<JiraConnection>({
     mutationFn: (row) => deleteJiraConnection(row.id),
     onSuccess: () => refreshQueriesAfterMutation(queryClient, ["jira"], HOME_VIEW_KEY),
-    successMessage: t("jira.toast.deleted"),
+    successMessage: t("sync.connection.toast.deleted"),
     focusAfterDelete: titleRef,
   });
 
@@ -117,7 +117,7 @@ export default function JiraConnections() {
         description={t("jira.intro")}
         actions={
           <Button leftSection={<IconPlus size={16} />} onClick={() => setEditorTarget("new")}>
-            {t("jira.newConnection")}
+            {t("sync.connection.newConnection")}
           </Button>
         }
       />
@@ -139,9 +139,9 @@ export default function JiraConnections() {
             <SortHeader field="name" label={t("common.field.name")} activeField={sortField} activeDir={sortDir} onToggle={toggleSort} />
             <Table.Th>{t("jira.column.site")}</Table.Th>
             <Table.Th>{t("jira.column.projectKeys")}</Table.Th>
-            <Table.Th>{t("jira.column.lastTest")}</Table.Th>
-            <Table.Th>{t("jira.column.status")}</Table.Th>
-            <Table.Th>{t("jira.column.lastRun")}</Table.Th>
+            <Table.Th>{t("sync.connection.column.lastTest")}</Table.Th>
+            <Table.Th>{t("sync.connection.column.status")}</Table.Th>
+            <Table.Th>{t("sync.connection.column.lastRun")}</Table.Th>
             <Table.Th aria-label={t("common.table.operations")} style={{ width: 1 }} />
           </Table.Tr>
         }
@@ -149,12 +149,12 @@ export default function JiraConnections() {
           <Table.Tr key={connection.id}>
             <Table.Td>
               <Group gap="xs" wrap="nowrap">
-                <Anchor component={RouterLink} to={jiraConnectionPath(connection.id)} fw={500} size="sm" aria-label={t("jira.openAria", { name: connection.name })}>
+                <Anchor component={RouterLink} to={jiraConnectionPath(connection.id)} fw={500} size="sm" aria-label={t("sync.connection.openAria", { name: connection.name })}>
                   {connection.name}
                 </Anchor>
                 {!connection.enabled && (
                   <Badge color="gray" tt="none">
-                    {t("jira.disabled")}
+                    {t("sync.connection.disabled")}
                   </Badge>
                 )}
               </Group>
@@ -188,8 +188,8 @@ export default function JiraConnections() {
             </Table.Td>
             <Table.Td style={{ width: 1 }} ta="right">
               <RowActionsMenu label={t("common.table.operationsAria", { name: connection.name })}>
-                <Menu.Item component={RouterLink} to={jiraConnectionPath(connection.id)} aria-label={t("jira.openAria", { name: connection.name })}>
-                  {t("jira.open")}
+                <Menu.Item component={RouterLink} to={jiraConnectionPath(connection.id)} aria-label={t("sync.connection.openAria", { name: connection.name })}>
+                  {t("sync.connection.open")}
                 </Menu.Item>
                 <Menu.Item leftSection={<IconPencil size={14} />} onClick={() => setEditorTarget(connection)} aria-label={t("common.action.editAria", { name: connection.name })}>
                   {t("common.action.edit")}
@@ -224,8 +224,8 @@ export default function JiraConnections() {
 
       <ConfirmDeleteModal
         confirm={remove}
-        title={t("jira.deleteTitle")}
-        errorTitle={t("jira.deleteFailed")}
+        title={t("sync.connection.deleteTitle")}
+        errorTitle={t("sync.connection.deleteFailed")}
         errorMessage={(err) => saveErrorMessage(err, t, { failedStatus: "common.error.actionFailedStatus", failed: "common.error.actionFailed" })}
         body={(connection) => <DeleteBody connection={connection} />}
       />

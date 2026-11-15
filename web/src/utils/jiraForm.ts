@@ -77,7 +77,7 @@ export function fromJiraConnection(connection: JiraConnection): JiraFormValues {
  */
 export function jiraFormValidation(t: TFunction, isEdit: boolean) {
   return {
-    name: nameRule(t, "jira.validation.nameLength", MAX_JIRA_CONNECTION_NAME_LENGTH),
+    name: nameRule(t, "sync.connection.validation.nameLength", MAX_JIRA_CONNECTION_NAME_LENGTH),
     siteUrl: (value: string) => {
       const v = value.trim();
       if (v.length > MAX_SITE_URL_LENGTH) return t("jira.validation.siteUrlInvalid");
@@ -130,8 +130,8 @@ export function toJiraConnectionRequest(values: JiraFormValues): JiraConnectionR
 export function jiraSaveErrorMessage(err: unknown, t: TFunction): string {
   return saveErrorMessage(err, t, {
     forbidden: "jira.saveForbidden",
-    notFound: "jira.saveGone",
-    invalid: "jira.saveInvalid",
+    notFound: "sync.connection.saveGone",
+    invalid: "sync.connection.saveInvalid",
     failedStatus: "common.error.saveFailedStatus",
     failed: "common.error.saveFailedNetwork",
   });
@@ -141,9 +141,9 @@ export function jiraSaveErrorMessage(err: unknown, t: TFunction): string {
 export function jiraTestErrorMessage(err: unknown, t: TFunction): string {
   return saveErrorMessage(err, t, {
     forbidden: "jira.saveForbidden",
-    notFound: "jira.saveGone",
+    notFound: "sync.connection.saveGone",
     tooManyRequests: "sync.test.rateLimited",
-    invalid: "jira.saveInvalid",
+    invalid: "sync.connection.saveInvalid",
     failedStatus: "common.error.actionFailedStatus",
     failed: "sync.test.failedGeneric",
   });
@@ -166,5 +166,5 @@ export function probeSettingsDiffer(values: JiraFormValues, saved: JiraConnectio
 
 /** The "no verdict" text of a connection: "Never tested", or - when an earlier discovery exists - that the last edit cleared the verdict. */
 export function untestedKey(connection: Pick<JiraConnection, "discoveredAt">): ParseKeys {
-  return connection.discoveredAt === null ? "jira.details.neverTested" : "jira.details.testedBefore";
+  return connection.discoveredAt === null ? "sync.connection.details.neverTested" : "sync.connection.details.testedBefore";
 }

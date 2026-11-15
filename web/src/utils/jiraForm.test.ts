@@ -129,7 +129,7 @@ describe("probeSettingsDiffer (what the server's last-test invalidation also wat
 
 describe("untestedKey", () => {
   test("never tested, or - with an earlier discovery - cleared by the last change", () => {
-    expect(untestedKey({ discoveredAt: null })).toBe("jira.details.neverTested");
-    expect(untestedKey({ discoveredAt: 1 })).toBe("jira.details.testedBefore");
+    expect(untestedKey({ discoveredAt: null })).toBe("sync.connection.details.neverTested");
+    expect(untestedKey({ discoveredAt: 1 })).toBe("sync.connection.details.testedBefore");
   });
 });

@@ -1,4 +1,55 @@
 {
+  "connection": {
+    "newConnection": "Nowe połączenie",
+    "openAria": "Otwórz połączenie {{name}}",
+    "open": "Otwórz",
+    "disabled": "Wyłączone",
+    "yes": "Tak",
+    "no": "Nie",
+    "testConnection": "Przetestuj połączenie",
+    "refreshNow": "Odśwież teraz",
+    "column": {
+      "lastTest": "Ostatni test (UTC)",
+      "lastRun": "Ostatni przebieg (UTC)",
+      "status": "Stan",
+      "enabled": "Włączone"
+    },
+    "field": {
+      "apiTokenKeep": "Token jest zapisany. Zostaw pole puste, żeby zachować obecny token, albo wpisz nowy, żeby go zastąpić.",
+      "apiTokenMissing": "Nie zapisano tokenu. Wpisz go.",
+      "enabled": "Włączone"
+    },
+    "validation": {
+      "nameLength": "Nazwa musi mieć od 1 do 100 znaków"
+    },
+    "saveConflict": "Połączenie o tej nazwie już istnieje",
+    "saveInvalid": "Jedno lub więcej pól jest nieprawidłowe",
+    "saveGone": "To połączenie już nie istnieje — odśwież stronę",
+    "deleteTitle": "Usunąć połączenie?",
+    "deleteFailed": "Nie udało się usunąć połączenia",
+    "toast": {
+      "created": "Utworzono połączenie",
+      "saved": "Zapisano połączenie",
+      "deleted": "Usunięto połączenie",
+      "refreshStarted": "Rozpoczęto odświeżanie",
+      "savedRetest": "Zapisano połączenie. Przetestuj je ponownie, bo ustawienia się zmieniły"
+    },
+    "refresh": {
+      "invalid": "Tego połączenia nie można odświeżyć (jest wyłączone albo go nie ma)",
+      "disabled": "Połączenie jest wyłączone.",
+      "alreadyRunning": "Odświeżanie tego połączenia już trwa. Jego postęp widać w tabeli poniżej.",
+      "running": "Trwa odświeżanie. Tabela poniżej aktualizuje się sama."
+    },
+    "details": {
+      "factsAria": "Dane połączenia",
+      "connection": "Połączenie",
+      "tokenStored": "Token jest zapisany",
+      "tokenMissing": "Nie zapisano tokenu",
+      "lastTest": "Ostatni test (UTC)",
+      "neverTested": "Nie testowano",
+      "testedBefore": "Nie testowano od ostatniej zmiany połączenia"
+    }
+  },
   "test": {
     "tableAria": "Wyniki testu połączenia",
     "column": {

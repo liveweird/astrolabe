@@ -26,7 +26,7 @@ function ConnectionFacts({ connection, readAt }: { connection: FlowConnection; r
   const { t } = useTranslation();
   const href = flowBaseHref(connection.baseUrl);
   return (
-    <Table aria-label={t("flow.details.factsAria")}>
+    <Table aria-label={t("sync.connection.details.factsAria")}>
       <Table.Tbody>
         <Fact label={t("flow.field.baseUrl")}>
           {href ? (
@@ -38,10 +38,10 @@ function ConnectionFacts({ connection, readAt }: { connection: FlowConnection; r
           )}
         </Fact>
         <Fact label={t("flow.field.timeZone")}>{connection.timeZone}</Fact>
-        <Fact label={t("flow.field.apiToken")}>{connection.hasApiToken ? t("flow.details.tokenStored") : t("flow.details.tokenMissing")}</Fact>
-        <Fact label={t("flow.column.enabled")}>{connection.enabled ? t("flow.yes") : t("flow.no")}</Fact>
+        <Fact label={t("flow.field.apiToken")}>{connection.hasApiToken ? t("sync.connection.details.tokenStored") : t("sync.connection.details.tokenMissing")}</Fact>
+        <Fact label={t("sync.connection.column.enabled")}>{connection.enabled ? t("sync.connection.yes") : t("sync.connection.no")}</Fact>
         <SyncFacts status={connection.status} pollIntervalMinutes={connection.pollIntervalMinutes} ready={flowReady(connection)} readAt={readAt} />
-        <Fact label={t("flow.details.lastTest")}>
+        <Fact label={t("sync.connection.details.lastTest")}>
           <ConnectionTestBadge lastTestOk={connection.lastTestOk} lastTestedAt={connection.lastTestedAt} untestedKey={untestedKey(connection)} layout="fact" />
         </Fact>
         <Fact label={t("flow.details.teamsAt")}>{connection.teamsAt === null ? "—" : formatDateTime(connection.teamsAt)}</Fact>
@@ -76,10 +76,10 @@ export default function FlowConnectionSection({ connection, readAt }: { connecti
   });
   const refresh = useMutation({
     mutationFn: () => requestSyncRun({ kind: "FLOW", connectionId: connection.id }),
-    onSuccess: () => showSuccessToast(t("flow.toast.refreshStarted")),
+    onSuccess: () => showSuccessToast(t("sync.connection.toast.refreshStarted")),
     onError: (err) => {
       if (isRunInProgress(err)) setAlreadyRunningNoted(true);
-      else setRefreshError(saveErrorMessage(err, t, { tooManyRequests: "common.error.tooManyRequests", forbidden: "flow.saveForbidden", notFound: "flow.saveGone", invalid: "flow.refresh.invalid", failedStatus: "common.error.actionFailedStatus", failed: "common.error.actionFailed" }));
+      else setRefreshError(saveErrorMessage(err, t, { tooManyRequests: "common.error.tooManyRequests", forbidden: "flow.saveForbidden", notFound: "sync.connection.saveGone", invalid: "sync.connection.refresh.invalid", failedStatus: "common.error.actionFailedStatus", failed: "common.error.actionFailed" }));
     },
     // Either way the registry now holds a run: re-read it, and the list's own polling takes over while it is unfinished.
     // The connection's status and the registry moved with it too (a run that finished before the first poll never shows as live).
@@ -102,13 +102,13 @@ export default function FlowConnectionSection({ connection, readAt }: { connecti
   return (
     <Stack gap="md">
       <Title order={3} size="h4">
-        {t("flow.details.connection")}
+        {t("sync.connection.details.connection")}
       </Title>
       <ConnectionFacts connection={connection} readAt={readAt} />
 
       <Group gap="sm" wrap="wrap">
         <Button variant="default" leftSection={<IconPlugConnected size={16} />} loading={test.isPending} onClick={() => test.mutate()}>
-          {t("flow.testConnection")}
+          {t("sync.connection.testConnection")}
         </Button>
         <Button
           variant="default"
@@ -121,11 +121,11 @@ export default function FlowConnectionSection({ connection, readAt }: { connecti
             refresh.mutate();
           }}
         >
-          {t("flow.refreshNow")}
+          {t("sync.connection.refreshNow")}
         </Button>
         {!connection.enabled && (
           <Text size="sm" c="dimmed">
-            {t("flow.refresh.disabled")}
+            {t("sync.connection.refresh.disabled")}
           </Text>
         )}
       </Group>
@@ -149,9 +149,9 @@ export default function FlowConnectionSection({ connection, readAt }: { connecti
       {refreshError && <FormErrorAlert>{refreshError}</FormErrorAlert>}
       <div role="status" aria-live="polite">
         {alreadyRunning ? (
-          <Text size="sm">{t("flow.refresh.alreadyRunning")}</Text>
+          <Text size="sm">{t("sync.connection.refresh.alreadyRunning")}</Text>
         ) : live ? (
-          <Text size="sm">{t("flow.refresh.running")}</Text>
+          <Text size="sm">{t("sync.connection.refresh.running")}</Text>
         ) : null}
       </div>
 

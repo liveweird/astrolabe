@@ -1,4 +1,55 @@
 {
+  "connection": {
+    "newConnection": "New connection",
+    "openAria": "Open connection {{name}}",
+    "open": "Open",
+    "disabled": "Disabled",
+    "yes": "Yes",
+    "no": "No",
+    "testConnection": "Test connection",
+    "refreshNow": "Refresh now",
+    "column": {
+      "lastTest": "Last test (UTC)",
+      "lastRun": "Last run (UTC)",
+      "status": "Status",
+      "enabled": "Enabled"
+    },
+    "field": {
+      "apiTokenKeep": "A token is stored. Leave blank to keep the current token, or enter a new one to replace it.",
+      "apiTokenMissing": "No token is stored. Enter one.",
+      "enabled": "Enabled"
+    },
+    "validation": {
+      "nameLength": "Name must be 1–100 characters"
+    },
+    "saveConflict": "A connection with this name already exists",
+    "saveInvalid": "One or more fields are invalid",
+    "saveGone": "This connection no longer exists — reload the page",
+    "deleteTitle": "Delete connection?",
+    "deleteFailed": "Could not delete the connection",
+    "toast": {
+      "created": "Connection created",
+      "saved": "Connection saved",
+      "deleted": "Connection deleted",
+      "refreshStarted": "Refresh started",
+      "savedRetest": "Connection saved. Test it again, the settings changed"
+    },
+    "refresh": {
+      "invalid": "This connection cannot be refreshed (it is disabled or gone)",
+      "disabled": "The connection is disabled.",
+      "alreadyRunning": "A refresh is already running for this connection. Its progress shows in the table below.",
+      "running": "A refresh is running. The table below updates by itself."
+    },
+    "details": {
+      "factsAria": "Connection facts",
+      "connection": "Connection",
+      "tokenStored": "A token is stored",
+      "tokenMissing": "No token is stored",
+      "lastTest": "Last test (UTC)",
+      "neverTested": "Never tested",
+      "testedBefore": "Not tested since the connection was last changed"
+    }
+  },
   "test": {
     "tableAria": "Connection test results",
     "column": {

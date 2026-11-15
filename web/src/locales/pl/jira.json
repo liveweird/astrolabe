@@ -1,31 +1,19 @@
 {
   "title": "Połączenia z Jirą",
   "intro": "Witryny Jira Cloud, które obserwuje Astrolabe. Astrolabe tylko czyta z Jiry, żeby wykrywać odchylenia od planu; niczego tam nie zapisuje. Połączeniami zarządzają administratorzy/rki.",
-  "newConnection": "Nowe połączenie",
   "createTitle": "Nowe połączenie z Jirą",
   "editTitle": "Edytuj połączenie z Jirą",
   "empty": "Nie ma jeszcze połączeń z Jirą",
   "loadFailed": "Nie udało się wczytać połączeń z Jirą",
   "notFound": "To połączenie z Jirą nie istnieje (albo ktoś je usunął).",
   "backToConnections": "Wróć do połączeń z Jirą",
-  "openAria": "Otwórz połączenie {{name}}",
-  "open": "Otwórz",
-  "disabled": "Wyłączone",
   "stub": {
     "badge": "Atrapa deweloperska",
     "title": "Wywołania tego połączenia trafiają do wbudowanej deweloperskiej atrapy Jiry, a nie do Atlassian"
   },
-  "yes": "Tak",
-  "no": "Nie",
-  "testConnection": "Przetestuj połączenie",
-  "refreshNow": "Odśwież teraz",
   "column": {
     "site": "Witryna",
-    "projectKeys": "Klucze projektów",
-    "lastTest": "Ostatni test (UTC)",
-    "lastRun": "Ostatni przebieg (UTC)",
-    "status": "Stan",
-    "enabled": "Włączone"
+    "projectKeys": "Klucze projektów"
   },
   "field": {
     "siteUrl": "Witryna",
@@ -34,12 +22,9 @@
     "email": "E-mail konta",
     "apiToken": "Token API",
     "apiTokenHint": "Token API Atlassiana (utworzysz go w ustawieniach bezpieczeństwa swojego konta Atlassian). Zapisujemy go zaszyfrowany i nigdy więcej nie pokazujemy.",
-    "apiTokenKeep": "Token jest zapisany. Zostaw pole puste, żeby zachować obecny token, albo wpisz nowy, żeby go zastąpić.",
-    "apiTokenMissing": "Nie zapisano tokenu. Wpisz go.",
     "projectKeys": "Klucze projektów",
     "projectKeysHint": "Projekty Jiry w zakresie (od 1 do 50). Wpisz klucz i naciśnij Enter.",
     "authScheme": "Uwierzytelnianie",
-    "enabled": "Włączone",
     "pollIntervalHint": "Jak często Astrolabe sam odczytuje Jirę: od 5 minut do doby (1440). Połączenie wyłączone albo jeszcze nie przetestowane nie jest odpytywane."
   },
   "authScheme": {
@@ -47,7 +32,6 @@
     "BEARER": "Sam token (Bearer)"
   },
   "validation": {
-    "nameLength": "Nazwa musi mieć od 1 do 100 znaków",
     "siteUrlInvalid": "Witryna musi mieć dokładnie postać https://twoja-witryna.atlassian.net (bez ścieżki, portu i ukośnika na końcu)",
     "emailTooLong": "E-mail może mieć najwyżej 254 znaki",
     "emailInvalid": "Wpisz adres e-mail konta Atlassian",
@@ -58,24 +42,14 @@
     "projectKeysDistinct": "Każdy klucz projektu można podać tylko raz"
   },
   "saveForbidden": "Tylko administratorzy/rki mogą zarządzać połączeniami z Jirą",
-  "saveConflict": "Połączenie o tej nazwie już istnieje",
-  "saveInvalid": "Jedno lub więcej pól jest nieprawidłowe",
-  "saveGone": "To połączenie już nie istnieje — odśwież stronę",
-  "deleteTitle": "Usunąć połączenie?",
   "deleteBody": "Usuniemy połączenie „{{name}}” i odepniemy wszystkie powiązania elementów planu z elementami Jiry, które przez nie powstały. W Jirze nic się nie zmieni.",
   "deleteBodyNoLinks": "Usuniemy połączenie „{{name}}”. Nie ma ono powiązań z istniejącymi elementami planu. W Jirze nic się nie zmieni.",
   "deleteBodyLinks_one": "Usuniemy połączenie „{{name}}” i odepniemy jego {{count}} powiązanie istniejącego elementu planu z elementem Jiry. W Jirze nic się nie zmieni.",
   "deleteBodyLinks_few": "Usuniemy połączenie „{{name}}” i odepniemy jego {{count}} powiązania istniejących elementów planu z elementami Jiry. W Jirze nic się nie zmieni.",
   "deleteBodyLinks_many": "Usuniemy połączenie „{{name}}” i odepniemy jego {{count}} powiązań istniejących elementów planu z elementami Jiry. W Jirze nic się nie zmieni.",
   "deleteBodyLinks_other": "Usuniemy połączenie „{{name}}” i odepniemy jego {{count}} powiązania istniejących elementów planu z elementami Jiry. W Jirze nic się nie zmieni.",
-  "deleteFailed": "Nie udało się usunąć połączenia",
   "toast": {
-    "created": "Utworzono połączenie",
-    "saved": "Zapisano połączenie",
-    "deleted": "Usunięto połączenie",
     "mappingSaved": "Zapisano mapowanie",
-    "refreshStarted": "Rozpoczęto odświeżanie",
-    "savedRetest": "Zapisano połączenie. Przetestuj je ponownie, bo ustawienia się zmieniły",
     "bound": "Powiązano z Jirą",
     "unlinked": "Odpięto od Jiry"
   },
@@ -84,12 +58,6 @@
     "scopeNote": "Błąd 401 w jednej sondzie, gdy „myself” przechodzi, oznacza, że tokenowi brakuje zakresu tej sondy, a nie że dane logowania są złe. Dodaj do tokenu zakres podany przy sondzie z niepowodzeniem.",
     "stubNote": "Ten test obsłużyła wbudowana deweloperska atrapa Jiry, a nie Atlassian: gdy ustawiono JIRA_STUB_BASE_URL, witryna, której adres zaczyna się od https://stub-, jest kierowana do atrapy.",
     "cloudId": "Identyfikator chmury: {{cloudId}}"
-  },
-  "refresh": {
-    "invalid": "Tego połączenia nie można odświeżyć (jest wyłączone albo go nie ma)",
-    "disabled": "Połączenie jest wyłączone.",
-    "alreadyRunning": "Odświeżanie tego połączenia już trwa. Jego postęp widać w tabeli poniżej.",
-    "running": "Trwa odświeżanie. Tabela poniżej aktualizuje się sama."
   },
   "coverage": {
     "title": "Pokrycie",
@@ -108,19 +76,12 @@
     "loadFailed": "Nie udało się wczytać pokrycia"
   },
   "details": {
-    "factsAria": "Dane połączenia",
-    "connection": "Połączenie",
     "mappingSection": "Mapowanie",
-    "tokenStored": "Token jest zapisany",
-    "tokenMissing": "Nie zapisano tokenu",
-    "lastTest": "Ostatni test (UTC)",
-    "neverTested": "Nie testowano",
     "discovered": "Pola wykryto (UTC)",
     "cloudId": "Identyfikator chmury",
     "mapping": "Mapowanie pól",
     "mappingSaved": "Zapisane",
-    "mappingDefaults": "Jeszcze nie zapisane (przebieg użyje wartości domyślnych)",
-    "testedBefore": "Nie testowano od ostatniej zmiany połączenia"
+    "mappingDefaults": "Jeszcze nie zapisane (przebieg użyje wartości domyślnych)"
   },
   "link": {
     "opensInJira": "(otwiera się w Jirze)",

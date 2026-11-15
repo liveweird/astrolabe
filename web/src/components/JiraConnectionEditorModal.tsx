@@ -62,7 +62,7 @@ export default function JiraConnectionEditorModal({
 
   const isEdit = target !== null;
   // `hasApiToken` is all the server ever says about the token: "leave blank to keep" only when one is stored.
-  const tokenHint = !isEdit ? t("jira.field.apiTokenHint") : target.hasApiToken ? t("jira.field.apiTokenKeep") : t("jira.field.apiTokenMissing");
+  const tokenHint = !isEdit ? t("jira.field.apiTokenHint") : target.hasApiToken ? t("sync.connection.field.apiTokenKeep") : t("sync.connection.field.apiTokenMissing");
   const form = useForm<JiraFormValues>({
     initialValues: target ? fromJiraConnection(target) : EMPTY_JIRA_FORM,
     validate: jiraFormValidation(t, isEdit),
@@ -76,16 +76,16 @@ export default function JiraConnectionEditorModal({
       if (target) {
         await updateJiraConnection(target.id, toJiraConnectionRequest(values));
         // A new token, account, scheme or key set clears the last verdict (the server's rule): say it is time to test again.
-        showSuccessToast(t(values.apiToken.trim() !== "" || probeSettingsDiffer(values, target) ? "jira.toast.savedRetest" : "jira.toast.saved"));
+        showSuccessToast(t(values.apiToken.trim() !== "" || probeSettingsDiffer(values, target) ? "sync.connection.toast.savedRetest" : "sync.connection.toast.saved"));
       } else {
         saved = await createJiraConnection(toJiraConnectionRequest(values));
-        showSuccessToast(t("jira.toast.created"));
+        showSuccessToast(t("sync.connection.toast.created"));
       }
       await onSaved(saved);
     } catch (err) {
       // The 409 is about THIS control (the case-insensitive name clash) - mark the field.
       if (err instanceof ApiError && err.status === 409) {
-        form.setFieldError("name", t("jira.saveConflict"));
+        form.setFieldError("name", t("sync.connection.saveConflict"));
       } else if (err instanceof ApiError && err.status === 400 && err.detail) {
         // The server's own sentence says which rule (it never quotes the token): shown under the fixed lead, as the mapping form does.
         setError(
@@ -185,11 +185,11 @@ export default function JiraConnectionEditorModal({
             allowDeselect={false}
             {...form.getInputProps("authScheme")}
           />
-          <Switch label={t("jira.field.enabled")} {...form.getInputProps("enabled", { type: "checkbox" })} />
+          <Switch label={t("sync.connection.field.enabled")} {...form.getInputProps("enabled", { type: "checkbox" })} />
           <PollingFields form={form} hint={t("jira.field.pollIntervalHint")} />
 
           <Button type="button" variant="default" loading={testing} onClick={() => void runTest()}>
-            {t("jira.testConnection")}
+            {t("sync.connection.testConnection")}
           </Button>
           {storedProbeDiffers && (
             <Text size="sm" c="dimmed" role="note">

@@ -143,8 +143,8 @@ describe("what a connection says about its test", () => {
   });
 
   test("never tested until a run has mirrored Flow; then 'not tested since the change'", () => {
-    expect(untestedKey({ teamsAt: null })).toBe("flow.details.neverTested");
-    expect(untestedKey({ teamsAt: 1 })).toBe("flow.details.testedBefore");
+    expect(untestedKey({ teamsAt: null })).toBe("sync.connection.details.neverTested");
+    expect(untestedKey({ teamsAt: 1 })).toBe("sync.connection.details.testedBefore");
   });
 
   test("ready (pollable) after a passing test or once a document was mirrored", () => {

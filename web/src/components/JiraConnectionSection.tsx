@@ -27,7 +27,7 @@ function ConnectionFacts({ connection, readAt }: { connection: JiraConnection; r
   const { t } = useTranslation();
   const site = jiraSiteUrl(connection.siteUrl);
   return (
-    <Table aria-label={t("jira.details.factsAria")}>
+    <Table aria-label={t("sync.connection.details.factsAria")}>
       <Table.Tbody>
         <Fact label={t("jira.field.siteUrl")}>
           <Group gap="xs" wrap="wrap">
@@ -42,12 +42,12 @@ function ConnectionFacts({ connection, readAt }: { connection: JiraConnection; r
           </Group>
         </Fact>
         <Fact label={t("jira.field.email")}>{connection.email}</Fact>
-        <Fact label={t("jira.field.apiToken")}>{connection.hasApiToken ? t("jira.details.tokenStored") : t("jira.details.tokenMissing")}</Fact>
+        <Fact label={t("jira.field.apiToken")}>{connection.hasApiToken ? t("sync.connection.details.tokenStored") : t("sync.connection.details.tokenMissing")}</Fact>
         <Fact label={t("jira.field.authScheme")}>{t(`jira.authScheme.${connection.authScheme}`)}</Fact>
         <Fact label={t("jira.field.projectKeys")}>{connection.projectKeys.join(", ")}</Fact>
-        <Fact label={t("jira.column.enabled")}>{connection.enabled ? t("jira.yes") : t("jira.no")}</Fact>
+        <Fact label={t("sync.connection.column.enabled")}>{connection.enabled ? t("sync.connection.yes") : t("sync.connection.no")}</Fact>
         <SyncFacts status={connection.status} pollIntervalMinutes={connection.pollIntervalMinutes} ready={connection.discoveredAt !== null} readAt={readAt} />
-        <Fact label={t("jira.details.lastTest")}>
+        <Fact label={t("sync.connection.details.lastTest")}>
           <ConnectionTestBadge lastTestOk={connection.lastTestOk} lastTestedAt={connection.lastTestedAt} untestedKey={untestedKey(connection)} layout="fact" />
         </Fact>
         <Fact label={t("jira.details.discovered")}>{connection.discoveredAt === null ? "—" : formatDateTime(connection.discoveredAt)}</Fact>
@@ -83,10 +83,10 @@ export default function JiraConnectionSection({ connection, readAt }: { connecti
   });
   const refresh = useMutation({
     mutationFn: () => requestSyncRun({ kind: "JIRA", connectionId: connection.id }),
-    onSuccess: () => showSuccessToast(t("jira.toast.refreshStarted")),
+    onSuccess: () => showSuccessToast(t("sync.connection.toast.refreshStarted")),
     onError: (err) => {
       if (isRunInProgress(err)) setAlreadyRunningNoted(true);
-      else setRefreshError(saveErrorMessage(err, t, { tooManyRequests: "common.error.tooManyRequests", forbidden: "jira.saveForbidden", notFound: "jira.saveGone", invalid: "jira.refresh.invalid", failedStatus: "common.error.actionFailedStatus", failed: "common.error.actionFailed" }));
+      else setRefreshError(saveErrorMessage(err, t, { tooManyRequests: "common.error.tooManyRequests", forbidden: "jira.saveForbidden", notFound: "sync.connection.saveGone", invalid: "sync.connection.refresh.invalid", failedStatus: "common.error.actionFailedStatus", failed: "common.error.actionFailed" }));
     },
     // Either way the registry now holds a run: re-read it, and the list's own polling takes over while it is unfinished.
     // The connection's status and the registry moved with it too (a run that finished before the first poll never shows as live).
@@ -118,13 +118,13 @@ export default function JiraConnectionSection({ connection, readAt }: { connecti
   return (
     <Stack gap="md">
       <Title order={3} size="h4">
-        {t("jira.details.connection")}
+        {t("sync.connection.details.connection")}
       </Title>
       <ConnectionFacts connection={connection} readAt={readAt} />
 
       <Group gap="sm" wrap="wrap">
         <Button variant="default" leftSection={<IconPlugConnected size={16} />} loading={test.isPending} onClick={() => test.mutate()}>
-          {t("jira.testConnection")}
+          {t("sync.connection.testConnection")}
         </Button>
         <Button
           variant="default"
@@ -137,11 +137,11 @@ export default function JiraConnectionSection({ connection, readAt }: { connecti
             refresh.mutate();
           }}
         >
-          {t("jira.refreshNow")}
+          {t("sync.connection.refreshNow")}
         </Button>
         {!connection.enabled && (
           <Text size="sm" c="dimmed">
-            {t("jira.refresh.disabled")}
+            {t("sync.connection.refresh.disabled")}
           </Text>
         )}
       </Group>
@@ -165,9 +165,9 @@ export default function JiraConnectionSection({ connection, readAt }: { connecti
       {refreshError && <FormErrorAlert>{refreshError}</FormErrorAlert>}
       <div role="status" aria-live="polite">
         {alreadyRunning ? (
-          <Text size="sm">{t("jira.refresh.alreadyRunning")}</Text>
+          <Text size="sm">{t("sync.connection.refresh.alreadyRunning")}</Text>
         ) : live ? (
-          <Text size="sm">{t("jira.refresh.running")}</Text>
+          <Text size="sm">{t("sync.connection.refresh.running")}</Text>
         ) : null}
       </div>
 

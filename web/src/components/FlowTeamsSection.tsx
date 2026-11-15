@@ -76,7 +76,7 @@ export default function FlowTeamsSection({ connection }: { connection: FlowConne
       setMatchNote(matchSummary(result, t));
       focusHeading();
     },
-    onError: (err) => setFailure(saveErrorMessage(err, t, { forbidden: "flow.saveForbidden", notFound: "flow.saveGone", invalid: "flow.teams.linkInvalid", failed: "flow.teams.matchFailed" })),
+    onError: (err) => setFailure(saveErrorMessage(err, t, { forbidden: "flow.saveForbidden", notFound: "sync.connection.saveGone", invalid: "flow.teams.linkInvalid", failed: "flow.teams.matchFailed" })),
     onSettled: () => refreshFlowLinks(queryClient),
   });
   const unlink = useDeleteConfirm<FlowTeamListItem>({

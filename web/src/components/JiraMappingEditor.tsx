@@ -32,7 +32,7 @@ function saveFailure(err: unknown, t: TFunction): { message: string; detail?: st
   return {
     message: saveErrorMessage(err, t, {
       forbidden: "jira.saveForbidden",
-      notFound: "jira.saveGone",
+      notFound: "sync.connection.saveGone",
       failedStatus: "common.error.saveFailedStatus",
       failed: "common.error.saveFailedNetwork",
     }),

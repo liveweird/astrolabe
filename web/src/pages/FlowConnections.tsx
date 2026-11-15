@@ -103,7 +103,7 @@ export default function FlowConnections() {
   const remove = useDeleteConfirm<FlowConnection>({
     mutationFn: (row) => deleteFlowConnection(row.id),
     onSuccess: () => refreshQueriesAfterMutation(queryClient, ["flow"], HOME_VIEW_KEY),
-    successMessage: t("flow.toast.deleted"),
+    successMessage: t("sync.connection.toast.deleted"),
     focusAfterDelete: titleRef,
   });
 
@@ -117,7 +117,7 @@ export default function FlowConnections() {
         description={t("flow.intro")}
         actions={
           <Button leftSection={<IconPlus size={16} />} onClick={() => setEditorTarget("new")}>
-            {t("flow.newConnection")}
+            {t("sync.connection.newConnection")}
           </Button>
         }
       />
@@ -139,9 +139,9 @@ export default function FlowConnections() {
             <SortHeader field="name" label={t("common.field.name")} activeField={sortField} activeDir={sortDir} onToggle={toggleSort} />
             <Table.Th>{t("flow.column.baseUrl")}</Table.Th>
             <Table.Th>{t("flow.column.timeZone")}</Table.Th>
-            <Table.Th>{t("flow.column.lastTest")}</Table.Th>
-            <Table.Th>{t("flow.column.status")}</Table.Th>
-            <Table.Th>{t("flow.column.lastRun")}</Table.Th>
+            <Table.Th>{t("sync.connection.column.lastTest")}</Table.Th>
+            <Table.Th>{t("sync.connection.column.status")}</Table.Th>
+            <Table.Th>{t("sync.connection.column.lastRun")}</Table.Th>
             <Table.Th aria-label={t("common.table.operations")} style={{ width: 1 }} />
           </Table.Tr>
         }
@@ -151,12 +151,12 @@ export default function FlowConnections() {
             <Table.Tr key={connection.id}>
               <Table.Td>
                 <Group gap="xs" wrap="nowrap">
-                  <Anchor component={RouterLink} to={flowConnectionPath(connection.id)} fw={500} size="sm" aria-label={t("flow.openAria", { name: connection.name })}>
+                  <Anchor component={RouterLink} to={flowConnectionPath(connection.id)} fw={500} size="sm" aria-label={t("sync.connection.openAria", { name: connection.name })}>
                     {connection.name}
                   </Anchor>
                   {!connection.enabled && (
                     <Badge color="gray" tt="none">
-                      {t("flow.disabled")}
+                      {t("sync.connection.disabled")}
                     </Badge>
                   )}
                 </Group>
@@ -185,8 +185,8 @@ export default function FlowConnections() {
               </Table.Td>
               <Table.Td style={{ width: 1 }} ta="right">
                 <RowActionsMenu label={t("common.table.operationsAria", { name: connection.name })}>
-                  <Menu.Item component={RouterLink} to={flowConnectionPath(connection.id)} aria-label={t("flow.openAria", { name: connection.name })}>
-                    {t("flow.open")}
+                  <Menu.Item component={RouterLink} to={flowConnectionPath(connection.id)} aria-label={t("sync.connection.openAria", { name: connection.name })}>
+                    {t("sync.connection.open")}
                   </Menu.Item>
                   <Menu.Item leftSection={<IconPencil size={14} />} onClick={() => setEditorTarget(connection)} aria-label={t("common.action.editAria", { name: connection.name })}>
                     {t("common.action.edit")}
@@ -222,8 +222,8 @@ export default function FlowConnections() {
 
       <ConfirmDeleteModal
         confirm={remove}
-        title={t("flow.deleteTitle")}
-        errorTitle={t("flow.deleteFailed")}
+        title={t("sync.connection.deleteTitle")}
+        errorTitle={t("sync.connection.deleteFailed")}
         errorMessage={(err) => saveErrorMessage(err, t, { failedStatus: "common.error.actionFailedStatus", failed: "common.error.actionFailed" })}
         body={(connection) => <DeleteBody connection={connection} />}
       />

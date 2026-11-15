@@ -119,7 +119,7 @@ export function canonicalTimeZone(raw: string): string | null {
 /** Validation rules shared by the create/edit modal AND its Test-connection button (they mirror the server's checks). `isEdit` makes the token optional. */
 export function flowFormValidation(t: TFunction, isEdit: boolean) {
   return {
-    name: nameRule(t, "flow.validation.nameLength", MAX_FLOW_CONNECTION_NAME_LENGTH),
+    name: nameRule(t, "sync.connection.validation.nameLength", MAX_FLOW_CONNECTION_NAME_LENGTH),
     baseUrl: (value: string) => {
       const address = normaliseBaseUrl(value);
       return address.length <= MAX_BASE_URL_LENGTH && isOrigin(address) ? null : t("flow.validation.baseUrlInvalid");
@@ -157,8 +157,8 @@ export function toFlowConnectionRequest(values: FlowFormValues): FlowConnectionR
 export function flowSaveErrorMessage(err: unknown, t: TFunction): string {
   return saveErrorMessage(err, t, {
     forbidden: "flow.saveForbidden",
-    notFound: "flow.saveGone",
-    invalid: "flow.saveInvalid",
+    notFound: "sync.connection.saveGone",
+    invalid: "sync.connection.saveInvalid",
     failedStatus: "common.error.saveFailedStatus",
     failed: "common.error.saveFailedNetwork",
   });
@@ -168,9 +168,9 @@ export function flowSaveErrorMessage(err: unknown, t: TFunction): string {
 export function flowTestErrorMessage(err: unknown, t: TFunction): string {
   return saveErrorMessage(err, t, {
     forbidden: "flow.saveForbidden",
-    notFound: "flow.saveGone",
+    notFound: "sync.connection.saveGone",
     tooManyRequests: "flow.test.rateLimited",
-    invalid: "flow.saveInvalid",
+    invalid: "sync.connection.saveInvalid",
     failedStatus: "common.error.actionFailedStatus",
     failed: "flow.test.failedGeneric",
   });
@@ -186,7 +186,7 @@ export function clearsVerdict(values: FlowFormValues, saved: FlowConnection): bo
 
 /** The "no verdict" text of a connection: "Never tested", or - when a run has already mirrored Flow - that the last edit cleared the verdict. */
 export function untestedKey(connection: Pick<FlowConnection, "teamsAt">): ParseKeys {
-  return connection.teamsAt === null ? "flow.details.neverTested" : "flow.details.testedBefore";
+  return connection.teamsAt === null ? "sync.connection.details.neverTested" : "sync.connection.details.testedBefore";
 }
 
 /** Whether the connection is pollable: a passing test or a mirrored document (the server's `ready`, sticky once Flow has answered a run). */
