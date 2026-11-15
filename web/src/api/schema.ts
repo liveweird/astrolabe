@@ -481,10 +481,7 @@ export interface paths {
         put?: never;
         /**
          * Create a work stream (ADMIN only)
-         * @description ADMIN only (guarded before the body decodes - a non-admin's malformed body is still 403). The `ownerPersonId` is required
-         *     and must be an active person (`400` otherwise); `startDate` is required, `endDate` (set only when the stream is closed)
-         *     must not precede it (`400`). The name must be unique among active work streams, case-insensitively (`409`). Every plan
-         *     write runs under the plan lock and bumps the plan revision.
+         * @description Creates a work stream. ADMIN only; a non-admin's malformed body is still `403`. `ownerPersonId` must be an active person and `startDate` is required (`400` otherwise); `endDate`, set only when the stream is closed, must not precede it (`400`). The name must be unique among active work streams, case-insensitively (`409`).
          */
         post: operations["createWorkStream"];
         delete?: never;
@@ -509,18 +506,13 @@ export interface paths {
         get: operations["getWorkStream"];
         /**
          * Replace a work stream's fields, owner and dates
-         * @description The stream's owner or ADMIN. Read-before-guard: a missing stream is `404` for every caller, then a caller who is neither
-         *     gets `403` (before the body is decoded). A full replace: an omitted `description` or `endDate` is unset (an unset `endDate`
-         *     reopens a closed stream; a set one closes it). The owner may be reassigned to another active person (`400` otherwise) by any
-         *     caller who may edit. A name clash with another active work stream is `409`. Audited as `work_stream.updated`,
-         *     `work_stream.owner_changed`, `work_stream.closed` / `work_stream.reopened`.
+         * @description Replaces a work stream's fields, owner and dates. The stream's owner or ADMIN; a missing stream is `404` for every caller, before the `403`, and a forbidden caller's malformed body is still `403`. A full replace: an omitted `description` or `endDate` is unset (unsetting `endDate` reopens a closed stream, setting it closes it). Any caller who may edit may reassign the owner to another active person (`400` otherwise). A name clash with another active work stream is `409`.
          */
         put: operations["updateWorkStream"];
         post?: never;
         /**
          * Delete a work stream (soft)
-         * @description The stream's owner or ADMIN, read-before-guard (404, then 403). Soft delete - the name is freed. `409` while the stream still
-         *     has active programs (counted under the plan lock): delete or empty it first.
+         * @description Soft-deletes a work stream and frees its name. The stream's owner or ADMIN; `404` for a missing stream before the `403`. `409` while it still has active programs.
          */
         delete: operations["deleteWorkStream"];
         options?: never;
@@ -541,9 +533,7 @@ export interface paths {
         put?: never;
         /**
          * Create a program under a work stream
-         * @description The work stream's owner or ADMIN, read-before-guard (404, then 403, then the body). The `ownerPersonId` is required and must
-         *     be an active person (`400` otherwise). The name must be unique among active programs, case-insensitively and across work
-         *     streams (`409`). A closed work stream still accepts new programs.
+         * @description Creates a program under the work stream. The stream's owner or ADMIN; `404` for a missing stream, then `403`, then the body. `ownerPersonId` must be an active person (`400` otherwise). The name must be unique among active programs, case-insensitively and across work streams (`409`). A closed work stream still accepts programs.
          */
         post: operations["createProgram"];
         delete?: never;
@@ -568,16 +558,13 @@ export interface paths {
         get: operations["getProgram"];
         /**
          * Replace a program's fields and owner
-         * @description An owner of the program or of its work stream, or ADMIN. Read-before-guard (404, then 403, then the body). A full replace; the
-         *     parent work stream never changes here (see `POST /programs/{id}/move`). The owner may be reassigned to another active person
-         *     (`400` otherwise) by any caller who may edit. A name clash with another active program is `409`. Audited as `program.updated` and `program.owner_changed`.
+         * @description Replaces a program's fields and owner. An owner of the program or of its work stream, or ADMIN; `404` before `403` before the body. The parent work stream never changes here (see `POST /programs/{id}/move`). Any caller who may edit may reassign the owner to another active person (`400` otherwise). A name clash with another active program is `409`.
          */
         put: operations["updateProgram"];
         post?: never;
         /**
          * Delete a program (soft)
-         * @description An owner of the program or of its work stream, or ADMIN, read-before-guard (404, then 403). Soft delete - the name is freed.
-         *     `409` while the program still has active projects (counted under the plan lock).
+         * @description Soft-deletes a program and frees its name. An owner of the program or of its work stream, or ADMIN; `404` before `403`. `409` while it still has active projects.
          */
         delete: operations["deleteProgram"];
         options?: never;
@@ -598,15 +585,7 @@ export interface paths {
         put?: never;
         /**
          * Move a program under another work stream
-         * @description ADMIN, or the owner of the program's CURRENT work stream (the program's own owner alone may not take it out of where it is) who
-         *     ALSO owns the TARGET work stream. The plan view's `can.move` is the source half and the target's `can.createProgram` the other.
-         *     Read-before-guard: the program is resolved first (`404`), the source guard (`403`) runs before the body, then the body (`400`
-         *     for a malformed one), then the target: a work stream that does not exist or is deleted is `400` "Unknown or deleted work stream
-         *     ids: N" (a body field, never `404`), and a caller who does not own the target work stream gets `403`. Both guards re-run
-         *     under the plan lock against the chains re-read there. A closed work stream is a valid target. Program names are globally
-         *     unique, so a move cannot clash (hence no `409`). The program's projects and their milestones move with it and the global
-         *     ranking is untouched. A move to the program's current work stream is a no-op `204` with no audit for a caller who passes both
-         *     guards. There is no `expectedRevision`. Audited as `program.moved`.
+         * @description Moves a program, with its projects and milestones, under another work stream; the global ranking is untouched. ADMIN, or the owner of the program's current work stream (the program's own owner alone may not) who also owns the target work stream. Order: `404` for a missing program, `403` on the source side, `400` for a malformed body, `400` "Unknown or deleted work stream ids: N" for a missing or deleted target (a body field, never `404`), `403` on the target side. A closed work stream is a valid target. Program names are globally unique, so there is no name `409`. A move to the current work stream is a `204` no-op for a caller who passes both guards. There is no `expectedRevision`.
          */
         post: operations["moveProgram"];
         delete?: never;
@@ -628,10 +607,7 @@ export interface paths {
         put?: never;
         /**
          * Create a project under a program
-         * @description An owner of the program or of its work stream, or ADMIN, read-before-guard (404, then 403, then the body). The `ownerPersonId`
-         *     is required and must be an active person (`400` otherwise). The optional target window is both dates or neither, the end not
-         *     before the start (`400`) - whoever may create a project may also set its window. The name must be unique among the active
-         *     projects of THIS program, case-insensitively (`409`).
+         * @description Creates a project under the program. An owner of the program or of its work stream, or ADMIN; `404` before `403` before the body. `ownerPersonId` must be an active person (`400` otherwise). The optional target window is both dates or neither, the end not before the start (`400`); whoever may create a project may set its window. The name must be unique among the active projects of this program, case-insensitively (`409`).
          */
         post: operations["createProject"];
         delete?: never;
@@ -649,13 +625,7 @@ export interface paths {
         };
         /**
          * List projects (the picker list)
-         * @description Any authenticated user. ACTIVE projects only, and only those whose program and work stream are active. Each row is the project
-         *     plus the names of its program and work stream (`programName`, `workStreamName`), so a picker can show where a project sits. This
-         *     is a search list for pickers (the dependency dialogs); the plan view is the read surface of the whole tree. Work streams and
-         *     programs have no list.
-         *
-         *     - Sortable fields: `id`, `name`, `createdAt`, `updatedAt`. Default `id` ascending.
-         *     - Filters: `name` (case- and accent-insensitive substring).
+         * @description Lists the active projects whose program and work stream are active, for pickers; each row carries `programName` and `workStreamName`. Any authenticated user. Paged; sortable by `id` (default), `name`, `createdAt` and `updatedAt`; filter `name` (case- and accent-insensitive substring). Work streams and programs have no list: the plan view is the read surface of the whole tree.
          */
         get: operations["listProjects"];
         put?: never;
@@ -682,19 +652,13 @@ export interface paths {
         get: operations["getProject"];
         /**
          * Replace a project's fields and owner
-         * @description An owner on the project's chain - the project's own owner included - or ADMIN. Read-before-guard (404, then 403, then the
-         *     body). A full replace of name, description and owner; the parent program (`POST /projects/{id}/move`) and the target window
-         *     never change here (the window has its own operation). The owner may be reassigned to another active person (`400` otherwise) by any caller who may edit. A
-         *     name clash within the program is `409`. Audited as `project.updated` and `project.owner_changed`.
+         * @description Replaces a project's name, description and owner. An owner on the project's chain (the project's own owner included) or ADMIN; `404` before `403` before the body. The parent program (`POST /projects/{id}/move`) and the target window (its own operation) never change here. Any caller who may edit may reassign the owner to another active person (`400` otherwise). A name clash within the program is `409`.
          */
         put: operations["updateProject"];
         post?: never;
         /**
          * Delete a project (soft)
-         * @description An owner on the project's chain - the project's own owner included - or ADMIN, read-before-guard (404, then 403). Soft
-         *     delete - the name is freed. The project's ACTIVE milestones are soft-deleted with it, in the same locked transaction (there is
-         *     no `409`; the audit event `project.deleted` carries their `milestoneCount`), and so are the ACTIVE dependencies with an end at
-         *     the project or at one of its milestones (`dependencyCount`). The project leaves the roadmap ranking.
+         * @description Soft-deletes a project and frees its name. An owner on the project's chain (the project's own owner included) or ADMIN; `404` before `403`. Its active milestones, and every active dependency with an end at the project or at one of its milestones, are deleted with it in the same write (no `409`). The project leaves the roadmap ranking.
          */
         delete: operations["deleteProject"];
         options?: never;
@@ -714,10 +678,7 @@ export interface paths {
         get?: never;
         /**
          * Replace a project's target window
-         * @description ADMIN, an owner ABOVE the project (its program's or work stream's owner), or a holder of the `ROADMAP_EDITOR` permission -
-         *     the project's OWN owner alone gets `403`. Read-before-guard (404, then 403, then the body). A full replace: both dates or
-         *     neither (omitting both clears the window), the end not before the start (`400` otherwise). Audited as
-         *     `project.target_window_changed` on a change.
+         * @description Replaces a project's target window. ADMIN, an owner above the project (its program's or work stream's), or a holder of `ROADMAP_EDITOR`; the project's own owner alone gets `403`. `404` before `403` before the body. Both dates or neither (neither clears the window), the end not before the start (`400`).
          */
         put: operations["setProjectTargetWindow"];
         post?: never;
@@ -740,17 +701,7 @@ export interface paths {
         put?: never;
         /**
          * Move a project under another program
-         * @description ADMIN, or an owner ABOVE the project on its CURRENT chain (its program's or work stream's owner - the project's own owner alone
-         *     may not take it out of where it is) who ALSO owns something on the TARGET program's chain (its work stream or the program
-         *     itself): the right to move it out and the right to create one there. The plan view's `can.move` is the source half and the
-         *     target's `can.createProject` the other. Read-before-guard: the project is resolved first (`404`), the source guard (`403`) runs
-         *     before the body, then the body (`400` for a malformed one), then the target: a program that does not exist or is deleted (or
-         *     whose work stream is) is `400` "Unknown or deleted program ids: N" (a body field, never `404`), and a caller who owns nothing
-         *     on the target chain gets `403`. Both guards re-run under the plan lock against the chains re-read there. A project whose name
-         *     already exists among the active projects of the target program (case-insensitive) is `409`. The project's milestones move with
-         *     it and the global ranking is untouched. A move to the project's current program is a no-op `204` with no audit for a caller who
-         *     passes both guards. There is no `expectedRevision`: the move is a set of the parent, and a stale view only offers a target that
-         *     the guards re-check. Audited as `project.moved`.
+         * @description Moves a project, with its milestones, under another program; the global ranking is untouched. ADMIN, or an owner above the project on its current chain (the project's own owner alone may not) who also owns something on the target program's chain. Order: `404` for a missing project, `403` on the source side, `400` for a malformed body, `400` "Unknown or deleted program ids: N" for a missing or deleted target program, or one in a deleted work stream (a body field, never `404`), `403` on the target side, `409` when an active project of the target program has the name (case-insensitively). A move to the current program is a `204` no-op for a caller who passes both guards. There is no `expectedRevision`.
          */
         post: operations["moveProject"];
         delete?: never;
@@ -772,12 +723,7 @@ export interface paths {
         put?: never;
         /**
          * Create a milestone under a project
-         * @description An owner on the project's chain - the project's own owner included - or ADMIN, read-before-guard (404, then 403, then the
-         *     body). A milestone has a name, an optional description, exactly ONE team and a man-day estimate, and no owner. It is created
-         *     UNSCHEDULED (no dates, for every caller): dates enter only through `PUT /milestones/{id}/schedule`, which is the team
-         *     manager's or ADMIN's. `teamId` must name an active team (`400` "Unknown or deleted team ids: N"); `estimateMd` must be finite,
-         *     `0 <= x < 1000000` with at most two decimals (`400`). The name must be unique among the active milestones of THIS project,
-         *     case-insensitively (`409`). Audited as `milestone.created`.
+         * @description Creates a milestone under the project: a name, an optional description, exactly one team and a man-day estimate, no owner. An owner on the project's chain (the project's own owner included) or ADMIN; `404` before `403` before the body. It is created unscheduled for every caller; dates enter only through `PUT /milestones/{id}/schedule`. `teamId` must name an active team (`400` "Unknown or deleted team ids: N"); `estimateMd` must be finite, `0 <= x < 1000000` with at most two decimals (`400`). The name must be unique among the active milestones of this project, case-insensitively (`409`).
          */
         post: operations["createMilestone"];
         delete?: never;
@@ -795,15 +741,7 @@ export interface paths {
         };
         /**
          * List milestones
-         * @description Any authenticated user. ACTIVE milestones only, and only those whose project, program and work stream are active. Each row
-         *     is the milestone plus the name of its project (`projectName`), so a picker can tell the many milestones called "Design" apart.
-         *     This is the search list of the pickers (the dependency dialogs) and the list behind the Milestones page; a project's own
-         *     milestones are read through the project view.
-         *
-         *     - Sortable fields: `id`, `name`, `createdAt`, `updatedAt`, `projectName`, `teamName`. Default `id` ascending (also the tiebreaker).
-         *     - Filters, all optional and combined with AND: `name` (case- and accent-insensitive substring), `scheduled` (strictly `true`:
-         *       milestones with dates; `false`: milestones without), `teamId` and `projectId` (the milestones of that team or project).
-         *       An id that names no active team or project matches nothing (an empty page, never a `404`). A malformed or repeated filter is a `400`.
+         * @description Lists the active milestones whose project, program and work stream are active, each with its `projectName`. Any authenticated user. Paged; sortable by `id` (default, also the tiebreaker), `name`, `createdAt`, `updatedAt`, `projectName` and `teamName`. Filters, combined with AND: `name` (case- and accent-insensitive substring), `scheduled`, `teamId` and `projectId`; an id that names no active team or project matches nothing (an empty page, never `404`). A malformed or repeated filter is `400`. A project's own milestones are read through the project view.
          */
         get: operations["listMilestones"];
         put?: never;
@@ -830,20 +768,13 @@ export interface paths {
         get: operations["getMilestone"];
         /**
          * Replace a milestone's plan fields
-         * @description An owner on the milestone's project chain - the project's own owner included - or ADMIN; a TEAM MANAGER who owns nothing on the
-         *     chain gets `403` (a manager schedules, never edits plan fields). Read-before-guard (404, then 403, then the body). A full replace
-         *     of name, description, team and estimate; the dates never change here (`PUT .../schedule`). A change of team keeps the dates: the
-         *     new team's manager inherits the bar and may move or unschedule it (audited as `milestone.team_changed`, besides
-         *     `milestone.updated`); the milestone leaves the old team's milestone order (`PUT /teams/{id}/milestone-order`) in the same write. The team must be active and the estimate valid (`400`); a name clash within the project is `409`.
+         * @description Replaces a milestone's name, description, team and estimate; the dates never change here (`PUT .../schedule`). An owner on the project's chain (the project's own owner included) or ADMIN; a team manager who owns nothing on the chain gets `403`. `404` before `403` before the body. A change of team keeps the dates, so the new team's manager inherits the bar, and drops the milestone from the old team's milestone order. The team must be active and the estimate valid (`400`); a name clash within the project is `409`.
          */
         put: operations["updateMilestone"];
         post?: never;
         /**
          * Delete a milestone (soft)
-         * @description An owner on the milestone's project chain - the project's own owner included - or ADMIN, read-before-guard (404, then 403). Soft
-         *     delete - the name is freed in its project and the milestone leaves its team's timeline and milestone order. Every ACTIVE dependency with this
-         *     milestone at either end is soft-deleted with it, in the same locked transaction. Audited as `milestone.deleted` (with
-         *     `dependencyCount`).
+         * @description Soft-deletes a milestone and frees its name in the project; it leaves its team's timeline and milestone order. An owner on the project's chain (the project's own owner included) or ADMIN; `404` before `403`. Every active dependency with this milestone at either end is deleted with it, in the same write.
          */
         delete: operations["deleteMilestone"];
         options?: never;
@@ -863,17 +794,7 @@ export interface paths {
         get?: never;
         /**
          * Set or clear a milestone's dates
-         * @description ADMIN or the ACTIVE manager of the milestone's team - the project's owner is NOT enough (`403`). Read-before-guard (404, then 403,
-         *     then the body); the guard is re-run under the plan lock against the milestone's stored team, so a manager revoked meanwhile is a
-         *     `403`, not a `409`. `startDate` and `endDate` are both set or both null (`400` otherwise); both null unschedules (back to the
-         *     tray). Dates are inclusive, the end not before the start, and the span must contain at least one WORKING day - a Monday-Friday
-         *     that is not a public holiday of the ADMIN-curated dictionary (`400` "A milestone must cover at least one working day" for a span of
-         *     only weekend days and holidays; a milestone that LATER loses its last working day to a new holiday keeps its dates). Concurrency is PER MILESTONE: `expectedRevision` is the plan revision of the client's view
-         *     (the `revision` of a plan view document, or of its previous schedule answer); the write is `409` with `type`
-         *     `urn:astrolabe:problem:stale-revision` only when THIS milestone's schedule was written at a later revision (or the value is
-         *     above the current plan revision) - unrelated plan writes never stale it. A negative value is `400`. The answer carries the new plan revision. Every accepted PUT bumps the plan revision; it is audited as
-         *     `milestone.scheduled` when the dates actually change. Unscheduling (both dates null) also clears the milestone's pin
-         *     (`PUT /milestones/{id}/pin`) in the same write and audits `milestone.unpinned`; rescheduling keeps it.
+         * @description Sets or clears a milestone's dates. ADMIN or the active manager of the milestone's team; the project's owner alone gets `403`. `404` before `403` before the body, and a manager revoked while the request waits gets `403`, not `409`. `startDate` and `endDate` are both set or both null (`400` otherwise); both null unschedules and clears the pin, while rescheduling keeps it. Dates are inclusive, the end not before the start, and the span must hold a working day: Monday to Friday and not a public holiday (`400` "A milestone must cover at least one working day"); a milestone that later loses its last working day to a new holiday keeps its dates. `expectedRevision` is the plan revision of the client's view; the write is `409` `urn:astrolabe:problem:stale-revision` only when this milestone's schedule was written at a later revision or the value is above the current plan revision, so unrelated plan writes never stale it; a negative value is `400`. The answer carries the new plan revision.
          */
         put: operations["scheduleMilestone"];
         post?: never;
@@ -895,17 +816,7 @@ export interface paths {
         get?: never;
         /**
          * Pin or unpin a milestone's dates for the auto-proposal
-         * @description A pinned milestone is FIXED for the team's schedule proposal: its dates stand, its load is booked and its dates bound its
-         *     successors (`POST /teams/{id}/schedule-proposal`; the answer lists the pinned ids). The pin is advice to the planner, not a lock:
-         *     a drag or the schedule dialog still moves the milestone and keeps the pin, and an unschedule clears it. Only a SCHEDULED
-         *     milestone can be pinned. Who may pin is who may set the dates (the `can.schedule` of the views): ADMIN or the ACTIVE manager of
-         *     the milestone's team - the project's owner is NOT enough (`403`). Read-before-guard (404, then 403, then the body); the guard
-         *     is re-run under the plan lock against the milestone's stored team, so a manager revoked meanwhile is a `403`. Pinning an
-         *     unscheduled milestone is `409` with `type` `urn:astrolabe:problem:milestone-unscheduled` (nothing is written); unpinning one
-         *     is a no-op. The write is idempotent and takes no `expectedRevision`; it does not touch the milestone's schedule revision (so it
-         *     never stales a drag), but every accepted PUT bumps the plan revision, a no-op one included. Audited as `milestone.pinned` /
-         *     `milestone.unpinned`, only when the flag actually changes. A proposal read before a pin flipped is refused by its `scopeHash`
-         *     (`409` `stale-scope`) when accepted.
+         * @description Pins or unpins a milestone's dates for the schedule proposal: a pinned milestone is fixed (its dates stand, its load is booked and its dates bound its successors; `POST /teams/{id}/schedule-proposal` lists the pinned ids). The pin is advice, not a lock: a schedule write still moves the milestone and keeps the pin; an unschedule clears it. Who may pin is who may set the dates: ADMIN or the active manager of the milestone's team, the project's owner alone gets `403`. `404` before `403` before the body, and a manager revoked while the request waits gets `403`. Pinning an unscheduled milestone is `409` `urn:astrolabe:problem:milestone-unscheduled` with nothing written; unpinning one is a no-op. Idempotent, with no `expectedRevision`, and it never stales a schedule write. Every accepted PUT, a no-op one included, bumps the plan revision; the answer carries it. A proposal read before a pin flipped is refused when accepted (`409` `stale-scope`).
          */
         put: operations["pinMilestone"];
         post?: never;
@@ -928,19 +839,7 @@ export interface paths {
         put?: never;
         /**
          * Link a milestone or project to this project or one of its milestones
-         * @description Creates a dependency whose SUCCESSOR (the constrained side: "it waits for the predecessor") is project `{id}` itself or one of
-         *     its ACTIVE milestones (`400` otherwise). The caller must own something on THIS project's chain - the project's own owner
-         *     included - or be ADMIN, read-before-guard (404, then 403, then the body); the PREDECESSOR's owner is asked nothing, and a team
-         *     manager as such has no say (a dependency never moves a date). The predecessor is any active milestone or project, in this
-         *     project or another (`400` "Unknown or deleted milestone ids: N" / "... project ids: N"). `type` is FS (the successor starts
-         *     after the predecessor finishes), SS (starts after it starts), FF (finishes after it finishes) or SF (finishes after it
-         *     starts); `lagDays` are WORKING days (Monday-Friday without the public holidays), negative = a lead, -365..365 (`400` outside; default 0). Linking an
-         *     endpoint to itself is `400`. A violated link is only a warning in the project view and never moves anything.
-         *     `409` in two cases, both with nothing written and no revision bump: the two endpoints are already linked (at most one
-         *     active link per unordered pair, any type and either direction; change a link's type or lag with `PUT /dependencies/{id}`),
-         *     or the link would close a directed cycle on the start/end
-         *     time-point graph (a project contains its milestones) - then `type` is `urn:astrolabe:problem:dependency-cycle` and `cycle`
-         *     names the entities, the first repeated last. Audited as `dependency.created`.
+         * @description Creates a dependency whose successor (the constrained side, which waits for the predecessor) is project `{id}` or one of its active milestones (`400` otherwise). An owner on this project's chain (the project's own owner included) or ADMIN; the predecessor's owner and team managers are asked nothing. `404` before `403` before the body. The predecessor is any active milestone or project, in this or another project (`400` "Unknown or deleted milestone ids: N" or "... project ids: N"). `type` is FS (the successor starts after the predecessor finishes), SS (starts after it starts), FF (finishes after it finishes) or SF (finishes after it starts); `lagDays` are working days, negative = a lead, -365 to 365 (`400` outside; default 0). Linking an endpoint to itself is `400`. `409` with nothing written: the endpoints are already linked (one active link per unordered pair, any type and direction), or the link would close a cycle on the start/end time-point graph, a project containing its milestones (`type` `urn:astrolabe:problem:dependency-cycle`; `cycle` names the entities, the first repeated last). A violated link only warns and never moves a date.
          */
         post: operations["createDependency"];
         delete?: never;
@@ -966,22 +865,13 @@ export interface paths {
         get: operations["getDependency"];
         /**
          * Change a dependency's type and lag
-         * @description Replaces the link's `type` and `lagDays` (both required; the same ranges as the create). The two ENDS are not editable -
-         *     pointing a link at another end is delete + add. An owner on the SUCCESSOR's project chain - that project's own owner included -
-         *     or ADMIN, read-before-guard (404, then 403, then the body); the predecessor's owner is asked nothing. Re-checked under the
-         *     plan lock against the chain re-read there. A changed `type` re-runs the cycle check on the start/end time-point graph WITHOUT
-         *     this link's old edge: `409` with `type` `urn:astrolabe:problem:dependency-cycle` and `cycle` naming the entities (the
-         *     predecessor first, repeated last), nothing written and no revision bump. A lag-only change cannot close a cycle. There is no
-         *     duplicate-pair `409`: the pair is already this link's. An accepted PUT always bumps the plan revision, a no-op one included
-         *     (the conservative rule); only a real change touches `updatedAt` and emits the audit event `dependency.updated`.
+         * @description Replaces a link's `type` and `lagDays`, both required, with the create's ranges; the ends are not editable (delete and add). An owner on the successor's project chain (that project's own owner included) or ADMIN; the predecessor's owner is asked nothing. `404` before `403` before the body. A changed `type` re-runs the cycle check without this link's old edge: `409` `urn:astrolabe:problem:dependency-cycle` (`cycle` names the entities, the predecessor first, repeated last), nothing written. A lag-only change cannot close a cycle, and there is no duplicate-pair `409`. An unchanged PUT is `204` too. Every accepted PUT, a no-op one included, bumps the plan revision.
          */
         put: operations["updateDependency"];
         post?: never;
         /**
          * Delete a dependency (soft)
-         * @description An owner on the SUCCESSOR's project chain - that project's own owner included - or ADMIN, read-before-guard (404, then 403); the
-         *     predecessor's owner may not delete a link another project depends on. Re-checked under the plan lock. Soft delete - the
-         *     ordered pair is free to link again. Audited as `dependency.deleted`.
+         * @description Soft-deletes a link; its ordered pair is free to link again. An owner on the successor's project chain (that project's own owner included) or ADMIN; `404` before `403`. The predecessor's owner may not delete a link another project depends on.
          */
         delete: operations["deleteDependency"];
         options?: never;
@@ -1614,14 +1504,7 @@ export interface paths {
         get?: never;
         /**
          * Replace the global project ranking
-         * @description ADMIN or a holder of the `ROADMAP_EDITOR` permission; every other caller gets `403` BEFORE the body is read (the route addresses
-         *     no node). The permission is re-checked under the plan lock, so a grant revoked while the request was in flight refuses the write.
-         *     Wholesale: the listed projects get positions 1..n in the given order and every other project becomes unranked (omit a project to
-         *     unrank it; append an unranked one to rank it at the end). `expectedRevision` is the ranking's revision (`RoadmapView.revision`, or the previous answer): the PUT is `409` with
-         *     `type` `urn:astrolabe:problem:stale-revision` and nothing is written only when the ranking was written at a later revision (another ranking PUT, or the delete of a
-         *     ranked project) or the value is above the current plan revision - a plan write elsewhere never stales it. Reload the view and retry. `400` when an id is listed
-         *     twice, is unknown or belongs to a deleted project, or more than 1000 ids are sent. Every accepted PUT, even one that keeps the
-         *     order, bumps the plan revision by one and is audited as `roadmap.ranked`.
+         * @description Replaces the global project ranking wholesale: the listed projects get positions 1 to n in the given order and every other project becomes unranked. ADMIN or a holder of `ROADMAP_EDITOR`; every other caller gets `403` before the body is read. `expectedRevision` is the ranking's revision (`RoadmapView.revision`, or the previous answer); the write is `409` `urn:astrolabe:problem:stale-revision`, nothing written, only when the ranking was written at a later revision (another ranking PUT, or the delete of a ranked project) or the value is above the current plan revision, so a plan write elsewhere never stales it. `400` for an id listed twice, unknown or of a deleted project, or more than 1000 ids. Every accepted PUT, one that keeps the order included, bumps the plan revision by one; the answer carries it.
          */
         put: operations["replaceRoadmapRanking"];
         post?: never;
@@ -1643,20 +1526,7 @@ export interface paths {
         get?: never;
         /**
          * Replace a team's milestone order
-         * @description ADMIN or the team's ACTIVE manager, read-before-guard (`404` for an unknown or deleted team, then `403`, then the body: a forbidden
-         *     caller's malformed body is still `403`). The project owner, the other teams' managers and every other caller get `403`. The
-         *     guard is re-run under the plan lock, so a manager cleared while the request was in flight refuses the write.
-         *     The team's milestone order is the order of ACTUAL EXECUTION and belongs to the team: the global project rank (`/roadmap/ranking`)
-         *     is only the top-down suggestion and the DEFAULT of this order. Wholesale: the listed milestones get positions 1..n in the given
-         *     order; the team's other milestones are unlisted and follow the listed ones in the default order (the project rank). An empty
-         *     list resets the team to the default order. The positions are the team's own and absolute: a later project-rank change never
-         *     reorders them. `expectedRevision` is this TEAM's order revision (`order.revision` of the team view), so another team's reorder or
-         *     any other plan write elsewhere never makes it stale; a team whose order was never written accepts any `expectedRevision` up to
-         *     the current plan revision. A smaller revision than the stored one, or one above the current plan revision, is `409` with `type`
-         *     `urn:astrolabe:problem:stale-revision` and nothing is written - reload the team view and retry. `400` when an id is listed twice,
-         *     names no milestone, a deleted milestone or a milestone of another team, more than 1000 ids are sent, or `expectedRevision` is
-         *     negative. Every accepted PUT, even one that keeps the order, bumps the plan revision by one and is audited as
-         *     `team.milestone_order_changed`; the answer carries that revision, which is now the team's order revision.
+         * @description Replaces a team's milestone order wholesale: the listed milestones get positions 1 to n, the team's other milestones follow in the default order (the project rank), and an empty list resets to the default. The positions are the team's own and absolute: a later project-rank change never reorders them. ADMIN or the team's active manager; `404` for an unknown or deleted team before the `403`, then the body (a forbidden caller's malformed body is `403`); the guard is re-checked under the write, so a manager cleared meanwhile gets `403`, nothing written. `expectedRevision` is this team's order revision (`order.revision` of the team view), so no other write stales it; `409` `urn:astrolabe:problem:stale-revision`, nothing written, when it is below the stored one or above the current plan revision (a team never ordered accepts any value up to the plan revision). `400` for an id listed twice, naming no milestone, a deleted one or one of another team, more than 1000 ids, or a negative `expectedRevision`. Every accepted PUT, one that keeps the order included, bumps the plan revision by one; the answer carries it, now the team's order revision.
          */
         put: operations["replaceTeamMilestoneOrder"];
         post?: never;
@@ -1679,39 +1549,7 @@ export interface paths {
         put?: never;
         /**
          * Schedule several of a team's milestones at once (the batch accept)
-         * @description ADMIN or the team's ACTIVE manager, read-before-guard (`404` for an unknown or deleted team, then `403`, then the body: a forbidden
-         *     caller's malformed body is still `403`). The project owner, the other teams' managers and every other caller get `403`. The batch
-         *     is N `PUT /milestones/{id}/schedule` in ONE plan write under the TEAM's guard (a command, not a replace: milestones not listed
-         *     keep their dates); the guard is re-run under the plan lock, so a manager cleared while the request was in flight refuses the
-         *     write (`403`, nothing written, no bump).
-         *
-         *     Each item is the single PUT's body without the revision: `startDate` and `endDate` both set or both null (null unschedules),
-         *     inclusive, the end not before the start, a working day inside. `400` before the lock, with nothing written, for a negative
-         *     `expectedRevision`, an empty list, more than 1000 items, a milestone listed twice, or an item with one date only, a bad date, an end
-         *     before the start or a span of only weekend days. `expectedRevision` is the plan revision of the view the items come from (a
-         *     schedule proposal's `revision`): a value above the current plan revision (a view from the future) is `409` with `type`
-         *     `urn:astrolabe:problem:stale-revision` for the WHOLE batch.
-         *
-         *     `scopeHash` (optional, the proposal's; an opaque 64-hex token to send back unchanged) turns the call into the accept of THAT
-         *     proposal: after the revision check, under the lock, the team's scope is fingerprinted again from the same rows (its milestones,
-         *     their estimates, projects, pins and effective order, its capacity periods, the links touching it with the dates of their foreign
-         *     ends) and any other milestone of the team that was scheduled after `expectedRevision` and is not in the batch is looked for. A
-         *     different fingerprint or such a milestone is `409` with `type` `urn:astrolabe:problem:stale-scope` for the WHOLE batch: nothing is
-         *     written and the revision is not bumped - propose again. A changed public-holiday dictionary refuses the batch only when it
-         *     changes an accepted date: the proposal is then computed again on the current rows under the lock, and the batch goes through
-         *     when every item carries exactly the dates that computation gives its milestone (an item for a milestone it does not place, or
-         *     another date, is the same `409`). The dates of the batch's OWN milestones are not part of the fingerprint (they stay the
-         *     per-item `STALE` below). Absent = no scope check: N schedule PUTs, the contract before v0.9. A malformed value is `400`.
-         *
-         *     Otherwise every item is decided on its own, in body order, under the lock: the first matching `reason` skips it and the rest are
-         *     still written - `GONE` (no active milestone has the id), `NOT_ON_TEAM` (it is, or moved to, another team), `NO_WORKING_DAY` (the
-         *     span holds no working day of the CURRENT holiday calendar - a holiday added since the view), `STALE` (THIS milestone's schedule was
-         *     written after `expectedRevision`, per-milestone as in the single PUT - unrelated plan writes never stale an item). A written item
-         *     has its `schedule_revision` stamped with the new plan revision. The batch bumps the plan revision by ONE, whatever was skipped (an
-         *     all-skipped batch included), and the answer's `revision` is that new revision: send it as the next `expectedRevision`.
-         *     An item that unschedules a PINNED milestone clears its pin in the same statement (a dated item keeps it).
-         *     Audited as `milestone.scheduled` per written item whose dates actually changed (plus `milestone.unpinned` per cleared pin) and ONE
-         *     `team.schedule_batch_applied`.
+         * @description Schedules several of a team's milestones at once: N schedule PUTs in one plan write; milestones not listed keep their dates. ADMIN or the team's active manager; `404` for an unknown or deleted team before the `403`, then the body (a forbidden caller's malformed body is `403`). A malformed batch is `400` before anything is written. `expectedRevision` above the current plan revision is `409` `urn:astrolabe:problem:stale-revision` for the whole batch. With a proposal's `scopeHash` it is that proposal's accept: `409` `urn:astrolabe:problem:stale-scope` for the whole batch when the team's plan changed since the proposal or a team milestone outside the batch was scheduled after `expectedRevision`; without it there is no scope check. Each item is decided in body order and the first matching `reason` skips it while the rest are written (`NO_WORKING_DAY`: no working day on the current holiday calendar). The guard is re-checked under the write: a manager cleared meanwhile is `403`, nothing written. The batch bumps the plan revision by one, an all-skipped one included, and answers it as `revision`, the next `expectedRevision`. An item that unschedules a pinned milestone clears its pin.
          */
         post: operations["scheduleTeamMilestones"];
         delete?: never;
@@ -1733,31 +1571,7 @@ export interface paths {
         put?: never;
         /**
          * Propose a schedule for a team's not-yet-started milestones (a computation, nothing is stored)
-         * @description ADMIN or the team's ACTIVE manager, read-before-guard (`404` for an unknown or deleted team, then `403`, then the body: a forbidden
-         *     caller's malformed body is still `403`, then `asOf` `400`). The project owner, the other teams' managers and every other caller get
-         *     `403`. A COMPUTATION, not a mutation: `200` (no `Location`), nothing is written or stored, no lock is taken, the plan revision does
-         *     not move and no audit event is emitted. The server proposes; the client shows the diff and sends the accepted moves to
-         *     `POST /teams/{id}/milestone-schedules` with this document's `revision` as `expectedRevision`.
-         *
-         *     `asOf` is the VIEWER's calendar day (the server reads no clock): a milestone of the team is MOVABLE when it is unscheduled or its
-         *     start is after `asOf`; one that started on or before it (in progress or past) is fixed and so is every other team's milestone. A
-         *     PINNED milestone (`PUT /milestones/{id}/pin`) is fixed too, whatever its start: its dates stand, its load is booked and its dates
-         *     bound its successors; `pinned` lists the pinned milestones that start after `asOf` (fixed by their pin), and a pin flipped after the proposal turns
-         *     the accept's `scopeHash` stale.
-         *     Movable milestones are placed greedily in the team's milestone order (the custom order, else the project rank), after their
-         *     dependencies, on the earliest working days that fit: the duration is the estimate over the capacity share (capacity over the WIP
-         *     limit, the whole capacity when there is none), every day within capacity and the WIP limit, on the public-holiday calendar. Days
-         *     without a capacity period, or on hold (0 man-days per week), take no work. A 0 man-day milestone takes one working day and counts
-         *     toward the WIP limit. A link into another team's fixed milestone that the placement breaks is NOT avoided: it is reported in
-         *     `dependencies` with `check.status` `VIOLATED` (and `before` showing what it was).
-         *
-         *     `moves` lists the movable milestones that change dates, in the team's effective order; `unchanged` those that land on their
-         *     current dates; `unplaced` those that got no dates (`NO_CAPACITY`: no working day with capacity at or after their earliest start;
-         *     `NO_ROOM`: none fits within 520 weeks of the team's first usable day) - a scheduled milestone in `unplaced` keeps its stored
-         *     dates. `weeks` is the team's weekly load as it would be after accepting EVERY move (the team view's `weeks`), `dependencies` the
-         *     links with an end among the team's milestones, or a project end whose span changed, violated-after first, with the dates of moved
-         *     ends as proposed. Bounded by one team's milestones (about 100, 301 on the largest sample team), at most 520 weeks and the links
-         *     touching the team.
+         * @description Computes a schedule proposal for a team's movable milestones: nothing is written and the plan revision does not move. Accepted moves go to `POST /teams/{id}/milestone-schedules` with this `revision` as `expectedRevision`. ADMIN or the team's active manager; `404` for an unknown or deleted team before the `403`, then the body (a forbidden caller's malformed body is `403`), then `asOf` `400`. `asOf` is the viewer's calendar day: a milestone of the team is movable when unscheduled or starting after it; started, pinned and every other team's milestones are fixed. Movable milestones are placed greedily in the team's milestone order (custom, else the project rank), after their dependencies, on the earliest working days that fit: the duration is the estimate over the capacity share (capacity over the WIP limit, the whole capacity when there is none), every day within capacity and the WIP limit, on the public-holiday calendar. Days without a capacity period, or on hold, take no work; a 0 man-day milestone takes one working day and counts toward the WIP limit. A link into another team's fixed milestone that the placement breaks is not avoided but listed in `dependencies` as `VIOLATED`.
          */
         post: operations["proposeTeamSchedule"];
         delete?: never;
@@ -1777,29 +1591,7 @@ export interface paths {
         put?: never;
         /**
          * Propose a schedule over several teams at once (a computation, nothing is stored)
-         * @description The cross-team run (1.8): ONE proposal over a SET of teams instead of one team with every other team's dates fixed. The caller
-         *     must be ADMIN or the ACTIVE manager of EVERY team listed; the other teams stay fixed constraints, as for the per-team proposal.
-         *     The order of the checks, which differs from `POST /teams/{id}/schedule-proposal` only because the team set is IN the body: the
-         *     body decodes first (a malformed body is `400` even for a caller who would be refused), `teamIds` shape `400` (one to 50 teams,
-         *     none twice), then every listed team must be ACTIVE else `404` for EVERY caller (it names the missing ids; ids are no secret), then
-         *     `403` unless the caller manages every listed team (the first failing guard wins; the project's owner and every other caller get
-         *     `403`), and only then `asOf` `400` - a forbidden caller's malformed `asOf` is still `403`. A COMPUTATION, not a mutation: `200`
-         *     (no `Location`), one read-only snapshot, nothing is written or stored, no lock is taken, the plan revision does not move and no
-         *     audit event is emitted. The client shows the diff per team and sends the accepted moves back with this document's `revision` and
-         *     `scopeHash`.
-         *
-         *     The teams are placed in DEPENDENCY order (a team holding the predecessor of a link before the team holding its successor; a cycle
-         *     is broken by the team with the most movable milestones, then by name), each by the per-team proposal's rules with the teams placed
-         *     so far held as fixed facts, and the whole round is repeated until a pass changes nothing an earlier-placed team reads, at most
-         *     five passes. `passes` is the number made; `settled` is false when the limit was hit (the last pass's dates stand and the links that
-         *     still fail are in `dependencies`). A team graph without a cycle settles in one pass. Pinned milestones are fixed everywhere. A run
-         *     over one team equals that team's per-team proposal (its `scopeHash` apart).
-         *
-         *     `teams` lists each team's block in PLACEMENT order, in the per-team proposal's shape (`moves`, `unchanged`, `unplaced`, `pinned`,
-         *     `weeks` at most 520, `dependencies`: the links touching that team whose verdict is or was violated over the run's final dates; a
-         *     link between two run teams is listed in both blocks). `scopeHash` is an opaque 64-hex token to send back unchanged: it fingerprints
-         *     what the run read that the milestones' own schedule revisions do not cover ("foreign" there means outside the run set, so it
-         *     differs from a per-team hash by design), the public holidays apart, and carries the run's `asOf`.
+         * @description Computes ONE schedule proposal over a set of teams (`teamIds`) instead of one team with every other team's dates fixed; nothing is written and the plan revision does not move. ADMIN or the active manager of every listed team. Order, because the team set is in the body: the body decodes first (`400` even for a caller who would be refused), `teamIds` shape `400` (one to 50, none twice), every listed team active else `404` for every caller (naming the missing ids), `403` unless the caller manages every listed team, then `asOf` `400`. Teams are placed in dependency order (a team holding a link's predecessor before the one holding its successor; a cycle is broken by the team with the most movable milestones, then by name), each by the per-team rules with the teams placed so far held fixed, and the round repeats until a pass changes nothing an earlier-placed team reads, at most five times. `passes` is the number made; `settled` is false when the limit was hit (the last pass's dates stand and the links still failing are in `dependencies`). Pinned milestones are fixed everywhere. A run over one team equals that team's proposal, its `scopeHash` apart.
          */
         post: operations["proposeCrossTeamSchedule"];
         delete?: never;
@@ -1819,35 +1611,7 @@ export interface paths {
         put?: never;
         /**
          * Accept a cross-team run - schedule several teams' milestones at once (ONE plan write, ONE bump)
-         * @description The accept of `POST /schedule-proposals`: the ticked moves of EVERY team of the run, N `PUT /milestones/{id}/schedule` in ONE plan
-         *     write. ADMIN or the ACTIVE manager of EVERY team in `teamIds`. The order of the checks, like the run's (the team set is IN the
-         *     body): the body decodes first (a malformed body, a missing `scopeHash` included, is `400` even for a caller who would be
-         *     refused), `teamIds` shape `400` (one to 50 teams, none twice), every listed team must be ACTIVE else `404` for EVERY caller (it
-         *     names the missing ids), `403` unless the caller manages every listed team (the project's owner and every other caller get `403`),
-         *     and only then the rest of the shape, `400` before the lock with nothing written: a negative `expectedRevision`, a `scopeHash` that
-         *     is not 64 lowercase hex digits, an empty list, more than 2000 items, a milestone listed twice, an item with one date only, a bad
-         *     date, an end before the start or a span of only weekend days (a forbidden caller's malformed items are still `403`).
-         *
-         *     Then, under the plan lock, EVERY team of the set is re-read and locked (a team deleted meanwhile is `404`) and the guard is re-run
-         *     for each (a manager cleared while the request was in flight is `403`, nothing written, no bump); then two `409`s for the WHOLE
-         *     request, nothing written and the revision not bumped: `expectedRevision` above the current plan revision (`type`
-         *     `urn:astrolabe:problem:stale-revision`), and the run's scope (`type` `urn:astrolabe:problem:stale-scope`): the run's
-         *     `scopeHash` - REQUIRED here, an opaque 64-hex token to send back unchanged - is fingerprinted again from the same rows (the teams
-         *     and their names, each team's milestone set with estimates, projects and pins, effective order and capacity periods, the links
-         *     touching the set with the dates of their ends outside the set), and ANY milestone of ANY listed team that is not an item -
-         *     started or pinned ones included - that was scheduled after `expectedRevision` is looked for. A different fingerprint or such a
-         *     milestone refuses the accept: propose again. A changed public-holiday dictionary refuses it only when it changes an accepted
-         *     date: the run is then computed again on the current rows under the lock, and the accept goes through when every item carries
-         *     exactly the dates that computation gives its milestone. The dates of the items' own milestones are not in the fingerprint
-         *     (they stay the per-item `STALE`). A per-team proposal's `scopeHash` never matches (it defines "foreign" as outside ONE team),
-         *     nor does a run's `scopeHash` match the per-team batch.
-         *
-         *     Otherwise every item is decided on its own, in body order, with the per-team batch's rules: the first matching `reason` skips it and
-         *     the rest are still written - `GONE`, `NOT_ON_TEAM` (its stored team is outside `teamIds`), `NO_WORKING_DAY`, `STALE`. A written
-         *     item has its `schedule_revision` stamped with the new plan revision; an item that unschedules a PINNED milestone clears its pin in
-         *     the same statement. ONE bump for the whole accept, an all-skipped one included, and the answer's `revision` is the new revision.
-         *     Audited as `milestone.scheduled` per written item whose dates changed (with the milestone's own team), `milestone.unpinned` per
-         *     cleared pin and ONE `team.schedule_batch_applied` per team of `teamIds`, each with `runTeamIds`.
+         * @description Accepts a cross-team run: schedules the ticked moves of every team of the run, N schedule PUTs in one plan write, one revision bump. ADMIN or the active manager of every team in `teamIds`. Order, as for the run: the body decodes first (a malformed body, a missing `scopeHash` included, is `400` even for a caller who would be refused), `teamIds` shape `400`, every listed team active else `404` for every caller (naming the missing ids), `403` unless the caller manages every listed team, then the rest of the shape `400` before any write (a forbidden caller's malformed items stay `403`). Re-checked under the write: a team deleted meanwhile is `404`, a manager cleared meanwhile `403`, nothing written. `409` for the whole request, nothing written: `expectedRevision` above the plan revision (`urn:astrolabe:problem:stale-revision`); or the run's `scopeHash` no longer matches what the run read, or a milestone of a listed team that is not an item was scheduled after `expectedRevision` (`urn:astrolabe:problem:stale-scope`). Otherwise each item is decided in body order by the batch's rules, the first matching `reason` skipping it; an item that unschedules a pinned milestone clears its pin.
          */
         post: operations["acceptCrossTeamSchedule"];
         delete?: never;
@@ -1867,24 +1631,7 @@ export interface paths {
         put?: never;
         /**
          * Check the link verdicts and the weekly load for the ticked subset of a proposal (a computation, nothing is stored)
-         * @description The companion of `POST /schedule-proposals` and `POST /teams/{id}/schedule-proposal` (1.8): which dependency links would be
-         *     violated, and how loaded each week would be, if ONLY the given `items` were accepted. The client sends the ticked moves of a
-         *     proposal and gets the verdicts for exactly that subset - the proposal's own lists describe the plan with EVERY move accepted. The
-         *     team page calls it with its one team, the cross-team page with the run's team set. ADMIN or the ACTIVE manager of EVERY team in
-         *     `teamIds`; the order of the checks is the run's (the team set is IN the body): the body decodes first (a malformed body is `400`
-         *     even for a caller who would be refused), `teamIds` shape `400` (one to 50 teams, none twice), every listed team must be ACTIVE else
-         *     `404` for EVERY caller (it names the missing ids), `403` unless the caller manages every listed team, and only then the rest of
-         *     the shape, `400` (an empty list, more than 2000 items, a milestone listed twice, an item with one date only, a bad date, an end
-         *     before the start or a span of only weekend days - a forbidden caller's malformed items are still `403`), and a milestone that is
-         *     not an ACTIVE milestone of one of the listed teams (unknown, deleted, or on another team) is a `400` too.
-         *
-         *     A COMPUTATION, not a mutation: `200`, one read-only snapshot, no lock, nothing written, the plan revision does not move and no
-         *     audit event is emitted. Each listed team's dates are its STORED dates with exactly the items applied over them (an item with no
-         *     dates removes the milestone's); every other milestone of the plan keeps its stored dates. There is no `asOf`: no verdict reads it.
-         *     An unticked move keeps its stored dates, so a successor ticked without its predecessor is judged against the predecessor's stored
-         *     dates. The verdicts are the proposal's own (`dependencies`: the links touching the team, with an end among its milestones, whose
-         *     verdict is or was `VIOLATED`; a link between two listed teams is in both blocks), so the answer for the dates of a proposal equals
-         *     that proposal's `weeks` and `dependencies`. Items an accept would skip (`STALE`, `NO_WORKING_DAY`) are not anticipated.
+         * @description Computes which dependency links would be violated, and how loaded each week would be, if only the given `items` were accepted: the ticked subset of a proposal. Nothing is written and the plan revision does not move. ADMIN or the active manager of every team in `teamIds`; order as for the run: the body decodes first (`400` even for a caller who would be refused), `teamIds` shape `400`, every listed team active else `404` for every caller (naming the missing ids), `403` unless the caller manages every listed team, then the rest of the shape `400` (a forbidden caller's malformed items stay `403`); a milestone that is not an active milestone of a listed team is `400` too. Each listed team's dates are its stored dates with exactly the items applied (an item without dates removes the milestone's); every other milestone keeps its stored dates, so a successor ticked without its predecessor is judged against the predecessor's stored dates. There is no `asOf`. The verdicts are the proposal's own, so the answer for a proposal's dates equals its `weeks` and `dependencies`; items an accept would skip (`STALE`, `NO_WORKING_DAY`) are not anticipated.
          */
         post: operations["checkCrossTeamSchedule"];
         delete?: never;
@@ -1902,9 +1649,7 @@ export interface paths {
         };
         /**
          * List the teams the caller may include in a cross-team run
-         * @description Any authenticated caller. The ACTIVE teams `POST /schedule-proposals` would let the caller name: every active team for an ADMIN,
-         *     otherwise the teams the caller currently manages (none = an empty list). By name, case-insensitively, then id. A bounded `{items}`
-         *     list (the active teams, about 15), not paged. The server's `403` on the run stays the rule.
+         * @description Lists the active teams the caller may name in a cross-team run: every active team for an ADMIN, otherwise the teams the caller currently manages (none = an empty list). Any authenticated caller. By name case-insensitively, then id; a bounded `{items}` list, not paged. The run itself still answers `403` for any other team.
          */
         get: operations["listScheduleProposalTeams"];
         put?: never;
@@ -1924,16 +1669,13 @@ export interface paths {
         };
         /**
          * List the public holidays
-         * @description Any authenticated user. The whole dictionary in date order - a bounded `{items}` list (ADMIN-curated, about 14 rows a year), not
-         *     paged. The dates are the days nobody works: every working-day figure of the views and the schedule write skips them.
+         * @description Lists the public holidays in date order. Any authenticated user. A bounded `{items}` list (ADMIN-curated, about 14 rows a year), not paged. The dates are the days nobody works: every working-day figure and the schedule writes skip them.
          */
         get: operations["listPublicHolidays"];
         put?: never;
         /**
          * Add a public holiday
-         * @description ADMIN only (guarded before the body decodes - a non-admin's malformed body is still `403`). One holiday per date: a date the
-         *     dictionary already holds is `409`. The dictionary is plan state: an accepted write bumps the plan revision by one (a `409`
-         *     does not) and stamps nothing else, so no client write is staled by it.
+         * @description Adds a public holiday. ADMIN only; a non-admin's malformed body is still `403`. One holiday per date: a date the dictionary already holds is `409`. An accepted write bumps the plan revision by one and stales no client write.
          */
         post: operations["createPublicHoliday"];
         delete?: never;
@@ -1953,14 +1695,7 @@ export interface paths {
         put?: never;
         /**
          * Add a preset's public holidays for a year
-         * @description ADMIN only (guarded before the body decodes). Adds every holiday of the preset's set for `year` that the dictionary does not hold
-         *     yet (`POLISH`: the Polish statutory days, fixed dates plus the Easter-based ones; Sunday-only days such as Easter Sunday are
-         *     stored too). **The preset projects TODAY's statute onto any year** in 1900-2999: it does not model when each day became (or
-         *     stopped being) a statutory holiday - for example Epiphany only since 2011, 3 May since 1990, 11 November since 1989, Christmas
-         *     Eve only from 2025 - so applying it to a past year adds days that were then working days; the ADMIN removes any that do not
-         *     apply. Idempotent: a date that already has a holiday is left as it is (its name is kept) and listed in `skipped`, so
-         *     re-applying adds nothing. It is a plan write and bumps the plan revision by one even when nothing was added. An unknown
-         *     `preset` or a `year` outside 1900-2999 is `400`.
+         * @description Adds the holidays of a preset's set for a year that the dictionary does not hold yet (`POLISH`: the statutory days, fixed dates plus the Easter-based ones; Sunday-only days such as Easter Sunday are stored too). ADMIN only, guarded before the body decodes. The preset projects today's statute onto any year in 1900-2999 and does not model when a day became (or stopped being) a statutory holiday, so applying it to a past year adds days that were then working days; the ADMIN removes any that do not apply. Idempotent: a date that already has a holiday keeps it, its name too, and is listed in `skipped`. Bumps the plan revision by one even when nothing was added. An unknown `preset` or a `year` outside 1900-2999 is `400`.
          */
         post: operations["applyHolidayPreset"];
         delete?: never;
@@ -1983,8 +1718,7 @@ export interface paths {
         post?: never;
         /**
          * Remove a public holiday
-         * @description ADMIN only, guard-before-read (`403` before the `404`, so a probe learns nothing about which ids exist). A hard delete: the date
-         *     is free to be added again. A plan write - an accepted delete bumps the plan revision by one, a `404` does not.
+         * @description Removes a public holiday (a hard delete: the date is free to be added again). ADMIN only, `403` before the `404`, so a probe learns nothing about which ids exist. An accepted delete bumps the plan revision by one.
          */
         delete: operations["deletePublicHoliday"];
         options?: never;
@@ -2001,22 +1735,13 @@ export interface paths {
         };
         /**
          * List the baselines
-         * @description Any authenticated user. The ACTIVE baselines, newest first (`createdAt` then `id`, both descending) - a bounded `{items, can}`
-         *     set (at most 100 by the cap; the baseline picker needs all of them at once), not paged. `can.manage` is the caller's right to
-         *     take, rename and delete baselines (ADMIN or a `ROADMAP_EDITOR`).
+         * @description Lists the active baselines, newest first (`createdAt`, then `id`, both descending). Any authenticated user. A bounded `{items, can}` set (at most 100), not paged. `can.manage` is the caller's right to take, rename and delete baselines (ADMIN or `ROADMAP_EDITOR`).
          */
         get: operations["listBaselines"];
         put?: never;
         /**
          * Take a baseline
-         * @description ADMIN or a holder of the `ROADMAP_EDITOR` permission; every other caller gets `403` BEFORE the body is read (the route addresses
-         *     no node, like the ranking). The permission is re-checked under the plan lock. A baseline is a named, immutable copy of the plan's
-         *     dated structure - every active milestone (name, project, team, estimate, dates) and every active project (name, program, work
-         *     stream, target window, rank position, derived span) - taken under the plan lock, so it is the plan at ONE revision. Taking one is
-         *     a plan write: it bumps the plan revision by one and the answer's `planRevision` is the revision it left behind (the plan equals
-         *     the baseline at that revision). Links, capacity periods, holidays and team orders are not copied. `409` with `type`
-         *     `urn:astrolabe:problem:baseline-limit` when 100 baselines are already active (delete one first); `409` when another active
-         *     baseline has the name (case-insensitively). Nothing is written on a `409`.
+         * @description Takes a baseline: a named, immutable copy of the plan's dated structure at one plan revision, every active milestone (name, project, team, estimate, dates) and every active project (name, program, work stream, target window, rank position, derived span); links, capacity periods, holidays and team orders are not copied. ADMIN or a holder of `ROADMAP_EDITOR`; every other caller gets `403` before the body is read. Bumps the plan revision by one; the answer's `planRevision` is the revision it left behind, which the plan then equals. `409`, nothing written: `urn:astrolabe:problem:baseline-limit` when 100 baselines are already active; a plain `409` when another active baseline has the name (case-insensitively).
          */
         post: operations["createBaseline"];
         delete?: never;
@@ -2041,18 +1766,13 @@ export interface paths {
         get: operations["getBaseline"];
         /**
          * Rename / re-describe a baseline
-         * @description ADMIN or a holder of the `ROADMAP_EDITOR` permission, GUARD-BEFORE-READ (`403` before the body and before the `404`, like the
-         *     ranking and the holiday registry); the permission is re-checked under the plan lock. A full replace of the name and the
-         *     description (omitted = none); the frozen rows never change. A plan write: it bumps the plan revision by one. `409` when another
-         *     active baseline has the name (case-insensitively).
+         * @description Replaces a baseline's name and description (omitted = none); the frozen rows never change. ADMIN or a holder of `ROADMAP_EDITOR`; `403` before the body and before the `404`. Bumps the plan revision by one. `409` when another active baseline has the name (case-insensitively).
          */
         put: operations["updateBaseline"];
         post?: never;
         /**
          * Delete a baseline (soft)
-         * @description ADMIN or a holder of the `ROADMAP_EDITOR` permission, GUARD-BEFORE-READ; the permission is re-checked under the plan lock. A soft
-         *     delete: the name is free to be reused and the baseline reads as `404` everywhere; its frozen rows are kept. A plan write: it
-         *     bumps the plan revision by one.
+         * @description Soft-deletes a baseline: its name is free to reuse and it reads as `404` everywhere. ADMIN or a holder of `ROADMAP_EDITOR`; `403` before the `404`. Bumps the plan revision by one.
          */
         delete: operations["deleteBaseline"];
         options?: never;
@@ -4143,7 +3863,7 @@ export interface components {
             startDate: string | null;
             /** Format: date */
             endDate: string | null;
-            /** @description The auto-proposal keeps this milestone on its dates (V25); only ever true while it is scheduled. Set by the milestone team's manager or ADMIN (`PUT /milestones/{id}/pin`), cleared by an unschedule. */
+            /** @description The schedule proposal keeps this milestone on its dates; only ever true while it is scheduled. Set by the milestone team's manager or ADMIN (`PUT /milestones/{id}/pin`), cleared by an unschedule. */
             pinned: boolean;
             /**
              * Format: int64
@@ -4242,7 +3962,7 @@ export interface components {
             startDate: string | null;
             /** Format: date */
             endDate: string | null;
-            /** @description The auto-proposal keeps this milestone on its dates (V25); only ever true while it is scheduled. Set by the milestone team's manager or ADMIN (`PUT /milestones/{id}/pin`), cleared by an unschedule. */
+            /** @description The schedule proposal keeps this milestone on its dates; only ever true while it is scheduled. Set by the milestone team's manager or ADMIN (`PUT /milestones/{id}/pin`), cleared by an unschedule. */
             pinned: boolean;
             /**
              * Format: int64
@@ -5797,12 +5517,12 @@ export interface components {
         TeamScheduleBatchRequest: {
             /**
              * Format: int64
-             * @description The plan revision of the view the items were derived from (a proposal's `revision`); an item is skipped as `STALE` only when ITS milestone's schedule was written after it, and a value above the current plan revision is a `409` for the whole batch.
+             * @description The plan revision of the view the items were derived from (a proposal's `revision`). Negative is `400`. An item is skipped as `STALE` only when its milestone's schedule was written after it; above the current plan revision is `409` for the whole batch.
              */
             expectedRevision: number;
-            /** @description One entry per milestone (an id twice is a `400`), applied in this order. */
+            /** @description One to 1000 entries, one per milestone (an id twice is `400`), applied in this order. An item with one date, a bad date, an end before the start or a span of only weekend days is `400`; a span with no working day on the current holiday calendar is skipped as `NO_WORKING_DAY`. */
             items: components["schemas"]["TeamScheduleBatchItem"][];
-            /** @description The proposal's `scopeHash`, an opaque token to send back unchanged. Present = the whole batch is refused (`409`, `stale-scope`) when the team's plan changed since that proposal, or when a changed holiday dictionary would give an accepted milestone another date; absent = no scope check. */
+            /** @description The proposal's `scopeHash`, an opaque token (64 lowercase hex digits, else `400`) to send back unchanged. Present = the whole batch is refused (`409`, `stale-scope`) when the team's plan changed since that proposal, or when a changed holiday dictionary would give an accepted milestone another date; absent = no scope check. A run's `scopeHash` never matches. */
             scopeHash?: string;
         };
         /** @description The single schedule PUT's body for one milestone. */
@@ -5843,7 +5563,7 @@ export interface components {
         ScheduleProposalRequest: {
             /**
              * Format: date
-             * @description The viewer's calendar day, from 1900-01-01 to 2990-01-05 (a later day is `400`: a placement may lie 520 weeks past the first usable day, and the batch accept refuses dates after 2999-12-31). Milestones of the team that start after it (or have no dates) may move; the others are fixed.
+             * @description The viewer's calendar day, 1900-01-01 to 2990-01-05 (a later day is `400`). Milestones of the team that start after it, or have no dates, may move; the others are fixed.
              */
             asOf: string;
         };
@@ -5853,7 +5573,7 @@ export interface components {
              * @description The plan revision the proposal was computed from; send it back as `expectedRevision` of the batch accept.
              */
             revision: number;
-            /** @description An opaque 64-hex token: a fingerprint of everything the proposal read about the team that the milestones' own schedule revisions do not cover, the public holidays and `asOf` carried alongside; send it back unchanged as `scopeHash` of the batch accept. Stable for one `asOf` while the team's plan and the holidays are unchanged, whatever else happens in the plan. */
+            /** @description An opaque 64-hex token fingerprinting what the proposal read about the team beyond its milestones' schedule revisions (the public holidays and `asOf` included); send it back unchanged as the batch's `scopeHash`. Stable for one `asOf` while the team's plan and the holidays are unchanged. */
             scopeHash: string;
             /**
              * Format: date
@@ -5866,9 +5586,9 @@ export interface components {
             moves: components["schemas"]["ScheduleProposalMove"][];
             /** @description The movable milestones that land on their current dates, in the team's effective order. */
             unchanged: number[];
-            /** @description The movable milestones that got no dates, in the team's effective order. */
+            /** @description The movable milestones that got no dates, in the team's effective order; a scheduled one keeps its stored dates. */
             unplaced: components["schemas"]["ScheduleProposalUnplaced"][];
-            /** @description The team's milestones the proposal keeps on their dates only because they are pinned (a pinned, scheduled milestone starting after `asOf`; one already in progress is fixed anyway), in the team's effective order. They are in neither `moves` nor `unchanged`. Empty without pins. */
+            /** @description The team's pinned, scheduled milestones starting after `asOf`, kept on their dates; in the team's effective order, in neither `moves` nor `unchanged`. Empty without pins. */
             pinned: number[];
             /** @description The team's weekly load AFTER accepting every move, in the team view's row shape (at most 520); empty while nothing would be scheduled. */
             weeks: components["schemas"]["WeekLoad"][];
@@ -5941,7 +5661,7 @@ export interface components {
         CrossTeamProposalRequest: {
             /**
              * Format: date
-             * @description The viewer's calendar day, from 1900-01-01 to 2990-01-05 (as for the per-team proposal). A milestone of a run team that starts after it (or has no dates) may move; the others are fixed.
+             * @description The viewer's calendar day, 1900-01-01 to 2990-01-05 (a later day is `400`). A milestone of a run team that starts after it, or has no dates, may move; the others are fixed.
              */
             asOf: string;
             /** @description The run's teams: one to 50, each once, in any order (the server places them in dependency order). The caller must manage every one, or be ADMIN. */
@@ -5950,14 +5670,14 @@ export interface components {
         CrossTeamAcceptRequest: {
             /**
              * Format: int64
-             * @description The run's `revision`; an item is skipped as `STALE` only when ITS milestone's schedule was written after it, and a value above the current plan revision is a `409` for the whole accept.
+             * @description The run's `revision`. Negative is `400`. An item is skipped as `STALE` only when its milestone's schedule was written after it; above the current plan revision is `409` for the whole accept.
              */
             expectedRevision: number;
-            /** @description The run's `scopeHash`, REQUIRED, an opaque token to send back unchanged. The whole accept is refused (`409`, `stale-scope`) when the plan the run read changed, or a milestone of a listed team that is not an item was scheduled since, or a changed holiday dictionary would give an accepted milestone another date. */
+            /** @description The run's `scopeHash`, REQUIRED: an opaque token (64 lowercase hex digits, else `400`) to send back unchanged; a per-team proposal's never matches. The whole accept is refused (`409`, `stale-scope`) when the plan the run read changed, a milestone of a listed team that is not an item was scheduled since, or a changed holiday dictionary would give an accepted milestone another date. */
             scopeHash: string;
             /** @description The run's teams, exactly the proposal request's (a team whose moves were all unticked stays in the set: it is part of the run's premise and is checked and re-guarded). The caller must manage every one, or be ADMIN. */
             teamIds: number[];
-            /** @description One entry per milestone of any listed team (an id twice is a `400`), applied in this order. */
+            /** @description One to 2000 entries, one per milestone of any listed team (an id twice is `400`), applied in this order. An item with one date, a bad date, an end before the start or a span of only weekend days is `400`; a span with no working day on the current holiday calendar is skipped as `NO_WORKING_DAY`. */
             items: components["schemas"]["TeamScheduleBatchItem"][];
         };
         CrossTeamProposal: {
@@ -5973,14 +5693,14 @@ export interface components {
             asOf: string;
             /**
              * Format: int32
-             * @description The passes the kernel made (at most five).
+             * @description The passes made (at most five).
              */
             passes: number;
             /** @description True when another pass would reproduce every team's result; false when the pass limit was hit (the last pass's dates stand). */
             settled: boolean;
             /** @description One block per requested team, in PLACEMENT order. */
             teams: components["schemas"]["CrossTeamProposalTeam"][];
-            /** @description An opaque 64-hex token: a fingerprint of everything the run read that the milestones' own schedule revisions do not cover, over the whole team set ("foreign" = outside the run), the public holidays and `asOf` carried alongside; send it back unchanged. Stable for one `asOf` while the run teams' plan and the holidays are unchanged, whatever else happens in the plan. */
+            /** @description An opaque 64-hex token fingerprinting what the run read beyond the milestones' schedule revisions, over the whole team set ("foreign" means outside the run), the public holidays and `asOf`; send it back unchanged. Stable for one `asOf` while the run teams' plan and the holidays are unchanged. */
             scopeHash: string;
         };
         /** @description One team's block of a cross-team run, in the per-team proposal's shape. */
@@ -6004,7 +5724,7 @@ export interface components {
             dependencies: components["schemas"]["ScheduleProposalLink"][];
         };
         ScheduleCheckRequest: {
-            /** @description The teams to check: one to 50, each once (the proposal's team set; the team page sends its one team). The caller must manage every one, or be ADMIN. */
+            /** @description The teams to check: one to 50, each once (the proposal's team set). The caller must manage every one, or be ADMIN. */
             teamIds: number[];
             /** @description The ticked moves: one entry per milestone of a listed team (an id twice, or of a milestone outside the listed teams, is a `400`). Both dates or neither (the pair of nulls unschedules). */
             items: components["schemas"]["TeamScheduleBatchItem"][];
