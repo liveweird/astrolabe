@@ -24,6 +24,10 @@ class HomeViewRoute
 class TeamLoadViewRoute
 
 @Serializable
+@Resource("/api/v1/views/dependencies")
+class DependencyListViewRoute
+
+@Serializable
 @Resource("/api/v1/views/project/{id}")
 class ProjectViewRoute(val id: UInt)
 
@@ -59,7 +63,8 @@ internal fun ApplicationCall.baselineParam(): UInt? = request.queryParameters.op
  * authenticated user; a read: no audit event. `GET /views/home` (1.18.0) takes no parameter: it is always the CALLER's own (their
  * linked person's items, resolved inside the view's snapshot with no role branch); the plan block is the same for everyone.
  * `GET /views/team-load` (1.19.0) takes no parameter either and is the same document for every caller (every team's milestones and
- * weeks).
+ * weeks). `GET /views/dependencies` (1.20.0) takes no parameter and is the same document for every caller (every link of the plan,
+ * the ones that do not hold first).
  */
 internal fun Route.planViewRoutes(d: PlanRouteDeps) {
     get<PlanViewRoute> {
@@ -73,6 +78,10 @@ internal fun Route.planViewRoutes(d: PlanRouteDeps) {
     get<TeamLoadViewRoute> {
         call.caller()
         call.respond(HttpStatusCode.OK, d.views.teamLoad.view())
+    }
+    get<DependencyListViewRoute> {
+        call.caller()
+        call.respond(HttpStatusCode.OK, d.views.dependencyList.view())
     }
     get<ProjectViewRoute> { route ->
         val caller = call.caller()

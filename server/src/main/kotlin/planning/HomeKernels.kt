@@ -39,8 +39,8 @@ object HomeKernels {
     /**
      * The plan block over [streams], [programs] and [facts]. [HomePlan.programs] counts the programs whose work stream is listed (the
      * Programs tree drops the others); the other counts are over every row given. `flags` is the roll-up over every project's flags,
-     * `conflicts` the violated checked links (each once), the two team figures the teams with at least one flagged week in
-     * [HomeFacts.teamWeeks].
+     * `conflicts` the violated checked links (each once: [DependencyListKernels.totals], the dependency list's own function), the two
+     * team figures the teams with at least one flagged week in [HomeFacts.teamWeeks].
      */
     fun plan(streams: Collection<HomeStreamFact>, programs: Collection<HomeProgramFact>, facts: HomeFacts): HomePlan {
         val streamIds = streams.map { it.id }.toSet()
@@ -54,7 +54,7 @@ object HomeKernels {
             milestones = facts.milestones.size,
             unscheduledMilestones = facts.milestones.count { it.span == null },
             flags = RoadmapKernels.flagCounts(facts.projects.flatMap { it.flags }),
-            conflicts = facts.checkedLinks.count { it.check.status == DependencyStatus.VIOLATED },
+            conflicts = DependencyListKernels.totals(facts.checkedLinks).violated,
             overloadedTeams = warnings.overloadedTeams,
             wipExceededTeams = warnings.wipExceededTeams,
         )

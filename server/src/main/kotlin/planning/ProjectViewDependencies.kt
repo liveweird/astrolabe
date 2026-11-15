@@ -71,16 +71,26 @@ internal suspend fun viewDependencies(
 }
 
 /**
- * The order of the view's `dependencies`, so that the top of the list IS the conflict list: VIOLATED first (the largest shortfall
- * first), then OK, then UNSCHEDULED; within a group by the successor's name, the predecessor's name (case-insensitive) and the id.
+ * The order of a list of links, so that the top of the list IS the conflict list: VIOLATED first (the largest shortfall first), then
+ * OK, then UNSCHEDULED; within a group by the successor's name, the predecessor's name (case-insensitive) and the id. Generic over the
+ * row so the project view's [ProjectDependency] ([DEPENDENCY_ORDER]) and the dependency list's [DependencyListRow] share ONE rule.
  */
-internal val DEPENDENCY_ORDER: Comparator<ProjectDependency> = compareBy<ProjectDependency>(
-    { it.check.status.rank() },
-    { -(it.check.shortfallDays ?: 0) },
-    { it.successor.name.lowercase() },
-    { it.predecessor.name.lowercase() },
-    { it.id },
+internal fun <T> dependencyOrder(
+    check: (T) -> DependencyCheck,
+    successorName: (T) -> String,
+    predecessorName: (T) -> String,
+    id: (T) -> UInt,
+): Comparator<T> = compareBy<T>(
+    { check(it).status.rank() },
+    { -(check(it).shortfallDays ?: 0) },
+    { successorName(it).lowercase() },
+    { predecessorName(it).lowercase() },
+    { id(it) },
 )
+
+/** The order of the project and team views' `dependencies` ([dependencyOrder] over a [ProjectDependency]). */
+internal val DEPENDENCY_ORDER: Comparator<ProjectDependency> =
+    dependencyOrder({ it.check }, { it.successor.name }, { it.predecessor.name }, { it.id })
 
 private fun DependencyStatus.rank(): Int = when (this) {
     DependencyStatus.VIOLATED -> 0

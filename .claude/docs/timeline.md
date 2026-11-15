@@ -594,6 +594,20 @@ One-off, **NON-BINDING**, this machine only (Apple M5 Max, 2026-11-14, in-proces
 - **Latency.** About the roadmap view's, and well under Home's: the view runs no roadmap loader and no external source, only the team load that Home's plan block runs for every caller (two selects and 15 `weeklyLoad` runs) plus the teams, the milestone counts and the calendar. Nothing here is near the 500 ms tripwire the test asserts.
 - **Statements** (counted below Exposed as for Home, only `SELECT`s): **exactly 6** and independent of the Jira side, because the view reads no external source: the revision, the holidays (the calendar), the teams LEFT-joined to their managers, the active milestones' team and start date, the scheduled milestones, the capacity periods of the teams with scheduled work. No statement grows with the plan (a per-team read would break the pin). Home's own count is unchanged by the move of the loader (`HomeViewSizeTest`'s relative pin, `+ 5`, passes untouched).
 
+#### Measured figures (1.20)
+
+One-off, **NON-BINDING**, this machine only (Apple M5 Max, 2026-11-15, in-process `testApplication` against the Postgres container; re-measure rather than quote). `HomeViewSizeTest` reads `GET /views/dependencies` once more on the 1.18 fixture (the sample plan: about 300 Finish-to-Start links between milestones, 1,000 milestones, 100 projects, no Jira binding, no Flow connection) as the login without a person (the document is the same for every caller): once through the conformance-checked client (the shape), then one warm-up and five timed reads through a bare bearer client (the median of five). Two runs, the second inside the full server gate beside the user's compose stack.
+
+| Document | Bytes | Gzip | Median of five | Statements |
+|---|---|---|---|---|
+| `GET /views/dependencies`, the endpoint's own document (the sample's links plus whatever the shared database holds) | 202,274-224,550 | 17,181-20,482 | **13.7-17.0 ms** (max 17.2-18.5) | **5** |
+| The same, the GATED fixed document: the uncapped view reduced to the links whose two ends are on the sample's teams (gate 260,000 B) | **178,901-180,311** (about 600 B a row) | n/a | n/a | n/a |
+| For comparison: `GET /views/roadmap` on the same plan | n/a | n/a | 51.9 ms (inside the full gate) | n/a |
+
+- **Size.** The calculated 170 KB for about 300 links held (about 179 KB, 600 B a row against the calculated 560; the fixture's names are long). At the 1,000-row cap that is about 600 KB uncompressed; the wire is gzip (about a ninth of it). The slimmer shape (names once, ids per row) is a BACKLOG line.
+- **Latency.** Well under the roadmap view's: five selects and one `checkedLinks` run, no owner names, ranks, inversion flags or external source. Nothing here is near the 500 ms tripwire the test asserts.
+- **Statements** (counted below Exposed as for Home, only `SELECT`s): **exactly 5** and independent of the Jira side, because the view reads no external source: the revision, the holidays (the calendar), the active milestones with their team's name, the active links, the active projects' names. No statement grows with the plan.
+
 #### Deliberate departures from the bootstrap sketch
 
 A div grid instead of a `<table>` (virtual rows); `top` instead of `translateY` for virtual rows (stacking); the tray's drag is pointer-only with an explicit Schedule button; the row handle is pointer-only like the tray's (the row menu's Move items are the keyboard path); dnd-kit's live region is the single announcer for drags (the page's polite region announces only non-drag changes).

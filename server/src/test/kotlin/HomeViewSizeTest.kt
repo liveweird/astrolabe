@@ -7,6 +7,8 @@ import ch.nokillswit.jira.DeviationViewServiceKey
 import ch.nokillswit.jira.JiraFlagSource
 import ch.nokillswit.jira.JiraLevel
 import ch.nokillswit.planning.CompositeExternalFlagSource
+import ch.nokillswit.planning.DependencyListView
+import ch.nokillswit.planning.DependencyListViewService
 import ch.nokillswit.planning.HomeCaller
 import ch.nokillswit.planning.HomeView
 import ch.nokillswit.planning.ExternalFlagSource
@@ -58,7 +60,9 @@ import kotlin.test.assertTrue
  * gzip), the medians and the statement counts are `scale-figure` lines ([ScaleFigures]), recorded in `timeline.md` "Measured figures
  * (1.18)". The asserted time bounds are loose tripwires (at least 5x the figure measured on the dev machine), never the machine's
  * speed. The team-load document (`GET /views/team-load`, 1.19.0) is read once more on the same plan (bytes, median, statements, pinned
- * at [TEAM_LOAD_STATEMENTS]: it runs no external source, so its count does not depend on what other classes left behind). No Jira or
+ * at [TEAM_LOAD_STATEMENTS]: it runs no external source, so its count does not depend on what other classes left behind). The
+ * dependency list (`GET /views/dependencies`, 1.20.0) is read the same way (bytes, gzip, median, statements pinned at
+ * [DEPENDENCIES_STATEMENTS], and the gated size of the sample's links alone). No Jira or
  * Flow stub: the plan has no binding and no connection, so the seam's Jira half answers nothing; the bound-plan
  * figure comes from `JiraFlagsScaleTest`'s own `scale-figure` lines on CI. Every row is hard-deleted in a `finally`.
  */
@@ -66,6 +70,8 @@ class HomeViewSizeTest {
     private class Caller(val userId: UInt, val conformant: HttpClient, val bare: HttpClient)
 
     private class LoadReading(val document: TeamLoadView, val bytes: Int, val p50: Double)
+
+    private class ListReading(val document: DependencyListView, val bytes: Int, val gzip: Int, val p50: Double)
 
     private class Reading(val document: HomeView, val bytes: Int, val gzip: Int, val p50: Double, val max: Double)
 
@@ -121,6 +127,28 @@ class HomeViewSizeTest {
         ScaleFigures.printBytes("team load gzip", gzip)
         ScaleFigures.printSeries("team load", timings)
         return LoadReading(document, bytes, ScaleFigures.median(timings))
+    }
+
+    /**
+     * The shape through the conformance client, then [RUNS] warm timed reads of the dependency list (1.20.0); the sizes are printed
+     * (the endpoint's document holds every link of the shared database, cut at 1,000, not the sample's 300): the GATED size is
+     * [sampleDependencyBytes].
+     */
+    private suspend fun Caller.readDependencies(): ListReading {
+        val shape = conformant.get(DEPENDENCIES_PATH)
+        assertEquals(HttpStatusCode.OK, shape.status)
+        val document = shape.body<DependencyListView>()
+        val bytes = bare.get(DEPENDENCIES_PATH).bodyAsBytes().size
+        val gzip = bare.get(DEPENDENCIES_PATH) { header(HttpHeaders.AcceptEncoding, "gzip") }.bodyAsBytes().size
+        val timings = List(RUNS) {
+            val started = System.nanoTime()
+            assertEquals(HttpStatusCode.OK, bare.get(DEPENDENCIES_PATH).status)
+            (System.nanoTime() - started) / NANOS_PER_MILLI
+        }
+        ScaleFigures.printBytes("dependencies size", bytes)
+        ScaleFigures.printBytes("dependencies gzip", gzip)
+        ScaleFigures.printSeries("dependencies", timings)
+        return ListReading(document, bytes, gzip, ScaleFigures.median(timings))
     }
 
     /** The statements [read] sends on a counting database of its own (every statement is a SELECT; the dialect probe is not the view's). */
@@ -225,6 +253,24 @@ class HomeViewSizeTest {
             ScaleFigures.printBytes("team load (sample's 15 teams, gated) size", sampleBytes)
             assertTrue(sampleBytes <= TEAM_LOAD_MAX_BYTES, "the team-load document is $sampleBytes bytes for 15 teams, over the gate")
 
+            // The dependency list on the same plan: every link, whoever asks; FIVE statements (revision, calendar, milestones, links,
+            // project names) and a document of about 560 B a row.
+            val dependencies = personless.readDependencies()
+            val dependenciesSql = statements("dependencies") { database, _ -> DependencyListViewService(database).view() }
+            val listed = dependenciesSql.joinToString("\n")
+            assertEquals(DEPENDENCIES_STATEMENTS, dependenciesSql.size, "the dependency list's statements:\n$listed")
+            assertTrue(dependencies.p50 <= P50_TRIPWIRE_MS, "dependencies p50 ${dependencies.p50} ms")
+            // The gated size is a FIXED document: the uncapped view reduced to the links whose two ends are on the sample's teams (the
+            // endpoint's own document holds every link of the shared database, cut at 1,000).
+            val allLinks = DependencyListViewService(sharedDatabaseForTests(), maxRows = Int.MAX_VALUE).view()
+            val sampleTeams = sample.teamIds.toSet()
+            val sampleLinks = allLinks.dependencies.filter { it.predecessor.teamId in sampleTeams && it.successor.teamId in sampleTeams }
+            assertTrue(sampleLinks.size >= sample.links, "the sample's ${sample.links} links are rows (${sampleLinks.size})")
+            val sampleDocument = allLinks.copy(dependencies = sampleLinks)
+            val sampleLinkBytes = Json.encodeToString(DependencyListView.serializer(), sampleDocument).toByteArray().size
+            ScaleFigures.printBytes("dependencies (sample's ${sampleLinks.size} links, gated) size", sampleLinkBytes)
+            assertTrue(sampleLinkBytes <= DEPENDENCIES_MAX_BYTES, "the dependency list is $sampleLinkBytes bytes, over the gate")
+
             val managerSql = homeStatements("one manager of one team", manager.userId)
             val nothingSql = homeStatements("a person with nothing", nothing.userId)
             val personlessSql = homeStatements("a login without a person", personless.userId)
@@ -291,6 +337,13 @@ class HomeViewSizeTest {
         const val PATH = "/api/v1/views/home"
         const val ROADMAP_PATH = "/api/v1/views/roadmap"
         const val TEAM_LOAD_PATH = "/api/v1/views/team-load"
+        const val DEPENDENCIES_PATH = "/api/v1/views/dependencies"
+
+        /** The dependency list's gate for the sample's links (calculated about 560 B a row, 170 KB for about 300 links): 1.5 times. */
+        const val DEPENDENCIES_MAX_BYTES = 260_000
+
+        /** The dependency list's statements: revision, calendar, milestones with teams, links, active projects' names. */
+        const val DEPENDENCIES_STATEMENTS = 5
 
         /** The team-load view's gate for the sample's 15 teams (calculated about 2.6 KB, measured about 2.9 KB): 1.5 times the figure. */
         const val TEAM_LOAD_MAX_BYTES = 4_500

@@ -48,6 +48,8 @@ import ch.nokillswit.planning.BaselineViewServiceKey
 import ch.nokillswit.planning.CompositeExternalFlagSource
 import ch.nokillswit.planning.CrossTeamProposalService
 import ch.nokillswit.planning.CrossTeamProposalServiceKey
+import ch.nokillswit.planning.DependencyListViewService
+import ch.nokillswit.planning.DependencyListViewServiceKey
 import ch.nokillswit.planning.DependencyService
 import ch.nokillswit.planning.DependencyServiceKey
 import ch.nokillswit.planning.HomeViewService
@@ -220,6 +222,7 @@ private fun Application.wirePlanViews(
     attributes.put(TeamViewServiceKey, TeamViewService(database, jiraFlags))
     attributes.put(HomeViewServiceKey, HomeViewService(database, jiraFlags))
     attributes.put(TeamLoadViewServiceKey, TeamLoadViewService(database))
+    attributes.put(DependencyListViewServiceKey, DependencyListViewService(database))
 }
 
 /** The login side: the revoked-token blocklist and the persisted password-reset links, each with its boot-validated config read. */

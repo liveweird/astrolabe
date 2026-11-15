@@ -1238,6 +1238,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/views/dependencies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every dependency of the plan, the ones that do not hold first, for the Dependencies page
+         * @description Any authenticated user; no parameter (an unknown query name is ignored). One document (a deliberate exception to the paged
+         *     envelope), the same for every caller: every ACTIVE dependency whose two ends resolve to a project, in the project view's order
+         *     (violated first, the largest shortfall first, then OK, then unscheduled; the successor's name, the predecessor's name
+         *     case-insensitively, then id), at most 1000 rows (`truncated` says the list was cut, which drops the kept and unscheduled
+         *     links first; `totals` always count every link). A row is the item `GET /views/project/{id}` answers for the same link without
+         *     `critical` and `can`: the same two ends and the same check, on working days. `totals.violated` is `plan.conflicts` of
+         *     `GET /views/home`. Filtering by status, team or project is the client's. `revision` is the plan revision read before the rows
+         *     (informational: the view offers no write, so there is no `can`).
+         */
+        get: operations["getDependencyListView"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/views/project/{id}": {
         parameters: {
             query?: never;
@@ -5710,6 +5737,51 @@ export interface components {
              */
             weeksWithoutCapacity: number;
         };
+        /** @description The Dependencies page's document (1.20.0): every dependency of the plan. Every row is the project view's own item for the link, so the list never disagrees with the page it links to, and `totals.violated` is Home's `plan.conflicts`. */
+        DependencyListView: {
+            /**
+             * Format: int64
+             * @description The PLAN revision, read before the rows. Informational - the page sends nothing back.
+             */
+            revision: number;
+            totals: components["schemas"]["DependencyListTotals"];
+            /** @description The dependencies in the project view's order (violated first), at most 1000. */
+            dependencies: components["schemas"]["DependencyListRow"][];
+            /** @description True when `dependencies` was cut at 1000 rows. */
+            truncated: boolean;
+        };
+        /** @description The figures over EVERY dependency, whatever the rows cut. */
+        DependencyListTotals: {
+            /**
+             * Format: int32
+             * @description The active dependencies whose two ends resolve.
+             */
+            links: number;
+            /**
+             * Format: int32
+             * @description The dependencies that do not hold, each once, one inside a single project included (Home's `plan.conflicts`).
+             */
+            violated: number;
+            /**
+             * Format: int32
+             * @description The dependencies with an end that has no dates.
+             */
+            unscheduled: number;
+        };
+        /** @description One dependency: the project view's item (`ProjectDependency`) without `critical` and `can`. */
+        DependencyListRow: {
+            /** Format: int32 */
+            id: number;
+            predecessor: components["schemas"]["DependencyEndpoint"];
+            successor: components["schemas"]["DependencyEndpoint"];
+            type: components["schemas"]["DependencyType"];
+            /**
+             * Format: int32
+             * @description Working days; negative = a lead.
+             */
+            lagDays: number;
+            check: components["schemas"]["DependencyCheck"];
+        };
         ProgramsView: {
             /**
              * Format: int64
@@ -9897,6 +9969,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TeamLoadView"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getDependencyListView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The dependency list document */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DependencyListView"];
                 };
             };
             401: components["responses"]["Unauthorized"];
