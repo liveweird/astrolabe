@@ -47,7 +47,7 @@ The executor runs claimed runs in the background, after the request that claimed
 - The deadline is `sync.maxRunMinutes` - 1 minute, never under 30 s, so a live run never outlives its claim. A run cut by its deadline or a shutdown keeps the calls, rate-limited count and backoff it had published to its `RunMeter`, not zeros.
 - The finish is written under a 10 s bound (a stuck database cannot hold the process); a finish that fails or times out leaves the row to the abandonment and says so in the log.
 - **The envelope.** Both connectors' runs go through `sync/RunEnvelope.kt` (`runWithTally`): the tally, the counters (`RunProgress`), the typed `RunProblem` and the failure text `"<Jira|Flow> fetch failed: CODE (status)"` (`fetchFailureDetail`) are defined once there.
-- What a Jira run and a Flow run read and write: `jira-sync.md` "Observations and the run", `flow-sync.md` "The run".
+- What a Jira run and a Flow run read and write: `jira-sync.md` "Observations and the run" (the full and incremental reads, the sweep, the gone probe, the census cadence), `flow-sync.md` "The run".
 - **Transport settings.** The five transport settings (`requestTimeoutSeconds`, `requestDeadlineSeconds`, `maxResponseBytes`, `maxConcurrentRequests`, `maxRetries`) are read by `infra/fetch/TransportConfig.kt` `readTransportConfig(config, prefix, bounds)`; each connector keeps its own bounds.
 
 ### Log lines
@@ -83,31 +83,21 @@ The Flow run:
 - WARN `Capacity acknowledgements of binding {id} kept: not computable ({cause class})`: the prune could not compute one binding's rows (a non-database failure); that binding's acknowledgements are kept and the run goes on. A database failure fails the run instead.
 - INFO `Sync run {id} cleared {n} capacity acknowledgement(s) whose row left the list`, when the run's mirror replace pruned any. The count only; the per-binding detail is the audit event `flow.capacity_acknowledgements_cleared`.
 
-### The Jira run's read
-
-`jira-sync.md` "Observations and the run" holds the order of a Jira run; these are the rules of its reads that it does not state.
-
-- The incremental window is bounded by `discovered_at` (re-discovery), `mapping_changed_at` (a PUT that changed the document) and the connection's `updated_at` (any edit, e.g. a widened `projectKeys`; `storeCloudId` and a recorded Test connection leave it alone). A rename or a token rotation therefore costs one extra full read.
-- The full read asks `project in (...) AND issuetype in (<the mapped levels' type ids>) ORDER BY id ASC` with the observation `fields`, the sweep's clause and the one the `search` probe exercises, so a bound issue of an unmapped type is not read by it and keeps its old observation.
-- The incremental is NOT type-filtered: an unfiltered window is how a change of type is seen. An incremental that hits `LIMIT_EXCEEDED` (a long gap on a busy site: the window only grows) restarts once as the typed full read.
-- The sweep flags only issues whose last observed type is among the types it asks for; an unknown or unmapped type is never flagged by it.
-- The census (`jira/JiraCensus.kt`) is filled by the same pass: every entry of the read is observed, the mapped levels are pruned after the reconcile, and the child level is listed in full on a full read or as an id sweep once per `jira.censusHours` (`JIRA_CENSUS_HOURS`, default 24, 1..168). Then `jira_connections.census_at` is stamped, or cleared when a sweep listed an issue the mirror lacks so the next run re-seeds; a null `census_at` makes the run full.
-- A failing children pass never fails the run. The run's `calls` counts the child pages; `observed` stays "bound issues observed". There is no audit event: the run row and the INFO line are the record.
-
 ## The scheduler
 
 Files: `sync/SyncScheduler.kt`, `SchedulePolicy.kt`.
 
 `SyncScheduler` is ONE coroutine launched on `ApplicationStarted` on the runner's own scope (`SyncRunner.launch`), so `runner.shutdown()` on `ApplicationStopping` ends the loop together with the runs: no second scope, no second hook. The stop joins the runner (bounded at 5 s) before the pool is disposed on `ApplicationStopped`.
 
-- **Config.** `sync.scheduler.enabled` (`SYNC_SCHEDULER_ENABLED`, default true, strict boolean; false starts no loop and publishes no `SyncSchedulerKey`) and `sync.tickSeconds` (`SYNC_TICK_SECONDS`, default 60, 15..600, validated on every boot, the scheduler enabled or not). The first tick lands 10 s after start. `sync.maxRunMinutes` (`SYNC_MAX_RUN_MINUTES`, default 10) is the claim's lifetime.
+- **The interval.** A connection's `pollIntervalMinutes` is 5..1440 (`requirePollInterval`, `sync/ConnectionRules.kt`) or null for manual only (Refresh now still works); an omitted member is 15 for Jira and 60 for Flow.
+- **Config.** `sync.scheduler.enabled` (`SYNC_SCHEDULER_ENABLED`, default true, strict boolean; false starts no loop and publishes no `SyncSchedulerKey`) and `sync.tickSeconds` (`SYNC_TICK_SECONDS`, default 60, 15..600, validated on every boot, the scheduler enabled or not). The first tick lands 10 s after start. `sync.maxRunMinutes` (`SYNC_MAX_RUN_MINUTES`, default 10, 1..60, boot-validated) is the claim's lifetime.
 - **A tick** runs under half a tick of budget (`withTimeoutOrNull`). Per connector it reads the poll rows (`Connector.connections()`: never a token or the discovery snapshot), the pollable connections' newest 50 runs in one transaction (`SyncRunService.recentRuns`), and decides with the pure `decide` (`sync/SchedulePolicy.kt`), which stores nothing.
 - **The due rule.** Never for a disabled, not ready (Jira: no discovery; Flow: never tested and never run) or manual-only (`pollIntervalMinutes` null) connection. While the newest run is unfinished and younger than `sync.maxRunMinutes` it is running (skipped); older, it is a crash and the connection is due (the claim abandons the row). No run at all is due. A change after the newest run started (`changedAt`: Jira's `GREATEST(updated_at, mapping_changed_at, discovered_at)`, Flow's later of `updated_at` and `last_tested_at`) is due at once, so a fixed token is not left waiting out a back-off.
 - Otherwise the connection is due when `now` reaches the newest run's finish + `max(interval, min(interval x 2^(n-1), 6 h))` for `n` consecutive trailing failed or abandoned runs (the first retry waits one interval, then doubling, capped at six hours; a success resets; an interval longer than the cap is never shortened), plus, after a failure only, a deterministic per-connection jitter.
 - **Jitter after an outage.** After a shared outage every connection fails in the same tick and would retry in the same tick, on the shared outbound permits. The wait therefore grows by `fraction x min(backoff / 2, interval / 2, 1 h)` (`failureJitterMillis`), in practice up to half an interval. The fraction is NOT a random draw but a hash of the connection id and the newest run's id (`failureJitterFraction`, the splitmix64 finalizer):
-  the schedule is never stored, so a draw per read would make `nextPollAt` flicker and two replicas disagree. The same two ids always give the same offset, so the scheduler, every replica and the status agree to the millisecond; the next failure (a new run id) draws a new offset. A success is never jittered.
+  the schedule is never stored, so a draw per read would make `nextPollAt` flicker and two replicas disagree. The same two ids always give the same offset, so the scheduler, every replica and the status agree to the millisecond; the next failure (a new run id) draws a new offset. A success is never jittered, and a change to the connection stays "due at once". Not covered: connections that merely come due DURING a database outage (nothing failed, so nothing is spread) all claim on the first tick after it, and the shared permits queue them.
 - **Before the claim** the scheduler asks the connector's `requireRunnable` (what the manual route asks) and re-reads the poll row and the runs through the same rule, so a connection deleted, disabled, made manual-only or claimed meanwhile is skipped. The claim (`SCHEDULED`, no requesting user) and `runner.start` then run together in `NonCancellable`, so a claimed row always gets its run and is never left for the abandonment by the tick's budget or a shutdown.
-- A run the scheduler starts audits nothing; its row is the record. `SyncScheduler.lastTickAt` / `lastTickOk` are in-process liveness figures; the telemetry `sync` block reports only whether the scheduler runs and its tick, not these.
+- A run the scheduler starts is an ordinary row of the run list with trigger `SCHEDULED` and no requesting user, and audits nothing; its row is the record. The e2e world's API-seeded connections are manual-only; `jira-polling.spec.ts` owns the one polled connection. `SyncScheduler.lastTickAt` / `lastTickOk` are in-process liveness figures; the telemetry `sync` block reports only whether the scheduler runs and its tick, not these.
 
 Scheduler log lines, on `ch.nokillswit.sync`:
 
@@ -136,6 +126,8 @@ A connection's sync state is DERIVED per read from `enabled` and its newest 50 `
 - Beside the state: `lastRun` (the newest row, running or not; `running` is `isRunLive`, judged against the reading's own clock), `lastSucceededAt` (the START of the newest success), `consecutiveFailures` (`trailingFailures`, plus one for an interrupted newest row) and `nextPollAt` from the scheduler's own `decide` (`Wait.until`, "now" when due, null for a disabled, untested, manual-only or running connection). `SyncStatusKernelsTest` pins the equality with `decide`.
 - **Five readers** share it: the connection registries (`status` on the response and the list), the Deviations view (`connections[].status`), the Flow capacity-deviation view (`connections[].status`), the telemetry `sync` block and the timeline views' Jira fold (`jiraSites[].state`, `DeviationViewService.siteStatesInTransaction`, through the Deviations service's own derive step).
 - All but telemetry compute it inside their own transaction: the registries and the capacity-deviation view through `SyncRunService.statusesInTransaction(kind, connections)` (`sync/SyncStatus.kt`, one copy for both connectors), the Deviations view through `recentRunsInTransaction` directly.
+- A run in flight on top of a failure does not clear `FAILED`; the failure recovers by the next success, and an edit that makes the connection due at once (a fixed token) lets that happen without waiting out the back-off. `lastRun` carries the machine `errorCode`, never the detail; an interrupted newest row shows `running` false and `finishedAt` null.
+- `nextPollAt` of a failed connection is the doubling wait plus its jitter; a connection never tested has none (the web's "Test the connection first" hint reads `discoveredAt == null`).
 - `status` is operational and secret-free, the `lastRun` disclosure class (`authorization.md`): no error text, no counters.
 
 ## Failure codes
@@ -201,7 +193,9 @@ Files: `sync/Acknowledge.kt`, `sync/Bindings.kt`.
 - It is decrypted in memory only by the connector's few readers (Jira: `readForTest`, `readForPeek`, `readForBind`, and the run through `readForBind`; Flow: `readForTest` and `readForRun`). The decrypt-or-null rule is ONE function, `infra/crypto/UnreadableToken.kt` (`FieldCipher.decryptOrNull`): an envelope that cannot be opened reads as null, never as an exception, with one WARN naming the connection id and the exception class (`UnreadableTokenTest`).
 - An unreadable token is `TOKEN_UNREADABLE` on a run and the `stored_token` row of a test, never a `500`. `docker compose up` and `:server:run` use different keys over one Postgres, so a row may be unreadable.
 - At boot `EncryptedAtRest` wraps any legacy plaintext and, with `DATA_ENCRYPTION_KEY_PREVIOUS` set, re-encrypts every row (soft-deleted ones too; NULLs skipped), audited `crypto.reencrypted` (`observability.md`).
-- A `PUT` with a token rotates it; a changed token clears the last test verdict (the last test judged the old one). The per-connector rules (what else clears the verdict, the readers, the delete) are `jira-sync.md` "The token's life" and `flow-sync.md` "The token's life".
+- A `PUT` with a token rotates it; a changed token clears the last test verdict (the last test judged the old one); a blank or omitted token keeps the stored one.
+- **Jira.** The three readers are `JiraConnectionService.readForTest` (Test connection), `readForPeek` (Peek) and `readForBind` (the bind; the two import routes and the run are further callers of it, not further readers). `JiraTestRecorder` and `JiraMappingStore` (the Test result and the mapping document) never select or see the token. A changed token, email, auth scheme or project-key set clears `last_tested_at/ok`; the site cannot be changed (`409`).
+- **Flow.** `flow-sync.md` "The token's life".
 
 ## Pinned by
 
