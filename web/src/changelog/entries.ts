@@ -17,6 +17,32 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.22.0",
+    date: "2026-11-15",
+    en: `**Astrolabe 1.22.0: lighter re-reads of the plan pages, dependencies changed from their list, the team load from this week on.**
+
+- The plan pages re-read less. When nothing has changed since your browser last read a page (Plan, Home, Roadmap, Programs, a project, a team, Team load, Dependencies, a baseline comparison), the server answers with a short "not modified" instead of the whole document. What you see is always what the server holds: any change, in the plan or outside it (a renamed team or person, a permission, a capacity period, something read from Jira or Flow), is a full answer. The Deviations page is read in full, as before.
+- Dependencies: the owners of the successor's project, and administrators, can now change a dependency's type and lag or delete it from its row on the Dependencies page. A new dependency is still added on the project's page.
+- Team load: "Weeks with a warning" now starts at the current week; "Include past weeks" in the filters brings the earlier ones back. When more than 2,000 weeks carry a warning, the weeks from this week on are kept first, whatever the team's name. The counts in the teams table still cover every week.
+- Jira import: the team select of an imported milestone lists every team, not only the first 100.
+- Roadmap, keyboard: after "Rank" on the last row under "Unranked projects only" the focus moves to the Filters button; when a rank is undone (someone else changed the ranking, or you may not change it) the focus returns to the row.
+- API (\`/api/v1\`): ten view reads (\`GET /views/plan\`, \`home\`, \`team-load\`, \`dependencies\`, \`roadmap\`, \`programs\`, \`project/{id}\`, \`team/{id}\`, \`baseline/{id}\`, \`jira-links\`) answer with an \`ETag\` and honour \`If-None-Match\` with \`304\`; the answers stay \`Cache-Control: no-store\`. The rows of \`GET /views/dependencies\` carry \`can\` (\`edit\`, \`delete\`); \`GET /views/team-load\` adds \`currentWeekStart\`. If a tab was open during the upgrade, reload it.
+- Nothing is written to Jira or Flow.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.
+- Proven against the built-in Flow stub; not yet compared with a real Flow.`,
+    pl: `**Astrolabe 1.22.0: lżejsze ponowne odczyty stron planu, zależności zmieniane z ich listy, obciążenie zespołów od bieżącego tygodnia.**
+
+- Strony planu czytają mniej. Gdy od ostatniego odczytu strony przez Twoją przeglądarkę nic się nie zmieniło (Plan, strona główna, Roadmapa, Programy, projekt, zespół, Obciążenie zespołów, Zależności, porównanie z bazą odniesienia), serwer odpowiada krótkim „bez zmian” zamiast całego dokumentu. Zawsze widzisz to, co ma serwer: każda zmiana, w planie albo poza nim (zmieniona nazwa zespołu albo osoby, uprawnienie, okres przepustowości, coś odczytanego z Jiry albo z Flow), daje pełną odpowiedź. Stronę Odchylenia czytamy w całości, jak dotąd.
+- Zależności: właściciele/ki projektu następnika i administratorzy/rki mogą teraz zmienić typ i opóźnienie zależności albo ją usunąć w jej wierszu na stronie Zależności. Nową zależność nadal dodajesz na stronie projektu.
+- Obciążenie zespołów: tabela „Tygodnie z ostrzeżeniem” zaczyna się teraz od bieżącego tygodnia; „Pokaż też minione tygodnie” w filtrach przywraca wcześniejsze. Gdy ostrzeżenie ma ponad 2000 tygodni, lista zachowuje najpierw tygodnie od bieżącego, niezależnie od nazwy zespołu. Liczby w tabeli zespołów nadal obejmują wszystkie tygodnie.
+- Import z Jiry: lista zespołów przy importowanym kamieniu milowym zawiera wszystkie zespoły, nie tylko pierwszych 100.
+- Roadmapa, klawiatura: po „Dodaj do rankingu” w ostatnim wierszu przy filtrze „Tylko projekty bez rankingu” fokus przechodzi na przycisk „Filtry”; gdy dodanie do rankingu zostaje cofnięte (ktoś inny zmienił ranking albo nie możesz go zmieniać), fokus wraca do wiersza.
+- API (\`/api/v1\`): dziesięć odczytów widoków (\`GET /views/plan\`, \`home\`, \`team-load\`, \`dependencies\`, \`roadmap\`, \`programs\`, \`project/{id}\`, \`team/{id}\`, \`baseline/{id}\`, \`jira-links\`) odpowiada nagłówkiem \`ETag\` i na \`If-None-Match\` odpowiada \`304\`; odpowiedzi pozostają \`Cache-Control: no-store\`. Wiersze \`GET /views/dependencies\` mają \`can\` (\`edit\`, \`delete\`); \`GET /views/team-load\` dodaje \`currentWeekStart\`. Jeśli karta była otwarta podczas aktualizacji, odśwież ją.
+- Niczego nie zapisujemy w Jirze ani we Flow.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.
+- Sprawdzone na wbudowanej atrapie Flow; jeszcze nie porównane z prawdziwym Flow.`,
+  },
+  {
     version: "1.21.0",
     date: "2026-11-15",
     en: `**Astrolabe 1.21.0: more filters, Team load week by week, a lighter Dependencies read.**
