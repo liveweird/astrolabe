@@ -104,7 +104,7 @@ Files: `auth/Tokens.kt`, `plugins/Security.kt`.
   expired, wrong-audience or wrong-`typ` token never reaches the lookup and stays the uniform `401`. Pinned by
   `BlocklistOutageTest`; the `500` is declared on every operation and ignored by the coverage gate (`CROSS_CUTTING_STATUSES`).
 
-Full token, refresh and logout semantics for callers: "Authorization model" in `.claude/docs/authorization.md`.
+Full token, refresh and logout semantics for callers: "Tokens and sessions" in `.claude/docs/authorization.md`.
 
 ## Token storage and response headers
 

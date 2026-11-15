@@ -42,7 +42,6 @@ const ENFORCE_REFS = false;
 // The docs that do not pass limits 1-5 yet. The list can only shrink: a listed file that passes fails ("remove it from NOT_YET"),
 // an entry that names no file fails. The main session edits it when it commits a D step; nobody else.
 const NOT_YET = [
-  ".claude/docs/authorization.md",
   ".claude/docs/build-times.md",
   ".claude/docs/ci.md",
   ".claude/docs/conventions.md",
