@@ -47,118 +47,125 @@ section of the page you touch before changing it, and put a new page's mechanics
 
 ## The shell and page chrome
 
-The shell is `Shell` in `App.tsx`: the sidebar (`NAV_SECTIONS`), the 48 px header, `AppShell.Main` around the `<Outlet />` and the telemetry aside. Rules: `web/CLAUDE.md` "Layout conventions".
+The shell is `Shell` in `App.tsx`: the sidebar (`NAV_SECTIONS`), the 48 px header, `AppShell.Main` around the `<Outlet />` and the telemetry aside.
+Rules: `web/CLAUDE.md` "Layout conventions"; the route of every page: its "Pages (the map)".
 
-**Navigation.** The nav model lives in `utils/navigation.ts`, shared by the sidebar and the command palette: `NAV_SECTIONS` — labelled, always-open sections
-(currently Overview, Planning: Plan, Roadmap, Programs, Milestones, Dependencies, Team load, Baselines, Schedule proposals and Deviations, and Administration: Teams, People, Public holidays (all readable by everyone),
-Users, Feature flags, Jira, Flow) of `NavLeaf`s (the `label` is a typed i18n key; `adminOnly?` gates admin leaves, `keywords?` adds raw palette search terms for
-a renamed page's old name, and `visibleSections(isAdmin())` drops an emptied section) — plus `ACCOUNT_NAV` (Change password, Changelog), which the header
-`UserMenu` and the palette render and the sidebar never does. Sections are static captions (`role="group"` + `aria-label`), never toggles: every leaf is always
-in the DOM, so tests and e2e address the links directly; leaf clicks close the mobile drawer; `activeNavPath` is the longest-prefix matcher over the leaves.
-**The icon rail (Lettuce's):** a header `ActionIcon` beside the Burger (`appShell.toggleNav`, `data-expanded` while expanded) narrows the desktop navbar from
-240 to 64px — `rail = navCollapsed && !opened`, remembered under `astrolabe.viewSettings.appShell.navCollapsed`; in rail mode each leaf is an icon-only
-`NavLink` (`classes.railLink`) whose `aria-label` IS the label (so every by-name locator keeps working) inside a right-hand `Tooltip`, section captions become
-hairline `Divider`s. The mobile overlay always shows full labels.
+### Navigation
 
-**The header and the palette.** The shell header is 48px: brand, the `CommandPalette` trigger, and the `UserMenu` (avatar → identity from `GET /users/{id}`
-under the `["user", id]` key, language, theme as three `Menu.Item`s (Light / Dark / System; the chosen one carries `IconCheck` + `aria-current`, `closeMenuOnClick={false}` keeps the menu open: a SegmentedControl is a radiogroup, not allowed inside `role="menu"`, axe `aria-required-children`), Change password, Changelog with the what's-new badge, for an ADMIN a "Telemetry
-panel" toggle, Sign out). The version stamp stays in the sidebar footer. **Focus on navigation**: `hooks/useFocusMainOnNavigation.ts` (called in the `Shell`)
-focuses `#main-content` (`tabIndex={-1}`, ring suppressed in `index.css`, `preventScroll`) when the PATHNAME changes - never for a `?baseline=`/filter/sort
-change or a same-path push, never on the first render (a fresh sign-in or reload leaves the document start; the skip link is the first Tab stop) - and leaves a
-focus that is already inside main alone, so a page's own `autoFocus` wins in either mount order. **`components/CommandPalette.tsx`** wraps `@mantine/spotlight`
-(pinned to the core version — keep every `@mantine/*` on one version) over a module-level store (`utils/commandPalette.ts`): the session's pages, plus an
-ADMIN-only show/hide action for the telemetry panel. No `highlightQuery` — it splits labels into `<mark>` fragments that role/name locators cannot match.
+The model is `utils/navigation.ts`, shared by the sidebar and the command palette (the rules: `web/CLAUDE.md` "Layout conventions").
 
-**Page chrome.** Every page is a `Stack gap="md"` on the canvas starting with `components/PageHeader.tsx` (`title` → the `order={2}` heading tests locate,
-`description?`, `backTo?`, right-aligned `actions?` — the ONE place a page's primary "New …" button lives — and a `toolbar?` row; No `Container` and no
-page-wrapping `Paper`; widths come from `utils/layout.ts`: full-bleed lists, `Box maw={CONTENT_MAX_WIDTH}` for registry tables and the changelog,
-`Paper withBorder p="xl" maw={FORM_MAX_WIDTH}` (left-aligned) for the simple field forms. The one spinner is `components/LoadingBlock.tsx` (`TableLoadingRow`
-wraps it); `components/EditPageLoadState.tsx` is the edit pages' shared load-failure triage (centered loader, else a back-to-list alert); `EmptyState` takes the
-Tabler icon COMPONENT and sizes it itself (an optional `hint` is the next step under the label). **One heading outline everywhere**: the `PageHeader` title is
-the h2, a page's cards/sections are h3 (`<Title order={3} size="h4">` keeps the look), their inner blocks h4; and every `Table` has an accessible name
-(`aria-label` — the words of the heading above it, or a `<area>.tableAria` key). Page tests pin the outline with `test/headings.ts`'s `headingOutline()`. **Tab
-titles**: `PageHeader` (and `AuthCard` for the pages outside the shell) is the ONE owner of `document.title` through `hooks/usePageTitle.ts` —
-`appShell.documentTitle` = "{{page}} · Astrolabe", the brand alone for Home or a blank title (a detail page's entity name only exists once loaded; its
-load/failure states pass a static title). Mantine's `useDocumentTitle` does not restore on unmount, so `test/setup.ts` resets `document.title` after each test.
+- `NAV_SECTIONS` is the labelled sections of `NavLeaf`s: the `label` is a typed i18n key, `adminOnly?` gates admin leaves, `keywords?` adds raw palette search
+  terms (a renamed page's old name), and `visibleSections(isAdmin())` drops an emptied section.
+- `ACCOUNT_NAV` (Change password, Changelog) is rendered by the header `UserMenu` and the palette, never by the sidebar.
+- Leaf clicks close the mobile drawer; `activeNavPath` is the longest-prefix matcher over the leaves.
+- **The icon rail** (Lettuce's): a header `ActionIcon` beside the Burger (`appShell.toggleNav`, `data-expanded` while expanded) narrows the desktop navbar from
+  240 to 64 px. `rail = navCollapsed && !opened`, remembered under `astrolabe.viewSettings.appShell.navCollapsed`.
+  In rail mode each leaf is an icon-only `NavLink` (`classes.railLink`) whose `aria-label` IS the label, inside a right-hand `Tooltip`; section captions
+  become hairline `Divider`s. The mobile overlay always shows full labels.
+
+### The header and the palette
+
+- The shell header is 48 px: the brand, the `CommandPalette` trigger and the `UserMenu`.
+- `UserMenu`: the avatar (identity from `GET /users/{id}` under the `["user", id]` key), language, theme, Change password, Changelog with the what's-new badge,
+  for an ADMIN a "Telemetry panel" toggle, Sign out. The version stamp stays in the sidebar footer.
+- Theme is three `Menu.Item`s (Light / Dark / System): the chosen one carries `IconCheck` + `aria-current`, and `closeMenuOnClick={false}` keeps the menu open.
+  A SegmentedControl is a radiogroup, which axe `aria-required-children` refuses inside `role="menu"`.
+- **Focus on navigation**: `hooks/useFocusMainOnNavigation.ts` (called in the `Shell`) focuses `#main-content` (`tabIndex={-1}`, ring suppressed in
+  `index.css`, `preventScroll`) when the PATHNAME changes. It never fires for a `?baseline=`/filter/sort change or a same-path push, nor on the first render
+  (a fresh sign-in or reload leaves the document start; the skip link is the first Tab stop), and it leaves a focus already inside main alone, so a page's
+  own `autoFocus` wins in either mount order.
+- **`components/CommandPalette.tsx`** wraps `@mantine/spotlight` (pinned to the core version) over a module-level store (`utils/commandPalette.ts`): the
+  session's pages, plus an ADMIN-only show/hide action for the telemetry panel. No `highlightQuery`: it splits labels into `<mark>` fragments that
+  role/name locators cannot match.
+
+### Page chrome
+
+The rules (the `Stack`, the widths, the one spinner, the heading outline, the tab title): `web/CLAUDE.md` "Layout conventions". The mechanics behind them:
+
+- `components/PageHeader.tsx` takes `title` (the `order={2}` heading), `description?`, `backTo?`, `actions?` and a `toolbar?` row.
+- `components/LoadingBlock.tsx` is the one spinner (`TableLoadingRow` wraps it); `components/EditPageLoadState.tsx` is the edit pages' shared load-failure
+  triage (a centred loader, else a back-to-list alert); `EmptyState` sizes the Tabler icon itself, and an optional `hint` is the next step under the label.
+- Page tests pin the outline with `test/headings.ts`'s `headingOutline()`.
+- The tab title is `appShell.documentTitle` = "{{page}} · Astrolabe", the brand alone for Home or a blank title. A detail page's entity name only exists once
+  loaded, so its load and failure states pass a static title. Mantine's `useDocumentTitle` does not restore on unmount, so `test/setup.ts` resets
+  `document.title` after each test.
 
 ### Heading outline guard
 
-`pages/headingOutline.test.tsx` renders every route read from `App.tsx` (via `?raw`, so a new route is covered
-the moment it registers) under an ADMIN session with an empty API and asserts the outline starts at h2 and never
-skips a level going down. A page whose real title needs loaded data passes a static `title` to
-`EditPageLoadState`, so its load/failure state still opens with an h2 (TeamDetails).
+`pages/headingOutline.test.tsx` renders every route read from `App.tsx` (via `?raw`, so a new route is covered the moment it registers) under an ADMIN
+session with an empty API and asserts the outline starts at h2 and never skips a level going down. A page whose real title needs loaded data passes a
+static `title` to `EditPageLoadState`, so its load/failure state still opens with an h2 (TeamDetails).
 
 ## Quality gates and the build stamp
 
-- **Quality gates (the frontend counterpart of the backend's detekt)**: `npm run lint` carries `eslint-plugin-sonarjs` (recommended), `eslint-plugin-jsx-a11y`
-  (recommended; static accessibility rules, two file-scoped overrides) plus core size/complexity backstops — zero-findings gate; rule tuning lives in
-  `eslint.config.js` ONLY, one commented override per deliberate idiom, and any inline `eslint-disable` needs a justifying comment. `npm run lint` runs with
-  `--cache --cache-strategy content` (`web/.eslintcache`, gitignored; a warm run is ~0.6 s against ~12 s, CI restores the file between runs — `build-times.md`
-  WHY 20); the config is not type-aware, so a per-file cache is sound, and a config change or an ESLint/node upgrade re-lints everything on its own.
-  `npm run knip` is the dead-code gate (unused files/exports/dependencies; `knip.json` ignores the generated `schema.ts` and the `ajv` devDependency pinned only
-  for `@stoplight/spectral-cli`'s resolution; `@mantine/dates` and `dayjs` have real consumers since the Plan page) — keep exports that only the declaring file
-  uses un-exported, and delete what knip flags rather than ignoring it. **The API-contract gate**: `npm run lint:api` Spectral-lints the OpenAPI spec and
-  `api-guidelines/examples/conformant.yaml` with `--fail-severity=warn`, through Astrolabe's local ruleset `web/spectral.astrolabe.yaml` (it `extends` the
-  shared `api-guidelines/api-guidelines.spectral.yaml`, which is the other team's area and never edited; it switches off only the two registered-gap rules
-  `x-sla`/`termsOfService`, each with its reason). A finding is fixed in the spec; a new local `off` needs an inapplicability comment, never a fixable finding;
-  `npm run check:api` (`scripts/check-api.mjs`) regenerates the API types in memory and diffs them against the committed `src/api/schema.ts` — it must never
-  overwrite that file, so `gen:api` stays the one command developers run to update it.
-- **Build version stamp**: `vite.config.ts` injects `__APP_COMMIT__` (short sha, `+dirty` when the worktree has uncommitted changes) and `__APP_COMMIT_TIME__`
-  (commit ISO timestamp) via `define`, declared in `src/vite-env.d.ts`. Env vars `GIT_SHA`/`GIT_COMMIT_TIME` override the local-git lookup — the Dockerfile's
-  SPA stage sets them explicitly (its worktree never matches the index, so the dirty check would false-positive), and CI can do the same when building without
-  `.git`. `src/components/VersionStamp.tsx` renders `v<APP_VERSION> · <sha> · <time>` at the bottom of the navbar (`App.tsx`) and under the login card
-  (`components/AuthCard.tsx`). The same constant is the stamp's SECOND consumer: a small `transformIndexHtml` plugin in `vite.config.ts` writes it into
-  `index.html` as `<meta name="astrolabe-build" content="<commit>">` (nothing else), so a build's shell and bundle always agree; `api/build.ts` reads it back (deploy check below).
-- **Test fetch stubs**: `test/http.ts` `routeFetch(table)` answers by `"METHOD /path"` (exact, or `:name`/`*` patterns) with a body, a `Response` or a function of the call, and an unlisted call rejects naming its method and path and fails the test in `setup.ts`'s `afterEach`; `test/planView.ts` and `test/roadmapView.ts` build the view documents. A touched test file moves to the router (and to the builders) instead of a hand-rolled `mockImplementation`.
+The gates and their rules (zero findings, no baseline, the size gate): `web/CLAUDE.md` (its opening bullets); the CI job: `ci.md`. The mechanics:
 
-- Types are regenerated with `npm run gen:api` (rules: `web/CLAUDE.md`); `openapi-typescript` is installed with `--legacy-peer-deps` because its declared peer
-  is TS `^5` while the scaffold uses TS 6 (the generated output is compatible); after a from-scratch `npm install`, use `npm install --legacy-peer-deps`.
+- **ESLint**: `npm run lint` carries `eslint-plugin-sonarjs` (recommended), `eslint-plugin-jsx-a11y` (recommended; static accessibility rules, two
+  file-scoped overrides) plus core size/complexity backstops. It runs with `--cache --cache-strategy content` (`web/.eslintcache`, gitignored; a warm run
+  takes a fraction of a second against about 12 s cold, and CI restores the file between runs, `ci.md`). The config is not type-aware, so a per-file cache
+  is sound, and a config change or an ESLint/node upgrade re-lints everything on its own.
+- **knip**: `knip.json` ignores only the `ajv` devDependency, which is pinned for `@stoplight/spectral-cli`'s resolution.
+- **The API-contract gate**: `npm run lint:api` Spectral-lints the OpenAPI spec and `api-guidelines/examples/conformant.yaml` with `--fail-severity=warn`
+  through the local ruleset `web/spectral.astrolabe.yaml`. It `extends` the shared `api-guidelines/api-guidelines.spectral.yaml` (the other team's area,
+  never edited) and switches off only the two registered-gap rules `x-sla`/`termsOfService`, each with its reason.
+- **`npm run check:api`** (`scripts/check-api.mjs`) regenerates the API types in memory and diffs them against the committed `src/api/schema.ts`; it never
+  overwrites that file, so `gen:api` stays the one command that updates it.
+- **Types**: `openapi-typescript` is installed with `--legacy-peer-deps` because its declared peer is TS `^5` while the scaffold uses TS 6 (the generated
+  output is compatible), so a from-scratch `npm install` uses the same flag.
+- **Build version stamp**: `vite.config.ts` injects `__APP_COMMIT__` (short sha, `+dirty` when the worktree has uncommitted changes) and
+  `__APP_COMMIT_TIME__` (commit ISO timestamp) via `define`, declared in `src/vite-env.d.ts`.
+  - Env vars `GIT_SHA`/`GIT_COMMIT_TIME` override the local-git lookup: the Dockerfile's SPA stage sets them (its worktree never matches the index, so the
+    dirty check would false-positive), and CI can do the same when building without `.git`.
+  - `src/components/VersionStamp.tsx` renders `v<APP_VERSION> · <sha> · <time>` at the bottom of the navbar (`App.tsx`) and under the login card
+    (`components/AuthCard.tsx`).
+  - The same constant has a second consumer: a small `transformIndexHtml` plugin in `vite.config.ts` writes it into `index.html` as
+    `<meta name="astrolabe-build" content="<commit>">` (nothing else), so a build's shell and bundle always agree; `api/build.ts` reads it back (the deploy
+    check, "Error boundaries, chunk reload and toasts").
+- **Test fetch stubs**: `test/http.ts` `routeFetch(table)` answers by `"METHOD /path"` (exact, or `:name`/`*` patterns) with a body, a `Response` or a
+  function of the call. An unlisted call rejects naming its method and path and fails the test in `setup.ts`'s `afterEach`. `test/planView.ts` and
+  `test/roadmapView.ts` build the view documents. A touched test file moves to the router (and to the builders) instead of a hand-rolled `mockImplementation`.
 
 ## Transport and session layer
 
-The rules (never collapse a definitive and a transient failure, attach `timeoutSignal()`, the session boundary) are in `web/CLAUDE.md` "The typed API layer";
-this is the machinery. The OpenAPI spec is hand-maintained, not generated from routes; Swagger UI is at `http://localhost:8086/openapi` (dev); the layer is
-small hand-written modules, and the types come from the generated `schema.ts` (the lightweight pairing of `openapi-typescript` (types only) + hand-written fetch
-is intentional; Orval/Kiota are not used).
+The rules (never collapse a definitive and a transient failure, attach `timeoutSignal()`, the session boundary): `web/CLAUDE.md` "The typed API layer".
+This is the machinery. The layer is small hand-written modules over the generated `schema.ts`; `openapi-typescript` (types only) plus hand-written fetch is
+intentional, so Orval and Kiota are not used.
 
 ### `http.ts` — the transport's refresh internals
 
-- **`http.ts`** (transport): `authedFetch()` with the **single-flighted silent refresh** — on a
-  401 it exchanges the stored refresh token once (concurrent 401s from the same session share one
-  in-flight `/refresh` call) and retries once; a DEFINITIVE rejection (no refresh token, or
-  401/403 from the server) clears the originating session and signs out only if that session is
-  still current, while a TRANSIENT failure (network/timeout/5xx/429/malformed body) keeps the
-  session so a later retry can succeed — **never collapse the two** (a network blip must not
-  erase a valid session). Stale requests and refresh completions must not publish credentials,
-  clear a newer login or retry across session identities. **The server rotates the refresh token** (each works once, plus a
-  60 s server-side replay grace for a lost response; after that a replay is a 401), so two tabs on one session can race on
-  `/refresh`: `doRefresh` serialises them with a Web Lock (`astrolabe.auth.refresh`, where the browser has `navigator.locks`; a lock
-  that cannot be acquired falls back to an unserialised refresh) and, inside it and again after a 401/403, adopts a pair already
-  stored by another tab (same session identity, different refresh token) instead of replaying or clearing; a different login (new identity) is never adopted.
-  **Why a 401 can now come at any time:** the server checks every access token against the user row per request (`security.md` "JWT model"), so a delete, a
-  demotion/promotion, a password change or a logout elsewhere turns the NEXT request into a 401 (one text). The transport needs no special case: the 401 ->
-  silent refresh -> retry path handles all of them - a role change refreshes successfully into the NEW roles (`persistRefreshedSession` republishes them and
-  `notifyAuthChange` re-renders the nav and `RequireAdmin`, pinned in `http.test.ts`), a delete or password change makes the refresh a DEFINITIVE rejection and
-  signs the user out. `ApiError` (status + parsed body; read
-  RFC 7807 fields via the `detail`/`instance`/`type` getters, never hand-cast `err.body`), and the two
-  standard wrapper shapes **`jsonRequest<T>()`/`voidRequest()`** every ordinary endpoint wrapper
-  uses, plus **`buildQuery()`** — the query-string builder behind the list wrappers (skips
-  null/undefined/""; `false` and `0` ARE sent, so an omit-when-false param is passed as
-  `value || undefined` at the call site). Reach for the raw `authedFetch`/`safeJson` primitives
-  only when a wrapper genuinely inspects the Response. Every transport fetch carries
-  `timeoutSignal()` (30 s, feature-detected for happy-dom) — a hung request rejects with a
-  `TimeoutError` DOMException instead of pending forever; new `fetch` call sites in `api/` must
-  attach it. The server's own time limit on a statement answers a typed `500` (`isDatabaseTimeout`), which the retry policy and the message mappers know:
-  "Error boundaries, chunk reload and toasts" below.
+- **The single-flighted silent refresh**: on a 401, `authedFetch()` exchanges the stored refresh token once (concurrent 401s from the same session share
+  one in-flight `/refresh` call) and retries once.
+  - A DEFINITIVE rejection (no refresh token, or a 401/403 from the server) clears the originating session and signs out only if that session is still current.
+  - A TRANSIENT failure (network, timeout, 5xx, 429, malformed body) keeps the session so a later retry can succeed: a network blip must not erase a valid session.
+  - Stale requests and refresh completions never publish credentials, clear a newer login or retry across session identities.
+- **Two tabs on one session** can race on `/refresh`, because the server rotates the refresh token (each works once, plus a 60 s server-side replay grace for
+  a lost response; after that a replay is a 401). `doRefresh` serialises them with a Web Lock (`astrolabe.auth.refresh`, where the browser has
+  `navigator.locks`; a lock that cannot be acquired falls back to an unserialised refresh). Inside the lock, and again after a 401/403, it adopts a pair
+  another tab already stored (same session identity, different refresh token) instead of replaying or clearing; a different login (new identity) is never adopted.
+- **A 401 can come at any time**: the server checks every access token against the user row per request (`security.md` "JWT model"), so a delete, a
+  demotion/promotion, a password change or a logout elsewhere turns the NEXT request into a 401. The transport needs no special case, because the 401, silent
+  refresh, retry path handles all of them:
+  - a role change refreshes successfully into the NEW roles (`persistRefreshedSession` republishes them and `notifyAuthChange` re-renders the nav and
+    `RequireAdmin`, pinned in `http.test.ts`);
+  - a delete or a password change makes the refresh a DEFINITIVE rejection and signs the user out.
+- **Wrappers**: `ApiError` (status + parsed body) is read through the RFC 7807 `detail`/`instance`/`type` getters, never by hand-casting `err.body`.
+  `jsonRequest<T>()`/`voidRequest()` are the two wrapper shapes every ordinary endpoint wrapper uses. `buildQuery()` backs the list wrappers: it skips
+  null/undefined/"" while `false` and `0` ARE sent, so an omit-when-false param is passed as `value || undefined` at the call site. Reach for the raw
+  `authedFetch`/`safeJson` primitives only when a wrapper genuinely inspects the Response.
+- **`timeoutSignal()`** (30 s, feature-detected for happy-dom) makes a hung request reject with a `TimeoutError` DOMException instead of pending forever;
+  new `fetch` call sites in `api/` attach it.
+- The server's own time limit on a statement answers a typed `500` (`isDatabaseTimeout`) that the retry policy and the message mappers know: "Error
+  boundaries, chunk reload and toasts".
 
-### `revalidate.ts` — the revalidating view reads (1.22)
+### `revalidate.ts` — the revalidating view reads
 
-Every `/api/` answer is `Cache-Control: no-store` (`security.md` "Caching"), so the browser never revalidates by itself; the ten view GETs that answer
+Every `/api/` answer is `Cache-Control: no-store` (`security.md` "Caching"), so the browser never revalidates by itself. The ten view GETs that answer
 through a server validator (`getPlanView`, `getHomeView`, `getTeamLoadView`, `getDependencyListView`, `getRoadmapView`, `getProgramsView`, `getProjectView`,
 `getTeamView`, `getBaselineView`, `getJiraLinks`) therefore call `revalidatedRequest<T>(path)` instead of `jsonRequest`; the two deviation reads, the list
-wrappers and every write keep the old helpers. The module keeps the last `ETag` and the exact response TEXT per address and sends `If-None-Match`; a `304`
-resolves a fresh `JSON.parse` of the kept text (a page that mutated its copy can never corrupt a later `304`; measured in Node on a synthetic 336 KB document, one parse takes about 0.8 ms).
-The seven rules (binding):
+wrappers and every write keep the old helpers. The server side: `planning-model.md` "View validators".
+
+The module keeps the last `ETag` and the exact response TEXT per address and sends `If-None-Match`; a `304` resolves a fresh `JSON.parse` of the kept text,
+so a page that mutated its copy can never corrupt a later `304` (one parse of a 336 KB document takes about 0.8 ms in Node). The seven rules (binding):
 
 1. A `304` is answered ONLY with the text that arrived with the tag that was sent, for the same session identity: never TanStack Query's data, never an
    optimistic state, so a failed write's rollback refetch gets the server's document back whatever the cache held. A `200` that does not parse drops the old entry.
@@ -177,249 +184,283 @@ The seven rules (binding):
    it the most recent.
 
 TanStack Query sees an ordinary resolved read: the fresh copy is structurally equal, so it keeps the previous `data` reference and re-renders nothing;
-`dataUpdatedAt` moves and `isFetching` toggles as for any read. No `staleTime`, key or hook changed. Tests: `test/http.ts` `jsonResponse(status, body, headers)`
-and `notModified(etag)`; any test that keeps a tagged document calls `forgetRevalidated()` in `afterEach` (the map is module-level and survives between the tests of one file; `setup.ts` resets modules per file).
+`dataUpdatedAt` moves and `isFetching` toggles as for any read. No `staleTime`, key or hook changed.
+
+Tests: `test/http.ts` `jsonResponse(status, body, headers)` and `notModified(etag)`. Any test that keeps a tagged document calls `forgetRevalidated()` in
+`afterEach` (the map is module-level and survives between the tests of one file; `setup.ts` resets modules per file).
 
 ### `session.ts`
 
-- **`session.ts`**: token/roles/userId storage under the `astrolabe.auth.*` localStorage keys, written
-  by `persistSession(LoginResponse)` on login/MFA and conditionally by `persistRefreshedSession`
-  on refresh, and the render-time accessors (`isAdmin()`, `getUserId()`, …). Components whose
-  controls or queries depend on ADMIN use `useAdmin()` from `auth.tsx`; it subscribes to role
-  changes from silent refresh and other tabs. A random stored identity distinguishes sign-ins,
-  while credential snapshots guard refresh publication; renewing tokens preserves the logical
-  session so staggered 401s can reuse the new token.
+Token, roles and user id are stored under the `astrolabe.auth.*` localStorage keys, written by `persistSession(LoginResponse)` on login/MFA and
+conditionally by `persistRefreshedSession` on refresh; the render-time accessors are `isAdmin()`, `getUserId()` and the like. Components whose controls or
+queries depend on ADMIN use `useAdmin()` from `auth.tsx`, which subscribes to role changes from silent refresh and other tabs. A random stored identity
+distinguishes sign-ins, while credential snapshots guard refresh publication; renewing tokens preserves the logical session so staggered 401s can reuse the
+new token.
 
 ### Session boundary
 
-- **Session boundary** (`components/SessionBoundary.tsx` + `utils/sessionQueryCache.ts`): bind the
-  root `QueryClient` to logical session identity changes, and key the mounted app subtree by that
-  identity. A different sign-in, definitive automatic sign-out, explicit sign-out, or a change
-  from another tab must synchronously cancel and remove caller-scoped query data and discard
-  mounted form/mutation results before the next account renders; an access/refresh token rotation
-  within the same identity must retain them. Keep this at the session boundary rather than
-  clearing individual page keys, because user/team/account queries all contain caller-specific
-  projections. Late requests from the previous identity must not repopulate the new account's UI
-  or cache. The same boundary empties the kept view documents of `revalidate.ts` (`forgetRevalidated()`).
+`components/SessionBoundary.tsx` + `utils/sessionQueryCache.ts` bind the root `QueryClient` to logical session identity changes and key the mounted app
+subtree by that identity (the rule: `web/CLAUDE.md` "The typed API layer").
+
+- A different sign-in, a definitive automatic sign-out, an explicit sign-out or a change from another tab synchronously cancels and removes caller-scoped
+  query data and discards mounted form and mutation results before the next account renders; a token rotation within the same identity retains them.
+- It sits at the boundary rather than clearing individual page keys, because user, team and account queries all contain caller-specific projections.
+- The same boundary empties the kept view documents of `revalidate.ts` (`forgetRevalidated()`).
 
 ### Sign-out and the return destination
 
-Explicit sign-out opens `/login` without a saved return destination, so the next sign-in opens
-Home even when a different account signs in. Anonymous access to a protected link still preserves
-its path, query and hash. Test logout navigation with the real route guards from a non-home page;
-a root-only menu test cannot detect a stale return destination. Reading the signed-out notice
-during render must be side-effect free. Acknowledge it only after the login page commits, so a
-suspended or retried render cannot discard the notice. The flag carries a reason (`SignedOutReason` in `auth.tsx`: `sessionEnded`, the default, or
-`passwordChanged`; `pendingSignedOut()` reads it, `consumeSignedOut()` clears it) and `pages/Login.tsx` picks the notice from it. **The self password change
-signs the device out explicitly** (`pages/ChangePassword.tsx`): the PUT bumps the account's credential revision, which ends every access and refresh token
-including this device's, so after the success toast the page runs `clearSession()`, `flagSignedOut("passwordChanged")` and
-`navigate("/login", { replace: true })` (the notice reads "Your password was changed. Sign in with your new password."). No `/logout` call - nothing is left to
-revoke, and the stale access token would only 401; no broadcast, for the same reason as `UserMenu`'s sign-out.
+The rules (no saved return destination after an explicit sign-out, a protected link keeps its path, query and hash, how to test logout): `web/CLAUDE.md`
+"The typed API layer". The mechanics:
+
+- The signed-out notice is acknowledged only after the login page commits, so a suspended or retried render cannot discard it.
+- The flag carries a reason (`SignedOutReason` in `auth.tsx`: `sessionEnded`, the default, or `passwordChanged`); `pendingSignedOut()` reads it,
+  `consumeSignedOut()` clears it, and `pages/Login.tsx` picks the notice from it.
+- **The self password change signs the device out explicitly** (`pages/ChangePassword.tsx`): the PUT bumps the account's credential revision, which ends
+  every access and refresh token including this device's. After the success toast the page runs `clearSession()`, `flagSignedOut("passwordChanged")` and
+  `navigate("/login", { replace: true })`; the notice reads "Your password was changed. Sign in with your new password."
+- There is no `/logout` call (nothing is left to revoke, and the stale access token would only 401) and no broadcast, for the same reason as `UserMenu`'s sign-out.
 
 ### Password reset (confirm link)
 
 `pages/ResetPassword.tsx` only REQUESTS a reset (a uniform 202: the server emails a single-use link and changes nothing). The link lands on
-`pages/ConfirmPasswordReset.tsx` at `/reset-password/confirm#token=…`, which is NOT behind `RedirectIfAuthed` (a signed-in device may finish a reset). The token
-travels in the URL fragment, so it never reaches a server log or a Referer: the page reads it once into component state, strips the fragment and any query from
-the address bar and history (`navigate(…, { replace: true })`), keeps it in memory only (never storage) and sends it to nothing but `confirmPasswordReset` (a
-plain `fetch`, never `authedFetch`, so it can never refresh or retry a session). Loading the page consumes nothing; the form shows for any well-formed
-43-character token and an unusable one is learned at submit (401: the token is dropped and "Request another reset link" shows; 429, 400 and network failures
-keep it for a retry). The new-password rule is `newPasswordValidation` (`utils/userForm.ts`), shared with `ChangePassword.tsx`. On success the page runs
-`clearSession()`, `queryClient.clear()` and `notifyAuthChange()` and shows the green notice: no `/logout` call (the reset bumped the credential revision, so
-nothing is left to revoke) and no return destination.
+`pages/ConfirmPasswordReset.tsx` at `/reset-password/confirm#token=…`, which is NOT behind `RedirectIfAuthed` (a signed-in device may finish a reset).
+
+- The token travels in the URL fragment, so it never reaches a server log or a Referer. The page reads it once into component state, strips the fragment and
+  any query from the address bar and history (`navigate(…, { replace: true })`), keeps it in memory only (never storage) and sends it to nothing but
+  `confirmPasswordReset` (a plain `fetch`, never `authedFetch`, so it can never refresh or retry a session).
+- Loading the page consumes nothing; the form shows for any well-formed 43-character token and an unusable one is learned at submit (401: the token is
+  dropped and "Request another reset link" shows; 429, 400 and network failures keep it for a retry).
+- The new-password rule is `newPasswordValidation` (`utils/userForm.ts`), shared with `ChangePassword.tsx`.
+- On success the page runs `clearSession()`, `queryClient.clear()` and `notifyAuthChange()` and shows the green notice (`Alert color="green"`): no `/logout`
+  call (the reset bumped the credential revision, so nothing is left to revoke) and no return destination.
 
 ### `auth.ts`
 
-- **`auth.ts`**: login + the MFA exchange, self-service password reset, and logout. `logout()` is best-effort — local credentials are cleared immediately,
-  before awaiting the revoke POST for the captured token pair; a delayed completion never clears a later login, and the function never throws.
+Login + the MFA exchange, self-service password reset, and `logout()`: best-effort, local credentials are cleared immediately, before awaiting the revoke
+POST for the captured token pair; a delayed completion never clears a later login, and the function never throws.
 
 ## Error boundaries, chunk reload and toasts
 
 The rules are in `web/CLAUDE.md` "Error handling"; the wiring:
 
-- **ErrorBoundary** (`components/ErrorBoundary.tsx`): `RouteErrorBoundary` wraps the `<Outlet />` inside `AppShell.Main` (header/nav survive; keyed by
-  `location.pathname`, so navigating anywhere recovers), and a plain `ErrorBoundary` in `main.tsx` is the last resort for shell crashes (it only catches crashes
-  of the shell itself). Per-page boundaries are not added — the two mounts are the model.
-- **Catch-all 404**: `pages/NotFound.tsx` is the LAST `path="*"` child of the Shell route; new routes go above it.
-- **Chunk-load recovery**: `main.tsx` listens for `vite:preloadError` (a redeploy 404s the old hashed chunks) and reloads once, rate-limited via sessionStorage
-  (`astrolabe.chunkReloadedAt`, max one reload/minute) so a genuinely missing chunk falls through to the ErrorBoundary instead of looping.
-- **Deploy check** (1.17): `api/build.ts` `getServedBuild()` fetches `index.html` (`cache: "no-store"`, `timeoutSignal()`, a plain `fetch` with no token: the shell is public) and
-  returns the meta's content; it REJECTS on a non-200, a body without the meta (a JSON stub, an older shell), an empty content or a failed fetch ("could not tell" is never "equal").
-  `hooks/useServedBuild.ts` is the one query `["build"]` (focus refetch with no `staleTime`, every 5 minutes while visible, `retry: false`; off when `__APP_COMMIT__` is `unknown`, a build without git):
-  `outdated` = an answer arrived and differs from the bundle's commit (inequality, so a rollback prompts too); a failed re-check keeps the last answer, an equal one clears it.
-  `components/UpdateBanner.tsx` is mounted at the top of `AppShell.Main` (outside the route boundary: it survives navigation and a page crash) and, since 1.20, at the top of `AuthCard`
-  (above the card, as wide as it: the login and the two password-reset pages, so a tab left open there learns too; the shell and a public page are never on screen together): a gray `role="status"` line and a "Reload"
-  button (`common.action.reload`, shared with the crash fallback), nothing in the DOM otherwise. The three public pages' tests stub `__APP_COMMIT__` to `unknown` (the check off: under vitest it is the real commit and would fetch `index.html`). Limits: a tab opened before 1.17 has no check and must be reloaded by hand once; a rebuilt image of the SAME commit is not noticed; during a rolling deploy a tab may be
-  prompted, reload onto the old build and be prompted again until the rollout ends.
-- **Query retry policy**: the `QueryClient` in `main.tsx` uses `shouldRetryQuery` (`api/http.ts`) — a 4xx is never retried (the answer won't change; retrying
-  only delays the error UI), nor a malformed answer, nor the **database time-out** (1.23), at most two retries for the other transient failures. The time-out
-  is the `500` whose problem `type` is `urn:astrolabe:problem:database-timeout` (`DATABASE_TIMEOUT_PROBLEM`, `isDatabaseTimeout(err)` in `api/http.ts`): the
-  server cancelled a statement at its own limit (15 s by default, `persistence.md`), so it has just spent that whole limit on the request and two more tries
-  would be half a minute more spinner and two more statements on a database that is not answering. A stuck read therefore says so after about 15 s instead of
-  about 93 (30 s a try, three tries); a browser-side `TimeoutError` (the server sent nothing for 30 s) is still retried. `loadErrorMessage` and
-  `saveErrorMessage` answer `common.error.timeout` ("The request timed out. Try again.") for it before any status branch, so a page's own `500` wording never
-  shows over it; a kept document stays on screen under the alert, as for any failed re-read. The sentence never claims that nothing was saved: the cancelled
-  transaction is rolled back, but an earlier committed step of the same request (a create's re-read) may stay, so a retry of a save can meet a `409`.
-- **Messages**: `error.message` is the internal `API <status>` / the browser's "Failed to fetch"; statuses map to i18n keys via the shared mappers in
-  `utils/saveError.ts`: `saveErrorMessage(err, t, keys)` for mutations (per-status keys + a `failed` fallback) and `loadErrorMessage(err, t)` for list loads. A
-  failed QUERY renders through `components/ErrorAlert.tsx` (`error`, optional `title`), a form/action failure (an already-mapped string) through
+- **Boundaries** (`components/ErrorBoundary.tsx`): `RouteErrorBoundary` wraps the `<Outlet />` inside `AppShell.Main` (the header and nav survive; it is keyed by
+  `location.pathname`, so navigating anywhere recovers). The plain `ErrorBoundary` in `main.tsx` is the last resort and only catches crashes of the shell itself.
+- **Chunk-load recovery**: `main.tsx` listens for `vite:preloadError` (a redeploy 404s the old hashed chunks) and reloads once a minute at most, keyed in
+  sessionStorage by `astrolabe.chunkReloadedAt`.
+- **Query retry policy**: the `QueryClient` in `main.tsx` uses `shouldRetryQuery` (`api/http.ts`); the rule is in `web/CLAUDE.md`. The database time-out is the
+  `500` whose problem `type` is `urn:astrolabe:problem:database-timeout` (`DATABASE_TIMEOUT_PROBLEM`, `isDatabaseTimeout(err)` in `api/http.ts`).
+  - The server cancelled a statement at its own limit (15 s by default, `persistence.md`), so it has just spent that whole limit on the request, and two more
+    tries would be half a minute more spinner and two more statements on a database that is not answering. A stuck read therefore says so after about 15 s
+    instead of about 93 (30 s a try, three tries).
+  - A browser-side `TimeoutError` (the server sent nothing for 30 s) is still retried.
+  - `loadErrorMessage` and `saveErrorMessage` answer `common.error.timeout` ("The request timed out. Try again.") for it before any status branch, so a page's
+    own `500` wording never shows over it; a kept document stays on screen under the alert, as for any failed re-read.
+  - The sentence never claims that nothing was saved: the cancelled transaction is rolled back, but an earlier committed step of the same request (a
+    create's re-read) may stay, so a retry of a save can meet a `409`.
+- **Messages**: `error.message` is the internal `API <status>` / the browser's "Failed to fetch". Statuses map to i18n keys through the shared mappers in
+  `utils/saveError.ts`: `saveErrorMessage(err, t, keys)` for mutations (per-status keys + a `failed` fallback) and `loadErrorMessage(err, t)` for list loads.
+  A failed QUERY renders through `components/ErrorAlert.tsx` (`error`, optional `title`), a form/action failure (an already-mapped string) through
   `components/FormErrorAlert.tsx`.
-- **Toasts**: the `@mantine/notifications` host is mounted in `main.tsx` (top-center, autoClose 2500, limit 3 — deliberately not in App, so unit tests never
-  mount it; top-center because bottom-right would cover `PaginationBar` and form footers, top-right the header cluster). `showSuccessToast(t("<area>.toast.*"))`
+- **Toasts**: the `@mantine/notifications` host is mounted in `main.tsx` (top-center, autoClose 2500, limit 3), deliberately not in App, so unit tests never
+  mount it; top-center because bottom-right would cover `PaginationBar` and form footers, and top-right the header cluster. `showSuccessToast(t("<area>.toast.*"))`
   in `utils/toast.tsx` is the only writer (green; the close X's accessible name, `common.action.closeNotification`, is set there too, at show time).
+
+### The deploy check
+
+The rule (a Reload notice, never an automatic reload): `web/CLAUDE.md` "Error handling".
+
+- `api/build.ts` `getServedBuild()` fetches `index.html` (`cache: "no-store"`, `timeoutSignal()`, a plain `fetch` with no token: the shell is public) and
+  returns the meta's content. It REJECTS on a non-200, a body without the meta (a JSON stub, an older shell), an empty content or a failed fetch: "could not
+  tell" is never "equal".
+- `hooks/useServedBuild.ts` is the one query `["build"]`: a focus refetch with no `staleTime`, every 5 minutes while visible, `retry: false`, and off when
+  `__APP_COMMIT__` is `unknown` (a build without git). `outdated` = an answer arrived and differs from the bundle's commit (inequality, so a rollback prompts
+  too); a failed re-check keeps the last answer, an equal one clears it.
+- `components/UpdateBanner.tsx` is mounted at the top of `AppShell.Main` (outside the route boundary, so it survives navigation and a page crash) and at the
+  top of `AuthCard`, above the card and as wide as it (the login and the two password-reset pages, so a tab left open there learns too; the shell and a
+  public page are never on screen together). It is a gray `role="status"` line and a "Reload" button (`common.action.reload`, shared with the crash
+  fallback), and nothing in the DOM otherwise.
+- The three public pages' tests stub `__APP_COMMIT__` to `unknown` (the check off: under vitest it is the real commit and would fetch `index.html`).
+- Limits: a rebuilt image of the SAME commit is not noticed; during a rolling deploy a tab may be prompted, reload onto the old build and be prompted again
+  until the rollout ends.
 
 ## Shared list-page and dialog mechanics
 
-The template and its rules: `web/CLAUDE.md` "Shared list-page building blocks". The pieces behind them, copied from Lettuce (`pages/Users.tsx` is the reference page):
+The template and its rules (the chrome, the colour vocabulary, delete, the entity name as the way into its page, row actions): `web/CLAUDE.md` "Shared
+list-page building blocks". The pieces behind them were copied from Lettuce (`pages/Users.tsx` is the reference page).
 
-- **Chrome**: `FilterPanel` (collapsed by default, persisted, active-count badge) + `ClearableTextInput` for freetext filters (debounced); `SortHeader` renders
-  its OWN `Table.Th` (so the sort state lands as `aria-sort` on the header cell — don't wrap it in another Th); `TableLoadingRow` (`isLoading && !data`) / rows
-  / `EmptyState` (`!isError`) triage in the tbody; a `color="red" variant="light"` Alert with `loadErrorMessage` ABOVE the table on error; `PaginationBar`
-  below.
-- **A filter select is complete, or says what it lacks (1.21)**: the team options are ALL teams (`api/teams.ts` `listEveryTeam`: pages of 100 by name until the teams read reach `total` or a page is empty, at most 20 pages; `hooks/useTeamOptions.ts` answers `{ teams, settled }` under the one key `["teams","options"]`, so every team write still refreshes it; since 1.22 the Jira import preview's per-row Team select reads the same hook - null, so no select, until it has settled - instead of its own one-page read), the project options every project of the plan view (`utils/planNames.ts` `projectOptions`: two of one name carry their program, as the program pick does). An id from a link that a SETTLED list does not hold is one more option, "Team 12" / "Project 12"; while a read runs or failed the field is blank - nothing is said about a team or project from data that has not arrived. The Project select owns its plan read (a panel's fields mount only while it is open); `TeamSelect` / `ProjectSelect` stay the dialogs' search-as-you-type pickers.
-- **Delete**: `useDeleteConfirm` + `ConfirmDeleteModal` — the hook owns modal state and the success toast, the page owns cache refresh. For mutations while a
-  list remains mounted, use `refreshQueriesAfterMutation(queryClient, ["area"], ...)` from `utils/queryRefresh.ts` after success. It cancels all affected query
-  groups before invalidating them: a newly keyed initial fetch has no cached data even when `keepPreviousData` displays rows, so default invalidation alone may
-  reuse a pre-mutation response. Keep refresh out of failed mutation paths.
-- **Focus after a successful delete**: `useDeleteConfirm` takes `focusAfterDelete` (required): the page's `PageHeader` `titleRef` (the title is `tabIndex={-1}`,
-  never a tab stop; `index.css` draws the accent ring on `:focus-visible`), a section's own h3 ref, or `null` where the delete navigates away
-  (`useFocusMainOnNavigation` owns the focus; the hook unmounts with the page, so they never fight). The kebab and the dialog's Delete button are both gone, and
-  the browser would leave the focus on `body`; the hook tries the target at every render and when the modal has exited (`ConfirmDeleteModal` wires
-  `onExitTransitionEnd`; the hook keeps looking for up to half a second while the leaving dialog still holds the focus) by one rule: focus on `body` -> take it,
-  inside a `[role="dialog"]` (still fading) or a `[role="menu"]` (Mantine's return focus puts it back on the menu item that opened the dialog, which stays mounted while its dropdown fades, about 150 ms, and then drops it to `body`) -> wait, anywhere else -> leave; the predicate is `utils/focusTransit.ts` `isFocusInTransit`, shared with `useDialogFocus`. A failed delete never arms it (the modal stays open with its error). **A cancel**
-  (Escape, Cancel, X, click outside) goes through the same rule: a dialog opened from a row menu has lost its opener (the unmounted menu item), so
-  `requestDelete` takes the menu's trigger from the shared `utils/menuOpener.ts` memory (`RowActionsMenu` remembers the kebab on a click inside its menu; it
-  expires at the end of the click) and a focus left on `body` returns to that kebab if still connected, else to the same target; a focus anywhere else is left
-  alone. **The 1.13.1 fix (history):** until then only a focus inside a dialog counted as in transit, so a list render (the debounced filter's request) in
-  the window between Mantine's return focus (the menu item) and the dropdown's unmount dropped the pending move and the kebab lost the focus; three CI
-  failures were the only sighting until a browser repro on the unfixed build failed 48 of 50 runs (a list request fired inside the closing window; a control
-  without the request passed 20 of 20). `useDeleteConfirm.focus.test.tsx` and `useDialogFocus.test.tsx` pin it (the first was proven red on master).
-- **`ConfirmActionModal`** is the non-destructive sibling (Lettuce's, ported with the feature-flags bulk actions) — a message plus a neutral cancel and a
-  confirm button whose `loading` blocks cancel/close while the action runs; labels arrive already translated.
-- **An entity's NAME is the way into its detail page** — a `RouterLink` `Anchor` with an interpolated accessible name (`common.action.editAria` = "Edit
-  {{name}}", or an area-specific `openAria`), which is what tests and e2e locate. A real link, not an onClick: cmd/middle-click opens a tab and it takes
-  keyboard focus. Route families are spelled out ONCE in `utils/<area>Links.ts` — never hand-assemble a URL.
-- Row action buttons carry interpolated aria-labels (`<area>.editAria` etc.) — unit tests and e2e locate by them; table tests query cells by **text**, not
-  `cell` role names. **Row actions**: a row with more than two actions bundles them under `components/RowActionsMenu.tsx` — an icon-only kebab whose accessible
-  name is `common.table.operationsAria` ("Operations for {{name}}"; items are plain `menuitem`s, only one row's menu is open at a time); a per-row `Switch`
-  (Feature flags) is state, not an action. A menu opens with the focus on its FIRST item (the theme drops Mantine's focus placeholder, which fails axe
-  `aria-required-children`), so the next ArrowDown reaches the second; the item's tint shows for the pointer and for a keyboard focus only. Tab or Shift+Tab
-  closes an open menu and moves on from its trigger (`hooks/useMenuTabExit.ts`; Mantine's trap would swallow the key; menu items are `tabindex="-1"`, so
-  the first Tab leaves, including the account menu's theme items); every menu is items only, so the hook has no inner-Tab-stop branch (a menu that ever needs its own tabbable controls adds one). A destructive item (Delete, Sign out) is `components/DestructiveMenuItem.tsx`, never
-  `Menu.Item color="red"` (red-6 is 3.3:1 on the white dropdown); an item's `aria-label` must contain its visible text ("Move to top: {{name}}", not "Move
-  {{name}} to top": axe `label-content-name-mismatch`). **A dialog mounted with `opened` already true (`{editor && <XModal ... />}`) calls
-  `useDialogFocus(open)`** in its owner (`hooks/useDialogFocus.ts`): Mantine records no opener for it, so without the hook the focus lands on `body`. Focus
-  returns to the opener when it closes (the kebab for a row-menu item, else the button that held the focus); for 5 seconds after that a refetch cannot lose it
-  (a focus blurred to `body` by a row moving in the DOM goes back to the opener, or to `#main-content` if the opener is gone; a focus parked in a closing
-  menu or dialog is in transit and does not end the watch). **1.23:** a focus inside a `[role="dialog"]` that appeared AFTER the editor closed ends the watch, because another flow has taken over - the same row's Delete confirmation within seconds of an edit; a dialog already open at the close (ours fading, or one beneath it) stays exempt. Before this, a delete after an edit of the same row lost the title focus whenever the editor's `useDialogFocus` was declared before the page's `useDeleteConfirm` (ten files were), so the order of the two hooks no longer matters. The hook tests and the edit-then-delete cases on the project page (a milestone) and Teams go red without the change; the Dependencies page and the project page's dependency cases are order and regression pins. Those page cases render inside a `main#main-content`, as the shell does (without it the watch has nowhere to send the focus and the race does not show in vitest), and answer the DELETE after ~30 ms (Mantine's 10 ms return-focus timer would otherwise race a confirm click no person can make). A dialog that opens only after an
-  await wraps the awaited promise in the returned `claim(...)` (Teams' Edit). **The two paths the 1.13.1 review left open are settled (after 1.13.4,
-  `useDialogFocus.menu.test.tsx`: the real `RowActionsMenu` + Mantine `Modal` harness).** (A) `menuOpener.ts`'s `setTimeout(0)` expiry cannot beat the hook's
-  effect: the click is a discrete event, React commits it and flushes the passive effect before any timer; the kebab-return tests (click, Escape, keyboard)
-  passed 100 of 100 shuffled runs and never failed, so no change was needed and the tests are the pin. (B) Reproduced: within the 5 s watch, another row's
-  kebab and an action that dropped the focus to `body` (its row removed or re-sorted) was answered at the next render with the FIRST kebab. Fixed: while
-  the dialog is closed the hook listens to `focusin` (a no-op while no opener is held) and ends the watch when the focus lands anywhere but the opener, a dialog or the opener's own
-  menu (`isChoiceAwayFrom`), so the second row's kebab ends it at once. The next render finds nothing to restore. (The limitation accepted here until 1.23, a focus inside another `[role="dialog"]` such as a palette, no longer holds: a dialog that appeared after the close ends the watch.)
+- `SortHeader` renders its own `Table.Th` so the sort state lands as `aria-sort` on the header cell; wrapping it in another `Th` would lose that.
+- `FilterPanel` is collapsed by default, remembers open or closed per view, and badges the number of active filters; `ClearableTextInput` debounces.
+- **A filter select is complete, or says what it lacks.** The team options are ALL teams: `api/teams.ts` `listEveryTeam` reads pages of 100 by name until
+  they reach `total` or a page is empty, at most 20 pages, and `hooks/useTeamOptions.ts` answers `{ teams, settled }` under the one key
+  `["teams","options"]`, so every team write still refreshes it. The Jira import preview's per-row Team select reads the same hook (null, so no select,
+  until it has settled).
+- The project options are every project of the plan view (`utils/planNames.ts` `projectOptions`: two of one name carry their program, as the program pick
+  does). An id from a link that a SETTLED list does not hold is one more option, "Team 12" / "Project 12"; while a read runs or failed the field is blank,
+  because nothing is said about a team or project from data that has not arrived.
+- The Project select owns its plan read (a panel's fields mount only while it is open); `TeamSelect` / `ProjectSelect` stay the dialogs' search-as-you-type pickers.
+- **Refresh after a mutation**: `refreshQueriesAfterMutation(queryClient, ["area"], ...)` (`utils/queryRefresh.ts`) cancels all affected query groups before
+  invalidating them, because a newly keyed initial fetch has no cached data even when `keepPreviousData` displays rows, so default invalidation alone may
+  reuse a pre-mutation response. Refresh stays out of failed mutation paths.
+- **`ConfirmActionModal`** is the non-destructive sibling of `ConfirmDeleteModal` (Lettuce's, ported with the feature-flags bulk actions): a message plus a
+  neutral cancel and a confirm button whose `loading` blocks cancel/close while the action runs; labels arrive already translated.
+
+### Focus after a delete
+
+`useDeleteConfirm` takes `focusAfterDelete` (required): the page's `PageHeader` `titleRef` (the title is `tabIndex={-1}`, never a tab stop; `index.css` draws
+the accent ring on `:focus-visible`), a section's own h3 ref, or `null` where the delete navigates away (`useFocusMainOnNavigation` owns the focus; the hook
+unmounts with the page, so they never fight).
+
+- The kebab and the dialog's Delete button are both gone and the browser would leave the focus on `body`, so the hook tries the target at every render and when
+  the modal has exited (`ConfirmDeleteModal` wires `onExitTransitionEnd`; the hook keeps looking for up to half a second while the leaving dialog still holds
+  the focus), by one rule:
+  - focus on `body`: take it;
+  - focus inside a `[role="dialog"]` (still fading) or a `[role="menu"]` (Mantine's return focus puts it back on the menu item that opened the dialog, which
+    stays mounted while its dropdown fades, about 150 ms, and then drops it to `body`): wait;
+  - anywhere else: leave it.
+- The predicate is `utils/focusTransit.ts` `isFocusInTransit`, shared with `useDialogFocus`. A failed delete never arms it (the modal stays open with its error).
+- **A cancel** (Escape, Cancel, X, click outside) goes through the same rule. A dialog opened from a row menu has lost its opener (the unmounted menu item),
+  so `requestDelete` takes the menu's trigger from the shared `utils/menuOpener.ts` memory (`RowActionsMenu` remembers the kebab on a click inside its menu;
+  it expires at the end of the click); a focus left on `body` returns to that kebab if still connected, else to the same target, and a focus anywhere else is left alone.
+
+### Row menus and dialog focus
+
+- **`components/RowActionsMenu.tsx`**: an icon-only kebab named `common.table.operationsAria` ("Operations for {{name}}"); its items are plain `menuitem`s and
+  only one row's menu is open at a time. A menu opens with the focus on its FIRST item (the theme drops Mantine's focus placeholder, which fails axe
+  `aria-required-children`), so the next ArrowDown reaches the second; an item's tint shows for the pointer and for a keyboard focus only.
+- **Tab leaves a menu**: Tab or Shift+Tab closes an open menu and moves on from its trigger (`hooks/useMenuTabExit.ts`; Mantine's trap would swallow the
+  key). Menu items are `tabindex="-1"`, so the first Tab leaves, including the account menu's theme items. Every menu is items only, so the hook has no inner-Tab-stop
+  branch; a menu that ever needs its own tabbable controls adds one.
+- **A destructive item** (Delete, Sign out) is `components/DestructiveMenuItem.tsx`, never `Menu.Item color="red"` (red-6 is 3.3:1 on the white dropdown). An item's
+  `aria-label` must contain its visible text ("Move to top: {{name}}", not "Move {{name}} to top": axe `label-content-name-mismatch`).
+- **`hooks/useDialogFocus.ts`**: a dialog mounted with `opened` already true (`{editor && <XModal ... />}`) calls `useDialogFocus(open)` in its owner. Mantine
+  records no opener for it, so without the hook the focus lands on `body`. A dialog that opens only after an await wraps the awaited promise in the returned
+  `claim(...)` (Teams' Edit).
+  - Focus returns to the opener when it closes (the kebab for a row-menu item, else the button that held the focus), and for 5 seconds after that a refetch
+    cannot lose it: a focus blurred to `body` by a row moving in the DOM goes back to the opener, or to `#main-content` if the opener is gone, while a focus
+    parked in a closing menu or dialog is in transit and does not end the watch.
+  - A focus inside a `[role="dialog"]` that appeared AFTER the editor closed ends the watch, because another flow has taken over (the same row's Delete
+    confirmation within seconds of an edit); a dialog already open at the close (ours fading, or one beneath it) stays exempt. The order in which an editor's
+    `useDialogFocus` and the page's `useDeleteConfirm` are declared therefore does not matter.
+  - While the dialog is closed the hook listens to `focusin` (a no-op while no opener is held) and ends the watch when the focus lands anywhere but the opener, a
+    dialog or the opener's own menu (`isChoiceAwayFrom`), so another row's kebab, or an action that dropped the focus to `body` (its row removed or re-sorted),
+    never gets answered with the first kebab.
+  - `menuOpener.ts`'s `setTimeout(0)` expiry cannot beat the hook's effect: the click is a discrete event, and React commits it and flushes the passive effect
+    before any timer.
+- Pinned by: `useDeleteConfirm.focus.test.tsx`, `useDialogFocus.test.tsx` and `useDialogFocus.menu.test.tsx` (the real `RowActionsMenu` + Mantine `Modal`
+  harness); the edit-then-delete cases on the project page (a milestone) and Teams; the Dependencies page and the project page's dependency cases pin the
+  order. Those page cases render inside a `main#main-content`, as the shell does (without it the watch has nowhere to send the focus and the race does not show
+  in vitest), and answer the DELETE after about 30 ms (Mantine's 10 ms return-focus timer would otherwise race a confirm click no person can make).
 
 ### Registries and forms
 
-The small ADMIN-curated registries (Teams and People today; more arrive with the planning domain) compose `useRegistryListControls` for their persisted name
-filter, debounce and paged sort, and `RegistryListTable` for the common load/error/empty/pagination states. Each page owns its query key and parameters, extra
-filters, columns, row actions and mutation refresh prefixes. Their editors (e.g. `components/TeamEditorModal.tsx`; `PersonEditorModal.tsx` has no description,
-so it composes its own fields) share the `RegistryMetadataFields` (name + description, with `utils/charCount.tsx`'s "123 / 4000" counter) and
-`RegistryEditorActions` (save-error alert + cancel/submit footer) components; form rules (`utils/formRules.ts`'s shared `nameRule`/`descriptionRule`),
-submit/conflict handling and any parent/target fields stay local. Keep each registry's field limits explicit and mirrored from the server's own validation
-(`infra/validation/Text.kt`'s `requireNameAndDescription`).
+The rules: `web/CLAUDE.md` "Registries" and "Forms". The small ADMIN-curated registries (Teams and People) compose `useRegistryListControls` and
+`RegistryListTable`; each page owns its query key and parameters, extra filters, columns, row actions and mutation refresh prefixes.
 
-- Shared vocabulary in `utils/<area>Form.ts`: the `<Area>FormValues` type, length constants mirroring the server's, a `<area>FormValidation(t)` factory (rules
-  identical to the server's — keep them in sync), and `toRequest`/`fromResponse` mappers. The field block lives in `components/<Area>FormFields.tsx`; the pages
-  own submit/error/navigation.
-- Edit prefills via **`form.initialize(...)` guarded by `!form.initialized` during render** — never a `useEffect`. Submit is a plain async fn with local
-  `submitting`/`error` state wrapped by `form.onSubmit`; success → `invalidateQueries` (list + detail) → `showSuccessToast` →
-  `navigate(list, { replace: true })`; failure → `saveErrorMessage` into an inline Alert.
-- **Widths**: `Paper withBorder p="xl" maw={FORM_MAX_WIDTH}` under a `PageHeader` (with `backTo` to the list) for simple field forms — left-aligned, never a centred `Container`.
+- The editors (`components/TeamEditorModal.tsx`; `PersonEditorModal.tsx` has no description, so it composes its own fields) share `RegistryMetadataFields`
+  (name + description, with `utils/charCount.tsx`'s "123 / 4000" counter) and `RegistryEditorActions` (save-error alert + cancel/submit footer).
+- The field limits mirror the server's own validation (`infra/validation/Text.kt`'s `requireNameAndDescription`); form rules (`utils/formRules.ts`'s shared
+  `nameRule`/`descriptionRule`), submit/conflict handling and any parent/target fields stay local.
 
 ## Timeline mechanics (`components/Timeline*.tsx`)
 
-The binding reference is `.claude/docs/timeline.md` (coordinate model, data contract, arrows, load strip, drag/resize/keyboard contract, row drag, draw gesture,
+The binding reference is `timeline.md` (coordinate model, data contract, arrows, load strip, drag/resize/keyboard contract, row drag, draw gesture,
 accessibility model, virtualisation, holidays, idle bands, critical path, proposal preview, baseline overlay, Jira markers, measured figures). The rules a page
 follows: `web/CLAUDE.md` "Per-feature rules". What the pages see of the component, with the `timeline.md` section that owns each mechanism:
 
 - **Boundary.** `Timeline` takes rows, bars and bands as `TimelineRowData[]` (`utils/timelineModel.ts`); the page builds the `scale` (`makeScale(zoom, range)`,
   `defaultRange`) and keeps the range stable across edits. `editable` comes from the view's `can` flags, and a drop is only `onSchedule(id, start, end)` on the
-  page's `TimelineDndContext` — the page's write path owns the optimistic update, the revision and the rollback. Dates are ISO strings at the boundary; layout
-  is `utils/timelineScale.ts` (28/8/3/1 px per day at week/month/quarter/year), drag arithmetic is `utils/timelineDrag.ts` — both pure and unit-tested. It is a
-  `role="grid"` with ONE roving tab stop (`useRovingGrid`; a left cell that holds its own focusable is a function cell that spreads the stop on it), rows
-  virtualised with TanStack Virtual only above `virtualizeFrom` (80). Keyboard: Space/Enter picks up a bar or edge handle, ←/→ a day, Shift a week, Space drops,
-  Escape cancels, announced in the UI language (`timeline.announce.*`); the page ships the explicit buttons (Edit schedule…, the tray's Schedule). Pointer drags
-  are not unit-tested (happy-dom has no layout; `Timeline.test.tsx` feeds the wrapped `DndContext` its events) — the e2e does them. Reference: "Coordinate
-  model", "Data contract", "Drag, resize and keyboard contract", "Accessibility model", "Virtualisation".
-- **Zooms, the window tone, draw and `focusRow` (v0.6).** `Timeline` takes `zooms` (default `MILESTONE_ZOOMS` = week/month/quarter, which the project and team
-  pages keep; the plan pages pass `PLAN_ZOOMS` = month/quarter/year, Year = 1 px per day, year header over quarter cells) and validates a stored zoom against
-  its own list (`isOneOf(MILESTONE_ZOOMS)`). `tone: "window"` is the one tone an EDITABLE bar honours (a target window as a bar: the band look over the whole
-  row height, handles and keyboard as any editable bar). `TimelineRowData.draw = {barId, label}` mounts a pointer-only, `aria-hidden` `TimelineDrawSurface`
-  behind the row's bars: a drag across the empty stretch is the fifth drag kind `draw`, previewed as a window-toned ghost and proposed through the SAME
-  `onSchedule(barId, start, end)` as a bar move (`drawOutcome(anchorDay, pointerDay)`; the page's dialog is the keyboard/touch path). `ref` exposes
-  `focusRow(rowId)` (focus + reveal a row header, mounted or not; answers `false` for a row the Timeline does not have, 1.22). Reference: "The draw gesture", "Bar tones", "Accessibility model".
-- **Bands** (v0.7 adds a third tone): `TimelineBandData.tone` is `window` (quiet gray, dashed edges), `drift` (orange) or `idle` (a diagonal gray hatch, no
-  edges; the project and team pages' idle gaps); every band carries `data-band-tone`, is `aria-hidden` and its facts live in the page's text. Reference: "Idle
-  bands".
-- **Tones and arrows (v0.4).** A read-only bar may carry `tone: "ghost"` (another project's endpoint: faint, dashed), `"summary"` (the project's own span:
-  hollow), since v0.8 `"proposal"` (a PROPOSED span of the team page's schedule proposal: hollow with a dashed 2 px text-colour outline, no new hue), since v0.9
-  `"baseline"` (the span a picked baseline froze: a 5 px SHADOW bar along the bottom of the row, pointer-transparent, no hue) or, since 1.3, `"jira"` (the dates
-  Jira holds: a 5 px dashed outline along the TOP of the row, pointer-transparent). Dependency arrows are `TimelineArrowData[]` (`from`/`to`
-  `{row, bar, kind: START|END}`, `violated`, `label`) drawn by `components/TimelineArrows.tsx` through the `overlay={(geometry) => …}` slot — decorative
-  (`aria-hidden`; the page's table is the accessible surface), gray, RED when `violated`, only for mounted rows and from committed dates. Tests read
-  `data-arrow`/`data-violated`/`data-tone`, never colour. Reference: "Arrows", "The proposal preview", "The baseline overlay", "The Jira markers
-  (1.3)".
-- **Row drag (v0.5).** The same one `TimelineDndContext` learns a fourth drag kind, `kind: "row"` (no `@dnd-kit/sortable`: no row ever gets a transform, a
-  `DragOverlay` card plus an insertion line show the slot, computed from the live pointer against the body-wide row zone, so it reaches unmounted rows). It is
-  the timeline's variant of the Roadmap rule: a pointer-only, `aria-hidden` handle (one cell, one roving stop) plus the row menu as the keyboard path, announced
-  by dnd-kit's region (`timeline.announce.*Row`); the page passes `onReorder(id, slot) → boolean` (absent = no reordering). Reference: "Row drag".
-- **Public holidays (v0.7).** `holidays?: {date, name}[]` (the dictionary, any range; every page passes `useHolidays()`): a holiday working day is hatched like
-  a weekend at week and month zoom (`trackBackground` = a holiday `linear-gradient` layer over the weekend layer, the same `--timeline-hatch` ink, one
-  `backgroundImage`), its week-zoom header day cell is tinted and named in its `title` ("Public holiday: {{name}}", `data-holiday`), and a `VisuallyHidden`
-  paragraph after the toolbar lists the ones in view ("Public holidays shown: 2027-01-06 …") because the header and tracks are `aria-hidden`. Decoration only:
-  the server decides every figure. Reference: "Public holidays".
-- **The load strip (v0.5).** The optional `strip={{label, render: (scale) => …}}` prop adds a sticky THIRD header row (36 px, `aria-hidden`, a visible caption)
-  under the date cells; `components/TimelineLoadStrip.tsx` draws the weekly load into it from a local `LoadWeek[]` (the server's week row; the page maps its
-  view onto it): one cell per ISO week at `scale.xOf(weekStart)`, a column against the capacity line (orange past it), a figure ("8.5 / 14"), a dashed WIP chip
-  (a dot at quarter zoom) — the overload and the WIP warning differ by SHAPE, both orange. A week with no capacity (`null`) has only its dimmed figure, never
-  flagged. Decorative: the page's weekly table is the accessible surface; tests read `data-week`/`data-overloaded`/`data-wip-exceeded`. The header becomes
-  `headerHeight(hasStrip)` tall and every consumer follows it (`--timeline-head`); with no strip nothing changes. Reference: "The load strip".
+  page's `TimelineDndContext`: the page's write path owns the optimistic update, the revision and the rollback.
+  - Dates are ISO strings at the boundary; layout is `utils/timelineScale.ts` (28/8/3/1 px per day at week/month/quarter/year), drag arithmetic is
+    `utils/timelineDrag.ts`, both pure and unit-tested.
+  - It is a `role="grid"` with ONE roving tab stop (`useRovingGrid`; a left cell that holds its own focusable is a function cell that spreads the stop on it),
+    rows virtualised with TanStack Virtual only above `virtualizeFrom` (80).
+  - Keyboard: Space/Enter picks up a bar or edge handle, ←/→ a day, Shift a week, Space drops, Escape cancels, announced in the UI language
+    (`timeline.announce.*`); the page ships the explicit buttons (Edit schedule…, the tray's Schedule).
+  - Pointer drags are not unit-tested (happy-dom has no layout; `Timeline.test.tsx` feeds the wrapped `DndContext` its events); the e2e does them.
+  - Reference: "Coordinate model", "Data contract", "Drag, resize and keyboard", "Accessibility model", "Virtualisation".
+- **Zooms, the window tone, draw and `focusRow`.** `Timeline` takes `zooms` (default `MILESTONE_ZOOMS` = week/month/quarter, which the project and team pages
+  keep; the plan pages pass `PLAN_ZOOMS` = month/quarter/year, Year = 1 px per day, year header over quarter cells) and validates a stored zoom against its own
+  list (`isOneOf(MILESTONE_ZOOMS)`).
+  - `tone: "window"` is the one tone an EDITABLE bar honours (a target window as a bar: the band look over the whole row height, handles and keyboard as any editable bar).
+  - `TimelineRowData.draw = {barId, label}` mounts a pointer-only, `aria-hidden` `TimelineDrawSurface` behind the row's bars: a drag across the empty stretch is
+    the fifth drag kind `draw`, previewed as a window-toned ghost and proposed through the SAME `onSchedule(barId, start, end)` as a bar move
+    (`drawOutcome(anchorDay, pointerDay)`; the page's dialog is the keyboard/touch path).
+  - `ref` exposes `focusRow(rowId)`: focus + reveal a row header, mounted or not; it answers `false` for a row the Timeline does not have.
+  - Reference: "The draw gesture", "Bar tones", "Accessibility model".
+- **Bands.** `TimelineBandData.tone` is `window` (quiet gray, dashed edges), `drift` (orange) or `idle` (a diagonal gray hatch, no edges; the project and
+  team pages' idle gaps). Every band carries `data-band-tone`, is `aria-hidden`, and its facts live in the page's text. Reference: "Idle bands".
+- **Tones and arrows.** A read-only bar may carry a `tone`:
+  - `tone: "ghost"`: another project's endpoint, faint and dashed;
+  - `"summary"`: the project's own span, hollow;
+  - `"proposal"`: a PROPOSED span of the team page's schedule proposal, hollow with a dashed 2 px text-colour outline, no new hue;
+  - `"baseline"`: the span a picked baseline froze, a 5 px SHADOW bar along the bottom of the row, pointer-transparent, no hue;
+  - `"jira"`: the dates Jira holds, a 5 px dashed outline along the TOP of the row, pointer-transparent.
+- Dependency arrows are `TimelineArrowData[]` (`from`/`to` `{row, bar, kind: START|END}`, `violated`, `label`) drawn by `components/TimelineArrows.tsx` through the
+  `overlay={(geometry) => …}` slot: decorative (`aria-hidden`; the page's table is the accessible surface), gray, RED when `violated`, only for mounted rows
+  and from committed dates. Tests read `data-arrow`/`data-violated`/`data-tone`, never colour.
+  Reference: "Arrows", "The proposal preview", "The baseline overlay", "The Jira markers".
+- **Row drag.** The one `TimelineDndContext` has a fourth drag kind, `kind: "row"` (no `@dnd-kit/sortable`: no row ever gets a transform; a `DragOverlay`
+  card plus an insertion line show the slot, computed from the live pointer against the body-wide row zone, so it reaches unmounted rows). It is the
+  timeline's variant of the Roadmap rule: a pointer-only, `aria-hidden` handle (one cell, one roving stop) plus the row menu as the keyboard path, announced
+  by dnd-kit's region (`timeline.announce.*Row`). The page passes `onReorder(id, slot) → boolean`; absent, there is no reordering. Reference: "Row drag".
+- **Public holidays.** `holidays?: {date, name}[]` is the dictionary, any range; every page passes `useHolidays()`.
+  - A holiday working day is hatched like a weekend at week and month zoom (`trackBackground` = a holiday `linear-gradient` layer over the weekend layer, the
+    same `--timeline-hatch` ink, one `backgroundImage`).
+  - Its week-zoom header day cell is tinted and named in its `title` ("Public holiday: {{name}}", `data-holiday`).
+  - A `VisuallyHidden` paragraph after the toolbar lists the ones in view ("Public holidays shown: 2027-01-06 …"), because the header and tracks are `aria-hidden`.
+  - Decoration only: the server decides every figure. Reference: "Public holidays".
+- **The load strip.** The optional `strip={{label, render: (scale) => …}}` prop adds a sticky THIRD header row (36 px, `aria-hidden`, a visible caption) under
+  the date cells; `components/TimelineLoadStrip.tsx` draws the weekly load into it from a local `LoadWeek[]` (the server's week row; the page maps its view onto it).
+  - One cell per ISO week at `scale.xOf(weekStart)`: a column against the capacity line (orange past it), a figure ("8.5 / 14"), a dashed WIP chip (a dot at
+    quarter zoom). The overload and the WIP warning differ by SHAPE, both orange.
+  - A week with no capacity (`null`) has only its dimmed figure, never flagged.
+  - Decorative: the page's weekly table is the accessible surface; tests read `data-week`/`data-overloaded`/`data-wip-exceeded`.
+  - The header becomes `headerHeight(hasStrip)` tall and every consumer follows it (`--timeline-head`); with no strip nothing changes. Reference: "The load strip".
 
 ### Wiring notes
 
-The non-obvious wiring: (1) `Timeline` reads `useDndContext().active` to suspend its own arrow handling while a bar is held (dnd-kit's keyboard sensor listens
-on the document, AFTER React's handlers) and registers the track drop zone with `useDroppable` — both work
-without a `DndContext` (read-only timelines need none). (2) `TimelineDndContext` passes its handlers as `DndContext` props; dnd-kit calls those BEFORE the
-monitor that feeds `accessibility.announcements`, so the handlers stash the latest outcome in refs and the announcements only read them. (3) A resize redraws
-from the context's preview (`PreviewContext`); a move is a CSS translate of the bar wrapper from `useDraggable` (the context's modifiers hold it to its row and
-snap it to days). The edge handles sit outside the bar with a constant width per zoom so a resize never re-measures the dragged node. (4) `useDraggable` results
-are destructured in `TimelineBar` because the React-compiler lint (`react-hooks/refs`) flags field reads off an object that carries a ref. (5) The virtualiser's
-`useVirtualizer` carries the one justified `react-hooks/incompatible-library` disable. (6) The track drop zone's droppable `data` carries `visibleBounds()` (the
-scroller's live rectangle minus the sticky columns and header) and `zoneLeft()` (its element's live left edge) — `outcomeOf` combines them with the pointer
-`TimelineDndContext` tracks itself during a tray drag, so a tray item released over the tray below or the left columns is not scheduled and a scrolled grid
-gives the right day (dnd-kit's `delta` is wrong for it, `timeline.md`). (7) A pending "focus the row once it mounts" wish is cleared by another key, a focus
-elsewhere or a manual scroll. (8) Tests stub the scroller size with `HTMLElement.prototype.clientWidth/clientHeight` (happy-dom lays nothing out; the
-virtualiser reads them), restore the original descriptors in a file-level `afterEach` and wait with `waitFor`, never a real sleep (the suite is
-`isolate: false`); the keyboard-sensor test fakes only `setTimeout` for dnd-kit's zero-delay listener attach. (9) **Arrows (v0.4):** `TimelineArrows` renders a
-fragment (the `<defs>` with two `<marker>`s of FIXED ids, then one `<path>` per kept arrow) inside the Timeline's own `aria-hidden` svg; the marker colours are
-CSS classes (`timelineArrowHead*`), because a marker's content inherits from the marker's ancestors, not from the path that references it, and the theme tokens
-`--timeline-arrow`/`--timeline-violation` live on `.timelineGrid`, an ancestor of both. `geometry.rowIndexOf` (a lazily built id→index map) lets the arrow input
-name rows by `TimelineRowData.id`, so a re-sorted page never re-indexes its arrows. The route math (`utils/timelineArrows.ts`) is pure; the tests feed a
-hand-built geometry, and `Timeline.test.tsx` covers the plain and the virtual path (the unmounted end of an arrow is positioned from data). (10) **The header
-height (v0.5 load strip):** the sticky header is `headerHeight(hasStrip)` = 56 px, or 92 px with a `strip` (`STRIP_HEIGHT` 36). Its five consumers all follow
-ONE number computed in `Timeline.tsx`: the track drop zone's `visibleBounds().top` (`hooks/useTimelineDropZones.ts`), the virtualiser's `scrollMargin` and `scrollPaddingStart`, `revealFocused`'s
-`clearTop` (`utils/timelineReveal.ts`), and the two CSS `scroll-margin-top`s (`.timelineCell`, `.timelineBarBody`), which read `var(--timeline-head)` set on the grid beside
-`--timeline-left`. A new sticky part adds to `headerHeight()`, never to a literal; `Timeline.test.tsx` "the load strip" pins the value of `--timeline-head` and
-the drop zone's top, `revealFocused`'s `clearTop` and the virtualiser's `scrollMargin` (through the mounted window), with and without a strip. NOT pinned
-(happy-dom has no layout and does not process CSS modules): `scrollPaddingStart` (where `scrollToIndex` lands a row) and the two CSS `var(--timeline-head)`
-uses; the real-browser proof is the team page's e2e/manual pass (C5). The strip is a header row, so the geometry's origin (the top of the first body row) and
-the arrows do not move. (11) **Public holidays (v0.7):** `Timeline` takes `holidays?` and builds ONE epoch-day map per render (`holidayDayMap`); the same map
-feeds the row hatch (`trackBackground`: the holiday gradient layer over the weekend layer, ONE `backgroundImage` string computed once per render and handed down
-as `hatch`), the header (`headerRows(scale, map)` puts `holiday` on the day cells; `HeaderCells` renders the `title` and `data-holiday`) and the visually hidden
-"Public holidays shown" paragraph (`holidaysShown`). The pages never touch any of it: they pass `useHolidays()` straight through. happy-dom keeps gradient
-strings in `style.backgroundImage`, so the tests count `gradient(` occurrences on the body row's LAST `gridcell` (its left cells are gridcells too).
+The non-obvious wiring:
+
+1. `Timeline` reads `useDndContext().active` to suspend its own arrow handling while a bar is held (dnd-kit's keyboard sensor listens on the document, AFTER
+   React's handlers) and registers the track drop zone with `useDroppable`. Both work without a `DndContext` (read-only timelines need none).
+2. `TimelineDndContext` passes its handlers as `DndContext` props; dnd-kit calls those BEFORE the monitor that feeds `accessibility.announcements`, so the
+   handlers stash the latest outcome in refs and the announcements only read them.
+3. A resize redraws from the context's preview (`PreviewContext`); a move is a CSS translate of the bar wrapper from `useDraggable` (the context's modifiers
+   hold it to its row and snap it to days). The edge handles sit outside the bar with a constant width per zoom, so a resize never re-measures the dragged node.
+4. `useDraggable` results are destructured in `TimelineBar` because the React-compiler lint (`react-hooks/refs`) flags field reads off an object that carries a ref.
+5. The virtualiser's `useVirtualizer` carries the one justified `react-hooks/incompatible-library` disable.
+6. The track drop zone's droppable `data` carries `visibleBounds()` (the scroller's live rectangle minus the sticky columns and header) and `zoneLeft()` (its
+   element's live left edge). `outcomeOf` combines them with the pointer `TimelineDndContext` tracks itself during a tray drag, so a tray item released over
+   the tray below or the left columns is not scheduled and a scrolled grid gives the right day (dnd-kit's `delta` is wrong for it, `timeline.md`).
+7. A pending "focus the row once it mounts" wish is cleared by another key, a focus elsewhere or a manual scroll.
+8. Tests stub the scroller size with `HTMLElement.prototype.clientWidth/clientHeight` (happy-dom lays nothing out; the virtualiser reads them), restore the
+   original descriptors in a file-level `afterEach` and wait with `waitFor`, never a real sleep (the suite is `isolate: false`). The keyboard-sensor test
+   fakes only `setTimeout` for dnd-kit's zero-delay listener attach.
+9. **Arrows.** `TimelineArrows` renders a fragment (the `<defs>` with two `<marker>`s of FIXED ids, then one `<path>` per kept arrow) inside the Timeline's own
+   `aria-hidden` svg. The marker colours are CSS classes (`timelineArrowHead*`), because a marker's content inherits from the marker's ancestors, not from the
+   path that references it, and the theme tokens `--timeline-arrow`/`--timeline-violation` live on `.timelineGrid`, an ancestor of both. `geometry.rowIndexOf`
+   (a lazily built id→index map) lets the arrow input name rows by `TimelineRowData.id`, so a re-sorted page never re-indexes its arrows. The route math
+   (`utils/timelineArrows.ts`) is pure; the tests feed a hand-built geometry, and `Timeline.test.tsx` covers the plain and the virtual path (the unmounted end
+   of an arrow is positioned from data).
+10. **The header height.** The sticky header is `headerHeight(hasStrip)` = 56 px, or 92 px with a `strip` (`STRIP_HEIGHT` 36). Its five consumers all follow ONE
+    number computed in `Timeline.tsx`: the track drop zone's `visibleBounds().top` (`hooks/useTimelineDropZones.ts`), the virtualiser's `scrollMargin` and
+    `scrollPaddingStart`, `revealFocused`'s `clearTop` (`utils/timelineReveal.ts`), and the two CSS `scroll-margin-top`s (`.timelineCell`, `.timelineBarBody`),
+    which read `var(--timeline-head)` set on the grid beside `--timeline-left`. A new sticky part adds to `headerHeight()`, never to a literal.
+    - `Timeline.test.tsx` "the load strip" pins the value of `--timeline-head` and the drop zone's top, `revealFocused`'s `clearTop` and the virtualiser's
+      `scrollMargin` (through the mounted window), with and without a strip.
+    - NOT pinned (happy-dom has no layout and does not process CSS modules): `scrollPaddingStart` (where `scrollToIndex` lands a row) and the two CSS
+      `var(--timeline-head)` uses; the real-browser proof is the team page's e2e or a manual pass.
+    - The strip is a header row, so the geometry's origin (the top of the first body row) and the arrows do not move.
+11. **Public holidays.** `Timeline` takes `holidays?` and builds ONE epoch-day map per render (`holidayDayMap`). The same map feeds the row hatch
+    (`trackBackground`: the holiday gradient layer over the weekend layer, ONE `backgroundImage` string computed once per render and handed down as `hatch`),
+    the header (`headerRows(scale, map)` puts `holiday` on the day cells; `HeaderCells` renders the `title` and `data-holiday`) and the visually hidden "Public
+    holidays shown" paragraph (`holidaysShown`). The pages never touch any of it: they pass `useHolidays()` straight through. happy-dom keeps gradient strings
+    in `style.backgroundImage`, so the tests count `gradient(` occurrences on the body row's LAST `gridcell` (its left cells are gridcells too).
+
+---
+
+*The sections above are restructured. Everything from "Home" to the end keeps its old shape, with its tags and history, until the three steps that finish
+this document (the 1.24.0 docs restructuring, D23 to D25); the last of them removes this line.*
 
 ## Home (`pages/Home.tsx`, 1.10, figures 1.18, links 1.19)
 
