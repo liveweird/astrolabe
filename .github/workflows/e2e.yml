@@ -40,6 +40,15 @@ jobs:
           # The Docker build context includes .git: no checkout token may be stored in its config.
           persist-credentials: false
 
+      # What the runner is (CPU model, logical CPUs, memory), because the same job runs at two speeds (ci.yml, build-times.md Astrolabe WHY 3):
+      # it tells a slow nightly from a slow runner. Log and job summary; information only.
+      - name: Runner facts
+        run: |
+          cpu=$(lscpu | sed -n 's/^Model name:[[:space:]]*//p')
+          mem=$(free -m | awk '/^Mem:/ {print $2}')
+          echo "runner: ${cpu}; $(nproc) logical CPUs; ${mem} MB memory"
+          echo "- Runner: \`${cpu}\`, $(nproc) logical CPUs, ${mem} MB memory" >> "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           # .nvmrc mirrors mise.toml's node pin (and the Dockerfile's node tag); bump them together.

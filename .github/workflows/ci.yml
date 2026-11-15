@@ -39,6 +39,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      # What the runner is (CPU model, logical CPUs, memory), because the same job runs at two speeds (build-times.md Astrolabe WHY 3):
+      # it tells a slow run from a slow runner. Log and job summary; information only.
+      - name: Runner facts
+        run: |
+          cpu=$(lscpu | sed -n 's/^Model name:[[:space:]]*//p')
+          mem=$(free -m | awk '/^Mem:/ {print $2}')
+          echo "runner: ${cpu}; $(nproc) logical CPUs; ${mem} MB memory"
+          echo "- Runner: \`${cpu}\`, $(nproc) logical CPUs, ${mem} MB memory" >> "$GITHUB_STEP_SUMMARY"
       - id: diff
         env:
           EVENT: ${{ github.event_name }}
@@ -67,10 +75,17 @@ jobs:
     # once v0.1.0's job times are measured.
     timeout-minutes: 25
     env:
-      # One fork count for the build (-Pforks) and the test-time report below.
-      TEST_FORKS: "1"
+      # One fork count for the build (-Pforks) and the fork-balance report, so the report's ideal never drifts. Two forks since 1.24 (G2):
+      # two test JVMs, each with its own Testcontainers Postgres, on the 4 vCPU / 16 GB runner; `build-times.md` Astrolabe WHY 3 holds the keep rule.
+      TEST_FORKS: "2"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Runner facts
+        run: |
+          cpu=$(lscpu | sed -n 's/^Model name:[[:space:]]*//p')
+          mem=$(free -m | awk '/^Mem:/ {print $2}')
+          echo "runner: ${cpu}; $(nproc) logical CPUs; ${mem} MB memory"
+          echo "- Runner: \`${cpu}\`, $(nproc) logical CPUs, ${mem} MB memory" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin
@@ -94,8 +109,10 @@ jobs:
       # the image depends on (`.claude/docs/build-times.md` status check 2026-10-23).
       # `--dependency-verification strict` is explicit here on top of the automatic enforcement
       # gradle/verification-metadata.xml already triggers — see .claude/docs/dependency-reproducibility.md.
-      # `-Pforks=1`: one test JVM with its own Testcontainers Postgres (`.claude/docs/testing.md` "Parallel forks").
-      - run: ./gradlew --dependency-verification strict check :server:installDist --no-daemon --stacktrace -Pforks="$TEST_FORKS"
+      # `-Pforks=2`: two parallel test JVMs, each with its own Testcontainers Postgres (`.claude/docs/testing.md` "Parallel forks";
+      # `-Xmx512m` x 2 forks + 2 Postgres fit the 16 GB / 4 vCPU runner). Named so `ci-times.mjs --steps server` can carry a budget row for it.
+      - name: Build and test (Gradle)
+        run: ./gradlew --dependency-verification strict check :server:installDist --no-daemon --stacktrace -Pforks="$TEST_FORKS"
       # Time visibility, never a gate: the slowest test classes/cases go to the job summary, and a
       # ::warning:: annotation fires when the test time exceeds the `ci.server` alarm in
       # scripts/timings/budgets.json. Uses the runner's preinstalled node (>= 20; the script needs 18+,
@@ -119,6 +136,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Runner facts
+        run: |
+          cpu=$(lscpu | sed -n 's/^Model name:[[:space:]]*//p')
+          mem=$(free -m | awk '/^Mem:/ {print $2}')
+          echo "runner: ${cpu}; $(nproc) logical CPUs; ${mem} MB memory"
+          echo "- Runner: \`${cpu}\`, $(nproc) logical CPUs, ${mem} MB memory" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin
@@ -171,14 +194,22 @@ jobs:
         working-directory: web
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Runner facts
+        run: |
+          cpu=$(lscpu | sed -n 's/^Model name:[[:space:]]*//p')
+          mem=$(free -m | awk '/^Mem:/ {print $2}')
+          echo "runner: ${cpu}; $(nproc) logical CPUs; ${mem} MB memory"
+          echo "- Runner: \`${cpu}\`, $(nproc) logical CPUs, ${mem} MB memory" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           # .nvmrc mirrors mise.toml's node pin (and the Dockerfile's node tag); bump them together.
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: web/package-lock.json
-      # --legacy-peer-deps per web/README.md (openapi-typescript declares TS ^5, the repo uses TS 6).
-      - run: npm ci --legacy-peer-deps
+      # --legacy-peer-deps per web/README.md (openapi-typescript declares TS ^5, the repo uses TS 6). Named so
+      # `ci-times.mjs --steps web` can carry a budget row for it.
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
       # The same-commit rule made mechanical: a spec change must land with its regenerated
       # src/api/schema.ts, or the SPA type-checks against a stale client surface. `lint:api`
       # Spectral-lints the spec (and the conformant fixture) against api-guidelines/; `check:api`
@@ -215,7 +246,13 @@ jobs:
             echo "Replay: \`cd web && npm run test:coverage -- --sequence.shuffle --sequence.seed=$seed\`"
           } >> "$GITHUB_STEP_SUMMARY"
           echo "vitest shuffle seed: $seed"
-          npm run test:coverage -- --sequence.shuffle --sequence.seed="$seed"
+          npm run test:coverage -- --sequence.shuffle --sequence.seed="$seed" --reporter=default --reporter=json --outputFile.json=test-results/vitest.json
+      # Time visibility, never a gate (the web twin of the server job's "Test time report"): vitest's wall, the sum of the file times, their
+      # ratio, the slowest files and tests, from the JSON report above. `if: always()` so a red suite still shows where the time went.
+      - name: Vitest time report (job summary)
+        if: always()
+        continue-on-error: true
+        run: node ../scripts/timings/vitest-times.mjs test-results/vitest.json --top-files 15 --top-tests 10 --summary-file "$GITHUB_STEP_SUMMARY"
       - run: npm run build
         env:
           # The runner's checkout is a detached HEAD; stamp the build from the event instead of
@@ -241,13 +278,21 @@ jobs:
         working-directory: e2e
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Runner facts
+        run: |
+          cpu=$(lscpu | sed -n 's/^Model name:[[:space:]]*//p')
+          mem=$(free -m | awk '/^Mem:/ {print $2}')
+          echo "runner: ${cpu}; $(nproc) logical CPUs; ${mem} MB memory"
+          echo "- Runner: \`${cpu}\`, $(nproc) logical CPUs, ${mem} MB memory" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           # .nvmrc mirrors mise.toml's node pin (and the Dockerfile's node tag); bump them together.
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: e2e/package-lock.json
-      - run: npm ci
+      # Named so `ci-times.mjs --steps e2e-static` can carry a budget row for it.
+      - name: Install dependencies
+        run: npm ci
       - run: npm run lint
       - run: npm run knip
       - run: npm run typecheck
@@ -301,6 +346,12 @@ jobs:
       KUBECONFORM_SCHEMAS: 'https://raw.githubusercontent.com/yannh/kubernetes-json-schema/8df8a883b68a24a104b4a9e43c1288090ae60b3b/{{.NormalizedKubernetesVersion}}-standalone{{.StrictSuffix}}/{{.ResourceKind}}{{.KindSuffix}}.json'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Runner facts
+        run: |
+          cpu=$(lscpu | sed -n 's/^Model name:[[:space:]]*//p')
+          mem=$(free -m | awk '/^Mem:/ {print $2}')
+          echo "runner: ${cpu}; $(nproc) logical CPUs; ${mem} MB memory"
+          echo "- Runner: \`${cpu}\`, $(nproc) logical CPUs, ${mem} MB memory" >> "$GITHUB_STEP_SUMMARY"
       - name: Install kubeconform v0.8.0 (checksum-verified)
         run: |
           curl -fsSL -o "$RUNNER_TEMP/kubeconform.tgz" \
@@ -411,6 +462,12 @@ jobs:
           fetch-depth: 0
           # The Docker build context includes .git: no checkout token may be stored in its config.
           persist-credentials: false
+      - name: Runner facts
+        run: |
+          cpu=$(lscpu | sed -n 's/^Model name:[[:space:]]*//p')
+          mem=$(free -m | awk '/^Mem:/ {print $2}')
+          echo "runner: ${cpu}; $(nproc) logical CPUs; ${mem} MB memory"
+          echo "- Runner: \`${cpu}\`, $(nproc) logical CPUs, ${mem} MB memory" >> "$GITHUB_STEP_SUMMARY"
       - name: Build images
         run: docker compose build
       # The AppCDS archive in the image (see `.claude/docs/ci.md` "AppCDS") is only ever validated at JVM start, and a mismatch (a changed

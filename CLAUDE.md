@@ -29,7 +29,7 @@ Gradle wrapper: `./gradlew`. JDK 21 toolchain is required
 `temurin-21.0.13+9.0.LTS`, Node 24.22.1). Run `mise install` once, then `mise exec -- <command>`
 or activate mise. If `./gradlew` resolves the wrong JDK, point it explicitly: `JAVA_HOME=$(mise where java) ./gradlew build`.
 
-- All local gates, timed like CI: `scripts/gates.sh [server|web|e2e|all]` (stops at the first failure; `ASTROLABE_FORKS=N` test forks, default 2, CI runs 1; `.claude/docs/build-times.md`)
+- All local gates, timed like CI: `scripts/gates.sh [server|web|e2e|all]` (stops at the first failure; `ASTROLABE_FORKS=N` test forks, default 2, CI runs 2; `.claude/docs/build-times.md`)
 - Build everything: `./gradlew build`; run the server (Ktor + Netty, port 8086): `./gradlew :server:run`; all tests: `./gradlew test`
 - Run server tests only: `./gradlew :server:test` (Docker for Testcontainers; OrbStack: testing.md)
 - Run a single test: `./gradlew :server:test --tests "ch.nokillswit.ServerTest.security headers are set on responses"`

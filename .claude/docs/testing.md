@@ -10,7 +10,7 @@ admin (`admin@astrolabe.local`) is present — tests scope their assertions with
 conformance internals, Schemathesis, e2e scenarios): `.claude/docs/test-fixtures.md`.
 
 **Parallel forks (`-Pforks=N`).** `maxParallelForks` comes from the `forks` Gradle property (an integer 1..3 — the number of `ForkWarmup<k>Test` classes — anything
-else fails any build that runs the `test` task; default 1, which is CI's setting (`scripts/gates.sh` runs 2); `forkEvery` is deliberately unset).
+else fails any build that runs the `test` task; default 1; CI (`TEST_FORKS` in `ci.yml`) and `scripts/gates.sh` pass 2; `forkEvery` is deliberately unset).
 Each fork is its own JVM with its OWN container and fixture singletons, so every "shared suite" rule in this doc holds
 per fork, never across forks: a test must never assume another class ran before it on the same JVM, or ran at all. Class order is not a contract (with `-Pforks>=2` the classes are dealt to forks by the weight plan of `server/test-weights.tsv`, `test-fixtures.md`).
 `PostgresTestSupport` migrates the container itself on start, so a fixture or raw-JDBC helper never needs its own

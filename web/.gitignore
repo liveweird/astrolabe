@@ -26,3 +26,6 @@ coverage
 
 # ESLint result cache (npm run lint --cache; CI persists it between runs, build-times.md WHY 20)
 .eslintcache
+
+# Vitest JSON report (ci.yml writes it for scripts/timings/vitest-times.mjs)
+test-results
