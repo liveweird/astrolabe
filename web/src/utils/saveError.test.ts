@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import i18n from "../i18n";
-import { ApiError, MalformedAnswerError } from "../api/http";
+import { ApiError, DATABASE_TIMEOUT_PROBLEM, MalformedAnswerError } from "../api/http";
 import { loadErrorMessage, saveErrorMessage } from "./saveError";
 
 const t = i18n.t;
@@ -15,6 +15,7 @@ const KEYS = {
 } as const;
 
 const timeout = new DOMException("timed out", "TimeoutError");
+const databaseTimeout = new ApiError(500, { type: DATABASE_TIMEOUT_PROBLEM, status: 500, detail: "The database did not answer in time. Try again shortly." });
 
 describe("saveErrorMessage", () => {
   test("maps each status to its key and falls back per class", () => {
@@ -25,6 +26,19 @@ describe("saveErrorMessage", () => {
     expect(saveErrorMessage(new ApiError(500, null), t, KEYS)).toBe("Create failed (500)");
     expect(saveErrorMessage(timeout, t, KEYS)).toBe(t("common.error.timeout"));
     expect(saveErrorMessage(new Error("net"), t, KEYS)).toBe(t(KEYS.failed));
+  });
+
+  test("the database time-out 500 says the request timed out, before the status keys and a page's own 500 wording", async () => {
+    expect(saveErrorMessage(databaseTimeout, t, KEYS)).toBe("The request timed out. Try again.");
+    expect(saveErrorMessage(databaseTimeout, t, { ...KEYS, failedStatus: undefined })).toBe("The request timed out. Try again.");
+    // An untyped 500, or one whose type is something else, keeps the status wording.
+    expect(saveErrorMessage(new ApiError(500, { type: "urn:astrolabe:problem:other" }), t, KEYS)).toBe("Create failed (500)");
+    await i18n.changeLanguage("pl");
+    try {
+      expect(saveErrorMessage(databaseTimeout, t, KEYS)).toBe("Przekroczono limit czasu żądania. Spróbuj ponownie.");
+    } finally {
+      await i18n.changeLanguage("en");
+    }
   });
 
   test("an unmapped status routes through the generic fallbacks when keys are omitted", () => {
@@ -40,5 +54,16 @@ describe("loadErrorMessage", () => {
     expect(loadErrorMessage(timeout, t)).toBe(t("common.error.timeout"));
     expect(loadErrorMessage(new Error("net"), t)).toBe(t("common.error.network"));
     expect(loadErrorMessage(new MalformedAnswerError("x"), t)).toBe(t("common.error.malformedAnswer"));
+  });
+
+  test("the database time-out 500 says the request timed out, not 'Load failed (500)'", async () => {
+    expect(loadErrorMessage(databaseTimeout, t)).toBe("The request timed out. Try again.");
+    expect(loadErrorMessage(new ApiError(500, { type: "urn:astrolabe:problem:other" }), t)).toBe("Load failed (500)");
+    await i18n.changeLanguage("pl");
+    try {
+      expect(loadErrorMessage(databaseTimeout, t)).toBe("Przekroczono limit czasu żądania. Spróbuj ponownie.");
+    } finally {
+      await i18n.changeLanguage("en");
+    }
   });
 });

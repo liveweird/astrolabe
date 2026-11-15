@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next";
-import { ApiError } from "../api/http";
+import { ApiError, isDatabaseTimeout } from "../api/http";
 import { isJiraMappingInvalid, isJiraNotDiscovered, isJiraRootUnusable, isJiraTokenUnreadable, type JiraImportItem, type JiraImportSkipReason } from "../api/jira";
 import { upstreamCode } from "./jiraBind";
 
@@ -72,6 +72,8 @@ export function applyMayHaveLanded(err: unknown, timedOut: boolean): boolean {
 export function importFailure(err: unknown, t: TFunction, ctx: { apply: boolean; timedOut: boolean; cancelled: boolean }): ImportFailure | null {
   if (ctx.cancelled) return null;
   if (ctx.apply && applyMayHaveLanded(err, ctx.timedOut)) return { message: t("jira.import.error.timeoutApply"), repreview: true };
+  // The database's time limit on a PREVIEW (an apply's 5xx was answered above); worded as in every other mapper.
+  if (isDatabaseTimeout(err)) return { message: t("common.error.timeout"), repreview: false };
   if (ctx.timedOut) return { message: t("jira.import.error.timeoutPreview"), repreview: true };
   if (!(err instanceof ApiError)) return { message: t("jira.import.error.failed"), repreview: false };
   if (isJiraMappingInvalid(err)) return { message: t(ctx.apply ? "jira.import.error.mappingChanged" : "jira.import.error.mappingInvalid"), detail: err.detail, repreview: ctx.apply };

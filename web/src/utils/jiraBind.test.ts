@@ -57,5 +57,7 @@ describe("bindFailure - every answer a bind gives, in words", () => {
     });
     const timeout = new DOMException("The operation timed out", "TimeoutError");
     expect(bindFailure(timeout, t).message).toBe(t("common.error.timeout"));
+    expect(bindFailure(problem(500, "urn:astrolabe:problem:database-timeout", "x"), t)).toEqual({ message: "The request timed out. Try again." });
+    expect(bindFailure(problem(500, undefined, "x"), t).message).toBe("The link failed (500)");
   });
 });

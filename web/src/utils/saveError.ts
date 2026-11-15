@@ -1,5 +1,5 @@
 import type { ParseKeys, TFunction } from "i18next";
-import { ApiError, MalformedAnswerError, isTimeoutError } from "../api/http";
+import { ApiError, MalformedAnswerError, isDatabaseTimeout, isTimeoutError } from "../api/http";
 
 export interface SaveErrorKeys {
   /** 401 — omit to route it through the generic fallbacks (the login page's wrong-credentials). */
@@ -24,6 +24,8 @@ export interface SaveErrorKeys {
 
 /** Maps a mutation failure to the page's fixed vocabulary — never render error.message. */
 export function saveErrorMessage(err: unknown, t: TFunction, keys: SaveErrorKeys): string {
+  // The database's time limit, before any status branch (a page's own 500 wording included). Never "nothing was saved": an earlier step may stay.
+  if (isDatabaseTimeout(err)) return t("common.error.timeout");
   if (err instanceof ApiError) {
     if (err.status === 401 && keys.unauthorized) return t(keys.unauthorized);
     if (err.status === 429 && keys.tooManyRequests) return t(keys.tooManyRequests);
@@ -46,6 +48,7 @@ export function isLastAdminConflict(err: unknown): boolean {
 
 /** The list-load counterpart: status-tagged for ApiErrors, generic otherwise. */
 export function loadErrorMessage(err: unknown, t: TFunction): string {
+  if (isDatabaseTimeout(err)) return t("common.error.timeout");
   // 429: the per-user rate-limit bucket (security.md) — say what to do, not just the status.
   if (err instanceof ApiError && err.status === 429) return t("common.error.tooManyRequests");
   if (err instanceof ApiError) return t("common.error.loadFailedStatus", { status: err.status });

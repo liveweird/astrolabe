@@ -6,6 +6,7 @@ import i18n from "../i18n";
 import { renderWithProviders, screen, waitFor, within } from "../test/render";
 import { headingOutline } from "../test/headings";
 import { jsonResponse, notModified } from "../test/http";
+import { DATABASE_TIMEOUT_PROBLEM, shouldRetryQuery } from "../api/http";
 import { forgetRevalidated } from "../api/revalidate";
 import { TEAM_LOAD_KEY } from "../api/teamLoad";
 import { teamLoadRow, teamLoadView, teamLoadWeek } from "../test/teamLoad";
@@ -216,6 +217,39 @@ describe("Team load page", () => {
     expect(await screen.findByText("Could not load the teams' load")).toBeInTheDocument();
     expect(screen.queryByText("There are no teams yet")).toBeNull();
     expect(screen.queryByRole("table")).toBeNull();
+  });
+
+  test("a read the database did not finish makes ONE request and says the request timed out, with the production retry policy", async () => {
+    answer = () => jsonResponse(500, { type: DATABASE_TIMEOUT_PROBLEM, title: "Internal Server Error", status: 500, detail: "The database did not answer in time. Try again shortly." });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: shouldRetryQuery, retryDelay: 0 } } });
+    renderPage("/team-load", queryClient);
+    const alert = await screen.findByRole("alert");
+    expect(within(alert).getByText("The request timed out. Try again.")).toBeInTheDocument();
+    expect(within(alert).queryByText(/500/)).toBeNull();
+    expect(screen.queryByText("There are no teams yet")).toBeNull();
+    // Two more tries would have started by now with retryDelay 0 had the policy retried it.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  test("an untyped 500 is still retried twice under the same policy", async () => {
+    answer = () => jsonResponse(500, { title: "x", status: 500 });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: shouldRetryQuery, retryDelay: 0 } } });
+    renderPage("/team-load", queryClient);
+    expect(await screen.findByText("Load failed (500)")).toBeInTheDocument();
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
+  test("a re-read the database did not finish keeps the rows under the sentence", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: shouldRetryQuery, retryDelay: 0 } } });
+    renderPage("/team-load", queryClient);
+    await screen.findByRole("table", { name: "Load of every team" });
+    answer = () => jsonResponse(500, { type: DATABASE_TIMEOUT_PROBLEM, title: "Internal Server Error", status: 500 });
+    const before = mockFetch.mock.calls.length;
+    await queryClient.refetchQueries({ queryKey: TEAM_LOAD_KEY });
+    expect(await screen.findByText("The request timed out. Try again.")).toBeInTheDocument();
+    expect(mockFetch.mock.calls.length - before).toBe(1);
+    expect(teamNames()).toEqual(["Backend", "Frontend", "Data", "Mobile"]);
   });
 
   test("a re-read answered 304 keeps the rows with no alert and no spinner; a 200 after it replaces them", async () => {

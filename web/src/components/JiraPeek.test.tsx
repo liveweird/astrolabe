@@ -74,6 +74,7 @@ describe("JiraPeek", () => {
     [409, { type: "urn:astrolabe:problem:jira-mapping-invalid", detail: "The connection's mapping no longer fits the site (customfield_99999)" }, "The mapping in force (the saved one, or the defaults when none is saved) no longer fits the Jira site, or cannot be read.", "customfield_99999"],
     [502, { type: "urn:astrolabe:problem:jira-upstream", detail: "Jira did not answer (AUTHENTICATION_FAILED)" }, "Jira could not be reached or refused the request:", "Jira refused the credentials (AUTHENTICATION_FAILED)"],
     [429, {}, "Too many tests in a minute. Wait a moment and try again.", null],
+    [500, { type: "urn:astrolabe:problem:database-timeout" }, "The request timed out. Try again.", null],
   ])("a %i answer is shown inline", async (status, problem, message, detail) => {
     mockFetch.mockResolvedValue(jsonResponse(status, { title: "x", status, ...problem }));
     await peek("E2E-404");

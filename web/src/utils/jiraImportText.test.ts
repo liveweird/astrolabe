@@ -82,6 +82,10 @@ describe("importFailure", () => {
     }
     for (const err of [problem(502), problem(409), problem(400), problem(403), problem(429)]) expect(applyMayHaveLanded(err, false)).toBe(false);
     expect(importFailure(problem(500), t, ctx)?.message).toBe("The import failed (500)");
+    // The database's time limit: a preview says so; an apply's 5xx keeps its "may have landed" wording.
+    const dbTimeout = problem(500, { type: "urn:astrolabe:problem:database-timeout" });
+    expect(importFailure(dbTimeout, t, ctx)).toEqual({ message: "The request timed out. Try again.", repreview: false });
+    expect(importFailure(dbTimeout, t, apply)).toMatchObject({ repreview: true, message: expect.stringMatching(/may still have been applied/) });
     expect(importFailure(new TypeError("Failed to fetch"), t, ctx)?.message).toBe("The import failed");
   });
 

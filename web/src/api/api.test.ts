@@ -4,6 +4,8 @@ import {
   ApiError,
   authedFetch,
   buildQuery,
+  DATABASE_TIMEOUT_PROBLEM,
+  isDatabaseTimeout,
   isTimeoutError,
   jsonRequest,
   shouldRetryQuery,
@@ -120,6 +122,20 @@ describe("ApiError and helpers", () => {
     expect(shouldRetryQuery(0, new ApiError(500, null))).toBe(true);
     expect(shouldRetryQuery(1, new Error("network"))).toBe(true);
     expect(shouldRetryQuery(2, new Error("network"))).toBe(false);
+  });
+
+  test("shouldRetryQuery never retries the database time-out 500, and still retries every other transient failure", () => {
+    const typed = new ApiError(500, { type: DATABASE_TIMEOUT_PROBLEM, status: 500 });
+    expect(isDatabaseTimeout(typed)).toBe(true);
+    expect(shouldRetryQuery(0, typed)).toBe(false);
+    expect(shouldRetryQuery(0, new ApiError(500, { status: 500 }))).toBe(true);
+    expect(shouldRetryQuery(0, new ApiError(500, { type: "urn:astrolabe:problem:other", status: 500 }))).toBe(true);
+    expect(shouldRetryQuery(0, new ApiError(502, { type: DATABASE_TIMEOUT_PROBLEM }))).toBe(true);
+    expect(isDatabaseTimeout(new ApiError(502, { type: DATABASE_TIMEOUT_PROBLEM }))).toBe(false);
+    expect(isDatabaseTimeout(new Error("x"))).toBe(false);
+    expect(shouldRetryQuery(0, new DOMException("t", "TimeoutError"))).toBe(true);
+    expect(shouldRetryQuery(1, new DOMException("t", "TimeoutError"))).toBe(true);
+    expect(shouldRetryQuery(2, new DOMException("t", "TimeoutError"))).toBe(false);
   });
 
   test("safeJson returns null for a non-JSON body", async () => {

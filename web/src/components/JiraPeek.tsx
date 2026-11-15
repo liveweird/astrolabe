@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Button, Group, Stack, Table, Text, TextInput } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { useMutation } from "@tanstack/react-query";
-import { ApiError } from "../api/http";
+import { ApiError, isDatabaseTimeout } from "../api/http";
 import { isJiraMappingInvalid, isJiraNotDiscovered, isJiraTokenUnreadable, peekJiraIssue, type JiraPeekResponse } from "../api/jira";
 import { ISSUE_KEY_PATTERN } from "../utils/jiraForm";
 import { errorCodeText } from "../utils/syncRuns";
@@ -22,6 +22,7 @@ function rawText(value: unknown): string {
 
 /** An inline failure of a Peek in words: the 400 with the server's own sentence (it says which rule), the 409s by problem type, the 502 with Jira's failure code. */
 function peekFailure(err: unknown, t: TFunction): { message: string; detail?: string } {
+  if (isDatabaseTimeout(err)) return { message: t("common.error.timeout") };
   if (isJiraNotDiscovered(err)) return { message: t("jira.peek.notDiscovered") };
   if (isJiraTokenUnreadable(err)) return { message: t("jira.peek.tokenUnreadable") };
   if (isJiraMappingInvalid(err)) return { message: t("jira.peek.mappingInvalid"), detail: (err as ApiError).detail };

@@ -147,7 +147,8 @@ is intentional; Orval/Kiota are not used).
   only when a wrapper genuinely inspects the Response. Every transport fetch carries
   `timeoutSignal()` (30 s, feature-detected for happy-dom) — a hung request rejects with a
   `TimeoutError` DOMException instead of pending forever; new `fetch` call sites in `api/` must
-  attach it.
+  attach it. The server's own time limit on a statement answers a typed `500` (`isDatabaseTimeout`), which the retry policy and the message mappers know:
+  "Error boundaries, chunk reload and toasts" below.
 
 ### `revalidate.ts` — the revalidating view reads (1.22)
 
@@ -250,7 +251,14 @@ The rules are in `web/CLAUDE.md` "Error handling"; the wiring:
   button (`common.action.reload`, shared with the crash fallback), nothing in the DOM otherwise. The three public pages' tests stub `__APP_COMMIT__` to `unknown` (the check off: under vitest it is the real commit and would fetch `index.html`). Limits: a tab opened before 1.17 has no check and must be reloaded by hand once; a rebuilt image of the SAME commit is not noticed; during a rolling deploy a tab may be
   prompted, reload onto the old build and be prompted again until the rollout ends.
 - **Query retry policy**: the `QueryClient` in `main.tsx` uses `shouldRetryQuery` (`api/http.ts`) — a 4xx is never retried (the answer won't change; retrying
-  only delays the error UI), at most two retries for transient failures.
+  only delays the error UI), nor a malformed answer, nor the **database time-out** (1.23), at most two retries for the other transient failures. The time-out
+  is the `500` whose problem `type` is `urn:astrolabe:problem:database-timeout` (`DATABASE_TIMEOUT_PROBLEM`, `isDatabaseTimeout(err)` in `api/http.ts`): the
+  server cancelled a statement at its own limit (15 s by default, `persistence.md`), so it has just spent that whole limit on the request and two more tries
+  would be half a minute more spinner and two more statements on a database that is not answering. A stuck read therefore says so after about 15 s instead of
+  about 93 (30 s a try, three tries); a browser-side `TimeoutError` (the server sent nothing for 30 s) is still retried. `loadErrorMessage` and
+  `saveErrorMessage` answer `common.error.timeout` ("The request timed out. Try again.") for it before any status branch, so a page's own `500` wording never
+  shows over it; a kept document stays on screen under the alert, as for any failed re-read. The sentence never claims that nothing was saved: the cancelled
+  transaction is rolled back, but an earlier committed step of the same request (a create's re-read) may stay, so a retry of a save can meet a `409`.
 - **Messages**: `error.message` is the internal `API <status>` / the browser's "Failed to fetch"; statuses map to i18n keys via the shared mappers in
   `utils/saveError.ts`: `saveErrorMessage(err, t, keys)` for mutations (per-status keys + a `failed` fallback) and `loadErrorMessage(err, t)` for list loads. A
   failed QUERY renders through `components/ErrorAlert.tsx` (`error`, optional `title`), a form/action failure (an already-mapped string) through

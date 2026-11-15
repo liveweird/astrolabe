@@ -257,13 +257,27 @@ export class MalformedAnswerError extends Error {
   }
 }
 
+/** The `type` of the `500` the server answers when the database cancelled a statement at its time limit (`documentation.yaml` `InternalServerError`). */
+export const DATABASE_TIMEOUT_PROBLEM = "urn:astrolabe:problem:database-timeout";
+
+/**
+ * True for that typed `500`: the server has already spent its whole statement limit on the request, so the page says "the request timed
+ * out" at once. The cancelled transaction was rolled back, but an earlier committed step of the same request may stay, so a message
+ * never claims that nothing was saved.
+ */
+export function isDatabaseTimeout(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 500 && err.type === DATABASE_TIMEOUT_PROBLEM;
+}
+
 /**
  * The QueryClient's retry policy (wired in main.tsx): never retry a 4xx — the server's
  * answer won't change, and retrying only delays the error UI (a 403 used to sit behind
- * ~7 s of backoff) — nor a malformed answer; transient failures (network, timeout, 5xx) get up to two retries.
+ * ~7 s of backoff) — nor a malformed answer, nor a database time-out (the server has just spent its whole limit; two more tries
+ * would be half a minute more of spinner and two more statements on a database that is not answering); transient failures
+ * (network, timeout, other 5xx) get up to two retries.
  */
 export function shouldRetryQuery(failureCount: number, error: unknown): boolean {
-  if (error instanceof MalformedAnswerError) return false;
+  if (error instanceof MalformedAnswerError || isDatabaseTimeout(error)) return false;
   return failureCount < 2 && !(error instanceof ApiError && error.status >= 400 && error.status < 500);
 }
 

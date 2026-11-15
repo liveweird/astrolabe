@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next";
-import { ApiError, isTimeoutError } from "../api/http";
+import { ApiError, isDatabaseTimeout, isTimeoutError } from "../api/http";
 import { isAlreadyBound, isJiraMappingInvalid, isJiraNotDiscovered, isJiraTokenUnreadable } from "../api/jira";
 import { errorCodeText } from "./syncRuns";
 
@@ -19,6 +19,7 @@ export function upstreamCode(detail: string | undefined, t: TFunction): string |
  * (Jira failed: its code in words).
  */
 export function bindFailure(err: unknown, t: TFunction): BindFailure {
+  if (isDatabaseTimeout(err)) return { message: t("common.error.timeout") };
   if (isAlreadyBound(err)) return { message: t("jira.bind.error.alreadyBound"), detail: (err as ApiError).detail };
   if (isJiraMappingInvalid(err)) return { message: t("jira.bind.error.mappingInvalid"), detail: (err as ApiError).detail };
   if (isJiraNotDiscovered(err)) return { message: t("jira.bind.error.notDiscovered") };
