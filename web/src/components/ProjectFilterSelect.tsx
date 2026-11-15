@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Select } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
-import { getPlanView } from "../api/plan";
+import { getPlanView, planViewKey } from "../api/plan";
 import { projectOptions } from "../utils/planNames";
 
 /**
@@ -12,7 +12,7 @@ import { projectOptions } from "../utils/planNames";
  */
 export default function ProjectFilterSelect({ projectId, onChange }: { projectId: number | undefined; onChange: (projectId: number | undefined) => void }) {
   const { t } = useTranslation();
-  const plan = useQuery({ queryKey: ["plan", "view"], queryFn: getPlanView });
+  const plan = useQuery({ queryKey: planViewKey, queryFn: getPlanView });
   const data = projectOptions(plan.data).map((option) => ({ value: String(option.id), label: option.label }));
   if (projectId !== undefined && plan.data !== undefined && !data.some((option) => option.value === String(projectId))) {
     data.push({ value: String(projectId), label: t("deviations.filter.projectUnknown", { id: projectId }) });

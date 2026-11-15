@@ -1,4 +1,5 @@
 import type { RoadmapView } from "../api/roadmap";
+import { byNameThenId } from "./text";
 
 // The ranking's pure order arithmetic: every change is "the new complete id list", which the wholesale PUT sends as it is.
 // Nothing here mutates its input; an impossible change (unknown id, off either end) returns the list unchanged.
@@ -93,6 +94,6 @@ export function applyRanking(view: RoadmapView, ids: readonly number[]): Roadmap
   const unranked = all
     .filter((project) => !rankedIds.has(project.id))
     .map((project) => ({ ...project, rankPosition: null }))
-    .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()) || a.id - b.id);
+    .sort(byNameThenId);
   return { ...view, ranked, unranked };
 }

@@ -1,5 +1,5 @@
 import { useDebouncedValue } from "@mantine/hooks";
-import { usePagedSort } from "./usePagedSort";
+import { FILTER_DEBOUNCE_MS, usePagedSort } from "./usePagedSort";
 import { isString, useStoredState } from "./useStoredState";
 
 /**
@@ -18,7 +18,7 @@ export function useRegistryListControls<F extends string>({
   extraFilterDeps?: unknown[];
 }) {
   const [nameFilter, setNameFilter] = useStoredState(`${settingsKey}.filter.name`, "", isString);
-  const [debouncedName] = useDebouncedValue(nameFilter, 300);
+  const [debouncedName] = useDebouncedValue(nameFilter, FILTER_DEBOUNCE_MS);
   const paging = usePagedSort<F>(initialSortField, [debouncedName, ...extraFilterDeps], {
     key: settingsKey,
     sortFields,

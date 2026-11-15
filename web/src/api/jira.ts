@@ -6,6 +6,7 @@
 import { ApiError, buildQuery, jsonRequest, voidRequest } from "./http";
 import { revalidatedRequest } from "./revalidate";
 import type { components } from "./schema";
+import { ALREADY_BOUND_TYPE } from "./sync";
 
 type Schemas = components["schemas"];
 
@@ -43,8 +44,6 @@ const NOT_DISCOVERED_TYPE = "urn:astrolabe:problem:jira-not-discovered";
 /** … of the 409 when the stored token cannot be decrypted (a changed `DATA_ENCRYPTION_KEY`): enter it again. */
 const TOKEN_UNREADABLE_TYPE = "urn:astrolabe:problem:jira-token-unreadable";
 
-/** … of the 409 when the node or the issue is already linked (1:1): its `detail` names the other side. */
-const ALREADY_BOUND_TYPE = "urn:astrolabe:problem:already-bound";
 /** … of the 409 when the connection's mapping no longer fits the site: an administrator has to fix it. */
 const MAPPING_INVALID_TYPE = "urn:astrolabe:problem:jira-mapping-invalid";
 

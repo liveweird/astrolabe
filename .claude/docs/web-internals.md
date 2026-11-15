@@ -1190,7 +1190,7 @@ note "The deviations changed since you looked" plus the same re-read, never a to
 `["jira"]`; the note or message shows under its OWN control (`AckNoticeAlert`; a row far down must see why its button did nothing), above the
 table with a scroll-into-view only once that control has left the list (`DeviationAckOrphanNotice` over the keys of the rendered rows, `itemAckKeys`); a DELETE's 404 reads "already withdrawn", not "link gone";
 messages clear on the next write or whenever the filters' URL string changes (Back, a chip link and "Clear the filters" included), and a write that settles after that sets none. **Focus**:
-after a write that re-reads, `useDeleteConfirm`'s rule at every render and once after the re-read (focus on `body` -> the control's own button if still there (a line's Acknowledge becomes its
+after a write that re-reads, `useDeleteConfirm`'s rule at every render and once after the re-read (`hooks/useAckFocus.ts`, shared with `useCapacityAcknowledge`: the hook arms the keys, the page-level hooks own the writes; focus on `body` -> the control's own button if still there (a line's Acknowledge becomes its
 Unacknowledge under the same key, the two batch buttons share the all-key), else the row's other controls, the next row's, the previous row's, else the list's h3 `tabIndex={-1}`; anywhere else -> leave).
 Totals gain a gray "N acknowledged" (`totals.acknowledged`: bindings with a current line), and under any Status but Open a line says the warning/info/gone figures count open items only (the
 server counts open LINES); an Open list that is empty while acknowledged items exist reads "Nothing is open" with the count hidden. Tests: `Deviations.ack.test.tsx`, `Deviations.ack.lines.test.tsx`
@@ -1405,7 +1405,7 @@ fourth "Acknowledgement" column of their table, so a single missing sprint is a 
 the POST body, `null` for the gone team) and `fingerprint`; a success re-reads `["flow","deviations"]` and `["plan"]` (`refreshCapacityAcknowledgements`: the team
 view's flag and markers follow the open rows); the shared `409 stale-deviations` (`isStaleDeviations`) is an orange note in the row plus the re-read (a note of
 a row that left the list is shown above the list, `CapacityAckOrphanNotice`), a 403/404 a red message and a `refreshFlowLinks`; the focus rule is the Jira
-one (the row's own button, the next row's, the previous row's, else the "Differences from Flow" heading). **Acknowledge all (1.10)**: at the head of a team's list
+one (the same `useAckFocus`: the row's own button, the next row's, the previous row's, else the "Differences from Flow" heading). **Acknowledge all (1.10)**: at the head of a team's list
 (`CapacityAckAll` in `CapacityAckCell.tsx`, rendered by `CapacityDeviationList`, so both surfaces have it) a `Button` "Acknowledge all (N)" - named "Acknowledge all (N)
 open differences of <team>" (`CapacityAckContext.team` is the item's team name) - shown only when the item's `can.acknowledge` allows it AND at least two of the listed
 rows are open (`isOpen`: a stale acknowledgement and every folded "sprints without capacity" row count; acknowledged ones neither count nor are sent; one open row has

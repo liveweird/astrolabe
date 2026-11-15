@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { listMilestones } from "../api/milestones";
+import { OPTION_PAGE_SIZE } from "../hooks/usePagedSort";
 import SearchPicker, { type PickedOption } from "./SearchPicker";
 
 /**
@@ -33,7 +34,7 @@ export default function MilestoneSelect({
       noMatchLabel={t("project.dependency.noMatchingMilestones")}
       queryKey={["plan", "milestones", "picker"]}
       search={async (term) => {
-        const page = await listMilestones({ page: 1, pageSize: 50, sort: "name", name: term || undefined });
+        const page = await listMilestones({ page: 1, pageSize: OPTION_PAGE_SIZE, sort: "name", name: term || undefined });
         return page.items.map((milestone) => ({ value: String(milestone.id), label: `${milestone.name} · ${milestone.projectName}` }));
       }}
       picked={picked}

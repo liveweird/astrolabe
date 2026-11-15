@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Button, Group, MultiSelect, NumberInput, Select, Stack, Switch, Text } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
-import { getPlanView } from "../api/plan";
+import { getPlanView, planViewKey } from "../api/plan";
 import type { ImportFailure } from "../utils/jiraImportText";
 import { MAX_IMPORT_UPDATED_DAYS, MIN_IMPORT_UPDATED_DAYS, toScope, updatedWithinOf, type ImportConnection, type ImportRoot, type ImportSource, type ScopeForm } from "../utils/jiraImport";
 import ErrorAlert from "./ErrorAlert";
@@ -72,7 +72,7 @@ export default function JiraImportScopeStep({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
-  const plan = useQuery({ queryKey: ["plan", "view"], queryFn: getPlanView });
+  const plan = useQuery({ queryKey: planViewKey, queryFn: getPlanView });
   const streams = plan.data?.workStreams ?? [];
   const stream = streams.find((candidate) => String(candidate.id) === form.workStreamId);
   const programs = (stream?.programs ?? []).map((program) => ({ value: String(program.id), label: program.name }));

@@ -8,6 +8,7 @@ import { deviationAckAllKey, deviationAckKey } from "../utils/deviations";
 import { refreshJiraAndTimelines, refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import { showSuccessToast } from "../utils/toast";
+import { useAckFocus } from "./useAckFocus";
 
 /**
  * What a write asks for (1.12, per line): acknowledge ONE line as the page read it (the item's fingerprint and the line's kind), withdraw that line's
@@ -30,9 +31,6 @@ export type Acknowledge = {
   run: (request: AckRequest, neighbours: readonly string[]) => void;
 };
 
-/** The button carrying a control key (`DeviationAckCell` and `DeviationAckAll` mark their buttons with it). */
-const buttonOf = (key: string) => document.querySelector<HTMLElement>(`[data-ack-for="${key}"]`);
-
 const keyOf = (request: AckRequest) => ("line" in request ? deviationAckKey(request.item.bindingId, request.line.kind) : deviationAckAllKey(request.item.bindingId));
 
 /**
@@ -48,11 +46,9 @@ const keyOf = (request: AckRequest) => ("line" in request ? deviationAckKey(requ
  * **Scope.** `scope` is the filters' URL string. The messages belong to the list they were made on: a different scope drops them (adjusted during
  * render, so Back, a chip link and "Clear the filters" all count), and a write that settles after the scope changed sets no message and moves no focus.
  *
- * **Focus.** The clicked button is gone once the refetch has taken the row off the Open list (or swapped Acknowledge for Unacknowledge), and the
- * browser would leave the focus on `body`. After a write that re-reads, the focus goes, at every render and once more when the re-read has settled,
- * by `useDeleteConfirm`'s rule: focus on `body` -> take it (the clicked control's key if it is still there, else the row's other controls, else the next row's, else the previous row's,
- * else `fallback`, the list's heading); anywhere else (the user, or the browser, put it somewhere real) -> leave it. A write that failed without a re-read
- * never arms it: the button is still where it was.
+ * **Focus.** `useAckFocus` (shared with the Flow capacity hook) moves it after a write that re-reads, by `useDeleteConfirm`'s rule: focus on `body` -> take
+ * it (the clicked control's key if it is still there, else the row's other controls, else the next row's, else the previous row's, else `fallback`, the
+ * list's heading); anywhere else -> leave it. A write that failed without a re-read never arms it: the button is still where it was.
  */
 export function useAcknowledge(fallback: RefObject<HTMLElement | null>, scope: string): Acknowledge {
   const { t } = useTranslation();
@@ -68,29 +64,7 @@ export function useAcknowledge(fallback: RefObject<HTMLElement | null>, scope: s
   useEffect(() => {
     latestScope.current = scope;
   }, [scope]);
-  // The rows whose button may take the focus, in order of preference; null = no move is waiting.
-  const pending = useRef<readonly string[] | null>(null);
-
-  const settleFocus = () => {
-    const candidates = pending.current;
-    if (candidates === null) return;
-    const active = document.activeElement;
-    if (active !== null && active !== document.body) return;
-    pending.current = null;
-    const target = candidates.map(buttonOf).find((button) => button !== null) ?? fallback.current;
-    target?.focus({ preventScroll: true });
-  };
-  // Every render, after the DOM is committed: the refetch that takes the row away is such a render.
-  useEffect(settleFocus);
-
-  const refresh = async (refreshing: () => Promise<void>) => {
-    await refreshing();
-    // A last look for the case where no render followed the re-read; then the move is dropped, so a later body focus is the user's.
-    window.setTimeout(() => {
-      settleFocus();
-      pending.current = null;
-    }, 0);
-  };
+  const focus = useAckFocus(fallback);
 
   type Variables = { request: AckRequest; neighbours: readonly string[]; scope: string };
   const mutation = useMutation({
@@ -104,9 +78,9 @@ export function useAcknowledge(fallback: RefObject<HTMLElement | null>, scope: s
     },
     onMutate: () => setNotice(null),
     onSuccess: async (_result, { request, neighbours, scope: writtenOn }) => {
-      if (writtenOn === latestScope.current) pending.current = [keyOf(request), ...neighbours];
+      if (writtenOn === latestScope.current) focus.arm([keyOf(request), ...neighbours]);
       showSuccessToast(t(request.kind === "acknowledge" || request.kind === "acknowledgeAll" ? "deviations.ack.toast.acknowledged" : "deviations.ack.toast.withdrawn"));
-      await refresh(() => refreshJiraAndTimelines(queryClient));
+      await focus.refresh(() => refreshJiraAndTimelines(queryClient));
     },
     onError: async (err, { request, neighbours, scope: writtenOn }) => {
       const key = keyOf(request);
@@ -114,17 +88,17 @@ export function useAcknowledge(fallback: RefObject<HTMLElement | null>, scope: s
       if (isStaleDeviations(err)) {
         if (current) {
           setNotice({ key, kind: "stale" });
-          pending.current = [key, ...neighbours];
+          focus.arm([key, ...neighbours]);
         }
-        await refresh(() => refreshJiraAndTimelines(queryClient));
+        await focus.refresh(() => refreshJiraAndTimelines(queryClient));
         return;
       }
       const notFound = request.kind === "unacknowledge" || request.kind === "unacknowledgeAll" ? "deviations.ack.notFoundWithdrawn" : "deviations.ack.notFound";
       const text = saveErrorMessage(err, t, { forbidden: "deviations.ack.forbidden", notFound, failedStatus: "common.error.actionFailedStatus", failed: "deviations.ack.failed" });
       if (current) setNotice({ key, kind: "failure", text });
       if (err instanceof ApiError && (err.status === 403 || err.status === 404)) {
-        if (current) pending.current = [key, ...neighbours];
-        await refresh(() => refreshQueriesAfterMutation(queryClient, ["jira"], HOME_VIEW_KEY));
+        if (current) focus.arm([key, ...neighbours]);
+        await focus.refresh(() => refreshQueriesAfterMutation(queryClient, ["jira"], HOME_VIEW_KEY));
       }
     },
   });

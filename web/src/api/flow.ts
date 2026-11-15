@@ -5,6 +5,7 @@
 
 import { ApiError, buildQuery, jsonRequest, voidRequest } from "./http";
 import type { components } from "./schema";
+import { ALREADY_BOUND_TYPE } from "./sync";
 
 type Schemas = components["schemas"];
 
@@ -28,9 +29,6 @@ export type CapacityPreviewRequest = Schemas["CapacityPreviewRequest"];
 export type CapacityApplyItem = Schemas["CapacityApplyItem"];
 export type CapacityApplyRequest = Schemas["CapacityApplyRequest"];
 export type CapacityApplyResponse = Schemas["CapacityApplyResponse"];
-
-/** The RFC 7807 `type` of the 409 when the team or the Flow team is already linked (1:1 both ways): its `detail` names the other side. */
-const ALREADY_BOUND_TYPE = "urn:astrolabe:problem:already-bound";
 
 /** A 409 telling the team, or the Flow team, is already linked to something else. */
 export function isFlowAlreadyBound(err: unknown): boolean {

@@ -5,7 +5,7 @@ import { Anchor, Badge, Button, Group, Select, Stack, Table, Text, Title } from 
 import { IconFileImport, IconLink, IconLinkOff } from "@tabler/icons-react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { DeviationConnection } from "../api/deviations";
-import { getPlanView } from "../api/plan";
+import { getPlanView, LEVELS, planViewKey } from "../api/plan";
 import { listJiraBindings, type JiraBinding, type JiraConnection, type JiraLevel } from "../api/jira";
 import { useJiraUnlink } from "../hooks/useJiraUnlink";
 import { useDialogFocus } from "../hooks/useDialogFocus";
@@ -26,7 +26,6 @@ import SortHeader from "./SortHeader";
 
 const SORT_FIELDS = ["issueKey", "createdAt"] as const;
 type SortField = (typeof SORT_FIELDS)[number];
-const LEVELS: readonly JiraLevel[] = ["PROGRAM", "PROJECT", "MILESTONE"];
 
 /**
  * This page's connection as the dialog's one choice. The registry row does not say whether the mapping fits the site now (`mappingOk` is the
@@ -112,7 +111,7 @@ export default function JiraBindingsSection({ connection }: { connection: JiraCo
   // A program or project row's own import (1.15) builds its root from the plan view (the binding's node has no work stream and no owner); the
   // view is read only while the list shows such a row, and a failed read just leaves the buttons out.
   const showsRootable = canImport && (data?.items.some((row) => row.node.kind !== "MILESTONE") ?? false);
-  const plan = useQuery({ queryKey: ["plan", "view"], queryFn: getPlanView, enabled: showsRootable });
+  const plan = useQuery({ queryKey: planViewKey, queryFn: getPlanView, enabled: showsRootable });
 
   return (
     <Stack gap="md">

@@ -20,6 +20,12 @@ export type ProjectUpdateBody = Schemas["ProjectUpdateRequest"];
 export type TargetWindowBody = Schemas["TargetWindowRequest"];
 type ProjectPage = Schemas["ProjectPage"];
 
+/** The plan view's query key (`["plan", "view"]`), shared by every reader of `getPlanView`; a write refreshes it under the `["plan"]` prefix. */
+export const planViewKey = ["plan", "view"] as const;
+
+/** The plan levels below a work stream, in hierarchy order (the Jira level choices of the filters and lists). */
+export const LEVELS: readonly Schemas["PlanLevel"][] = ["PROGRAM", "PROJECT", "MILESTONE"];
+
 type ProjectListQuery = { page: number; pageSize: number; sort?: string; name?: string };
 
 /** The paged project list (each row carries `programName` and `workStreamName`) - the dependency pickers' search; `name` is a case- and accent-insensitive substring. */

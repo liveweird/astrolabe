@@ -5,6 +5,12 @@ import { readStoredJson, writeStoredJson } from "./useStoredState";
 export const PAGE_SIZE_OPTIONS = [20, 40, 60] as const;
 const DEFAULT_PAGE_SIZE = 20;
 
+/** How long a typed filter or search term settles before it goes into a query key (ms). */
+export const FILTER_DEBOUNCE_MS = 300;
+
+/** The page size of a searchable `*Select`'s server-side name search (the first page of the best matches). */
+export const OPTION_PAGE_SIZE = 50;
+
 type StoredPaging<F extends string> = { sortField: F; sortDir: SortDir; pageSize: number };
 
 // Persisted sort/pageSize for a view, validated against the view's sort whitelist so a stale

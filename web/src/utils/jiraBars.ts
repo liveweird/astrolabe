@@ -4,6 +4,7 @@ import type { JiraLink } from "../api/roadmap";
 import type { BaselineRow } from "./baselineOverlay";
 import { deviationSentence } from "./deviations";
 import { addDays } from "./isoDate";
+import { compareNames } from "./text";
 import type { TimelineBarData } from "./timelineModel";
 
 // The Jira shadow bar (1.3): the dates Jira was last observed to hold for a row, a thin dashed outline along the TOP of the row (`tone: "jira"`).
@@ -140,7 +141,7 @@ export function jiraTrayRows<T extends { id: number; name: string }>(unscheduled
       (a, b) =>
         compare(a.bar.start, b.bar.start) ||
         compare(a.bar.end, b.bar.end) ||
-        a.milestone.name.toLowerCase().localeCompare(b.milestone.name.toLowerCase()) ||
+        compareNames(a.milestone.name, b.milestone.name) ||
         a.milestone.id - b.milestone.id,
     )
     .map(({ milestone }) => milestone);

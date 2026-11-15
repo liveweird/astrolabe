@@ -45,6 +45,14 @@ type UserListQuery = {
 /** The RFC 7807 `type` of the 409 when the last active administrator would be demoted or deleted. */
 const LAST_ADMIN_TYPE = "urn:astrolabe:problem:last-admin";
 
+/** The RFC 7807 `type` of the self password change's 429 lock after repeated wrong current passwords (the rate bucket's 429 is `about:blank`). */
+const PASSWORD_CHANGE_LOCKED_TYPE = "urn:astrolabe:problem:password-change-locked";
+
+/** A 429 telling the self password change is locked (the type, never the prose, tells it from the rate bucket's 429). */
+export function isPasswordChangeLocked(err: unknown): boolean {
+  return err instanceof ApiError && err.type === PASSWORD_CHANGE_LOCKED_TYPE;
+}
+
 /** A 409 telling the last active administrator cannot be demoted or deleted. */
 export function isLastAdminConflict(err: unknown): boolean {
   return err instanceof ApiError && err.status === 409 && err.type === LAST_ADMIN_TYPE;

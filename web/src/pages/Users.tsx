@@ -31,7 +31,7 @@ import RowActionsMenu from "../components/RowActionsMenu";
 import SortHeader from "../components/SortHeader";
 import TableLoadingRow from "../components/TableLoadingRow";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
-import { usePagedSort } from "../hooks/usePagedSort";
+import { FILTER_DEBOUNCE_MS, usePagedSort } from "../hooks/usePagedSort";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useResetPassword } from "../hooks/useResetPassword";
 import { isString, useStoredState } from "../hooks/useStoredState";
@@ -59,8 +59,8 @@ export default function Users() {
   const activeFilterCount =
     (nameFilter.trim() ? 1 : 0) + (emailFilter.trim() ? 1 : 0) + (roleFilter ? 1 : 0);
 
-  const [debouncedName] = useDebouncedValue(nameFilter, 300);
-  const [debouncedEmail] = useDebouncedValue(emailFilter, 300);
+  const [debouncedName] = useDebouncedValue(nameFilter, FILTER_DEBOUNCE_MS);
+  const [debouncedEmail] = useDebouncedValue(emailFilter, FILTER_DEBOUNCE_MS);
 
   const { page, setPage, pageSize, setPageSize, sortField, sortDir, sortParam, toggleSort } =
     usePagedSort<SortField>("name", [debouncedName, debouncedEmail, roleFilter], {

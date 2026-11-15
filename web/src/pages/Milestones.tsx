@@ -10,7 +10,7 @@ import MilestonesFilters from "../components/MilestonesFilters";
 import PageHeader from "../components/PageHeader";
 import RegistryListTable from "../components/RegistryListTable";
 import SortHeader from "../components/SortHeader";
-import { usePagedSort } from "../hooks/usePagedSort";
+import { FILTER_DEBOUNCE_MS, usePagedSort } from "../hooks/usePagedSort";
 import { milestoneFilterParams, narrowingCount, parseMilestoneFilter, type MilestoneFilter } from "../utils/milestoneFilters";
 import { projectPath } from "../utils/planLinks";
 import { teamPath } from "../utils/teamLinks";
@@ -49,7 +49,7 @@ export default function Milestones() {
       setTyped(urlName);
     }
   }
-  const [debouncedName] = useDebouncedValue(typed.trim(), 300);
+  const [debouncedName] = useDebouncedValue(typed.trim(), FILTER_DEBOUNCE_MS);
 
   const { page, setPage, pageSize, setPageSize, sortField, sortDir, sortParam, toggleSort } = usePagedSort<SortField>(
     "projectName",

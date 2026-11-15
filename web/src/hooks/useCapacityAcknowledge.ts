@@ -8,6 +8,7 @@ import { capacityAckAllKey, capacityAckKey } from "../utils/capacityDeviations";
 import { refreshCapacityAcknowledgements, refreshFlowLinks } from "../utils/flowRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import { showSuccessToast } from "../utils/toast";
+import { useAckFocus } from "./useAckFocus";
 
 /**
  * What a write asks for: acknowledge ONE sprint's deviation as the page read it (the row's fingerprint), withdraw its acknowledgement, or acknowledge
@@ -30,9 +31,6 @@ export type CapacityAcknowledge = {
   run: (request: AckRequest, neighbours: readonly string[]) => void;
 };
 
-/** The button of a row's action cell (`CapacityAckCell` marks both of its buttons with the row's key). */
-const buttonOf = (key: string) => document.querySelector<HTMLElement>(`[data-ack-for="${key}"]`);
-
 const keyOf = (request: AckRequest) => ("rows" in request ? capacityAckAllKey(request.bindingId) : capacityAckKey(request.bindingId, request.row.detail.sprintId));
 
 /** A write that withdraws (one row or all): the "withdrawn" toast. */
@@ -53,9 +51,8 @@ const withdraws = (request: AckRequest) => request.kind === "unacknowledge" || r
  * **Scope.** `scope` names the list the messages were made on (the filters, or the team): a different scope drops them (adjusted during render), and a
  * write that settles after the scope changed sets no message and moves no focus.
  *
- * **Focus.** The clicked button is gone once the refetch has taken the row off the Open list (or swapped Acknowledge for Unacknowledge), and the
- * browser would leave the focus on `body`. After a write that re-reads, the focus goes by `useAcknowledge`'s rule: focus on `body` -> take it (the
- * row's own button if it is still there, else the next row's, else the previous row's, else `fallback`, the list's heading); anywhere else -> leave it.
+ * **Focus.** `useAckFocus` (shared with the Jira hook) moves it after a write that re-reads: focus on `body` -> take it (the row's own button if it is still
+ * there, else the next row's, else the previous row's, else `fallback`, the list's heading); anywhere else -> leave it.
  */
 export function useCapacityAcknowledge(fallback: RefObject<HTMLElement | null>, scope: string): CapacityAcknowledge {
   const { t } = useTranslation();
@@ -71,29 +68,7 @@ export function useCapacityAcknowledge(fallback: RefObject<HTMLElement | null>, 
   useEffect(() => {
     latestScope.current = scope;
   }, [scope]);
-  // The rows whose button may take the focus, in order of preference; null = no move is waiting.
-  const pending = useRef<readonly string[] | null>(null);
-
-  const settleFocus = () => {
-    const candidates = pending.current;
-    if (candidates === null) return;
-    const active = document.activeElement;
-    if (active !== null && active !== document.body) return;
-    pending.current = null;
-    const target = candidates.map(buttonOf).find((button) => button !== null) ?? fallback.current;
-    target?.focus({ preventScroll: true });
-  };
-  // Every render, after the DOM is committed: the refetch that takes the row away is such a render.
-  useEffect(settleFocus);
-
-  const refresh = async (refreshing: () => Promise<void>) => {
-    await refreshing();
-    // A last look for the case where no render followed the re-read; then the move is dropped, so a later body focus is the user's.
-    window.setTimeout(() => {
-      settleFocus();
-      pending.current = null;
-    }, 0);
-  };
+  const focus = useAckFocus(fallback);
 
   type Variables = { request: AckRequest; neighbours: readonly string[]; scope: string };
   const mutation = useMutation({
@@ -106,9 +81,9 @@ export function useCapacityAcknowledge(fallback: RefObject<HTMLElement | null>, 
     },
     onMutate: () => setNotice(null),
     onSuccess: async (_result, { request, neighbours, scope: writtenOn }) => {
-      if (writtenOn === latestScope.current) pending.current = [keyOf(request), ...neighbours];
+      if (writtenOn === latestScope.current) focus.arm([keyOf(request), ...neighbours]);
       showSuccessToast(t(withdraws(request) ? "deviations.ack.toast.withdrawn" : "deviations.ack.toast.acknowledged"));
-      await refresh(() => refreshCapacityAcknowledgements(queryClient));
+      await focus.refresh(() => refreshCapacityAcknowledgements(queryClient));
     },
     onError: async (err, { request, neighbours, scope: writtenOn }) => {
       const key = keyOf(request);
@@ -116,17 +91,17 @@ export function useCapacityAcknowledge(fallback: RefObject<HTMLElement | null>, 
       if (isStaleDeviations(err)) {
         if (current) {
           setNotice({ key, kind: "stale" });
-          pending.current = [key, ...neighbours];
+          focus.arm([key, ...neighbours]);
         }
-        await refresh(() => refreshCapacityAcknowledgements(queryClient));
+        await focus.refresh(() => refreshCapacityAcknowledgements(queryClient));
         return;
       }
       const notFound = request.kind === "unacknowledge" ? "deviations.ack.notFoundWithdrawn" : "deviations.ack.notFound";
       const text = saveErrorMessage(err, t, { forbidden: "deviations.capacity.ack.forbidden", notFound, failedStatus: "common.error.actionFailedStatus", failed: "deviations.ack.failed" });
       if (current) setNotice({ key, kind: "failure", text });
       if (err instanceof ApiError && (err.status === 403 || err.status === 404)) {
-        if (current) pending.current = [key, ...neighbours];
-        await refresh(() => refreshFlowLinks(queryClient));
+        if (current) focus.arm([key, ...neighbours]);
+        await focus.refresh(() => refreshFlowLinks(queryClient));
       }
     },
   });

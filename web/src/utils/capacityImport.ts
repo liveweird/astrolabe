@@ -1,6 +1,7 @@
 import type { TFunction } from "i18next";
 import type { CapacityApplyItem, CapacityApplyRequest, CapacityApplyResponse, CapacityPreview, CapacityPreviewItem } from "../api/flow";
 import { ApiError } from "../api/http";
+import { DAY_MS } from "./isoDate";
 import { saveErrorMessage } from "./saveError";
 
 /** A preview row the import can write: a CREATE or an UPDATE with the dates and the figure the apply sends back as `expected`. */
@@ -40,11 +41,9 @@ export function isClosed(item: CapacityPreviewItem, from: string): boolean {
   return item.end !== null && item.end < from;
 }
 
-const MS_PER_DAY = 86_400_000;
-
 /** The calendar days from `start` to `end` (`YYYY-MM-DD`), both counted: 2026-11-02..2026-11-13 is 12. */
 export function calendarDays(start: string, end: string): number {
-  return Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / MS_PER_DAY) + 1;
+  return Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / DAY_MS) + 1;
 }
 
 /** One info of a row in words. `FIXED_FIGURE` states the working days the server counted in `days`. `LONG_WINDOW` states the row's own calendar days (the server's info carries no number); a row without dates names none. */

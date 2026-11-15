@@ -1,6 +1,7 @@
 import type { TFunction } from "i18next";
 import type { Deviation, DeviationConnection, DeviationItem, DeviationKind, DeviationLine } from "../api/deviations";
 import type { JiraLink } from "../api/roadmap";
+import { DAY_MS } from "./isoDate";
 import { hasStaleSource as hasStaleConnection, isStaleSource, verifiedAt as verifiedConnectionsAt } from "./staleness";
 
 /** The part of an item the phrasing needs besides the deviation itself (the estimate's unit is on Jira's side of the item). */
@@ -196,7 +197,6 @@ export function rollupSentence(rollup: Rollup, t: TFunction): string {
 
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
-const DAY_MS = 24 * HOUR_MS;
 
 /** "just now" / "5 minutes ago" / "3 hours ago" / "2 days ago" for the moment the server last read an item from Jira. Pure: `now` is passed. */
 export function ageText(observedAt: number, now: number, t: TFunction): string {

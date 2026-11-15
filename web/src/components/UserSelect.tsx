@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { listUsers } from "../api/users";
+import { OPTION_PAGE_SIZE } from "../hooks/usePagedSort";
 import { useAdmin } from "../auth";
 import SearchPicker, { type PickedOption } from "./SearchPicker";
 
@@ -28,7 +29,7 @@ export default function UserSelect({
       noMatchLabel={t("people.noMatchingUsers")}
       queryKey={["users", "picker"]}
       search={async (term) => {
-        const page = await listUsers({ page: 1, pageSize: 50, sort: "name", name: term || undefined });
+        const page = await listUsers({ page: 1, pageSize: OPTION_PAGE_SIZE, sort: "name", name: term || undefined });
         return page.items.map((u) => ({ value: String(u.id), label: `${u.name} (${u.email})` }));
       }}
       enabled={admin}

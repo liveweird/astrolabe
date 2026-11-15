@@ -3,6 +3,7 @@ import { removedProjectDays } from "./baselineOverlay";
 import { EDGES } from "./dependencyArrows";
 import { addDays } from "./isoDate";
 import { jiraRangeDates, type JiraWindow } from "./jiraBars";
+import { byNameThenId } from "./text";
 import type { BarId, TimelineArrowData } from "./timelineModel";
 
 // The roadmap page's pure model: which projects the filters and the program pick leave visible, the rows they make (ranked rows, the divider,
@@ -33,10 +34,8 @@ export function allProjects(view: Pick<RoadmapView, "ranked" | "unranked">): Roa
   return [...view.ranked.map((entry) => entry.project), ...view.unranked];
 }
 
-const byName = (a: NamedId, b: NamedId) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()) || a.id - b.id;
-
 function distinct(projects: readonly RoadmapProject[], pick: (project: RoadmapProject) => NamedId): NamedId[] {
-  return [...new Map(projects.map((project) => [pick(project).id, pick(project)])).values()].sort(byName);
+  return [...new Map(projects.map((project) => [pick(project).id, pick(project)])).values()].sort(byNameThenId);
 }
 
 /** The work streams the view's projects belong to (the filter's options). */
@@ -54,7 +53,7 @@ export function programOptions(view: RoadmapView): ProgramOption[] {
   for (const project of allProjects(view)) {
     programs.set(project.programId, { id: project.programId, name: project.programName, workStreamName: project.workStreamName });
   }
-  return [...programs.values()].sort(byName);
+  return [...programs.values()].sort(byNameThenId);
 }
 
 /** A stored filter id the view no longer offers (the project moved, the person left) filters nothing instead of hiding every row. */

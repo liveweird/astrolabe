@@ -1,5 +1,6 @@
 import { useDebouncedValue } from "@mantine/hooks";
 import { FEATURES, type Feature } from "../api/session";
+import { FILTER_DEBOUNCE_MS } from "./usePagedSort";
 import { isOneOf, isOneOfOrNull, isString, useStoredState } from "./useStoredState";
 
 /** The persisted view-settings prefix of the /feature-flags screen (filters, paging, sort). */
@@ -24,8 +25,8 @@ export function useFeatureFlagFilters() {
   );
   const [name, setName] = useStoredState(`${FEATURE_FLAGS_KEY}.filter.name`, "", isString);
   const [email, setEmail] = useStoredState(`${FEATURE_FLAGS_KEY}.filter.email`, "", isString);
-  const [debouncedName] = useDebouncedValue(name, 300);
-  const [debouncedEmail] = useDebouncedValue(email, 300);
+  const [debouncedName] = useDebouncedValue(name, FILTER_DEBOUNCE_MS);
+  const [debouncedEmail] = useDebouncedValue(email, FILTER_DEBOUNCE_MS);
   const deps = [feature, state, debouncedName, debouncedEmail];
   return {
     feature,

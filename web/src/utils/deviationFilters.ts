@@ -1,6 +1,6 @@
-import type { DeviationFilter, DeviationKind, DeviationLevel, DeviationSeverity } from "../api/deviations";
+import type { DeviationFilter, DeviationKind, DeviationSeverity } from "../api/deviations";
+import { LEVELS } from "../api/plan";
 
-const LEVELS: readonly DeviationLevel[] = ["PROGRAM", "PROJECT", "MILESTONE"];
 const SEVERITIES: readonly DeviationSeverity[] = ["WARNING", "INFO"];
 const KINDS: readonly DeviationKind[] = [
   "GONE",

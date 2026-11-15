@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { listProjects } from "../api/plan";
+import { OPTION_PAGE_SIZE } from "../hooks/usePagedSort";
 import SearchPicker, { type PickedOption } from "./SearchPicker";
 
 /**
@@ -33,7 +34,7 @@ export default function ProjectSelect({
       noMatchLabel={t("project.dependency.noMatchingProjects")}
       queryKey={["plan", "projects", "picker"]}
       search={async (term) => {
-        const page = await listProjects({ page: 1, pageSize: 50, sort: "name", name: term || undefined });
+        const page = await listProjects({ page: 1, pageSize: OPTION_PAGE_SIZE, sort: "name", name: term || undefined });
         return page.items.map((project) => ({ value: String(project.id), label: `${project.name} · ${project.programName} · ${project.workStreamName}` }));
       }}
       picked={picked}

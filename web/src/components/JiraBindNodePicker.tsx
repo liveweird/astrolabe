@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Select } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
-import { getPlanView } from "../api/plan";
+import { getPlanView, planViewKey } from "../api/plan";
 import type { JiraLevel } from "../api/jira";
 import MilestoneSelect from "./MilestoneSelect";
 import ProjectSelect from "./ProjectSelect";
@@ -14,7 +14,7 @@ import type { PickedOption } from "./SearchPicker";
  */
 function ProgramPick({ picked, onPick, error }: { picked: PickedOption | null; onPick: (picked: PickedOption | null) => void; error?: ReactNode }) {
   const { t } = useTranslation();
-  const plan = useQuery({ queryKey: ["plan", "view"], queryFn: getPlanView });
+  const plan = useQuery({ queryKey: planViewKey, queryFn: getPlanView });
   const options = (plan.data?.workStreams ?? []).flatMap((stream) =>
     stream.programs.filter((program) => program.can.edit).map((program) => ({ value: String(program.id), label: t("jira.bind.programOption", { name: program.name, workStream: stream.name }) })),
   );

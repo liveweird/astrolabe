@@ -9,6 +9,7 @@ import {
   deleteProject,
   deleteWorkStream,
   getPlanView,
+  planViewKey,
   updateWorkStream,
   type PlanProgram,
   type PlanProject,
@@ -75,7 +76,7 @@ function closeDate(startDate: string): string {
 export default function Plan() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const { data, isLoading, isError, error } = useQuery({ queryKey: ["plan", "view"], queryFn: getPlanView });
+  const { data, isLoading, isError, error } = useQuery({ queryKey: planViewKey, queryFn: getPlanView });
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [moving, setMoving] = useState<MoveState | null>(null);
   // The Jira imports: a work stream's whole-scope one and the rooted ones of a linked program and of a linked project (hooks/usePlanJiraImport.ts).

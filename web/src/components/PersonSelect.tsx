@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { listPeople } from "../api/people";
+import { OPTION_PAGE_SIZE } from "../hooks/usePagedSort";
 import SearchPicker, { type PickedOption } from "./SearchPicker";
 
 /**
@@ -44,7 +45,7 @@ export default function PersonSelect({
       noMatchLabel={t("people.noMatching")}
       queryKey={["people", "picker"]}
       search={async (term) => {
-        const page = await listPeople({ page: 1, pageSize: 50, sort: "name", name: term || undefined });
+        const page = await listPeople({ page: 1, pageSize: OPTION_PAGE_SIZE, sort: "name", name: term || undefined });
         return page.items.map((p) => ({ value: String(p.id), label: p.email ? `${p.name} (${p.email})` : p.name }));
       }}
       picked={picked}

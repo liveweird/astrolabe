@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Select } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { FILTER_DEBOUNCE_MS } from "../hooks/usePagedSort";
 import ErrorAlert from "./ErrorAlert";
 
 /** The picked entry, held by the caller (the form) so its label survives later searches. */
@@ -60,7 +61,7 @@ export default function SearchPicker({
   }
   // Choosing an option makes Mantine put its label into the search box — that is not a search term.
   const term = picked !== null && searchValue === picked.label ? "" : searchValue.trim();
-  const [debounced] = useDebouncedValue(term, 300);
+  const [debounced] = useDebouncedValue(term, FILTER_DEBOUNCE_MS);
   const settling = term !== debounced;
 
   const results = useQuery({

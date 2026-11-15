@@ -2,14 +2,13 @@ import { useTranslation } from "react-i18next";
 import { Badge, CloseButton, Group, Select, Stack, Switch, Text } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import type { DeviationConnection, DeviationFilter, DeviationLevel, DeviationSeverity } from "../api/deviations";
-import { getPlanView, type PlanView } from "../api/plan";
+import { getPlanView, LEVELS, planViewKey, type PlanView } from "../api/plan";
 import { useTeamOptions } from "../hooks/useTeamOptions";
 import { deviationKindLabel } from "../utils/deviations";
 import { planNames } from "../utils/planNames";
 import { deviationStatus, deviationStatusPatch, narrowingCount, type DeviationStatus } from "../utils/deviationFilters";
 import FilterPanel from "./FilterPanel";
 
-const LEVELS: readonly DeviationLevel[] = ["PROGRAM", "PROJECT", "MILESTONE"];
 const SEVERITIES: readonly DeviationSeverity[] = ["WARNING", "INFO"];
 const STATUSES: readonly DeviationStatus[] = ["open", "acknowledged", "all"];
 
@@ -43,7 +42,7 @@ function ScopeChips({ filter, plan, onChange }: { filter: DeviationFilter; plan:
  */
 export default function DeviationsFilters({ filter, connections, onChange }: { filter: DeviationFilter; connections: readonly DeviationConnection[]; onChange: (patch: Partial<DeviationFilter>) => void }) {
   const { t } = useTranslation();
-  const plan = useQuery({ queryKey: ["plan", "view"], queryFn: getPlanView });
+  const plan = useQuery({ queryKey: planViewKey, queryFn: getPlanView });
   const teams = useTeamOptions();
   // A project or team scope implies "everything" (the server's rule), so the switch reads ON then, and turning it off sends `all=false` explicitly.
   const implied = filter.projectId !== undefined || filter.teamId !== undefined;

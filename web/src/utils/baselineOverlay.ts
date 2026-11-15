@@ -1,6 +1,7 @@
 import type { TFunction } from "i18next";
 import type { BaselineFigures, BaselineMilestone, Movement, MovementTotals, RemovedMilestone, SpanBaseline } from "../api/baselines";
 import type { RemovedProject } from "../api/roadmap";
+import { compareNames } from "./text";
 import type { TimelineBarData } from "./timelineModel";
 
 /**
@@ -192,7 +193,7 @@ export function removedRows(baseline: Pick<MilestoneBaseline, "milestones" | "re
     });
   }
   const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
-  return rows.sort((a, b) => compare(a.bar.start, b.bar.start) || compare(a.bar.end, b.bar.end) || a.name.toLowerCase().localeCompare(b.name.toLowerCase()) || a.milestoneId - b.milestoneId);
+  return rows.sort((a, b) => compare(a.bar.start, b.bar.start) || compare(a.bar.end, b.bar.end) || compareNames(a.name, b.name) || a.milestoneId - b.milestoneId);
 }
 
 /** A row the roadmap and programs pages append for a project the baseline froze that is deleted now: only its frozen span as a shadow bar, dimmed. */
@@ -206,7 +207,7 @@ export function removedProjectRows(removed: readonly RemovedProject[], t: TFunct
   const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
   return removed
     .flatMap(({ span, ...gone }) => (span === null ? [] : [{ id: `baseline-removed-project:${gone.projectId}`, ...gone, bar: shadowBar(gone.projectId, gone.name, span, null, t) }]))
-    .sort((a, b) => compare(a.bar.start, b.bar.start) || compare(a.bar.end, b.bar.end) || a.name.toLowerCase().localeCompare(b.name.toLowerCase()) || a.projectId - b.projectId);
+    .sort((a, b) => compare(a.bar.start, b.bar.start) || compare(a.bar.end, b.bar.end) || compareNames(a.name, b.name) || a.projectId - b.projectId);
 }
 
 /** The frozen days of the removed projects' spans: the plan pages' grow-only range covers them, so no appended shadow bar sits outside it. */

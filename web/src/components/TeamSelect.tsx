@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { listTeams } from "../api/teams";
+import { OPTION_PAGE_SIZE } from "../hooks/usePagedSort";
 import SearchPicker, { type PickedOption } from "./SearchPicker";
 
 /**
@@ -34,7 +35,7 @@ export default function TeamSelect({
       noMatchLabel={t("project.milestone.noMatchingTeams")}
       queryKey={["teams", "picker"]}
       search={async (term) => {
-        const page = await listTeams({ page: 1, pageSize: 50, sort: "name", name: term || undefined });
+        const page = await listTeams({ page: 1, pageSize: OPTION_PAGE_SIZE, sort: "name", name: term || undefined });
         return page.items.map((team) => ({ value: String(team.id), label: team.name }));
       }}
       picked={picked}

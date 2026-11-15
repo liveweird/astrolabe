@@ -17,6 +17,9 @@ export type SyncState = SyncStatus["state"];
 /** The RFC 7807 `type` of the 409 a claim answers while a run of the same connection and kind is unfinished. */
 const RUN_IN_PROGRESS_TYPE = "urn:astrolabe:problem:run-in-progress";
 
+/** The RFC 7807 `type` of the 409 when a bind finds its target taken (1:1 both ways, a Jira binding or a Flow team link): its `detail` names the other side. */
+export const ALREADY_BOUND_TYPE = "urn:astrolabe:problem:already-bound";
+
 /** A 409 with the run-in-progress type: a normal state ("a run is already going"), not a failure. */
 export function isRunInProgress(err: unknown): boolean {
   return err instanceof ApiError && err.status === 409 && err.type === RUN_IN_PROGRESS_TYPE;

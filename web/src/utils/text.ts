@@ -39,3 +39,9 @@ export const foldedOptionsFilter: OptionsFilter = ({ options, search }) => {
       "group" in option ? option.items.length > 0 : matches(option as ComboboxItem, query),
     );
 };
+
+/** Two names in locale order, case-insensitively ("alpha" and "Alpha" tie); the building block of the lists sorted "by name, then by id". */
+export const compareNames = (a: string, b: string) => a.toLowerCase().localeCompare(b.toLowerCase());
+
+/** The order of every list sorted by name (case-insensitive), ties broken by id. */
+export const byNameThenId = (a: { name: string; id: number }, b: { name: string; id: number }) => compareNames(a.name, b.name) || a.id - b.id;

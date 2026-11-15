@@ -4,6 +4,7 @@ import type { RoadmapProject } from "../api/roadmap";
 import { removedProjectDays, type RemovedProjectRow } from "./baselineOverlay";
 import { jiraRangeDates, type JiraWindow } from "./jiraBars";
 import type { FlagCounts, ProgramOption } from "./roadmapRows";
+import { byNameThenId } from "./text";
 import type { BarId } from "./timelineModel";
 
 // The programs page's pure model: the server's tree (work stream -> program -> project) turned into the rows of the timeline for the program
@@ -184,7 +185,7 @@ export function toggled(open: ReadonlySet<string>, key: string): Set<string> {
 export function programChoices(view: ProgramsView): ProgramOption[] {
   return view.workStreams
     .flatMap((stream) => stream.programs.map((program) => ({ id: program.id, name: program.name, workStreamName: stream.name })))
-    .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()) || a.id - b.id);
+    .sort(byNameThenId);
 }
 
 /** What the pick leaves of the plan, for the facts line: the counts of shown work streams, programs and projects, and the flag roll-up over them. */
