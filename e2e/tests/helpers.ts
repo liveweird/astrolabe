@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { BASE_URL } from "../playwright.config";
+import { readTarget } from "../target.ts";
 
 export { expect, test };
 
@@ -321,7 +322,7 @@ export async function refreshJiraConnectionViaApi(api: APIRequestContext, connec
 /** Flow's address as the APP reaches the built-in Flow stub (the compose service on the compose network): the only origin its `FLOW_INSECURE_ORIGINS` lists. */
 export const FLOW_STUB_ORIGIN = process.env.E2E_FLOW_STUB_ORIGIN ?? "http://flow-stub:8080";
 /** The stub's own admin API as the SPEC reaches it (the host port compose publishes): read to prove the stub is on "day one"; only `flow-capacity-deviation.spec.ts` and `flow-capacity-acknowledge.spec.ts` write it (the `flow-day2` flip, under the lock `flow-stub-scenario`). */
-export const FLOW_STUB_URL = process.env.E2E_FLOW_STUB_URL ?? "http://localhost:8097";
+export const FLOW_STUB_URL = readTarget(process.env).flowStubUrl;
 
 /** The slice of `sample-data/flow/expected.json` (the generator's record of the Flow stub) the specs read. */
 interface FlowExpected {

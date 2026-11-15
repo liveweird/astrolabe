@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "license": "MIT",
-  "description": "Browser blackbox E2E tests (Playwright) against the full stack on http://localhost:8086",
+  "description": "Browser blackbox E2E tests (Playwright) against a full stack the caller started and named (E2E_BASE_URL, E2E_MAILPIT_URL, E2E_JIRA_STUB_URL, E2E_FLOW_STUB_URL)",
   "type": "module",
   "scripts": {
     "test": "playwright test",

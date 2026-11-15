@@ -1,13 +1,13 @@
 import { defineConfig, devices } from "@playwright/test";
+import { readTarget } from "./target.ts";
 
-// Blackbox E2E: drives a real browser against the full stack (SPA + server + Postgres) served
-// single-origin at http://localhost:8086 by `docker compose`. The stack is brought up by
-// global-setup (unless one is already running locally, which is reused). Services and data
-// remain intact after the run; starting containers does not establish ownership of volumes.
-// 8086 — see docker-compose.yaml (the app's fixed demo port).
-export const BASE_URL = process.env.E2E_BASE_URL ?? "http://localhost:8086";
-/** The Mailpit catcher of the stack under test (the two email specs read it); the compose default is host port 8029. */
-export const MAILPIT_URL = process.env.E2E_MAILPIT_URL ?? "http://localhost:8029";
+// Blackbox E2E: drives a real browser against the full stack (SPA + server + Postgres) served single-origin. The stack is NEVER
+// started or assumed here: somebody starts one and names it through the four E2E_* variables of target.ts, and global-setup refuses
+// to run without them. Services and data remain intact after the run.
+const target = readTarget(process.env);
+export const BASE_URL = target.baseUrl;
+/** The Mailpit catcher of the stack under test (the two email specs read it). */
+export const MAILPIT_URL = target.mailpitUrl;
 
 const desktopChrome = { ...devices["Desktop Chrome"] };
 

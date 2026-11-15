@@ -292,7 +292,7 @@ class-data-sharing (AppCDS) archive, and setting it drops the archive. Build-tim
 | `./gradlew :server:installDist` | Builds the runnable distribution (used by the Docker image; never `buildFatJar`) |
 
 Frontend: `cd web && npm run build | lint | test | test:coverage | knip | gen:api`.
-E2E: `cd e2e && npm ci && npx playwright install chromium && npm test`.
+E2E: start a throwaway stack and name it in `E2E_BASE_URL`, `E2E_MAILPIT_URL`, `E2E_JIRA_STUB_URL` and `E2E_FLOW_STUB_URL` (the suite refuses without them; `e2e/README.md` "Run"), then `cd e2e && npm ci && npx playwright install chromium && npm test`.
 
 ## License
 

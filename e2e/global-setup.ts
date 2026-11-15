@@ -1,11 +1,5 @@
-import { execSync } from "node:child_process";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { BASE_URL } from "./playwright.config";
-import { ensureStack } from "./stack.ts";
-
-const here = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(here, "..");
+import { readTarget, targetProblems } from "./target.ts";
+import { requireReadyTarget } from "./stack.ts";
 
 async function responds(url: string): Promise<boolean> {
   try {
@@ -17,23 +11,11 @@ async function responds(url: string): Promise<boolean> {
   }
 }
 
-async function waitForUp(url: string, timeoutMs: number): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (await responds(url)) return;
-    await new Promise((r) => setTimeout(r, 2000));
-  }
-  throw new Error(`Timed out waiting for the app at ${url}`);
-}
-
 export default async function globalSetup(): Promise<void> {
-  await ensureStack(BASE_URL, {
-    responds,
-    start: () => {
-      console.log("[e2e] Starting the stack: docker compose up -d --build …");
-      execSync("docker compose up -d --build", { cwd: repoRoot, stdio: "inherit" });
-    },
-    wait: (url) => waitForUp(url, 240_000),
-  });
-  console.log(`[e2e] Using ${BASE_URL}; services and volumes will be left intact.`);
+  const target = readTarget(process.env);
+  await requireReadyTarget(targetProblems(process.env), target.baseUrl, responds);
+  console.log(
+    `[e2e] Using app ${target.baseUrl}, Mailpit ${target.mailpitUrl}, Jira stub ${target.jiraStubUrl}, Flow stub ${target.flowStubUrl};` +
+      " nothing is started or stopped, and the stack's data is left intact.",
+  );
 }

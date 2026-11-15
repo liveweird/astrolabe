@@ -47,7 +47,7 @@ or activate mise. If `./gradlew` resolves the wrong JDK, point it explicitly: `J
   `npm run dev|build|lint|test|test:coverage|knip|gen:api` (details in `web/CLAUDE.md`). The
   API-contract gate is `npm run lint:api` (Spectral lint of the OpenAPI spec + the conformant
   fixture against `api-guidelines/`) and `npm run check:api` (in-memory spec → `schema.ts` diff).
-- E2E: `cd e2e && npm ci && npx playwright install chromium && npm test` (plus `lint`, `knip`, `typecheck`, `check:scenarios`, `test:setup`).
+- E2E: start a throwaway stack yourself and name it (`E2E_BASE_URL`, `E2E_MAILPIT_URL`, `E2E_JIRA_STUB_URL`, `E2E_FLOW_STUB_URL`; no default, the suite refuses without them), then `cd e2e && npm ci && npx playwright install chromium && npm test` (plus `lint`, `knip`, `typecheck`, `check:scenarios`, `test:setup`).
 - CI: `.github/workflows/ci.yml` re-runs every gate above on push/PR; the blackbox Playwright suite (`e2e.yml`) runs
   nightly and on demand. The job list, the Markdown-only skip, Trivy and
   grouping: `.claude/docs/ci.md` (dependency rules: `dependencies.md`, `dependency-reproducibility.md`).

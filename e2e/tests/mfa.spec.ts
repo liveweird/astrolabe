@@ -11,8 +11,8 @@ import {
 import { MAILPIT_URL } from "../playwright.config";
 
 // Email MFA (opt-in via the per-user MFA feature flag) + the feature-flags admin surfaces.
-// The full sign-in roundtrip needs the compose stack's Mailpit catcher (E2E_MAILPIT_URL, default
-// http://localhost:8029); that test skips itself when Mailpit is unreachable. NEVER touch the seed admin's MFA flag —
+// The full sign-in roundtrip needs the compose stack's Mailpit catcher (E2E_MAILPIT_URL);
+// that test skips itself when Mailpit is unreachable. NEVER touch the seed admin's MFA flag —
 // enabling it would make every other spec's login demand a code.
 
 test("admin toggles a user's MFA on the feature-flags screen and the per-user editor", async ({

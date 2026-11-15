@@ -2,8 +2,7 @@ import { createUserViaUi, deleteUserRow, expect, login, loginViaForm, signOut, t
 import { MAILPIT_URL } from "../playwright.config";
 
 // Self-service password reset: the "Forgot password?" flow on the login screen.
-// The full email roundtrip needs the compose stack's Mailpit catcher (E2E_MAILPIT_URL, default
-// http://localhost:8029 — see docker-compose.yaml); when it is unreachable (e.g. a dev stack on the log transport) that
+// The full email roundtrip needs the compose stack's Mailpit catcher (E2E_MAILPIT_URL); when it is unreachable (e.g. a dev stack on the log transport) that
 // one test skips itself. The dev stack lifts the per-IP request bucket (100/min, the login-bucket
 // idiom) and the confirm bucket, so back-to-back runs never trip them; the per-email throttle is exercised
 // explicitly. The emailed link is followed by path + fragment RELATIVE to the baseURL: the compose stack's

@@ -19,14 +19,12 @@ export default defineConfig([
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
       ],
-      // The suite drives http://localhost:8086 — the compose demo is plain HTTP by design.
+      // The suite drives a local compose stack named through the E2E_* variables — the demo is plain HTTP by design.
       'sonarjs/no-clear-text-protocols': 'off',
       // Test titles are literal sentences mirrored verbatim by the scenario files (scenarios/README.md).
       'sonarjs/parameterized-tests': 'off',
       // The seed admin's demo password is the documented compose credential, not a secret.
       'sonarjs/no-hardcoded-passwords': 'off',
-      // global-setup/teardown shell out to `docker compose` by name — the documented run recipe.
-      'sonarjs/no-os-command-from-path': 'off',
       // Mantine's Switch/Checkbox/SegmentedControl inputs are visually hidden; `force: true` on
       // them is the documented idiom (mfa.spec.ts), never a way around a disabled control.
       'sonarjs/no-forced-browser-interaction': 'off',

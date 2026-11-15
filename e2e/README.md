@@ -1,39 +1,43 @@
 # E2E (Playwright, blackbox)
 
 Browser end-to-end tests that treat the app as a **blackbox**: they drive a real Chromium against
-the whole stack (SPA + server + Flyway + Postgres) served single-origin at `http://localhost:8086`
-by `docker compose`. This package is fully isolated from `web/` — it imports none of the app source
+the whole stack (SPA + server + Flyway + Postgres) served single-origin, **a stack you started and named**
+(see "Run"). This package is fully isolated from `web/` — it imports none of the app source
 and only speaks HTTP/DOM.
 
 ## Run
+
+**Playwright runs only against a stack somebody named.** The suite writes rows through the API of the stack it is given (users, teams,
+plans, Jira and Flow connections) and flips the scenarios of its two stubs, so it never guesses a stack: `http://localhost:8086` is this
+repository's default compose project, a working stack with your data, and nothing here falls back to it. Start a throwaway stack yourself
+(its own compose project name and host ports, torn down by you afterwards), then name its four addresses:
 
 ```bash
 cd e2e
 npm install
 npm run install:browsers      # one-time: download Chromium
-npm test                      # reuses or starts the stack, runs specs, leaves the stack intact
+export E2E_BASE_URL=http://localhost:<app> E2E_MAILPIT_URL=http://localhost:<mailpit> \
+       E2E_JIRA_STUB_URL=http://localhost:<jira-stub> E2E_FLOW_STUB_URL=http://localhost:<flow-stub>
+npm test                      # checks the named stack answers, runs the specs, leaves the stack intact
 ```
 
-- `global-setup.ts` starts `docker compose up -d --build` and waits for `:8086` — **unless a stack
-  is already running there**, which it reuses (fast local iteration: keep `docker compose up` or a
-  local `WEB_STATIC_DIR=… ./gradlew :server:run` going and just run `npm test`).
-  The nightly `e2e.yml` builds the image and starts the stack in their own workflow steps first (so the
-  time is attributable per step, `.claude/docs/build-times.md`), and setup then just reuses it.
-  Setup never tears down services or volumes, including after a failed start or test run. Tests
-  clean up only the records they own; existing demo data stays intact.
-- Docker is needed only when starting the default stack. `E2E_BASE_URL` can target an already
-  running stack; an unavailable custom URL fails without starting the default Compose project.
-  (8086 — see `docker-compose.yaml`.)
-- `E2E_JIRA_STUB_URL` (default `http://localhost:8096`, the compose stack's `jira-stub`: WireMock over the sample Jira dataset) is the admin API
+- All four variables are required, each an absolute `http(s)` URL (`target.ts` is the one reader of them; no other file under `e2e/`
+  holds a host URL). With one missing, blank or malformed, `global-setup.ts` refuses to run before it makes a single request and names
+  each variable at fault. When the app named by `E2E_BASE_URL` does not answer `/api/v1/ready`, it fails with "not ready: start that
+  stack first". **The suite starts, builds, stops and tears down nothing** (no `docker` command lives in `stack.ts` or `global-setup.ts`),
+  and it never removes a service or a volume. Tests clean up only the records they own; existing data stays intact.
+- The nightly `e2e.yml` builds the image and starts the stack in their own workflow steps (so the time is attributable per step,
+  `.claude/docs/build-times.md`) and sets the four variables to that stack's published ports (8086, 8029, 8096, 8097).
+- `E2E_JIRA_STUB_URL` (the stack's `jira-stub`: WireMock over the sample Jira dataset; the compose default is host port 8096) is the admin API
   `jira-sync.spec.ts` flips the `jira-day2` scenario through (`PUT /__admin/scenarios/jira-day2/state`; the app itself reaches the stub as `jira-stub:8080`
-  over the compose network, so this URL is only the spec's own handle on it). Point it at the stub of the same stack as `E2E_BASE_URL` when that one is not
-  the default. Without a stub the Jira spec's beforeAll fails (it resets the scenario first).
-- `E2E_FLOW_STUB_URL` (default `http://localhost:8097`, the compose stack's `flow-stub`: WireMock over the sample Flow dataset) is the admin API `flow-sync.spec.ts` READS in its beforeAll to prove the stub's `flow-day2` and `flow-outage` scenarios are at `Started` (day one's figures are what it asserts; it fails fast naming the scenario otherwise) and `flow-capacity-deviation.spec.ts` and `flow-capacity-acknowledge.spec.ts` WRITE to flip `flow-day2` (`PUT /__admin/scenarios/flow-day2/state`, reset in their beforeAll and afterAll; the lock `flow-stub-scenario` keeps the three files apart). `E2E_FLOW_STUB_ORIGIN` (default `http://flow-stub:8080`) is the address the APP reaches that stub at, the base URL of every connection these specs create: the compose network name, listed in the app's `FLOW_INSECURE_ORIGINS`. Point the first at the stub of the same stack as `E2E_BASE_URL` when that one is not the default. The specs read the stub's token, totals and "E2E Flow Team" figures from `sample-data/flow/expected.json` in the checkout.
+  over the compose network, so this URL is only the spec's own handle on it). Name the stub of the same stack as `E2E_BASE_URL`. Without a stub the
+  Jira spec's beforeAll fails (it resets the scenario first).
+- `E2E_FLOW_STUB_URL` (the stack's `flow-stub`: WireMock over the sample Flow dataset; the compose default is host port 8097) is the admin API `flow-sync.spec.ts` READS in its beforeAll to prove the stub's `flow-day2` and `flow-outage` scenarios are at `Started` (day one's figures are what it asserts; it fails fast naming the scenario otherwise) and `flow-capacity-deviation.spec.ts` and `flow-capacity-acknowledge.spec.ts` WRITE to flip `flow-day2` (`PUT /__admin/scenarios/flow-day2/state`, reset in their beforeAll and afterAll; the lock `flow-stub-scenario` keeps the three files apart). `E2E_FLOW_STUB_ORIGIN` (default `http://flow-stub:8080`) is the address the APP reaches that stub at, the base URL of every connection these specs create: the compose network name, listed in the app's `FLOW_INSECURE_ORIGINS`. Name the Flow stub of the same stack as `E2E_BASE_URL`. The specs read the stub's token, totals and "E2E Flow Team" figures from `sample-data/flow/expected.json` in the checkout.
 - `jira-polling.spec.ts` needs the stack's **scheduler** on (the compose default, `SYNC_SCHEDULER_ENABLED=true`: a tick every 60 s, the first 10 s after start): it waits up to two minutes for a scheduled
   run of a connection it made. Against a stack that runs with `SYNC_SCHEDULER_ENABLED=false` its first and third scenarios fail by design (no run ever comes).
-- `E2E_MAILPIT_URL` (default `http://localhost:8029`, the compose stack's Mailpit) is the catcher the two email specs
-  (`mfa.spec.ts`, `password-reset.spec.ts`) read; point it at the Mailpit of the same stack as `E2E_BASE_URL` when that one is
-  not the default (an isolated compose project has its own Mailpit port). Reading another stack's catcher makes those two specs fail (or skip).
+- `E2E_MAILPIT_URL` (the stack's Mailpit; the compose default is host port 8029) is the catcher the two email specs
+  (`mfa.spec.ts`, `password-reset.spec.ts`) read; name the Mailpit of the same stack as `E2E_BASE_URL` (an isolated compose
+  project has its own Mailpit port). Reading another stack's catcher makes those two specs fail (or skip).
 
 Docker-free gates ride every spec change — run them before merging, like the web
 package's lint/knip:
@@ -41,7 +45,7 @@ package's lint/knip:
 ```bash
 npm run typecheck             # tsc --noEmit — Playwright only TRANSPILES TS, it never checks it
 npm run check:scenarios       # spec ↔ scenario parity: files exist, test() titles == headings
-npm run test:setup            # stack reuse/start/failure paths preserve services and data
+npm run test:setup            # the refusal without a named stack, the readiness check, the source pins
 ```
 
 `check:scenarios` enforces the same-commit rule below mechanically (both directions, orphan

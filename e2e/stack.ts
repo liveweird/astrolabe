@@ -1,16 +1,23 @@
-interface StackRuntime {
-  responds: (url: string) => Promise<boolean>;
-  start: () => void;
-  wait: (url: string) => Promise<void>;
+/**
+ * The suite starts nothing and stops nothing: it runs against a stack somebody started and named (`target.ts`). The refusal comes
+ * BEFORE any request, because the suite writes rows through the API of the stack it is given and flips the scenarios of its stubs;
+ * the repository's default stack is a working stack, so it is never assumed. Name a throwaway one.
+ */
+function refusal(problems: readonly string[]): string {
+  return [
+    "E2E refuses to run: the stack under test was not named.",
+    ...problems.map((problem) => `  - ${problem}`),
+    "The suite writes rows through the API of the stack it is given and flips its stubs' scenarios.",
+    "This repository's default stack is a working stack, so no stack is assumed: start a throwaway one yourself",
+    "and set E2E_BASE_URL, E2E_MAILPIT_URL, E2E_JIRA_STUB_URL and E2E_FLOW_STUB_URL to its app, Mailpit and the two stubs (e2e/README.md \"Run\").",
+  ].join("\n");
 }
 
-/** Starting a service never implies ownership of its data. There is deliberately no stack teardown:
- * an existing database and even a partially started stack survive success, failure and retries. */
-export async function ensureStack(url: string, runtime: StackRuntime): Promise<void> {
-  if (await runtime.responds(url)) return;
-  if (url !== "http://localhost:8086") {
-    throw new Error(`E2E target ${url} is not ready; start that deployment before running tests`);
-  }
-  runtime.start();
-  await runtime.wait(url);
+export async function requireReadyTarget(
+  problems: readonly string[],
+  url: string,
+  responds: (url: string) => Promise<boolean>,
+): Promise<void> {
+  if (problems.length > 0) throw new Error(refusal(problems));
+  if (!(await responds(url))) throw new Error(`E2E_BASE_URL (${url}) is not ready: start that stack first`);
 }

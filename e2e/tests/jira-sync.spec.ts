@@ -1,4 +1,4 @@
-// Jira sync (v1.1), against the compose stack's Jira STUB (WireMock, `E2E_JIRA_STUB_URL`, default http://localhost:8096) and its small isolated `E2E`
+// Jira sync (v1.1), against the compose stack's Jira STUB (WireMock, `E2E_JIRA_STUB_URL`) and its small isolated `E2E`
 // project (every date in 2044): an administrator creates a connection and tests it, a wrong token shows the failed probes with their scope hints,
 // the administrator maps the levels and fields and peeks an issue, a project owner links a milestone to an epic and the Deviations page shows the
 // end three working days later than Jira's after a refresh, and an unlink removes the deviation while an epic deleted on "day 2" reads as gone; and (1.3)
@@ -12,9 +12,10 @@
 import { randomUUID } from "node:crypto";
 import { type APIRequestContext, type Locator, type Page, request as playwrightRequest } from "@playwright/test";
 import { apiAsAdmin, apiAsThrowawayAdmin, axeViolations, deleteViaApi, expect, login, openFilters, test, testJiraConnectionViaApi, type ThrowawayAdmin, uniqueText } from "./helpers";
+import { readTarget } from "../target.ts";
 
 /** The stub's admin API: the same WireMock that answers the app's outbound calls, on the host port compose publishes. */
-const STUB_URL = process.env.E2E_JIRA_STUB_URL ?? "http://localhost:8096";
+const STUB_URL = readTarget(process.env).jiraStubUrl;
 const DAY2_STATE = "/__admin/scenarios/jira-day2/state";
 
 // One scenario state for the whole stub: this file is the only flipper and runs serially (and the pool never runs two copies of it).
