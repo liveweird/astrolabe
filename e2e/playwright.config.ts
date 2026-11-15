@@ -20,7 +20,10 @@ export default defineConfig({
   workers: Number(process.env.E2E_WORKERS ?? 4),
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  reporter: [["list"], ["html", { open: "never" }]],
+  // CI adds the JSON report that scripts/flaky-summary.mjs turns into the nightly's list of tests that needed a retry.
+  reporter: process.env.CI
+    ? [["list"], ["html", { open: "never" }], ["json", { outputFile: "test-results/results.json" }]]
+    : [["list"], ["html", { open: "never" }]],
   timeout: 60_000,
   expect: { timeout: 10_000 },
   globalSetup: "./global-setup.ts",

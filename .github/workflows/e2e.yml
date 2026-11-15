@@ -97,6 +97,13 @@ jobs:
         working-directory: e2e
         run: npx playwright test
 
+      # The tests that passed only on a retry (retries: 2 hides them), and any that failed, from the JSON report the config adds in CI.
+      # Information, not a gate: the script always exits 0 and says so in one line when the suite wrote no report.
+      - name: List the tests that needed a retry
+        if: ${{ !cancelled() }}
+        working-directory: e2e
+        run: node scripts/flaky-summary.mjs >> "$GITHUB_STEP_SUMMARY"
+
       # Container logs make a red nightly diagnosable without reproducing it.
       - name: Stack logs
         if: failure()

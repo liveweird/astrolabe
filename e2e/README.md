@@ -294,4 +294,4 @@ path is throttled.
   layout relies on Mantine semantics plus the role/label-based locators every spec uses.
   Accessibility gets the `accessibility.spec.ts` axe smoke.
 
-Reports/artifacts land in `playwright-report/` and `test-results/` (git-ignored).
+Reports/artifacts land in `playwright-report/` and `test-results/` (git-ignored). In CI the config also writes `test-results/results.json`, which `scripts/flaky-summary.mjs` turns into the nightly's list of tests that needed a retry.
