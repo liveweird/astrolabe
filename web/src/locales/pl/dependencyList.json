@@ -1,6 +1,6 @@
 {
   "title": "Zależności",
-  "intro": "Wszystkie zależności planu: następnik czeka na poprzednik. Niedotrzymane zależności są wymienione na początku i tylko ostrzegają; nic się nie przesuwa. Zależność zmienia się na stronie projektu jej następnika.",
+  "intro": "Wszystkie zależności planu: następnik czeka na poprzednik. Niedotrzymane zależności są wymienione na początku i tylko ostrzegają; nic się nie przesuwa. Właściciele/ki projektu następnika albo administrator/ka mogą w wierszu zależności zmienić jej typ i opóźnienie albo ją usunąć; nową dodaje się na stronie projektu jej następnika.",
   "status": {
     "all": "Wszystkie",
     "violated": "Niedotrzymane"

@@ -1,10 +1,17 @@
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { Badge, Button, Group, Stack, Text } from "@mantine/core";
 import { IconLink } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DEPENDENCY_LIST_KEY, getDependencyListView, type DependencyListView } from "../api/dependencyList";
-import { resolveDependencyList } from "../utils/dependencyListRows";
+import { deleteDependency } from "../api/dependencies";
+import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
+import { useDialogFocus } from "../hooks/useDialogFocus";
+import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
+import { resolveDependencyList, type DependencyListRow } from "../utils/dependencyListRows";
+import DependencyDeleteModal from "../components/DependencyDeleteModal";
+import DependencyEditorModal from "../components/DependencyEditorModal";
 import DependencyListFilters from "../components/DependencyListFilters";
 import DependencyListTable from "../components/DependencyListTable";
 import EmptyState from "../components/EmptyState";
@@ -49,18 +56,39 @@ function DependencyListFacts({ totals }: { totals: DependencyListView["totals"] 
 }
 
 /**
- * The Dependencies page (`/dependencies`, everyone, read-only): every dependency of the plan from the one unpaged `GET /views/dependencies` (at most
+ * The Dependencies page (`/dependencies`, everyone; changes by the row's `can`): every dependency of the plan from the one unpaged `GET /views/dependencies` (at most
  * 1,000 rows, the ones that do not hold first, each the project view's own item; the document names each end once, and the query function joins
  * the names back onto the rows - a reference it cannot resolve is a failed read). The status, team and project filters are in the URL
  * (`utils/dependencyListFilters.ts`; a change `replace`s the entry, so Home's and the plan pages' links, a reload and Back all restore the view) and only
- * hide rows in the browser: the facts line always shows the server's totals over every dependency. Nothing is changed here - each end names its project,
- * whose page edits the link.
+ * hide rows in the browser: the facts line always shows the server's totals over every dependency. A row's menu (by the row's `can`, 1.22) opens the
+ * project page's own editor (the type and the lag; the ends are read-only and each names its project) or its delete confirmation; a save or a
+ * delete refreshes the plan and the roadmap groups. Adding a dependency stays on the page of the successor's project.
  */
 export default function Dependencies() {
   const { t } = useTranslation();
   const [params, setParams] = useSearchParams();
   const filter = parseDependencyListFilter(params);
   const { data, isLoading, isError, error } = useQuery({ queryKey: DEPENDENCY_LIST_KEY, queryFn: readDependencyList });
+  const queryClient = useQueryClient();
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const [editing, setEditing] = useState<DependencyListRow | null>(null);
+  const refresh = () => refreshQueriesAfterMutation(queryClient, ["plan"], ["roadmap"]);
+  // The delete flow is declared BEFORE the editor's focus hook: their effects run in this order after every render, and a delete made within
+  // seconds of a save must find the title focused by the delete's rule before the editor's watch (its kebab is gone with the row) could
+  // send the focus to the shell.
+  const removal = useDeleteConfirm<DependencyListRow>({
+    mutationFn: (row) => deleteDependency(row.id),
+    onSuccess: refresh,
+    successMessage: t("project.toast.dependencyDeleted"),
+    focusAfterDelete: titleRef,
+  });
+  useDialogFocus(editing !== null);
+  // A stable callback for the memoized rows: `requestDelete` is a new function each render (it only touches setters and refs, so the latest is always right).
+  const requestDelete = useRef(removal.requestDelete);
+  useEffect(() => {
+    requestDelete.current = removal.requestDelete;
+  });
+  const onDelete = useCallback((row: DependencyListRow) => requestDelete.current(row), []);
 
   const change = (patch: Partial<DependencyListFilter>) => setParams(dependencyListFilterParams({ ...filter, ...patch }), { replace: true });
   const rows = (data?.dependencies ?? []).filter((row) => matchesDependencyFilter(row, filter));
@@ -69,7 +97,7 @@ export default function Dependencies() {
 
   return (
     <Stack gap="md">
-      <PageHeader title={t("dependencyList.title")} description={t("dependencyList.intro")} />
+      <PageHeader title={t("dependencyList.title")} description={t("dependencyList.intro")} titleRef={titleRef} />
 
       <DependencyListFilters filter={filter} onChange={change} />
 
@@ -96,12 +124,24 @@ export default function Dependencies() {
           )}
         </Stack>
       )}
-      {data && rows.length > 0 && <DependencyListTable rows={rows} />}
+      {data && rows.length > 0 && <DependencyListTable rows={rows} onEdit={setEditing} onDelete={onDelete} />}
       {data?.truncated && (
         <Text size="sm" c="dimmed">
           {t("dependencyList.truncated", { count: data.dependencies.length })}
         </Text>
       )}
+      {editing && (
+        <DependencyEditorModal
+          project={null}
+          target={editing}
+          onClose={() => setEditing(null)}
+          onSaved={async () => {
+            setEditing(null);
+            await refresh();
+          }}
+        />
+      )}
+      <DependencyDeleteModal confirm={removal} ownProjectId={null} />
     </Stack>
   );
 }

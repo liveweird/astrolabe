@@ -2,7 +2,8 @@
   "title": "Obciążenie zespołów",
   "intro": "Zaplanowana praca każdego zespołu na tle jego przepustowości: tygodnie, które strona zespołu oznacza jako przeciążone albo ponad limitem WIP. Przeciążenie i WIP tylko ostrzegają — nic się nie przesuwa.",
   "filter": {
-    "warning": "Pokaż"
+    "warning": "Pokaż",
+    "past": "Pokaż też minione tygodnie"
   },
   "warning": {
     "all": "Wszystkie zespoły",
@@ -36,7 +37,12 @@
   "weeks": {
     "title": "Tygodnie z ostrzeżeniem",
     "intro": "Tygodnie, z których biorą się obie liczby ostrzeżeń, zespół po zespole, od najstarszego: obciążenie na tle przepustowości i najwięcej kamieni milowych w toku. Wszystkie tygodnie zespołu pokazuje jego strona.",
+    "introFrom": "Tygodnie, z których biorą się obie liczby ostrzeżeń, od tygodnia {{week}}, zespół po zespole, od najstarszego: obciążenie na tle przepustowości i najwięcej kamieni milowych w toku. Wszystkie tygodnie zespołu pokazuje jego strona.",
+    "earlier_one": "Nie pokazujemy tu {{count}} wcześniejszego tygodnia. Włącz „Pokaż też minione tygodnie”, aby go zobaczyć.",
+    "earlier_few": "Nie pokazujemy tu {{count}} wcześniejszych tygodni. Włącz „Pokaż też minione tygodnie”, aby je zobaczyć.",
+    "earlier_many": "Nie pokazujemy tu {{count}} wcześniejszych tygodni. Włącz „Pokaż też minione tygodnie”, aby je zobaczyć.",
+    "earlier_other": "Nie pokazujemy tu {{count}} wcześniejszego tygodnia. Włącz „Pokaż też minione tygodnie”, aby go zobaczyć.",
     "tableAria": "Tygodnie z ostrzeżeniem według zespołów",
-    "truncated": "Lista nie zawiera wszystkich tygodni: kończy się po {{count}}, zespół po zespole, więc późniejszy zespół może mieć ich mniej albo żadnego."
+    "truncated": "Lista nie zawiera wszystkich tygodni: mieści {{count}}, najpierw tygodnie od bieżącego (od najbliższego), potem wcześniejsze (od najpóźniejszego)."
   }
 }

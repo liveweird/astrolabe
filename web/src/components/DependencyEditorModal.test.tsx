@@ -236,6 +236,24 @@ describe("DependencyEditorModal", () => {
       expect(posts()).toEqual([]);
     });
 
+    test("on the list page (no project) every milestone end names its project, the ends stay read-only and the type and lag are PUT", async () => {
+      mockFetch.mockImplementation(() => Promise.resolve(new Response(null, { status: 204 })));
+      const user = userEvent.setup();
+      const onSaved = vi.fn(() => Promise.resolve());
+      // A list row: the successor milestone is in project 7, which would read as the bare name on that project's own page.
+      const row = { ...TARGET, successor: { kind: "MILESTONE", name: "Build", projectId: 7, projectName: "Invoices" } } as const;
+      renderWithProviders(<DependencyEditorModal project={null} target={row} onClose={vi.fn()} onSaved={onSaved} />);
+      const dialog = await screen.findByRole("dialog", { name: "Edit dependency" });
+      expect(within(dialog).getByRole("textbox", { name: "Predecessor" })).toHaveValue("a1 · Alpha");
+      expect(within(dialog).getByRole("textbox", { name: "Successor" })).toHaveValue("Build · Invoices");
+      expect(within(dialog).getByRole("textbox", { name: "Successor" })).toHaveAttribute("readonly");
+      await user.click(within(dialog).getByRole("combobox", { name: "Type" }));
+      await user.click(await screen.findByRole("option", { name: "Start → Start (SS)" }));
+      await user.click(within(dialog).getByRole("button", { name: "Save" }));
+      await waitFor(() => expect(onSaved).toHaveBeenCalled());
+      expect(puts()).toEqual([{ url: "/api/v1/dependencies/31", body: { type: "SS", lagDays: 3 } }]);
+    });
+
     test("an out-of-range lag is refused before anything is sent", async () => {
       const user = userEvent.setup();
       renderEdit();

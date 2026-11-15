@@ -2,7 +2,8 @@
   "title": "Team load",
   "intro": "Each team's scheduled work against its capacity: the weeks its page marks as overloaded or over the WIP limit. Overload and WIP only warn — nothing moves.",
   "filter": {
-    "warning": "Show"
+    "warning": "Show",
+    "past": "Include past weeks"
   },
   "warning": {
     "all": "Every team",
@@ -32,7 +33,10 @@
   "weeks": {
     "title": "Weeks with a warning",
     "intro": "The weeks behind the two warning figures, team by team, oldest first: the load against the capacity and the most milestones in progress. A team's page shows all its weeks.",
+    "introFrom": "The weeks behind the two warning figures from the week {{week}} on, team by team, oldest first: the load against the capacity and the most milestones in progress. A team's page shows all its weeks.",
+    "earlier_one": "{{count}} earlier week is left out here. Turn on \"Include past weeks\" to list it.",
+    "earlier_other": "{{count}} earlier weeks are left out here. Turn on \"Include past weeks\" to list them.",
     "tableAria": "Weeks with a warning, by team",
-    "truncated": "Not every week is listed: the list stops after {{count}} weeks, team by team, so a later team may show fewer weeks or none."
+    "truncated": "Not every week is listed: the list holds {{count}} weeks, those from this week on first (the nearest first), then earlier ones (the latest first)."
   }
 }

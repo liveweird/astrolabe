@@ -571,7 +571,7 @@ row is a roving stop of the grid (`RowActionsMenu`'s `trigger` prop spreads the 
 `utils/projectDependencies.ts` (pure: `ghostEndpoints`, `summaryRowNeeded`, `arrowSpecs`, `conflictCount`, `conflictsByBar`, `linksOfMilestone`),
 `utils/dependencyForm.ts` (form values, the self-link and lag rules, `toDependencyBody`, `cyclePathText`, `dependencySaveErrorMessage`; the edit's
 `editDependencyForm`, `dependencyEditValidation` (the lag only), `toDependencyUpdateBody`, `dependencyUpdateErrorMessage` and the shared
-`dependencyEndpointText`), `components/ProjectDependencies.tsx` (the h3 section: table, Delete, empty state), `DependencyEditorModal.tsx`,
+`dependencyEndpointText`, 1.22: its `ownProjectId` is `number | null`, `null` = no own project so every milestone end names its project; `EditableDependency` is what the editor and the delete read of a link), `components/ProjectDependencies.tsx` (the h3 section: table, Delete, empty state), `DependencyEditorModal.tsx`, `DependencyDeleteModal.tsx` (1.22: the delete confirmation's wording and error mapping, shared with the Dependencies page),
 `MilestoneSelect.tsx`, `ProjectSelect.tsx`, and in `ProjectTimelineRows.tsx` the summary row and the ghost rows, in `ProjectTimeline.tsx` the overlay, in `MilestoneMenu.tsx` the "Add dependency…" menu item.
 - **Row and bar ids.** Own milestones keep their numeric ids; the synthetic rows are strings that cannot collide: `project:<id>` (the summary row, one hollow
   bar of the derived span — none while nothing is scheduled), `ghost:m:<id>` / `ghost:p:<id>` (one per DISTINCT external endpoint WITH dates, sorted by start,
@@ -582,7 +582,7 @@ row is a roving stop of the grid (`RowActionsMenu`'s `trigger` prop spreads the 
   pointer drop needs the tray close to the timeline and in view with it (the e2e tray drop asserts both are inside the viewport), and the section is taller than
   the viewport slack once it holds an empty state.
 - **The page owns the dialog**, not the section: `Editor` has a `{kind: "dependency", successor}` variant so the section's button (successor null → "This
-  project") and a milestone's row-menu item (successor = that milestone) open the same `DependencyEditorModal`; the section owns only its Delete confirmation.
+  project") and a milestone's row-menu item (successor = that milestone) open the same `DependencyEditorModal`; the section owns only its Delete confirmation (the shared `DependencyDeleteModal`, 1.22).
   The page's `editDependency` variant (the row menu's "Edit…", `ProjectDependencies`' `onEdit`) opens the SAME modal with `target` set: ends as read-only
   `TextInput`s, `TypeAndLagFields` shared with the create, `updateDependency` on Save, success toast `project.toast.dependencySaved`, the cycle sentence
   `project.dependency.cycleEdit`; a held `ProjectDependency` snapshot is fine because a vanished link answers 404 ("This no longer exists"). The modal saves
@@ -982,16 +982,22 @@ figures use).
 
 ## Dependencies (`pages/Dependencies.tsx`, 1.20)
 
-`/dependencies` (nav: Planning after Milestones, `IconLink`, **everyone**, read-only; palette "Dependencies" / PL "Zależności") lists every dependency of the plan from the
+`/dependencies` (nav: Planning after Milestones, `IconLink`, **everyone**, edit and delete by the row's `can` since 1.22; palette "Dependencies" / PL "Zależności") lists every dependency of the plan from the
 ONE unpaged `GET /views/dependencies` (`api/dependencyList.ts` `getDependencyListView`, key `DEPENDENCY_LIST_KEY = ["plan","dependencies"]`, under `["plan"]` so every
-plan write refreshes it; at most 1,000 rows with `truncated`, the same document for every caller, no `can`). **The wire document names its ends once (1.21):** a row
+plan write refreshes it; at most 1,000 rows with `truncated`; since 1.22 each row carries the caller's own `can{edit, delete}`, the project view's flags, and nothing else differs between callers). **The wire document names its ends once (1.21):** a row
 holds `predecessor`/`successor` as `{kind, id}` and the names are in `milestones`, `projects` and `teams`, exactly what the listed rows name;
 `utils/dependencyListRows.ts` `resolveDependencyList` joins them back, once, in the page's query function (`readDependencyList`), so the cache holds the
 resolved list: each row's two ends are `{kind, id, name, projectId, projectName, teamId, teamName}` (the table, the filter and their tests read that, as before). It is
 NOT a `select`: a throwing `select` over a kept document makes TanStack Query 5.105 re-render without end (its error result carries a fresh `errorUpdatedAt` each
 time), whereas an error from the query function is the ordinary one. A reference the lists do not hold throws there: a failed read (below). Each row is the project
-view's own item minus `critical` and `can`, in the server's order (violated first, the largest shortfall first, then OK, then unscheduled): the page never sorts or recounts. The page changes
-nothing: no operations column, no dialog; each end names its project, whose page edits the link. The facts line (`role="group"`, "N dependencies", Home's own red
+view's own item minus `critical` and `can`, in the server's order (violated first, the largest shortfall first, then OK, then unscheduled): the page never sorts or recounts. **Changing a link (1.22):** a row
+offers "Edit…" and "Delete" in a `RowActionsMenu` (named `common.table.operationsAria` with "predecessor → successor", each end with its project) only under its own
+`can` flag, and a row with neither has no menu, never a disabled control; when no shown row offers anything the operations column (header `common.table.operations`) is absent altogether, otherwise a row
+without a menu has an empty cell. "Edit…" opens the project page's own `DependencyEditorModal` with `project={null}` (the type and the lag; both ends read-only, each
+naming its project; the page owns `useDialogFocus`, so the focus returns to the row's menu button); "Delete" goes through `useDeleteConfirm` and the shared
+`DependencyDeleteModal` (the project page's wording; the focus goes to the page title). A save or a delete refreshes `["plan"]` (this list, the plan, project and team views,
+Home) and `["roadmap"]`; the dialog's own errors (the cycle `409` with its path, the `403`, the `404` of a link deleted meanwhile) stay in the dialog and re-read nothing. Nothing is offered to a
+caller who may do nothing, and a new link is still added on the page of its successor's project. The facts line (`role="group"`, "N dependencies", Home's own red
 string `home.roadmap.conflicts` and a gray "N not scheduled yet", each badge only when positive, the whole line absent while the plan has no dependency) reads the
 document's `totals` over EVERY dependency, so a filter or the cap never changes it. The three filters are in the URL like the Milestones page's
 (`utils/dependencyListFilters.ts` `parseDependencyListFilter`, `dependencyListFilterParams`, `matchesDependencyFilter`, `narrowingCount`; a change `replace`s the
@@ -1012,10 +1018,10 @@ Home's links use).
   over a failed re-read, and no empty claim is made from it; a document whose row names an end the lists do not hold is that same failed read), no dependency at all (`totals.links === 0`), nothing matches the filters (with "Clear the filters"
   when a filter narrows), `truncated` (one dimmed line under the rows shown; when the filters hide every row READ, the line says
   "none of the first N" with the same Clear button, never "nothing matches").
-- **Tests**: `Dependencies.test.tsx`, `api/dependencyList.test.ts`, `utils/dependencyListRows.test.ts` (the resolver), `utils/dependencyListFilters.test.ts`, `utils/dependencyListLinks.test.ts`
+- **Tests**: `Dependencies.test.tsx`, `Dependencies.write.test.tsx` (the writes: the menu by `can`, the dialog, the confirmation, the refresh, the focus), `api/dependencyList.test.ts`, `utils/dependencyListRows.test.ts` (the resolver), `utils/dependencyListFilters.test.ts`, `utils/dependencyListLinks.test.ts`
   (fixtures `test/dependencyList.ts`: rows and ends are the RESOLVED shapes; `dependencyListView(rows)` answers the wire document built from them).
 
-## Team load (`pages/TeamLoad.tsx`, 1.19)
+## Team load (`pages/TeamLoad.tsx`, 1.19; weeks from this week on, 1.22)
 
 `/team-load` (nav: Planning after Milestones, `IconGauge`, **everyone**, read-only; palette "Team load" / PL "Obciążenie zespołów") lists every team against its
 capacity from the ONE unpaged `GET /views/team-load` (`api/teamLoad.ts` `getTeamLoadView`, key `TEAM_LOAD_KEY = ["plan","teamLoad"]`, under `["plan"]` so a
@@ -1025,7 +1031,8 @@ own and are shown as they arrive, never recounted: the facts line (`role="group"
 it. The one filter, `warning` = `overloaded` | `wip` | `any` (absent or unknown = every team), is in the URL like the Milestones page's
 (`utils/teamLoadFilters.ts` `parseTeamLoadFilter`, `teamLoadFilterParams`, `matchesWarning`; a change `replace`s the entry; no remembered filter) and is applied
 in the browser over the rows, so changing it makes no second read. `any` means an overloaded week or a week over the WIP limit; weeks without capacity are a
-fact, not a warning. `utils/teamLoadLinks.ts` spells the route once (`teamLoadPath`, `teamLoadWarningPath(warning)`, the builder Home's two capacity badges use).
+fact, not a warning. **Since 1.22 a second filter, `past` (`?past=true`, the exact word; anything else reads as off), is the "Include past weeks" `Switch` after the
+Show select** (`teamLoad.filter.past`; the filter badge counts it; each control's change keeps the other's parameter, `replace`). `utils/teamLoadLinks.ts` spells the route once (`teamLoadPath`, `teamLoadWarningPath(warning)`, the builder Home's two capacity badges use).
 
 - **Columns**: Team (the link to the team page, `teams.openAria`), Manager (dimmed "No manager" when none), Milestones, Not scheduled (a link to
   `unscheduledMilestonesPath({teamId})` named by its row, `teamLoad.notScheduledAria`, only when positive; a plain 0 otherwise), Overloaded and WIP (the team
@@ -1037,13 +1044,22 @@ fact, not a warning. `utils/teamLoadLinks.ts` spells the route once (`teamLoadPa
   with a warning, by team" (a `ScrollRegion`, min width 720, max height 420, sticky header): one row per team and week, in the document's order (team by team,
   oldest week first) — Team (the same `teams.openAria` link as the teams table; tests and e2e scope by table), Week, Load, Capacity, In progress (peak) and
   Status. The weeks are the document's `warningWeeks` (the team page's own `WeekLoad`, no `flowCapacity`), shown as they arrive; the cells are
-  `components/WeekLoadCells.tsx` (`WeekStatus`, with `weekLabel` and `mdText` in `utils/weekLoadText.ts`, moved out of `TeamWeeklyLoad.tsx`, which imports them back). The "Show" filter keeps
+  `components/WeekLoadCells.tsx` (`WeekStatus`, with `weekLabel` and `mdText` in `utils/weekLoadText.ts`, moved out of `TeamWeeklyLoad.tsx`, which imports them back). **Since 1.22 the section lists the weeks from the document's `currentWeekStart`
+  on** (the server's Monday in UTC, written into the document by `GET /views/team-load`; the page never reads the browser's clock; a week ON it stays; ISO dates compare
+  as text in `matchesWeek`'s third argument) unless `past=true`, which lists every listed week and restores 1.21's sentence; the default sentence
+  (`teamLoad.weeks.introFrom`) names the week with `weekLabel`. **A dimmed line, `teamLoad.weeks.earlier` ("N earlier weeks are left out here. Turn on "Include past
+  weeks" to list them."), counts what the date hides** (`earlierWeekCount`: the listed weeks of the rows the Show filter keeps that its warning keeps and the date
+  hides) and shows whether or not the section does, so a team with "3 weeks overloaded" and no week below is never a riddle; it is absent with `past=true`, when
+  nothing is hidden and while there is no answer. The date only HIDES listed weeks: the teams table's three counts, the facts line and Home's two team figures
+  still count every week (as the team page's badges do), so no figure moves with the switch, and it makes no second read. The server keeps its 2,000-week
+  budget for the weeks from the current week on first (the nearest first), then the earlier ones (the latest first), so `teamLoad.weeks.truncated` says so.
+  The "Show" filter keeps
   the teams the table above keeps AND narrows their weeks (`matchesWeek`: `overloaded` the overloaded weeks, `wip` the weeks over the limit, `any` or none
   every listed week), in the browser, from the same one read. The section is ABSENT when no week is left (zero is no claim, and no sentence says "no
   warnings"), while the first read runs and after a failed first read; a failed re-read keeps the kept document's weeks under the alert. The weeks without
   capacity stay a count. `warningWeeksTruncated` shows one dimmed line, "Not every week is listed: the list stops after N weeks, team by team, so a later team may show fewer weeks or none" (N = the weeks the document
   lists), under the section or alone when it is absent, so a short or missing list is never read as "none".
-- **Tests**: `TeamLoad.test.tsx`, `api/teamLoad.test.ts`, `utils/teamLoadFilters.test.ts`, `utils/teamLoadLinks.test.ts` (fixtures `test/teamLoad.ts`).
+- **Tests**: `TeamLoad.test.tsx` (since 1.22 also the date, the line, the switch, a pinned far-off browser clock), `api/teamLoad.test.ts`, `utils/teamLoadFilters.test.ts`, `utils/teamLoadLinks.test.ts` (fixtures `test/teamLoad.ts`).
 
 ## Baselines (`pages/Baselines.tsx`, `pages/BaselineCompare.tsx`, v0.9)
 

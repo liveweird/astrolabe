@@ -7,9 +7,11 @@
 // and D -> C (D is not scheduled). All seeded through the API in the test and removed through the API (the projects first - their milestones and
 // links go with them - then program, work stream, team, person), even after a failure. It writes no ranking, no holiday and no connection, and needs
 // no lock. The shortfall is matched by a pattern, never a number. The Team select lists every team of the plan (read to the end, 1.21), so the number
-// of other specs' teams cannot hide this spec's own from it.
+// of other specs' teams cannot hide this spec's own from it. The 1.22 test (edit and delete from the list) also owns two throwaway logins
+// (`e2e-deplist-owner-*`, whose person owns the whole tree, and `e2e-deplist-nobody-*`, linked to no person), created and removed through the API too.
+import { randomUUID } from "node:crypto";
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
-import { apiAsAdmin, deleteViaApi, expect, login, openFilters, test, uniqueText } from "./helpers";
+import { apiAsAdmin, deleteViaApi, expect, login, openFilters, rowOperation, test, uniqueText } from "./helpers";
 
 // Registered in creation order; torn down in reverse (the projects before their program before its stream before the team and the person).
 const teardown: string[] = [];
@@ -23,6 +25,11 @@ async function seed(api: APIRequestContext, path: string, data: object, tear?: s
   const id = ((await response.json()) as { id: number }).id;
   if (tear !== undefined) teardown.push(`${tear}/${id}`);
   return id;
+}
+
+interface Account {
+  email: string;
+  password: string;
 }
 
 interface World {
@@ -51,10 +58,29 @@ async function schedule(api: APIRequestContext, projectId: number, milestoneId: 
   throw new Error(`milestone ${milestoneId}: the schedule stayed stale after 10 attempts`);
 }
 
-async function seedWorld(): Promise<World> {
+/** A USER login (not an administrator) with a generated password, removed in the afterEach. */
+async function seedUser(api: APIRequestContext, label: string): Promise<{ id: number; account: Account }> {
+  const name = uniqueText(`e2e-deplist-${label}`);
+  const account = { email: `${name.toLowerCase()}@astrolabe.local`, password: randomUUID().replace(/-/g, "") };
+  const id = await seed(api, "/api/v1/users", { name, email: account.email, password: account.password }, "/api/v1/users");
+  return { id, account };
+}
+
+interface Logins {
+  /** The login of the person who owns the work stream, the program and both projects. */
+  owner: Account;
+  /** A login linked to no person. */
+  nobody: Account;
+}
+
+async function seedWorld(): Promise<World>;
+async function seedWorld(withLogins: true): Promise<World & Logins>;
+async function seedWorld(withLogins = false): Promise<World | (World & Logins)> {
   const { api } = await apiAsAdmin();
   try {
-    const person = await seed(api, "/api/v1/people", { name: uniqueText("e2e-deplist-person") }, "/api/v1/people");
+    const owner = withLogins ? await seedUser(api, "owner") : null;
+    const nobody = withLogins ? await seedUser(api, "nobody") : null;
+    const person = await seed(api, "/api/v1/people", { name: uniqueText("e2e-deplist-person"), ...(owner === null ? {} : { userId: owner.id }) }, "/api/v1/people");
     const team = uniqueText("e2e-deplist-team");
     const teamId = await seed(api, "/api/v1/teams", { name: team }, "/api/v1/teams");
     const stream = await seed(api, "/api/v1/work-streams", { name: uniqueText("e2e-deplist-stream"), ownerPersonId: person, startDate: "2026-01-05" }, "/api/v1/work-streams");
@@ -80,7 +106,8 @@ async function seedWorld(): Promise<World> {
     await link(aId, bId, first.id);
     await link(aId, cId, first.id);
     await link(dId, cId, first.id);
-    return { team, teamId, programId, first, second, a, b, c, d };
+    const world = { team, teamId, programId, first, second, a, b, c, d };
+    return owner === null || nobody === null ? world : { ...world, owner: owner.account, nobody: nobody.account };
   } finally {
     await api.dispose();
   }
@@ -173,4 +200,60 @@ test("the roadmap's row menu, the team page and Home open the Dependencies page 
   await openFilters(page);
   await expect(page.getByRole("combobox", { name: "Status", exact: true })).toHaveValue("Violated");
   await expect(rows(page).filter({ hasText: world.a }).filter({ hasText: world.b })).toHaveCount(1);
+});
+
+// 1.22: the list changes a link. The owner of the successor's project (every successor here is in the first project, whose person owns the whole
+// tree) gets a menu on each row; a login linked to no person gets none. The spec's own project is the page's only scope, so no other worker's
+// row is counted.
+test("the owner of the successor's project changes a dependency's type and deletes it from the Dependencies page, and a user who owns nothing gets no row menu", async ({ page }) => {
+  const world = await seedWorld(true);
+  const linkName = `${world.a} · ${world.first.name} → ${world.c} · ${world.first.name}`;
+  const row = rows(page).filter({ hasText: world.a }).filter({ hasText: world.c });
+  const menuButton = row.getByRole("button", { name: `Operations for ${linkName}`, exact: true });
+
+  // The owner sees three rows, each with its menu; the one of A and C is named by both ends with their projects.
+  await login(page, world.owner.email, world.owner.password);
+  await page.goto(`/dependencies?projectId=${world.first.id}`);
+  await expect(heading(page)).toBeVisible();
+  await expect(rows(page)).toHaveCount(3);
+  await expect(rows(page).getByRole("button", { name: /^Operations for / })).toHaveCount(3);
+  await expect(menuButton).toBeVisible();
+
+  // "Edit…" opens the project page's dialog (both ends read-only, each with its project); the new type shows in the row and the focus returns to the menu.
+  await rowOperation(page, linkName, `Edit ${linkName}`);
+  const dialog = page.getByRole("dialog", { name: "Edit dependency" });
+  await expect(dialog.getByRole("textbox", { name: "Predecessor" })).toHaveValue(`${world.a} · ${world.first.name}`);
+  await expect(dialog.getByRole("textbox", { name: "Successor" })).toHaveValue(`${world.c} · ${world.first.name}`);
+  await dialog.getByRole("combobox", { name: "Type" }).click();
+  await page.getByRole("option", { name: "Start → Start (SS)", exact: true }).click();
+  await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "PUT" && /\/api\/v1\/dependencies\/\d+$/.test(r.url()) && r.status() === 204),
+    dialog.getByRole("button", { name: "Save", exact: true }).click(),
+  ]);
+  await expect(dialog).toHaveCount(0);
+  await expect(row).toContainText("Start → Start (SS)");
+  await expect(menuButton).toBeFocused();
+
+  // "Delete" confirms and removes the row; the page title takes the focus; the project's own page no longer lists the link.
+  await rowOperation(page, linkName, `Delete ${linkName}`);
+  const confirm = page.getByRole("dialog", { name: "Delete dependency?" });
+  await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "DELETE" && /\/api\/v1\/dependencies\/\d+$/.test(r.url()) && r.status() === 204),
+    confirm.getByRole("button", { name: "Delete", exact: true }).click(),
+  ]);
+  await expect(confirm).toHaveCount(0);
+  await expect(rows(page)).toHaveCount(2);
+  await expect(heading(page)).toBeFocused();
+  await page.goto(`/projects/${world.first.id}`);
+  const projectLinks = page.getByRole("table", { name: "Dependencies of the project", exact: true }).locator("tbody tr");
+  await expect(projectLinks).toHaveCount(2);
+  await expect(projectLinks.filter({ hasText: world.a }).filter({ hasText: world.c })).toHaveCount(0);
+
+  // A login that owns nothing reads the same two rows and is offered no menu and no operations column.
+  await login(page, world.nobody.email, world.nobody.password);
+  await page.goto(`/dependencies?projectId=${world.first.id}`);
+  await expect(heading(page)).toBeVisible();
+  await expect(rows(page)).toHaveCount(2);
+  await expect(rows(page).getByRole("button")).toHaveCount(0);
+  await expect(page.getByRole("columnheader", { name: "Operations", exact: true })).toHaveCount(0);
 });

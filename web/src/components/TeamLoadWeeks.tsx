@@ -15,11 +15,20 @@ const TABLE_MAX_HEIGHT = 420;
  * The Team load page's second table: the weeks BEHIND the two warning figures, one row per team and week the team's page marks overloaded or over
  * the WIP limit, in the document's order (team by team, oldest week first). `rows` are the teams the page's "Show" filter keeps; `warning` narrows
  * their listed weeks the same way. The cells are the team page's own (`WeekLoadCells.tsx`), shown as they arrive. Nothing renders when no week is
- * left (zero is no claim: the document lists only warning weeks, and a cut list is the page's own line).
+ * left (zero is no claim: the document lists only warning weeks, and a cut list is the page's own line). `from` (1.22) is the document's current week:
+ * the weeks before it are not listed and the sentence says from which week the list runs; unset, every listed week shows.
  */
-export default function TeamLoadWeeks({ rows, warning }: { rows: readonly TeamLoadRow[]; warning: TeamLoadWarning | undefined }) {
+export default function TeamLoadWeeks({
+  rows,
+  warning,
+  from,
+}: {
+  rows: readonly TeamLoadRow[];
+  warning: TeamLoadWarning | undefined;
+  from?: string;
+}) {
   const { t } = useTranslation();
-  const weeks = rows.flatMap((row) => row.warningWeeks.filter((week) => matchesWeek(week, warning)).map((week) => ({ row, week })));
+  const weeks = rows.flatMap((row) => row.warningWeeks.filter((week) => matchesWeek(week, warning, from)).map((week) => ({ row, week })));
   if (weeks.length === 0) return null;
   return (
     <Stack gap="xs">
@@ -27,7 +36,7 @@ export default function TeamLoadWeeks({ rows, warning }: { rows: readonly TeamLo
         {t("teamLoad.weeks.title")}
       </Title>
       <Text size="sm" c="dimmed">
-        {t("teamLoad.weeks.intro")}
+        {from === undefined ? t("teamLoad.weeks.intro") : t("teamLoad.weeks.introFrom", { week: weekLabel(from) })}
       </Text>
       <ScrollRegion label={t("teamLoad.weeks.tableAria")} minWidth={720} maxHeight={TABLE_MAX_HEIGHT}>
         <Table aria-label={t("teamLoad.weeks.tableAria")} stickyHeader>

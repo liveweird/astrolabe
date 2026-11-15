@@ -8,9 +8,8 @@ import type { ProjectView } from "../api/milestones";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { dependencyEndpointText } from "../utils/dependencyForm";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
-import { saveErrorMessage } from "../utils/saveError";
-import ConfirmDeleteModal from "./ConfirmDeleteModal";
 import { DependencyStatusBadge, DependencyLagText } from "./DependencyCells";
+import DependencyDeleteModal from "./DependencyDeleteModal";
 import DestructiveMenuItem from "./DestructiveMenuItem";
 import EmptyState from "./EmptyState";
 import RowActionsMenu from "./RowActionsMenu";
@@ -149,26 +148,7 @@ export default function ProjectDependencies({
           </ScrollRegion>
         </>
       )}
-      <ConfirmDeleteModal
-        confirm={removal}
-        title={t("project.dependency.deleteTitle")}
-        errorTitle={t("project.dependency.deleteFailed")}
-        errorMessage={(error) =>
-          saveErrorMessage(error, t, {
-            forbidden: "project.dependency.saveForbidden",
-            notFound: "project.saveGone",
-            failedStatus: "common.error.actionFailedStatus",
-            failed: "common.error.actionFailed",
-          })
-        }
-        body={(dependency) =>
-          t("project.dependency.deleteBody", {
-            predecessor: dependencyEndpointText(dependency.predecessor, project.id, t),
-            successor: dependencyEndpointText(dependency.successor, project.id, t),
-            type: dependency.type,
-          })
-        }
-      />
+      <DependencyDeleteModal confirm={removal} ownProjectId={project.id} />
     </Stack>
   );
 }

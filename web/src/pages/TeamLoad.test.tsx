@@ -346,13 +346,13 @@ describe("Team load page: the weeks with a warning (1.21)", () => {
     answer = () => jsonResponse(200, teamLoadView(WITH_WEEKS, { warningWeeksTruncated: true }));
     const { unmount } = renderPage();
     await weeksTable();
-    expect(screen.getByText("Not every week is listed: the list stops after 3 weeks, team by team, so a later team may show fewer weeks or none.")).toBeInTheDocument();
+    expect(screen.getByText("Not every week is listed: the list holds 3 weeks, those from this week on first (the nearest first), then earlier ones (the latest first).")).toBeInTheDocument();
     unmount();
     answer = () => jsonResponse(200, teamLoadView([teamLoadRow({ id: 6, name: "Mobile", overloadedWeeks: 4 })], { warningWeeksTruncated: true }));
     renderPage();
     await screen.findByRole("table", { name: "Load of every team" });
     expect(screen.queryByRole("table", { name: "Weeks with a warning, by team" })).toBeNull();
-    expect(screen.getByText("Not every week is listed: the list stops after 0 weeks, team by team, so a later team may show fewer weeks or none.")).toBeInTheDocument();
+    expect(screen.getByText("Not every week is listed: the list holds 0 weeks, those from this week on first (the nearest first), then earlier ones (the latest first).")).toBeInTheDocument();
   });
 
   test("a complete document says nothing about a cut", async () => {
@@ -397,6 +397,171 @@ describe("Team load page: the weeks with a warning (1.21)", () => {
     const table = await screen.findByRole("table", { name: "Tygodnie z ostrzeżeniem według zespołów" });
     expect(screen.getByRole("heading", { level: 3, name: "Tygodnie z ostrzeżeniem" })).toBeInTheDocument();
     expect(within(table).getByText("Przeciążenie · +9.00 osobodnia")).toBeInTheDocument();
-    expect(screen.getByText("Lista nie zawiera wszystkich tygodni: kończy się po 3, zespół po zespole, więc późniejszy zespół może mieć ich mniej albo żadnego.")).toBeInTheDocument();
+    expect(screen.getByText("Lista nie zawiera wszystkich tygodni: mieści 3, najpierw tygodnie od bieżącego (od najbliższego), potem wcześniejsze (od najpóźniejszego).")).toBeInTheDocument();
+  });
+});
+
+describe("Team load page: the weeks from this week on (1.22)", () => {
+  const EARLY = teamLoadWeek({ weekStart: "2027-02-01", load: 6, capacity: 10, overloaded: false, overloadMd: null, maxWip: 4, wipExceeded: true });
+  const EARLY_OVER = teamLoadWeek({ weekStart: "2027-03-29", load: 14, capacity: 10, overloadMd: 4, maxWip: 2 });
+  const ON_WEEK = teamLoadWeek({ weekStart: "2027-04-05", load: 10, capacity: 1, overloadMd: 9, maxWip: 1 });
+  const LATER = teamLoadWeek({ weekStart: "2027-04-12", load: 12.5, capacity: 10, overloadMd: 2.5, maxWip: 5, wipExceeded: true });
+  const ROWS = [
+    teamLoadRow({ id: 3, name: "Backend", overloadedWeeks: 3, wipExceededWeeks: 2, warningWeeks: [EARLY_OVER, ON_WEEK, LATER] }),
+    teamLoadRow({ id: 5, name: "Data", wipExceededWeeks: 1, warningWeeks: [EARLY] }),
+    teamLoadRow({ id: 6, name: "Mobile", overloadedWeeks: 2 }),
+  ];
+  // The document's own week, never the browser's clock: this Monday is neither today nor near it.
+  const CURRENT = "2027-04-05";
+  const weeksTable = () => screen.findByRole("table", { name: "Weeks with a warning, by team" });
+  const weekLabels = (table: HTMLElement) => within(table).getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell")[1]!.textContent);
+
+  beforeEach(() => {
+    answer = () => jsonResponse(200, teamLoadView(ROWS, { currentWeekStart: CURRENT }));
+    mockFetch = vi.fn(() => Promise.resolve(answer()));
+    vi.stubGlobal("fetch", mockFetch);
+    localStorage.setItem("astrolabe.auth.token", "fake-token");
+  });
+  afterEach(async () => {
+    vi.unstubAllGlobals();
+    localStorage.clear();
+    forgetRevalidated();
+    await i18n.changeLanguage("en");
+  });
+
+  test("by default a week before the current week is not a row and the week ON it is; the sentence names the week", async () => {
+    renderPage();
+    const table = await weeksTable();
+    expect(weekLabels(table)).toEqual(["W14 · 2027-04-05", "W15 · 2027-04-12"]);
+    expect(screen.getByText(/^The weeks behind the two warning figures from the week W14 · 2027-04-05 on, team by team, oldest first/)).toBeInTheDocument();
+    expect(screen.queryByText(/^The weeks behind the two warning figures, team by team/)).toBeNull();
+  });
+
+  test("the line counts the earlier weeks the date hides among the rows and the warning shown", async () => {
+    renderPage();
+    await weeksTable();
+    expect(screen.getByText('2 earlier weeks are left out here. Turn on "Include past weeks" to list them.')).toBeInTheDocument();
+  });
+
+  test("the line follows the Show filter: it counts only what the warning would list", async () => {
+    renderPage("/team-load?warning=wip");
+    await weeksTable();
+    // Backend's 03-29 week is overloaded only, so under "wip" just Data's 02-01 week is hidden.
+    expect(screen.getByText('1 earlier week is left out here. Turn on "Include past weeks" to list it.')).toBeInTheDocument();
+  });
+
+  test("the line shows when no week is left to list, so the teams table's counts are never a riddle", async () => {
+    answer = () => jsonResponse(200, teamLoadView([ROWS[1]!], { currentWeekStart: CURRENT }));
+    renderPage();
+    await screen.findByRole("table", { name: "Load of every team" });
+    expect(screen.queryByRole("table", { name: "Weeks with a warning, by team" })).toBeNull();
+    expect(screen.getByText('1 earlier week is left out here. Turn on "Include past weeks" to list it.')).toBeInTheDocument();
+    expect(screen.getByText("1 week over WIP limit")).toBeInTheDocument();
+  });
+
+  test("the line is absent when nothing is hidden, while the read runs and after a failed first read", async () => {
+    answer = () => jsonResponse(200, teamLoadView([ROWS[0]!], { currentWeekStart: "2027-03-29" }));
+    const { unmount } = renderPage();
+    await weeksTable();
+    expect(screen.queryByText(/earlier weeks? (is|are) left out/)).toBeNull();
+    unmount();
+    answer = () => jsonResponse(500, { title: "x", status: 500 });
+    renderPage();
+    expect(await screen.findByText("Could not load the teams' load")).toBeInTheDocument();
+    expect(screen.queryByText(/earlier weeks? (is|are) left out/)).toBeNull();
+  });
+
+  test("the switch writes ?past=true by replace, lists every listed week from the same read, restores the old sentence and drops the line", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await weeksTable();
+    await user.click(screen.getByRole("button", { name: "Filters" }));
+    await user.click(screen.getByRole("switch", { name: "Include past weeks" }));
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/team-load?past=true"));
+    expect(screen.getByTestId("nav")).toHaveTextContent("REPLACE");
+    expect(weekLabels(await weeksTable())).toEqual(["W13 · 2027-03-29", "W14 · 2027-04-05", "W15 · 2027-04-12", "W05 · 2027-02-01"]);
+    expect(screen.getByText(/^The weeks behind the two warning figures, team by team, oldest first/)).toBeInTheDocument();
+    expect(screen.queryByText(/earlier weeks? (is|are) left out/)).toBeNull();
+    await user.click(screen.getByRole("switch", { name: "Include past weeks" }));
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent(/^\/team-load$/));
+    expect(weekLabels(await weeksTable())).toEqual(["W14 · 2027-04-05", "W15 · 2027-04-12"]);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  test("the Show select keeps past=true and the switch keeps the warning", async () => {
+    const user = userEvent.setup();
+    renderPage("/team-load?past=true");
+    await weeksTable();
+    await user.click(screen.getByRole("button", { name: /Filters/ }));
+    await user.click(screen.getByRole("combobox", { name: "Show" }));
+    await user.click(await screen.findByRole("option", { name: "Over the WIP limit" }));
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/team-load?warning=wip&past=true"));
+    await user.click(screen.getByRole("switch", { name: "Include past weeks" }));
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/team-load?warning=wip"));
+    expect(screen.getByTestId("where")).not.toHaveTextContent("past");
+  });
+
+  test("?warning=wip&past=true combines: the matching weeks of every date", async () => {
+    renderPage("/team-load?warning=wip&past=true");
+    const table = await weeksTable();
+    expect(weekLabels(table)).toEqual(["W15 · 2027-04-12", "W05 · 2027-02-01"]);
+  });
+
+  test("the filter badge counts the switch", async () => {
+    const { unmount } = renderPage("/team-load?past=true");
+    await weeksTable();
+    expect(screen.getByRole("button", { name: /Filters/ })).toHaveTextContent("1");
+    unmount();
+    renderPage("/team-load?warning=wip&past=true");
+    await weeksTable();
+    expect(screen.getByRole("button", { name: /Filters/ })).toHaveTextContent("2");
+  });
+
+  test("past=1 and past=false read as off", async () => {
+    renderPage("/team-load?past=1");
+    const table = await weeksTable();
+    expect(weekLabels(table)).toEqual(["W14 · 2027-04-05", "W15 · 2027-04-12"]);
+  });
+
+  test("the teams table counts every week whatever the date hides", async () => {
+    renderPage();
+    await weeksTable();
+    const backend = within(screen.getByRole("table", { name: "Load of every team" })).getByRole("link", { name: "Open team Backend" }).closest("tr")!;
+    expect(within(backend).getByText("3 weeks overloaded")).toBeInTheDocument();
+    expect(within(backend).getByText("2 weeks over WIP limit")).toBeInTheDocument();
+  });
+
+  test("a cut document reads the new order in its line", async () => {
+    answer = () => jsonResponse(200, teamLoadView(ROWS, { currentWeekStart: CURRENT, warningWeeksTruncated: true }));
+    renderPage();
+    await weeksTable();
+    expect(screen.getByText("Not every week is listed: the list holds 4 weeks, those from this week on first (the nearest first), then earlier ones (the latest first).")).toBeInTheDocument();
+  });
+
+  test("the browser's clock never decides: with the clock far later the same weeks show", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2030-01-01T00:00:00Z"));
+    try {
+      renderPage();
+      const table = await weeksTable();
+      expect(weekLabels(table)).toEqual(["W14 · 2027-04-05", "W15 · 2027-04-12"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("speaks Polish in the bundle's own words", async () => {
+    await i18n.changeLanguage("pl");
+    const { unmount } = renderPage();
+    await screen.findByRole("table", { name: "Tygodnie z ostrzeżeniem według zespołów" });
+    expect(screen.getByText("Nie pokazujemy tu 2 wcześniejszych tygodni. Włącz „Pokaż też minione tygodnie”, aby je zobaczyć.")).toBeInTheDocument();
+    expect(screen.getByText(/od tygodnia W14 · 2027-04-05, zespół po zespole, od najstarszego/)).toBeInTheDocument();
+    unmount();
+    answer = () => jsonResponse(200, teamLoadView([ROWS[1]!], { currentWeekStart: CURRENT }));
+    renderPage();
+    expect(await screen.findByText("Nie pokazujemy tu 1 wcześniejszego tygodnia. Włącz „Pokaż też minione tygodnie”, aby go zobaczyć.")).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Filtry" }));
+    expect(screen.getByRole("switch", { name: "Pokaż też minione tygodnie" })).toBeInTheDocument();
   });
 });

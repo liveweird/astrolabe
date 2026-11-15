@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink, useSearchParams } from "react-router-dom";
-import { Anchor, Badge, Button, Group, Select, Stack, Table, Text } from "@mantine/core";
+import { Anchor, Badge, Button, Group, Select, Stack, Switch, Table, Text } from "@mantine/core";
 import { IconUsersGroup } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { getTeamLoadView, TEAM_LOAD_KEY, type TeamLoadRow, type TeamLoadView } from "../api/teamLoad";
@@ -12,7 +12,7 @@ import PageHeader from "../components/PageHeader";
 import ScrollRegion from "../components/ScrollRegion";
 import TeamLoadWeeks from "../components/TeamLoadWeeks";
 import { unscheduledMilestonesPath } from "../utils/milestoneLinks";
-import { matchesWarning, parseTeamLoadFilter, teamLoadFilterParams } from "../utils/teamLoadFilters";
+import { earlierWeekCount, matchesWarning, parseTeamLoadFilter, teamLoadFilterParams } from "../utils/teamLoadFilters";
 import { teamPath } from "../utils/teamLinks";
 
 const CHOICES = ["all", "overloaded", "wip", "any"] as const;
@@ -93,7 +93,10 @@ function TeamLoadTableRow({ row }: { row: TeamLoadRow }) {
  * page's own, shown as they arrive). The "warning" filter is in the URL (`utils/teamLoadFilters.ts`; a change `replace`s the entry, so Home's two
  * capacity badges, a reload and Back all restore the view) and only hides rows: the facts line always shows the totals over every team. Under the
  * teams table, "Weeks with a warning" (`components/TeamLoadWeeks.tsx`) lists the weeks behind the two warning figures from the same document
- * (1.21); it follows the filter, is absent when no week is left (never a "no warnings" claim) and a cut document says so in one line.
+ * (1.21); it follows the filter, is absent when no week is left (never a "no warnings" claim) and a cut document says so in one line. Since 1.22 it
+ * lists the weeks from the DOCUMENT's `currentWeekStart` on (the server's Monday, never the browser's clock); the "Include past weeks" switch
+ * (`?past=true`) brings the earlier ones back, and while they are hidden one dimmed line counts them. The date only hides listed weeks: the teams
+ * table's counts, the facts line and Home's figures still count every week.
  */
 export default function TeamLoad() {
   const { t } = useTranslation();
@@ -101,8 +104,12 @@ export default function TeamLoad() {
   const filter = parseTeamLoadFilter(params);
   const { data, isLoading, isError, error } = useQuery({ queryKey: TEAM_LOAD_KEY, queryFn: getTeamLoadView });
 
-  const choose = (choice: Choice) => setParams(teamLoadFilterParams({ warning: choice === "all" ? undefined : choice }), { replace: true });
+  const choose = (choice: Choice) => setParams(teamLoadFilterParams({ ...filter, warning: choice === "all" ? undefined : choice }), { replace: true });
+  const choosePast = (past: boolean) => setParams(teamLoadFilterParams({ ...filter, past: past ? true : undefined }), { replace: true });
   const rows = (data?.teams ?? []).filter((row) => matchesWarning(row, filter.warning));
+  // The weeks the page lists start at the document's own current week (the server's), unless the switch asks for the earlier ones.
+  const from = filter.past === true ? undefined : data?.currentWeekStart;
+  const hiddenWeeks = data === undefined || from === undefined ? 0 : earlierWeekCount(rows, filter.warning, from);
   // An empty list is a claim about a READ: made only from an answer, never over a failed refresh.
   const settled = data !== undefined && !isError;
 
@@ -110,7 +117,7 @@ export default function TeamLoad() {
     <Stack gap="md">
       <PageHeader title={t("teamLoad.title")} description={t("teamLoad.intro")} />
 
-      <FilterPanel activeFilterCount={filter.warning === undefined ? 0 : 1} storageKey="teamLoad">
+      <FilterPanel activeFilterCount={(filter.warning === undefined ? 0 : 1) + (filter.past === true ? 1 : 0)} storageKey="teamLoad">
         <Select
           label={t("teamLoad.filter.warning")}
           data={CHOICES.map((choice) => ({ value: choice, label: t(`teamLoad.warning.${choice}`) }))}
@@ -118,6 +125,7 @@ export default function TeamLoad() {
           onChange={(selected) => selected !== null && choose(selected as Choice)}
           allowDeselect={false}
         />
+        <Switch label={t("teamLoad.filter.past")} checked={filter.past === true} onChange={(event) => choosePast(event.currentTarget.checked)} />
       </FilterPanel>
 
       {isError && <ErrorAlert error={error} title={t("teamLoad.loadFailed")} />}
@@ -160,7 +168,13 @@ export default function TeamLoad() {
           {t("teamLoad.truncated", { count: data.teams.length })}
         </Text>
       )}
-      {data && <TeamLoadWeeks rows={rows} warning={filter.warning} />}
+      {data && <TeamLoadWeeks rows={rows} warning={filter.warning} from={from} />}
+      {hiddenWeeks > 0 && (
+        // Shown whether or not the section is: a team with "3 weeks overloaded" and no week below is never a riddle.
+        <Text size="sm" c="dimmed">
+          {t("teamLoad.weeks.earlier", { count: hiddenWeeks })}
+        </Text>
+      )}
       {data?.warningWeeksTruncated && (
         // Whenever the document was cut, also when the section is absent or short: an absent list is never read as "none".
         <Text size="sm" c="dimmed">

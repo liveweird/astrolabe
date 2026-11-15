@@ -1,5 +1,6 @@
 // Dependencies list API (`/api/v1/views/dependencies`, 1.20) - every dependency of the plan in one read, the ones that do not hold first. A read
-// for everyone signed in, the same for every caller; nothing is written through it. The WIRE document names each end by kind and id and states the
+// for everyone signed in; each row carries the caller's own `can{edit, delete}` (1.22, the project view's flags), nothing else differs between callers;
+// nothing is written through it. The WIRE document names each end by kind and id and states the
 // names once (1.21); `utils/dependencyListRows.ts` joins them back onto the rows. Thin endpoint wrapper: transport in ./http, types from ./schema.
 
 import { revalidatedRequest } from "./revalidate";

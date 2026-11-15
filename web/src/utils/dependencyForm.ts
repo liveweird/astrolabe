@@ -4,6 +4,19 @@ import type { components } from "../api/schema";
 import type { PickedOption } from "../components/SearchPicker";
 import { saveErrorMessage } from "./saveError";
 
+/**
+ * What the editor and the delete confirmation read of a link: its id, type and lag and, per end, the kind, the name and the project. The project
+ * view's `ProjectDependency` and the Dependencies page's resolved row both satisfy it, so one dialog serves both pages.
+ */
+export type EditableDependency = {
+  id: number;
+  type: DependencyType;
+  lagDays: number;
+  predecessor: EditableEnd;
+  successor: EditableEnd;
+};
+type EditableEnd = Pick<DependencyEndpoint, "kind" | "name" | "projectId" | "projectName">;
+
 /** The server's lag range (V15 CHECK, working days; a negative lag is a lead). */
 export const MIN_LAG_DAYS = -365;
 export const MAX_LAG_DAYS = 365;
@@ -86,8 +99,11 @@ export function toDependencyUpdateBody(values: DependencyFormValues): Dependency
   return { type: values.type, lagDays: lagOf(values.lagDays) ?? 0 };
 }
 
-/** An endpoint in words: a milestone (with its project when that is another one) or a whole project. */
-export function dependencyEndpointText(endpoint: DependencyEndpoint, ownProjectId: number, t: TFunction): string {
+/**
+ * An endpoint in words: a milestone (with its project when that is another one) or a whole project. `ownProjectId` is the page's own project;
+ * `null` = the page has none (the Dependencies page), so every milestone names its project.
+ */
+export function dependencyEndpointText(endpoint: EditableEnd, ownProjectId: number | null, t: TFunction): string {
   if (endpoint.kind === "PROJECT") return t("project.dependency.wholeProject", { name: endpoint.name });
   return endpoint.projectId === ownProjectId ? endpoint.name : `${endpoint.name} · ${endpoint.projectName}`;
 }

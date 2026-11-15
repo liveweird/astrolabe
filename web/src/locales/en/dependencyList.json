@@ -1,6 +1,6 @@
 {
   "title": "Dependencies",
-  "intro": "Every dependency of the plan: the successor waits for the predecessor. The ones that do not hold are listed first and only warn; nothing moves. A dependency is changed on the page of its successor's project.",
+  "intro": "Every dependency of the plan: the successor waits for the predecessor. The ones that do not hold are listed first and only warn; nothing moves. The owners of the successor's project, or an administrator, can change a dependency's type and lag or delete it in its row; a new one is added on the page of its successor's project.",
   "status": {
     "all": "All",
     "violated": "Violated"
