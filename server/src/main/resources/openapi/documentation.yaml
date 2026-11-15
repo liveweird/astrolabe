@@ -1660,10 +1660,9 @@ paths:
       tags: [plan]
       operationId: getPlanView
       summary: The whole plan tree with the caller's actions
-      description: |
-        Any authenticated user. One document with every active work stream, its programs and their projects (a deliberate exception
-        to the paged envelope, bounded by the plan's scale of about 5 streams, 20 programs and 100 projects), open work streams first
-        and then closed ones, each level by name. Every node carries `can`, the actions THIS caller may take, computed with the same
+      description: >-
+        Answers the whole plan tree: every active work stream with its programs and projects, open work streams first and then closed
+        ones, each level by name. Any authenticated user. Every node carries `can`, the actions this caller may take, computed by the
         rules the writes enforce. `revision` is the plan revision read before the rows.
       parameters:
         - $ref: '#/components/parameters/IfNoneMatch'
@@ -1685,19 +1684,12 @@ paths:
       tags: [plan]
       operationId: getHomeView
       summary: The plan's figures and the caller's own items, for the Home page
-      description: |
-        Any authenticated user; no parameter (an unknown query name is ignored). One document (a deliberate exception to the paged
-        envelope): `plan` holds the whole plan's figures, the same for every caller and each one an existing view's own - the counts
-        of `GET /views/programs`, the ranked and unranked projects, the warnings and infos of `GET /views/roadmap`, the milestones the
-        project and team pages count, the violated dependencies (every link once, a link inside one project included) and how many
-        teams have a week the team page flags overloaded or over its WIP limit. `me` is the caller's OWN: what the ACTIVE person that
-        the caller's login is linked to may manage through the owner chain (1.23: the work streams they own, the programs and projects
-        they own or that sit under a work stream or program they own; a program's and a project's row names its owner and says whether
-        it is the person's own, `direct`) and the teams that person manages, looked up for an administrator too (an administrator's own
-        list is still the person's, never everything); `null` when the login has no active linked person. Each list of
-        `me` holds at most 100 rows in the order of the Plan and Programs pages (`truncated` says one was cut). A row's figures are the
-        page's own (the project's Roadmap flags, which since 1.23 include the Flow capacity flag, the team page's header figures); nothing here is new to a login. `revision` is the plan
-        revision read before the rows (informational: Home offers no write, so there is no `can`).
+      description: >-
+        Answers the plan's figures (`plan`, the same for every caller, each figure another view's own) and the caller's own items
+        (`me`). Any authenticated user; no parameter (an unknown query name is ignored). `me` is what the active person linked to the
+        caller's login may manage through the owner chain, plus the teams that person manages, administrators included; it is `null`
+        when the login has no active linked person. Each list of `me` holds at most 100 rows (`truncated` says one was cut).
+        `revision` is the plan revision read before the rows; the view offers no write, so there is no `can`.
       parameters:
         - $ref: '#/components/parameters/IfNoneMatch'
       responses:
@@ -1718,24 +1710,14 @@ paths:
       tags: [plan]
       operationId: getTeamLoadView
       summary: Every team with its milestones and the weeks its page flags, for the Team load page
-      description: |
-        Any authenticated user; no parameter (an unknown query name is ignored). One document (a deliberate exception to the paged
-        envelope), the same for every caller: every ACTIVE team by name (case-insensitive, then id), at most 200 rows (`truncated`
-        says the list was cut; `totals` always count every team). Every figure is the team page's own (`GET /views/team/{id}`): the
-        team's milestones and the ones not scheduled, the weeks the page flags overloaded and over the WIP limit, and the weeks of
-        its load with no capacity period in force (such a week is never flagged overloaded). Each row also lists its `warningWeeks`:
-        the weeks the team page flags overloaded or over the WIP limit, oldest first, each exactly the team page's `weeks[]` item
-        (`WeekLoad`, never with `flowCapacity`: this view reads no external source); at most 2,000 weeks are listed in the whole
-        document, and `warningWeeksTruncated` says a week was left out (the counts and `totals` are never cut; a team past the
-        200-row cut uses none of the budget). The budget goes to the weeks from `currentWeekStart` on first, the nearest first
-        whatever the team's place in the order, then to the earlier ones, the latest first (a tie on the date goes to the earlier
-        row); each row lists the weeks it kept oldest first. `currentWeekStart` is the Monday of the server's current week (UTC),
-        the same for every caller and never the caller's clock. A week without capacity is not listed, only counted. These weeks
-        are the team page's own and open to every authenticated user already, so the list discloses nothing new.
-        `totals.overloadedTeams` and
-        `totals.wipExceededTeams` are `plan.overloadedTeams` and `plan.wipExceededTeams` of `GET /views/home`. `managerName` is null
-        when the team has no active manager. `revision` is the plan revision read before the rows (informational: the view offers no
-        write, so there is no `can`).
+      description: >-
+        Answers every active team with its milestone counts and the weeks the team view flags, the same for every caller. Any
+        authenticated user; no parameter (an unknown query name is ignored). Teams come by name (case-insensitive, then id), at most
+        200 (`truncated`); `totals` always count every team, and `totals.overloadedTeams` and `totals.wipExceededTeams` are
+        `plan.overloadedTeams` and `plan.wipExceededTeams` of `GET /views/home`. Every figure is the team view's own (`GET
+        /views/team/{id}`). Each row lists its `warningWeeks`; the document lists at most 2,000 in all, handed out from
+        `currentWeekStart` on first (`warningWeeksTruncated`), and the counts never change with the cut. `revision` is the plan
+        revision read before the rows; there is no `can`.
       parameters:
         - $ref: '#/components/parameters/IfNoneMatch'
       responses:
@@ -1756,22 +1738,15 @@ paths:
       tags: [plan]
       operationId: getDependencyListView
       summary: Every dependency of the plan, the ones that do not hold first, for the Dependencies page
-      description: |
-        Any authenticated user; no parameter (an unknown query name is ignored). One document (a deliberate exception to the paged
-        envelope), the same for every caller except each row's `can` (1.22.0): every ACTIVE dependency whose two ends resolve to a project, in the project view's order
-        (violated first, the largest shortfall first, then OK, then unscheduled; the successor's name, the predecessor's name
-        case-insensitively, then id), at most 1000 rows (`truncated` says the list was cut, which drops the kept and unscheduled
-        links first; `totals` always count every link). A row names its two ends by kind and id (the item `GET /views/project/{id}`
-        answers for the same link, without `critical`, but with the ends' names stated once): the names are in `milestones`
-        (a milestone end: name, project, team), `projects` (a project end, and the project of every named milestone) and `teams` (the
-        team of every named milestone), which hold exactly what the LISTED rows name, each once, by ascending id - every reference
-        resolves, and a row the cut dropped contributes nothing. The check is the project view's, on working days. `totals.violated` is
-        `plan.conflicts` of `GET /views/home`. Filtering by status, team or project is the client's. `revision` is the plan revision
-        read before the rows (informational: the view offers no write of its own, so there is no document-level `can`). Each row's
-        `can{edit, delete}` is what THIS caller may do with the link, the project view's own member: `edit` is true exactly when
-        `PUT /dependencies/{id}` would not be refused with `403` for them (it may still answer `409` for a cycle or `400` for a bad
-        lag), `delete` exactly when `DELETE` would not (an owner on the SUCCESSOR's project chain, or ADMIN); the owner chain itself
-        is not on the wire. A non-administrator who owns nothing gets `false` and `false`.
+      description: >-
+        Answers every active dependency whose two ends resolve to a project, the ones that do not hold first, the same for every
+        caller except each row's `can`. Any authenticated user; no parameter (an unknown query name is ignored). Rows come in the
+        project view's order (violated first, the largest shortfall first, then OK, then unscheduled; the successor's name, the
+        predecessor's name case-insensitively, then id), at most 1,000 (`truncated`; the cut drops the tail of that order). `totals`
+        always count every link, and `totals.violated` is `plan.conflicts` of `GET /views/home`. A row names its ends by kind and id;
+        `projects`, `teams` and `milestones` hold exactly what the listed rows name, once each, so every reference resolves. The check
+        is the project view's, on working days. `revision` is the plan revision read before the rows; there is no document-level
+        `can`.
       parameters:
         - $ref: '#/components/parameters/IfNoneMatch'
       responses:
@@ -1797,46 +1772,15 @@ paths:
       parameters:
         - $ref: '#/components/parameters/IfNoneMatch'
         - $ref: '#/components/parameters/BaselineQuery'
-      description: |
-        Any authenticated user; `404` when the project, its program or its work stream is deleted, for every caller. One document (a
-        deliberate exception to the paged envelope, bounded by ONE project's milestones, about 50). `revision` is the plan revision read
-        before the rows - send it back as a schedule write's `expectedRevision`. The milestones are split into `scheduled` (the timeline
-        rows, by start date, end date, name and id) and `unscheduled` (the tray, by name and id); names sort case-insensitively. `span`
-        is the earliest start to the latest end over the scheduled milestones (null when none is scheduled) and `drift` is that span
-        against the project's target window as signed calendar-day deltas (positive = later than the target; null unless both the span and
-        the window exist) - both are derived at request time and never stored. `project.can` and every milestone's `can` are the actions
-        THIS caller may take, computed with the same rules the writes enforce: `createMilestone`, `edit` and `delete` follow the project's
-        owner chain (the project's own owner included) or ADMIN; a milestone's `schedule` is true only for ADMIN or the active manager of
-        THAT milestone's team - never for the project's owner as such.
-
-        `dependencies` are the project's links: every active link with an end in this project (the project itself or one of its
-        milestones), both ends resolved (an end in another project carries that project's name, so the page can draw a ghost row; a
-        project end carries its DERIVED span, never its target window) and checked on the working-day calendar (Monday-Friday minus the public holidays). Bounded
-        by one project's links and the external projects they touch. Ordered so that the top IS the conflict list: `VIOLATED` first
-        (the largest `shortfallDays` first), then `OK`, then `UNSCHEDULED` (an end without dates: not evaluated, no warning); within a
-        group by the successor's name, the predecessor's name (case-insensitive) and the id. A violated link only warns - nothing is
-        ever moved. `project.can.createDependency` is `createMilestone`'s arithmetic (an owner on the project's chain, or ADMIN); a link's
-        `can.delete` is the same arithmetic on the SUCCESSOR's project chain (so the owner of the predecessor's project alone cannot
-        delete it). `idleGaps` lists the runs of 3 or more working days with none of the project's milestones in progress.
-
-        The critical path is derived from the PLANNED dates over the whole active plan graph (every milestone and link, read in the same
-        snapshot; nothing moves). A milestone's `slackDays` is how many working days it could slip, with everything downstream of it
-        allowed to slip too, before THIS project's end moves (null while unscheduled); `critical` is zero slack. A link's `critical`
-        means it is a zero-slack link on the chain; a VIOLATED link is never critical and ends the chain at the violation.
-        `criticalPath.upstream` lists the milestones and projects of OTHER projects whose slip would eventually move this project's end
-        - the critical ones first (the chain, from its origin by start date, end date, name and id), then the rest by slack; a project
-        is listed only when an included link (not violated, both ends scheduled) names it. The chain is never cut; the others are capped at 100 (`upstreamTruncated`). Entities that
-        only lie downstream of this project, or are unconnected to its end, are absent.
-
-        Jira (1.3): the project (`project.jira`, `project.flags`: its own `JIRA_DEVIATION` flags and the `JIRA_MILESTONES` roll-up) and
-        every milestone (`scheduled` and `unscheduled`: `jira` and one `JIRA_DEVIATION` flag per OPEN deviation) carry their Jira item,
-        as `GET /views/roadmap` describes; `jiraSites` lists the connections the bindings in scope link to, each with its sync `state` and `mappingOk`. An unbound node answers `jira: null` and
-        `flags: []`.
-
-        With `?baseline=N` the document gains `baseline` (`ProjectBaseline`): the project's own span then and its movement
-        (`project`, null when the project is newer than the baseline), one entry per LIVE milestone the baseline also froze
-        (`milestones`: its dates, estimate and team then, and its movement in working days on the CURRENT calendar - a live milestone
-        without an entry is new since the baseline) and the baseline's milestones of this project that are gone (`removed`).
+      description: >-
+        Answers one project with its milestones, derived span and drift, dependencies, idle gaps and critical-path upstream, in one
+        document bounded by that project. Any authenticated user; `404` when the project, its program or its work stream is deleted,
+        for every caller. Milestones are split into `scheduled` (the timeline rows) and `unscheduled` (the tray). `can` blocks are the
+        actions this caller may take, by the rules the writes enforce. `dependencies` are every active link with an end in this
+        project, checked on the working-day calendar and ordered so the conflicts come first; a violated link only warns, nothing is
+        ever moved. The critical path is derived from the planned dates over the whole active plan graph. Nodes bound to a Jira item
+        carry `jira` and flags, as `GET /views/roadmap` describes. `revision` is the plan revision read before the rows. With
+        `?baseline=N` the document gains `baseline` (`ProjectBaseline`).
       responses:
         '200':
           description: The project view
@@ -1868,57 +1812,15 @@ paths:
       parameters:
         - $ref: '#/components/parameters/IfNoneMatch'
         - $ref: '#/components/parameters/BaselineQuery'
-      description: |
-        Any authenticated user; `404` when the team is deleted, for every caller. One document (a deliberate exception to the paged
-        envelope, bounded by ONE team's milestones - about 100 at the assumed scale -, their links and at most 520 weeks). `revision` is
-        the plan revision read before the rows - send it back as a schedule write's `expectedRevision`; the team's order revision
-        travels separately as `order.revision` (the `expectedRevision` of `PUT /teams/{id}/milestone-order`).
-
-        The team's milestones are split into `scheduled` (the timeline rows) and `unscheduled` (the tray), both in the team's
-        EFFECTIVE order. That order is the team's own where the manager set one (`order.custom`): the listed milestones first, exactly as
-        listed, then the rest by the global PROJECT RANK (ranked projects before unranked ones, then project name and id), then a
-        milestone's start date, end date, name and id with undated work last. The project rank is only the top-down suggestion and the
-        default; a manager's override is never reshuffled by a later rank change, only unlisted milestones follow the rank.
-
-        `weeks` has one row per ISO week from the Monday of the earliest scheduled start to the Sunday of the latest scheduled end
-        (empty while nothing is scheduled; at most 520 weeks from the start, then `weeksTruncated`). A milestone's estimate is spread
-        evenly over its working days (Monday-Friday without the public holidays), so a week's `load` is the sum of the shares of the working
-        days inside it; a holiday is uncovered and the divisor below stays 5.
-        `capacity` is the sum over the week's working days of the man-days per week in force THAT day, divided by 5 - so the week a
-        capacity period starts in is prorated by working days - and null ("no capacity", never zero, never flagged) when no period is
-        in force on any working day of the week. `load` and `capacity` are rounded half-up to two decimals and `overloaded` compares the
-        two rounded figures (`overloadMd` is their difference, only when overloaded). `maxWip` is the most scheduled milestones in
-        progress on one working day of the week (a milestone is in progress on the working days of its effective span, the first
-        working day on or after its start to the last on or before its end) and `wipExceeded` is true when some working day's count
-        exceeds the WIP limit in force that day; a day without a limit never flags. An overloaded week and a week over the WIP limit
-        are warnings only - nothing is ever moved.
-
-        `team.can` carries the actions THIS caller may take, all with one arithmetic: ADMIN or the team's ACTIVE manager (`schedule` is
-        `PUT /milestones/{id}/schedule` for this team's milestones, `editCapacity` the capacity period writes, `editOrder` the order
-        PUT). `dependencies` are the project view's links for the links with an end among the team's milestones, both ends resolved
-        and checked on the working-day index, violated first; a link's other end may lie in another team or project and is not listed
-        as a row of its own. `idleGaps` lists the runs of 3 or more working days with none of the team's milestones in progress.
-
-        The critical path (1.7): each milestone (`scheduled` and `unscheduled`) carries `slackDays` and `critical` toward ITS OWN project's
-        end, with the meaning and the figures `GET /views/project/{id}` gives the same milestone (`slackDays` null while unscheduled). A
-        link's `critical` is true when it lies on the critical chain of a project one of the team's milestones belongs to; a link that
-        drives only a project none of the team's milestones belongs to is not marked (that project's own page marks it).
-
-        Jira (1.3): every milestone (`scheduled` and `unscheduled`) bound to a Jira item carries `jira` and, through an ENABLED connection,
-        one `JIRA_DEVIATION` flag per OPEN deviation, as `GET /views/roadmap` describes; `jiraSites` lists the connections the rows link
-        to, each with its sync `state` and `mappingOk`. An unbound milestone answers `jira: null` and `flags: []`; one on a disabled connection keeps its `jira` (dates null) and `flags: []`.
-
-        Flow (1.9): a team linked to a Flow team carries `team.flags` - ONE `FLOW_CAPACITY` roll-up over its OPEN capacity deviations
-        (`GET /views/capacity-deviations`: a row is open unless its acknowledgement is current; `count` = the open rows, the severity the
-        worst of them, a sprint the plan has no capacity for counts as an INFO row) and each `weeks[]` row that an open row's held days
-        (`effectiveFrom` to the sprint's end) meet carries `flowCapacity`, the worst severity among the rows that meet it (a `TEAM_GONE` row
-        flags the header but marks no week). A disabled connection, an unlinked team, a team whose every row is acknowledged and a week no row
-        meets raise nothing (`team.flags: []`, no `flowCapacity` member).
-
-        With `?baseline=N` the document gains `baseline` (`TeamBaseline`): one entry per LIVE milestone of the team that the baseline
-        also froze (`milestones`, with the team it sat on then - `teamIdThen` - and its movement in working days on the CURRENT
-        calendar; a live milestone without an entry is new since the baseline) and the baseline's milestones of THIS team that are not
-        on it any more (`removed`: deleted, or moved to another team - `now`).
+      description: >-
+        Answers one team's milestones, its weekly load against capacity and WIP, its dependencies and idle gaps, in one document
+        bounded by that team. Any authenticated user; `404` when the team is deleted, for every caller. `scheduled` (the timeline
+        rows) and `unscheduled` (the tray) both come in the team's effective order (`order`). `weeks` holds the load, capacity and WIP
+        of each ISO week, at most 520; an overloaded week and one over the WIP limit are warnings only, nothing is ever moved.
+        `team.can` and each dependency's `can` are the actions this caller may take, by the rules the writes enforce. `dependencies`
+        are the project view's links with an end among the team's milestones. Milestones carry the critical-path figures toward their
+        own project's end and the Jira flags of `GET /views/roadmap`. `revision` is the plan revision read before the rows; the team's
+        order revision is `order.revision`. With `?baseline=N` the document gains `baseline` (`TeamBaseline`).
       responses:
         '200':
           description: The team view
@@ -1949,34 +1851,15 @@ paths:
         - $ref: '#/components/parameters/IfNoneMatch'
         - $ref: '#/components/parameters/BaselineQuery'
         - $ref: '#/components/parameters/CriticalPathQuery'
-      description: |
-        Any authenticated user. One document (a deliberate exception to the paged envelope, bounded by the plan's scale of about 5 work
-        streams, 20 programs and 100 projects), read in ONE snapshot: `revision` is the PLAN revision read before the rows
-        (informational - no write consumes it; the ranking's revision is `GET /views/roadmap`'s).
-
-        `workStreams` lists every active work stream, open ones before closed ones (a closed stream has an `endDate`), each level by
-        name (case-insensitive) then id; EMPTY programs and work streams are present. A program's `projects` are the roadmap's
-        project rows exactly (`RoadmapProject`: derived span, drift, flags, `can.editTargetWindow`), ranked projects first in rank
-        order, then the unranked by name and id. `teams` and `links` are `GET /views/roadmap`'s for the same plan.
-
-        A program's `span` is derived from its projects' spans (earliest start to latest end, null while none is scheduled) and a
-        work stream's from its programs' spans; nothing is stored. `flags` roll the projects' flags up: the number of WARNING and INFO
-        flags over the program's (work stream's) projects. Programs and work streams carry no target window.
-
-        Jira (1.3): the project rows carry the roadmap's `jira` and Jira flags (so a program's and work stream's `flags` counts include
-        them) and the document carries `jiraSites` (each connection with its sync `state` and `mappingOk`), all as `GET /views/roadmap` describes.
-        Flow (1.23): the project rows carry the roadmap's `FLOW_CAPACITY_MILESTONES` flags too, and the programs' and work streams' `flags`
-        counts include them.
-
-        With `?baseline=N` the document gains `baseline` (the baseline's identity), every project row gains its `baseline` block (as
-        `GET /views/roadmap`'s) and a program (work stream) with at least one project the baseline froze gains `baseline`: the span
-        those projects (its programs) had, derived like the live span, and its movement against the live span.
-
-        With `?criticalPath=N` (1.16) the document gains `criticalPath`, exactly the block `GET /views/roadmap?criticalPath=N` answers for
-        the same plan (the critical chain toward project N's end over the whole plan graph on the planned dates, rolled up to projects and
-        project pairs; same snapshot, same rows): the programs page uses it to outline the projects on the chain, or the folded rows that
-        hold them. A project hidden by a fold or by the page's program pick stays in the block. The parameter combines with `baseline`
-        (independent blocks), and the rest of the document is unchanged.
+      description: >-
+        Answers the plan tree with derived spans, flag roll-ups and each project's roadmap row, read in one snapshot. Any
+        authenticated user. `workStreams` lists every active work stream, open before closed, each level by name (case-insensitive)
+        then id; empty programs and work streams are present. A program's `projects` are the roadmap's project rows, ranked projects
+        first in rank order, then the unranked by name and id; `teams` and `links` are `GET /views/roadmap`'s for the same plan. A
+        program's `span` is derived from its projects' spans and a work stream's from its programs'; `flags` roll the projects'
+        WARNING and INFO flags (Jira and Flow ones included) up. `revision` is the plan revision, informational: no write consumes it.
+        With `?baseline=N` the document gains `baseline` blocks; with `?criticalPath=N` it gains `criticalPath`, the block `GET
+        /views/roadmap?criticalPath=N` answers for the same plan. The two combine and change nothing else.
       responses:
         '200':
           description: The programs view
@@ -2007,54 +1890,15 @@ paths:
         - $ref: '#/components/parameters/IfNoneMatch'
         - $ref: '#/components/parameters/BaselineQuery'
         - $ref: '#/components/parameters/CriticalPathQuery'
-      description: |
-        Any authenticated user. One document (a deliberate exception to the paged envelope, bounded by the plan's scale of about 100
-        projects, 1,000 milestones and 300 project pairs): `ranked` in position order (dense 1..n) and `unranked`, the active projects
-        without a position, by name. Each project carries its program, work stream and owner, its `teamIds` (the teams of all its
-        active milestones), its DERIVED `span` (earliest start to latest end over its scheduled milestones; null while none is
-        scheduled), the `drift` of that span against the target window (null unless both exist) and its `flags`.
-        Flags are WARNING first, then by kind, team and other project. Drift: an end later than the target end is a `DRIFT_END_LATE`
-        WARNING; a start later than the target start (`DRIFT_START_LATE`) and an end ahead of the target (`DRIFT_END_EARLY`) are INFO;
-        an early start raises nothing. Rank inversion (`RANK_INVERSION`, only for ranked projects, raised on the LOWER-ranked project
-        B with `otherProjectId` = the higher-ranked A): per team, the ranked projects with scheduled work on that team in rank order,
-        and every ADJACENT pair where B's earliest start on the team is strictly before A's is a WARNING with that `teamId` (`days` =
-        how much earlier); adjacent ranked projects with a span that share no team with scheduled work and whose B span starts
-        strictly before A's are an INFO with a null `teamId`. A tie is no inversion. `teams` are the active teams with milestones in
-        the plan (the team filter's options), by name. `links` roll the dependencies up per ORDERED pair of projects, ordered by
-        (predecessor, successor) project id: `direct` is the project-to-project link (checked on working days), `milestoneLinks` counts
-        the links with a milestone end between the pair (violated, unscheduled); links inside one project are not listed.
-        `can.editRank` is whether THIS caller may `PUT /roadmap/ranking` (ADMIN or a ROADMAP_EDITOR holder) and each project's
-        `can.editTargetWindow` whether they may `PUT /projects/{id}/target-window` (ADMIN, an owner above the project, or a
-        ROADMAP_EDITOR holder). `revision` is the RANKING's revision (the plan revision at which the rank was last written), read before the rows - send it back as `expectedRevision`. Plan writes elsewhere do not move it.
-
-        Jira (1.3): a project bound to a Jira item carries `jira` (`bindingId`, `connectionId`, `issueKey` and the dates Jira was last
-        observed to hold, null when never observed, gone or the connection is disabled) and, through an ENABLED connection, the Jira flags of its OPEN deviations - one
-        `JIRA_DEVIATION` per OPEN LINE (1.12: a deviation without a current acknowledgement of its own; with its `deviation`) and one `JIRA_MILESTONES` roll-up of its milestones' (`count` of milestones
-        that raised a flag, the worst severity; never one flag per milestone). A line is open unless its own acknowledgement is current;
-        `ESTIMATE_NOT_COMPARABLE` never raises a flag. A disabled connection's rows keep their `jira` (so the node reads as linked and can be unlinked) with null dates, no flag and no roll-up contribution.
-        `jiraSites` lists the connections the document links to (the client builds `siteUrl + "/browse/" + issueKey`), each with its derived sync `state` and `mappingOk` (1.16: the values `GET /views/deviations` gives the same connection); an unbound plan
-        answers `jira: null`, no Jira flag and `jiraSites: []`. Read inside the same snapshot; `?baseline=` leaves all of it as it is.
-
-        Flow (1.23): a project carries ONE `FLOW_CAPACITY_MILESTONES` flag per team (`teamId`, and `count` = its milestones on that
-        team) when at least one of its SCHEDULED milestones on that team lies in days that an OPEN capacity difference of the team
-        covers (the days of the very ranges whose weeks the team page marks on its weeks strip; a calendar day shared, both ends inclusive). It is a WARNING when
-        the plan holds more capacity than Flow in a sprint such a milestone meets, an INFO otherwise (the worst severity among the
-        differences they meet). An acknowledged difference (one whose acknowledgement is current) and a DISABLED Flow connection raise
-        nothing, nor do an unscheduled milestone or a team whose Flow team is gone (that team's header, on `GET /views/team/{id}`,
-        says so). The same flags for every caller; the team page, `GET /views/project/{id}` and the Deviations documents are unchanged.
-
-        With `?baseline=N` the document gains `baseline` (the baseline's identity and the projects it froze that are gone) and every
-        project the baseline also froze gains a `baseline` block: the derived span, rank position and target window it had and the
-        span's movement in working days on the CURRENT calendar (a project row without the block is newer than the baseline).
-
-        With `?criticalPath=N` (1.7) the document gains `criticalPath`: the critical chain toward project N's end, over the whole plan
-        graph on the planned dates (the project view's rule, `GET /views/project/{id}`), rolled up to this view's grain, in the same
-        snapshot. `projects` lists the OTHER projects upstream of N's end (N itself is implied: critical, slack 0) with the least
-        `slackDays` among their upstream milestones, `critical` when any is on the chain and the fewest `hops` (links) to N, by hops,
-        slack, id; `pairs` are the ordered project pairs holding at least one link on the chain (a pair with one direct link and several
-        milestone links is critical when ANY of them is: the per-link truth is the project page's). A project with nothing scheduled
-        answers both lists empty; a target filtered out of the page's view stays the target. The parameter combines with `baseline`
-        (independent blocks), and the rest of the document is unchanged.
+      description: >-
+        Answers the global project ranking: `ranked` in position order (dense 1..n) and `unranked`, the active projects without a
+        position, by name. Any authenticated user. Each project carries its program, work stream and owner, its `teamIds`, its derived
+        `span`, the `drift` of that span against its target window and its `flags`. `teams` are the active teams with milestones in
+        the plan, by name; `links` roll the dependencies up per ordered project pair, by (predecessor, successor) project id (links
+        inside one project are not listed). `can.editRank` and each project's `can.editTargetWindow` say whether this caller may `PUT
+        /roadmap/ranking` and `PUT /projects/{id}/target-window`. `revision` is the ranking's revision (the plan revision at which the
+        rank was last written), read before the rows; send it back as `expectedRevision`. Plan writes elsewhere do not move it. With
+        `?baseline=N` the document gains `baseline` blocks; with `?criticalPath=N`, `criticalPath`.
       responses:
         '200':
           description: The ranking
@@ -2081,109 +1925,46 @@ paths:
       tags: [jira]
       operationId: getDeviationsView
       summary: Where the plan and the bound Jira items disagree
-      description: |
-        Any authenticated user (the plan and each binding's issue data are already readable by every login). One document (the view
-        endpoints' deliberate exception to the paged envelope; at most one binding per plan node, so bounded by the plan's scale) taken
-        from ONE read-only snapshot: the plan `revision` first, then the working calendar (public holidays included), the connections,
-        the bindings with their latest observation and the live nodes they sit on. It takes no lock, writes nothing and moves no
-        revision.
-
-        **`connections`** lists EVERY active connection, with or without bindings, enabled or not (`enabled` says which; a bind goes
-        through an enabled one only), by name: a non-admin owner's bind dialog gets its connection id here (the registry itself is
-        ADMIN only). It carries the name, site and (since 1.10) the project keys, and never the email, token or mapping (`authorization.md`). The id and site of a connection with
-        bindings are already in `GET /integrations/jira/bindings`; the name, and the existence of one with none, are new to any login. `mappingOk` is false when the connection's
-        EFFECTIVE mapping (stored, else the defaults) cannot be resolved against its discovery now (never discovered, unreadable or
-        stale): no `LEVEL_MISMATCH` and no estimate deviation is raised for its bindings, and a bind through it is refused with `409`.
-        `lastRun` is the newest run; `running` is true only for an unfinished run younger than `sync.maxRunMinutes` - an older
-        unfinished run (a crash) was interrupted and has no `outcome` until the next claim abandons it. `status` (1.3) is the
-        connection's derived sync state (`SyncStatus`: nothing stored, computed per read from the same snapshot's runs); it
-        carries `lastRun` again plus the state, the last success, the failure streak and the next poll, and is operational and
-        secret-free like `lastRun` (never the token, an error message or a count).
-
-        **Items.** Only bindings of an ACTIVE connection and of a LIVE node (it and every ancestor active) are listed; a binding of a
-        deleted node or connection is hidden. A binding of a DISABLED connection is listed (it still blocks its node and its issue, so
-        it must stay visible and unlinkable); how stale it is shows in `jira.observedAt` and the connection's `lastRun`. By default only
-        OPEN bindings: those with at least one listed deviation that is not currently acknowledged (an OPEN line, 1.12: the acknowledgements
-        are per line); `all=true` adds the others (clean and fully acknowledged), and
-        `projectId` or `teamId` make `all` default to true (explicit `all=false` is respected). `acknowledged=true` lists only the
-        bindings with at least one CURRENTLY acknowledged LISTED line (a stamp on the hidden `ESTIMATE_NOT_COMPARABLE` line alone does not count), `acknowledged=false` the open ones (plus the clean ones under `all`); a
-        listed binding shows EVERY listed line with its own state, whatever the status filter. Order: bindings with an OPEN WARNING
-        line first, then work
-        stream, program, project, level (program, project, milestone) and name (case-insensitive), then binding id. Capped at 2,000
-        items: `truncated` says rows were dropped, `totals` are computed BEFORE the cap. `bindings` is the number of bindings the LIST answers
-        (the filtered ones - so only OPEN ones unless `all`, `acknowledged` or a chip applies, not the number of links). The other four
-        share one basis, the bindings matching every filter but the acknowledgement state (`acknowledged` and the default that hides
-        acknowledged ones): `warnings` and `infos` count the OPEN LINES (1.12) of the open bindings among them, `gone` the open bindings whose
-        issue is gone, and `acknowledged` the bindings with at least one CURRENT acknowledgement, so all four are known whichever state
-        the list shows (on `acknowledged=true` the open counts are what the Open list would show).
-
-        **Acknowledge (1.3, per line since 1.12).** Each item carries `fingerprint` (the SHA-256 of the binding's full deviation list, the
-        same for every filter and stable across reads while nothing changes: the token a client echoes to acknowledge) and
-        `can.acknowledge` (the owner chain of the bound node, ADMIN, or - on a MILESTONE binding only, since 1.12 - the ACTIVE manager of
-        the milestone's team; false for everyone else, whole-item). Each LINE in `deviations` carries its own `acknowledgement` (null until
-        someone acknowledges that deviation; `at`, `by` - the acknowledging login's active person's name, else its display name, never the
-        email, null once that login is deleted - and `current`, false when that line was acknowledged and CHANGED since, which makes it
-        open again). A line that leaves the list and returns identical is still acknowledged. The writes are `POST` and `DELETE
-        /integrations/jira/bindings/{id}/acknowledge`.
-
-        **Deviations** (WARNING unless noted; `detail.days` is in WORKING days on the live calendar, POSITIVE = the plan is later):
-        `GONE` (the issue is gone; it is raised ALONE - a gone issue's dates are stale; `detail.jira` is the reason, `MOVED_OUT` when a by-id probe still read the issue under a key outside the connection's projects, `NOT_LISTED` under one inside them); `LEVEL_MISMATCH` (the observed hierarchy level
-        is not the one the current mapping gives the level; an unknown observed level counts as a mismatch); `PARENT_MISMATCH`
-        (projects and milestones: the observed parent issue is bound, on the same connection, to a node that is not the plan parent -
-        an unbound parent raises nothing; the plan parent is the nearest ancestor whose level the connection maps - a milestone's
-        project, else its program when the project level is unmapped - and none when no ancestor level is mapped or the mapping does
-        not resolve); `RENAMED` (INFO; trimmed, case-insensitive; a name cut at 100 characters compares as a prefix
-        of the longer summary); `START_DIFFERS` and `END_DIFFERS` (a milestone's stored dates, a project's or program's DERIVED span,
-        against Jira's dates; a date on a non-working day counts as the next working day for a start and the previous one for an end,
-        so two dates on the same working day never deviate; WARNING when the plan's END is later than Jira's end in working days, else
-        INFO); `TARGET_DIFFERS` (INFO, projects: the target window against Jira's project-level dates, both fully dated and either
-        edge differs; `days` is the end's shift, else the start's); `UNSCHEDULED_IN_PLAN` / `UNSCHEDULED_IN_JIRA` (INFO, milestones:
-        Jira has a date and the milestone has none / the reverse); `ESTIMATE_DIFFERS` (INFO, milestones: the Jira figure times the
-        mapping's factor - or as-is for `DAYS`, which ignores a leftover factor - differs from the man-day estimate by 0.01 or more); `ESTIMATE_NOT_COMPARABLE` (INFO,
-        listed only with an EXPLICIT `all=true` or `kind=ESTIMATE_NOT_COMPARABLE`, never through the `all` that `projectId`/`teamId`
-        imply: a figure with no declared factor, or read under another unit than the
-        mapping names now); `PROGRESS_MISMATCH` (INFO: `DONE` while the plan's end is after `asOf`, `TODO` while its start is before,
-        `IN_PROGRESS` while its start is after). A binding that was never observed (none exists normally) lists no deviations.
-
-        **Coverage (1.4)** - what the plan or Jira holds under a bound node that the other does not, from the last census a run mirrored
-        (`detail.count` carries the full figure, the lists name at most 10): `UNLINKED_IN_JIRA` (WARNING, programs and projects: open
-        Jira items - done ones are history - under the bound issue, at the mapping's level for the child plan level, that no active
-        binding covers on this or another active connection of the same site; `jira` lists their keys); `UNLINKED_IN_PLAN` (INFO,
-        programs and projects: the node's direct plan children that have no binding; `plan` lists their names); `CHILDREN_DONE` (INFO,
-        milestones: the bound epic has children, all of them done, while the epic itself is not DONE and the plan's end is after `asOf`;
-        `jira` = `done/children`, `plan` = the end date); `CHILDREN_OPEN` (INFO, milestones: the mirror image - the bound epic has
-        children, some still open, while the plan's end is before `asOf` (ending today is not ended); the epic's own status does not
-        matter; `jira` = `open/children`, `plan` = the end date; never raised for an unscheduled milestone or one with no mirrored
-        child). Each kind sorts after the older ones within its severity. A milestone
-        item also carries the roll-up itself as `jira.rollup` (`JiraRollup`: children, done, story points, newest observation), null
-        while the epic has no mirrored child. The Jira KEYS of unbound items (never a summary) are therefore visible to every reader of
-        this view, like the plan names beside them.
-
-        Filters, all equality, a repeated key or a malformed value a `400`: `connectionId`, `level`, `workStreamId`, `programId`
-        (the program, its projects and milestones), `projectId` (the project and its milestones), `teamId` (milestones), `severity` and
-        `kind` (the bindings having such a deviation, whatever `all` says), `all`. Every item shows all of its binding's deviations.
+      description: >-
+        Answers where the plan and the bound Jira items disagree: one item per binding with its listed deviation lines, from one
+        read-only snapshot. Any authenticated user. `connections` lists every active connection, bound or not, enabled or not. Only
+        bindings of an active connection and of a live node (it and every ancestor active) are listed, those of a disabled connection
+        included. By default only OPEN bindings (at least one listed line without a current acknowledgement) are listed; `all=true`
+        adds the others, and `projectId` or `teamId` make `all` default to true (an explicit `all=false` is respected). Order:
+        bindings with an open WARNING line first, then work stream, program, project, level (program, project, milestone) and name
+        (case-insensitive), then binding id; at most 2,000 items (`truncated`), `totals` computed before the cap. Filters are equality
+        (`teamId` matches milestone bindings only); a repeated key or a malformed value is `400`. Acknowledge with the bindings'
+        `POST`/`DELETE .../acknowledge`, echoing an item's `fingerprint`.
       parameters:
         - $ref: '#/components/parameters/ConnectionIdQuery'
         - $ref: '#/components/parameters/LevelQuery'
         - name: severity
           in: query
           required: false
-          description: "Lists the bindings with a line of this severity IN THE SELECTED STATUS (1.12): an open line by default and under `acknowledged=false`, a currently acknowledged one under `acknowledged=true`, any listed line under `all=true` without `acknowledged`. The listed binding still shows every line."
+          description: >-
+            Lists the bindings with a line of this severity in the selected status: an open line by default and under
+            `acknowledged=false`, a currently acknowledged one under `acknowledged=true`, any listed line under `all=true` without
+            `acknowledged`. The listed binding still shows every line.
           schema: { $ref: '#/components/schemas/Severity' }
         - name: kind
           in: query
           required: false
-          description: "Lists the bindings with a line of this kind IN THE SELECTED STATUS, as `severity` does (so Open + `END_DIFFERS` does not list a binding whose End line is acknowledged). `ESTIMATE_NOT_COMPARABLE` is listed, as a line, only when named here or under `all=true`."
+          description: >-
+            Lists the bindings with a line of this kind in the selected status, as `severity` does (so open + `END_DIFFERS` does not
+            list a binding whose End line is acknowledged). `ESTIMATE_NOT_COMPARABLE` is listed, as a line, only when named here or
+            under an explicit `all=true`, never through the `all` that `projectId` or `teamId` imply.
           schema: { $ref: '#/components/schemas/DeviationKind' }
         - name: workStreamId
           in: query
           required: false
           schema: { type: integer, format: int32, minimum: 0 }
         - name: programId
+          description: The program, its projects and milestones.
           in: query
           required: false
           schema: { type: integer, format: int32, minimum: 0 }
         - name: projectId
+          description: The project and its milestones.
           in: query
           required: false
           schema: { type: integer, format: int32, minimum: 0 }
@@ -2215,22 +1996,15 @@ paths:
       tags: [jira]
       operationId: getJiraLinksView
       summary: Which programs and projects are linked to which Jira items, and through which connections
-      description: |
-        Any authenticated user, a read with no parameter (an unknown query parameter name is ignored). The narrow read behind the Plan
-        page's "Import from Jira..." entries: it answers from TWO statements inside one read-only `REPEATABLE READ` snapshot whatever
-        the size of the plan, and computes no deviation (the deviations view does, over every binding). It takes no lock, writes
-        nothing, is not audited and moves no revision; it has no `revision` and no `can` (links are not plan state; what a caller may do
-        with a node is the plan view's `can`).
-
-        **Nothing here is new to a login.** A link's node, binding, connection id, issue key and `gone` flag are already readable through
-        `GET /integrations/jira/bindings`; a connection's id, name, site, `enabled`, project keys and `mappingOk` through
-        `GET /views/deviations` (`connections[]`). The rows hidden there are hidden here: a binding of a deleted node, of a node under
-        a deleted ancestor or of a deleted connection. Never the email, token, mapping, discovery or a run.
-
-        **`connections`** lists EVERY active connection, enabled or not, with or without links, by name (case-insensitive) then id.
-        **`links`** lists one entry per ACTIVE binding of an ACTIVE connection on a LIVE program or project, programs first, then
-        projects, each by node id; a link through a DISABLED connection is listed (its connection says `enabled: false`). A
-        milestone binding is never listed. Capped at 2,000: `truncated` says links were dropped.
+      description: >-
+        Answers which programs and projects are linked to which Jira items, through which connections, from one read-only snapshot; no
+        deviation is computed. Any authenticated user; no parameter (an unknown query name is ignored). It adds nothing to what `GET
+        /integrations/jira/bindings` and `connections[]` of `GET /views/deviations` show every login, and hides what they hide: a
+        binding of a deleted node, of a node under a deleted ancestor or of a deleted connection. `connections` lists every active
+        connection, enabled or not, by name (case-insensitive) then id. `links` lists one entry per active binding of an active
+        connection on a live program or project, programs first, then projects, each by node id; a link through a disabled connection
+        is listed (its connection says `enabled: false`), a milestone binding never. At most 2,000 links (`truncated`). There is no
+        `revision` and no `can`: links are not plan state.
       parameters:
         - $ref: '#/components/parameters/IfNoneMatch'
       responses:
@@ -2251,67 +2025,27 @@ paths:
       tags: [flow]
       operationId: getCapacityDeviationsView
       summary: Where a linked team's capacity in the plan differs from what Flow would make it carry
-      description: |
-        Any authenticated user. The team and Flow team names and the connection's name and status are already in the team page's Flow
-        panel, and `planMd` is already readable through `GET /teams/{id}/capacity`; Flow's per-sprint `flowMd` and `flowTotalMd` and the
-        connection's `zone` are a NEW, accepted disclosure to every login (the capacity preview that shows them is the team manager's).
-        Never a base URL, a token or an account id. One
-        document (a view endpoint's deliberate exception to the paged envelope) taken from ONE read-only `REPEATABLE READ` snapshot,
-        in this order: the working calendar (public holidays included), the ACTIVE Flow connections, the links of ACTIVE teams, their
-        capacity periods, then each linked Flow team with its sprints from the mirror. It takes no lock, writes nothing to Astrolabe or
-        to Flow and is not audited. **There is no `revision`**: capacity periods are team data and no plan revision moves with them.
-
-        **What is compared.** Per linked team and per CURRENT or FUTURE sprint (its last day is today or later, in the connection's
-        time zone `zone`; a closed sprint never appears), over the days the sprint holds (`effectiveFrom` to `end`, working days on the
-        live calendar: the days the capacity import would claim for it), the plan's capacity (`planMd`, what the team view shows over
-        those days) against what the import would make the plan carry (`flowMd`, Flow's figure spread over those days, rounded to
-        two decimals). `flowTotalMd` is Flow's own total for the whole sprint; it differs from `flowMd` for a fixed per-sprint figure
-        that shares days with an earlier sprint. The two figures are rounded before they are compared, and `gapMd = planMd - flowMd`
-        is POSITIVE when the plan has more. Sprints the import skips (no dates, no capacity, overlapped, no working day, out of range)
-        and sprints over 60 calendar days have no comparable figure and are never listed.
-
-        **Deviations.** `CAPACITY_DIFFERS`: `abs(gapMd) >= 0.5` - WARNING when the plan has MORE capacity than Flow, INFO when less
-        (a day before the team's first period counts 0). `CAPACITY_MISSING` (INFO): no capacity period is in force on any working day
-        of the sprint (`planMd` and `gapMd` are null). `TEAM_GONE` (WARNING): the connection has mirrored a document and the linked
-        Flow team is not in it; it is the team's ONLY row and every `detail` member is null (a truncated document keeps absent teams,
-        so it never raises one). A team whose connection has never mirrored a document is not listed. The remedy is the team page's
-        Import capacity, or, for a figure the manager keeps on purpose, an acknowledgement (below).
-
-        **Acknowledge (1.9).** Each row carries `fingerprint` (the SHA-256 of its kind, severity and figures, the sprint's name left out:
-        stable across reads while nothing changes) and `acknowledgement` (null until someone acknowledges; `at`, `by` - the acknowledging
-        login's active person's name, else its display name, never the email, null once that login is deleted - and `current`, false
-        when the row was acknowledged and its figures CHANGED since, which makes it open again). Each item carries `can.acknowledge`
-        (the team's active manager, or ADMIN: the capacity import's arithmetic; false for everyone else). The writes are `POST` and
-        `DELETE /integrations/flow/team-bindings/{id}/acknowledge`, or `POST …/acknowledge-all` and `POST …/unacknowledge-all` for the
-        rows the caller names at once.
-        The unit is the sprint row, so a team's other LISTED rows are not touched.
-
-        **Items.** Only linked teams with at least one deviation (after the filters) are listed. A DISABLED, FAILED or STALE
-        connection's teams are listed from its last mirrored document; the connection's `status` (derived in the same snapshot)
-        qualifies them. `connections` lists EVERY ACTIVE Flow connection (at most 100, by name then id), enabled or not, with the
-        sync `status` and `teamsAt`, when it last mirrored a document. Order: teams with an OPEN WARNING first, then team name
-        (case-insensitive), then link id; a team's rows are ordered by the sprint's first held day, then sprint id. Capped at 1,000 teams
-        (Flow's own team cap): `truncated` says teams were dropped; `totals` are computed BEFORE the cap.
-
-        **Which rows are listed** (the Jira view's rule, over rows): by default only the OPEN rows, those not currently acknowledged (a
-        team whose rows are all acknowledged is not listed); `all=true` adds the acknowledged ones, and `teamId` makes `all` default to
-        true (an explicit `all=false` is respected); `acknowledged=true` lists only the rows whose acknowledgement is CURRENT,
-        `acknowledged=false` the open ones. `acknowledgement.current` tells the states apart. `warnings`, `infos` and `gone` count the
-        OPEN rows and `acknowledged` the rows with a CURRENT acknowledgement, all over the rows matching every filter but the
-        acknowledgement state (so "N open" survives `acknowledged=true`); `teams` is the number of teams the list answers.
-        `asOf` is the UTC date of the read.
-
-        Filters, all equality, a repeated key or a malformed value a `400`: `connectionId`, `teamId`, `severity`, `kind`, `acknowledged`
-        and `all`. **`severity` and `kind` narrow the rows of each team as well as the teams** (the unit here is a sprint: "warnings
-        only" lists only the warning sprints), unlike the Jira view, where the binding is the unit.
+      description: >-
+        Answers, per linked team and per current or future sprint, where the team's capacity in the plan differs from what the
+        capacity import would make it carry, from one read-only snapshot. Any authenticated user; Flow's per-sprint figures and the
+        connection's time zone are open to every login, a base URL, token or account id never. There is no `revision`: capacity
+        periods are team data. A sprint is compared over the working days it holds; a closed sprint never appears, nor one the import
+        skips or longer than 60 calendar days. Only linked teams with a deviation are listed, by default only OPEN rows (not currently
+        acknowledged); `all=true` adds the acknowledged ones and `teamId` makes `all` default to true. A disabled, failed or stale
+        connection's teams are listed from its last mirrored document. Order: teams with an open WARNING first, then team name
+        (case-insensitive), then link id; a team's rows by the sprint's first held day, then sprint id. At most 1,000 teams
+        (`truncated`), `totals` before the cap. Filters are equality; a repeated key or a malformed value is `400`; `severity` and
+        `kind` narrow each team's rows too.
       parameters:
         - $ref: '#/components/parameters/ConnectionIdQuery'
         - $ref: '#/components/parameters/TeamIdQuery'
         - name: severity
+          description: Lists only the sprint rows of this severity, so a team with none is not listed.
           in: query
           required: false
           schema: { $ref: '#/components/schemas/Severity' }
         - name: kind
+          description: Lists only the sprint rows of this kind, so a team with none is not listed.
           in: query
           required: false
           schema: { $ref: '#/components/schemas/CapacityDeviationKind' }
@@ -2350,37 +2084,19 @@ paths:
           in: query
           required: false
           schema: { type: integer, format: int32, minimum: 0 }
-          description: |
-            The id of a second ACTIVE baseline to compare the path baseline with INSTEAD OF the live plan: the path baseline is "then",
-            this one "now". Absent: the comparison with the live plan, and the document carries no `against` key. Any order is allowed
-            (an older baseline against a newer one reads as negative movement). A repeated key or a value that is not a non-negative
-            integer is a `400`; the id of the path baseline itself is a `400` (a baseline cannot be compared with itself); an id that
-            is unknown or soft-deleted is a `400` whose `type` is `urn:astrolabe:problem:unknown-baseline` (the caller held the id, e.g.
-            a remembered pick: it drops the pick and asks again). A malformed or repeated value is rejected first (a plain `400`); the self, unknown and deleted cases are answered AFTER the path baseline's own `404`.
-      description: |
-        Any authenticated user; `404` when the baseline is unknown or soft-deleted (it is the addressed resource - the views'
-        `?baseline=` answers `400` instead, because there the id is a query value the client held). One document (a deliberate
-        exception to the paged envelope, bounded by the plan's scale: about 100 project rows and at most about 1,000 milestone rows),
-        read in ONE snapshot: `revision` is the plan revision read first. The baseline equals the plan at `baseline.planRevision`, so
-        a `revision` equal to it shows no movement.
-
-        `projects` is the union of the baseline's and the live projects (a project newer than the baseline has `movement.kind` `ADDED`,
-        one that is gone `REMOVED`), by work stream, program and project name (case-insensitive) then id: the names are the live ones
-        when the project exists now, `rankThen`/`rankNow` the rank positions on either side, `baselineSpan`/`span` the derived spans
-        then and now, `movement` the span's movement and `counts` the movement counts over the project's milestones (a removed
-        project: its removed milestones). `milestones` lists ONLY the changed milestone rows - every `movement.kind` but `UNCHANGED`,
-        or a different estimate (`movement.estimateDelta` not zero) - in the projects' order, then by start (the live one, else the
-        frozen one; undated last), end, name and id; the unchanged rows are in `totals` and `counts`.
-
-        Movement is measured in WORKING days on the CURRENT calendar (Monday-Friday minus the public holidays), positive = later:
-        `startDays`/`endDays` are present only for a milestone dated on both sides; a Saturday-dated start moved to its Monday is no
-        movement. `totals` counts every milestone row and every project row: `later`/`earlier` are the `MOVED` rows whose END is
-        later/earlier (a start-only move is `moved`, neither).
-
-        With `?against=N` the "now" side is the frozen rows of baseline N instead of the live plan (the movement is still measured on
-        the CURRENT calendar): `against` carries N's header; in `projects` and `milestones` the fields named `live`, `rankNow` and
-        `span` read N's frozen rows, `ADDED` means "in N only" and `REMOVED` "in the path baseline only", and the names are N's when
-        the row is in N. `revision` stays the plan revision read first.
+          description: >-
+            A second active baseline to compare the path baseline ("then") with instead of the live plan ("now"); absent, the
+            comparison is with the live plan and the document has no `against`. `400` for a repeated or non-integer value; the path
+            baseline's own id and an unknown or deleted id (`type` `urn:astrolabe:problem:unknown-baseline`) are `400` too, after the
+            path baseline's own `404`.
+      description: >-
+        Compares one baseline with the plan now, or with a second baseline (`?against=N`). Any authenticated user; `404` when the
+        baseline is unknown or soft-deleted (the views' `?baseline=` answers `400` instead, because there the id is a query value the
+        caller held). `projects` is the union of the baseline's and the live projects (`ADDED` for a project newer than the baseline,
+        `REMOVED` for one that is gone); `milestones` lists only the changed rows; `totals` count every row. Movement is measured in
+        working days on the current calendar, positive = later. Under `?against=N` the "now" side is N's frozen rows: the fields named
+        `live`, `rankNow` and `span` read them, `ADDED` means in N only and `REMOVED` in the path baseline only. `revision` is the
+        plan revision read first; the baseline equals the plan at `baseline.planRevision`, so an equal `revision` shows no movement.
       responses:
         '200':
           description: The comparison
@@ -5307,7 +5023,9 @@ components:
             - $ref: '#/components/schemas/SpanBaseline'
         milestones:
           type: array
-          description: One entry per live milestone of the project (scheduled or in the tray) that the baseline also froze, by id.
+          description: >-
+            One entry per live milestone of the project that the baseline also froze (scheduled or in the tray), by id, with its
+            movement in working days on the current calendar; a live milestone without an entry is new since the baseline.
           items:
             $ref: '#/components/schemas/BaselineMilestone'
         removed:
@@ -5326,7 +5044,8 @@ components:
         milestones:
           type: array
           description: >-
-            One entry per live milestone of the team that the baseline also froze (whatever team it sat on then - `teamIdThen`), by id.
+            One entry per live milestone of the team that the baseline also froze (whatever team it sat on then - `teamIdThen`), by
+            id; a live milestone without an entry is new since the baseline.
           items:
             $ref: '#/components/schemas/BaselineMilestone'
         removed:
@@ -5352,7 +5071,10 @@ components:
     RoadmapBaseline:
       type: object
       required: [id, name, planRevision, removedProjects]
-      description: Present only with `?baseline=N`, on the roadmap and programs documents.
+      description: >-
+        Present only with `?baseline=N`, on the roadmap and programs documents: the baseline's identity and the projects it froze that
+        are gone. Every project row the baseline also froze gains a `baseline` block (`RoadmapProjectBaseline`; a row without one is
+        newer than the baseline), and so does a program or work stream with at least one project it froze (`SpanBaseline`).
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
@@ -5366,8 +5088,8 @@ components:
       type: object
       required: [span, movement, rankPosition, targetStart, targetEnd]
       description: >-
-        A project row against the baseline. Present only with `?baseline=N` and only for a project the baseline also froze (absent =
-        the project is newer than the baseline).
+        A project row against the baseline: the derived span, rank position and target window it had and the span's movement in
+        working days on the current calendar. Present only with `?baseline=N` and only for a project the baseline also froze.
       properties:
         span:
           nullable: true
@@ -5956,8 +5678,10 @@ components:
       type: object
       required: [upstream, upstreamTruncated]
       description: >-
-        The milestones and projects of OTHER projects that lie upstream of this project's end (their slip would eventually move it),
-        the critical ones first, then the rest by slack.
+        The milestones and projects of other projects upstream of this project's end (their slip would eventually move it), derived
+        from the planned dates over the whole active plan graph: the critical ones first, then the rest by slack. A project is listed
+        only when an included link (not violated, both ends scheduled) names it; entities that only lie downstream, or are unconnected
+        to the end, are absent.
       properties:
         upstream:
           type: array
@@ -5987,7 +5711,7 @@ components:
     ProjectDependency:
       type: object
       required: [id, predecessor, successor, type, lagDays, check, critical, can]
-      description: A link of the project view (and of the team view) - both ends resolved, the check of the pure kernel and the caller's action.
+      description: A link of the project view (and of the team view) - both ends resolved, its check and the caller's action.
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         predecessor: { $ref: '#/components/schemas/DependencyEndpoint' }
@@ -5995,16 +5719,17 @@ components:
         type: { $ref: '#/components/schemas/DependencyType' }
         lagDays: { type: integer, format: int32, minimum: -365, maximum: 365, description: Working days; negative = a lead. }
         check: { $ref: '#/components/schemas/DependencyCheck' }
-        critical: { type: boolean, description: 'A zero-slack link on the viewed project''s critical chain. On the team view (1.7): on the chain of a project one of the team''s milestones belongs to.' }
+        critical: { type: boolean, description: "A zero-slack link on the viewed project's critical chain; a violated link is never critical and ends the chain at the violation. On the team view: on the chain of a project one of the team's milestones belongs to (a link that drives only a project none of the team's milestones belongs to is not marked)." }
         can: { $ref: '#/components/schemas/DependencyCan' }
     DependencyCan:
       type: object
       required: [edit, delete]
       description: >-
-        What THIS caller may do with one dependency, from the same arithmetic as the writes (an owner on the SUCCESSOR's project chain,
-        or ADMIN; the predecessor's owner is asked nothing). Each flag is true exactly when the write would not be refused with `403` for the caller.
+        What this caller may do with one dependency, by the rules of the writes (an owner on the SUCCESSOR's project chain, or ADMIN;
+        the predecessor's owner is asked nothing). Each flag is true exactly when the write would not be refused with `403` for the
+        caller.
       properties:
-        edit: { type: boolean, description: 'The caller may change the link''s type and lag (`PUT /dependencies/{id}`): an owner on the SUCCESSOR''s project chain, or ADMIN.' }
+        edit: { type: boolean, description: "The caller may change the link's type and lag (`PUT /dependencies/{id}`): an owner on the SUCCESSOR's project chain, or ADMIN. The write may still answer `409` for a cycle or `400` for a bad lag." }
         delete: { type: boolean, description: 'The caller may delete the link: an owner on the SUCCESSOR''s project chain, or ADMIN.' }
     DependencyStatus:
       type: string
@@ -6080,13 +5805,13 @@ components:
         updatedAt: { type: integer, format: int64 }
         jira:
           nullable: true
-          description: The project's own Jira item (1.3); null when it is unbound. Through a disabled connection it is kept with null dates.
+          description: The project's own Jira item; null when it is unbound. Through a disabled connection it is kept with null dates.
           allOf:
             - $ref: '#/components/schemas/JiraLink'
         flags:
           type: array
           description: >-
-            The project's Jira flags (1.3): `JIRA_DEVIATION` per open deviation of its own binding and the `JIRA_MILESTONES` roll-up of its
+            The project's Jira flags: `JIRA_DEVIATION` per open deviation of its own binding and the `JIRA_MILESTONES` roll-up of its
             milestones, the same Jira flags the roadmap row carries; WARNING first.
           items:
             $ref: '#/components/schemas/PlanFlag'
@@ -6113,21 +5838,22 @@ components:
         estimateMd: { type: number, format: double, minimum: 0, description: Man-days with at most two decimals. }
         startDate: { type: string, format: date, nullable: true, description: Null = unscheduled (both dates are null together). }
         endDate: { type: string, format: date, nullable: true }
-        pinned: { type: boolean, description: 'The auto-proposal keeps this milestone on its dates (V25); only ever true while it is scheduled. Set by the milestone team''s manager or ADMIN (`PUT /milestones/{id}/pin`), cleared by an unschedule.' }
+        pinned: { type: boolean, description: "The auto-proposal keeps this milestone on its dates; only ever true while it is scheduled. Set by the milestone team's manager or ADMIN (`PUT /milestones/{id}/pin`), cleared by an unschedule." }
         createdAt: { type: integer, format: int64, description: Epoch millis }
         updatedAt: { type: integer, format: int64, description: Epoch millis }
-        slackDays: { type: integer, format: int32, minimum: 0, nullable: true, description: 'Working days this milestone could slip before THIS project''s end moves; null = unscheduled.' }
+        slackDays: { type: integer, format: int32, minimum: 0, nullable: true, description: "Working days this milestone could slip, with everything downstream of it allowed to slip too, before this project's end moves; null while unscheduled." }
         critical: { type: boolean, description: 'Zero slack: on the critical path of this project.' }
         jira:
           nullable: true
-          description: The node's Jira item (1.3); null when it is unbound. Through a disabled connection it is kept with null dates.
+          description: The node's Jira item; null when it is unbound. Through a disabled connection it is kept with null dates.
           allOf:
             - $ref: '#/components/schemas/JiraLink'
         flags:
           type: array
           description: >-
-            The milestone's flags, WARNING first: `NO_WORKING_DAY` (the scheduled span holds no working day on the current calendar, raised from the view's own
-            calendar) and the open Jira flags (`JIRA_DEVIATION`, one per deviation); empty when none applies (unscheduled, a clean or unbound row, acknowledged or on a disabled connection).
+            The milestone's flags, WARNING first: `NO_WORKING_DAY` (the scheduled span holds no working day on the current calendar)
+            and one `JIRA_DEVIATION` per open deviation; empty when none applies (unscheduled, a clean or unbound row, acknowledged or
+            on a disabled connection).
           items:
             $ref: '#/components/schemas/PlanFlag'
         can:
@@ -6224,7 +5950,8 @@ components:
         can:
           type: object
           required: [schedule, editCapacity, editOrder]
-          description: Three names with one arithmetic - ADMIN, or the caller is the active manager of THIS team.
+          description: >-
+            The actions on this team's plan, all by one rule: ADMIN, or the caller is the active manager of this team.
           properties:
             schedule: { type: boolean, description: 'The caller may set or clear the dates of this team''s milestones (`PUT /milestones/{id}/schedule`).' }
             editCapacity: { type: boolean, description: 'The caller may add, change and delete this team''s capacity periods.' }
@@ -6232,15 +5959,16 @@ components:
         flags:
           type: array
           description: >-
-            The team-level flags (1.9): today only `FLOW_CAPACITY`, ONE roll-up of the team's open Flow capacity deviations. Empty without a
-            Flow link, with a disabled connection or when every row is acknowledged.
+            The team-level flags: today only `FLOW_CAPACITY`, one roll-up of the team's open Flow capacity deviations (`GET
+            /views/capacity-deviations`), its severity the worst of them. Empty without a Flow link, with a disabled connection or
+            when every row is acknowledged.
           items:
             $ref: '#/components/schemas/PlanFlag'
     TeamViewOrder:
       type: object
       required: [custom, revision, milestoneIds]
       properties:
-        custom: { type: boolean, description: True when the team's manager has set an order (the project rank is then only the default for the unlisted tail). }
+        custom: { type: boolean, description: "True when the team's manager has set an order. Listed milestones then come first, as listed; the rest (all of them when false) follow by the global project rank (ranked before unranked, then project name and id), then start date, end date, name and id, undated last. A rank change never reshuffles the listed ones. Applies to `scheduled` and `unscheduled`." }
         revision:
           type: integer
           format: int64
@@ -6252,9 +5980,9 @@ components:
           uniqueItems: true
           items: { type: integer, format: int32, minimum: 0 }
           description: >-
-            The stored custom order: the manager's listed milestones that are still ACTIVE milestones of this team, scheduled or not, in
-            stored position order (empty when `custom` is false). The unscheduled ones are listed here only; a client that writes the
-            order again keeps their places (`planning-model.md` "The team milestone order").
+            The stored custom order: the manager's listed milestones that are still active milestones of this team, scheduled or not,
+            in stored position order (empty when `custom` is false). The unscheduled ones are listed here only; a client that writes
+            the order again keeps their places.
     TeamViewCapacity:
       type: object
       required: [periods]
@@ -6274,7 +6002,9 @@ components:
           type: number
           format: double
           minimum: 0
-          description: The man-days of the scheduled milestones falling in the week (each estimate spread evenly over its working days), two decimals.
+          description: >-
+            The man-days of the scheduled milestones falling in the week, two decimals: each estimate is spread evenly over its
+            working days (Monday-Friday without the public holidays).
         capacity:
           type: number
           format: double
@@ -6289,13 +6019,16 @@ components:
           type: integer
           format: int32
           minimum: 0
-          description: The most scheduled milestones in progress on one working day of the week.
-        wipExceeded: { type: boolean, description: Some working day's in-progress count exceeds the WIP limit in force that day. }
+          description: >-
+            The most scheduled milestones in progress on one working day of the week (a milestone is in progress from the first
+            working day on or after its start to the last on or before its end).
+        wipExceeded: { type: boolean, description: "Some working day's in-progress count exceeds the WIP limit in force that day; a day without a limit never flags." }
         flowCapacity:
           allOf: [{ $ref: '#/components/schemas/Severity' }]
           description: >-
-            Present only on `GET /views/team/{id}` and only when an OPEN Flow capacity deviation's held days meet the week (1.9): the worst
-            severity among the rows that meet it. Absent otherwise, and always absent on a proposal's or a check's weeks.
+            Present only on `GET /views/team/{id}` and only when an open Flow capacity row's held days (`effectiveFrom` to the
+            sprint's end) meet the week: the worst severity among the rows that meet it (a `TEAM_GONE` row marks no week). Absent
+            otherwise, and always absent on a proposal's or a check's weeks.
     TeamMilestone:
       type: object
       required: [id, projectId, name, description, teamId, teamName, estimateMd, startDate, endDate, createdAt, updatedAt, projectName, programName, workStreamName, rankPosition, slackDays, critical, pinned, jira, flags]
@@ -6310,29 +6043,36 @@ components:
         estimateMd: { type: number, format: double, minimum: 0, description: Man-days with at most two decimals. }
         startDate: { type: string, format: date, nullable: true, description: Null = unscheduled (both dates are null together). }
         endDate: { type: string, format: date, nullable: true }
-        pinned: { type: boolean, description: 'The auto-proposal keeps this milestone on its dates (V25); only ever true while it is scheduled. Set by the milestone team''s manager or ADMIN (`PUT /milestones/{id}/pin`), cleared by an unschedule.' }
+        pinned: { type: boolean, description: "The auto-proposal keeps this milestone on its dates; only ever true while it is scheduled. Set by the milestone team's manager or ADMIN (`PUT /milestones/{id}/pin`), cleared by an unschedule." }
         createdAt: { type: integer, format: int64, description: Epoch millis }
         updatedAt: { type: integer, format: int64, description: Epoch millis }
         projectName: { type: string }
         programName: { type: string }
         workStreamName: { type: string }
         rankPosition: { type: integer, format: int32, minimum: 1, nullable: true, description: The project's position in the global project rank; null = unranked. }
-        slackDays: { type: integer, format: int32, minimum: 0, nullable: true, description: 'Working days this milestone could slip before ITS OWN project''s end moves (the project view''s figure); null = unscheduled.' }
+        slackDays: { type: integer, format: int32, minimum: 0, nullable: true, description: "Working days this milestone could slip before its own project's end moves (the project view's figure); null while unscheduled." }
         critical: { type: boolean, description: 'Zero slack: on the critical path toward its own project''s end.' }
         jira:
           nullable: true
-          description: The node's Jira item (1.3); null when it is unbound. Through a disabled connection it is kept with null dates.
+          description: The node's Jira item; null when it is unbound. Through a disabled connection it is kept with null dates.
           allOf:
             - $ref: '#/components/schemas/JiraLink'
         flags:
           type: array
           description: >-
-            The milestone's flags, WARNING first: `NO_WORKING_DAY` (the scheduled span holds no working day on the current calendar, raised from the view's own
-            calendar) and the open Jira flags (`JIRA_DEVIATION`, one per deviation); empty when none applies (unscheduled, a clean or unbound row, acknowledged or on a disabled connection).
+            The milestone's flags, WARNING first: `NO_WORKING_DAY` (the scheduled span holds no working day on the current calendar)
+            and one `JIRA_DEVIATION` per open deviation; empty when none applies (unscheduled, a clean or unbound row, acknowledged or
+            on a disabled connection).
           items:
             $ref: '#/components/schemas/PlanFlag'
 
     DeviationKind:
+      description: >-
+        INFO unless noted. `GONE` (WARNING, alone): issue gone. `LEVEL_MISMATCH`, `PARENT_MISMATCH` (WARNING): level or parent
+        differs. `RENAMED`: name differs. `START_DIFFERS`, `END_DIFFERS`: dates differ (working days), WARNING if the plan's end is
+        later. `TARGET_DIFFERS` (projects): target window differs. `UNSCHEDULED_IN_PLAN`, `UNSCHEDULED_IN_JIRA` (milestones): one side
+        has dates. `ESTIMATE_DIFFERS`; `ESTIMATE_NOT_COMPARABLE`: no factor or unit. `PROGRESS_MISMATCH`: status against dates.
+        `UNLINKED_IN_JIRA` (WARNING), `UNLINKED_IN_PLAN`, `CHILDREN_DONE`, `CHILDREN_OPEN`: coverage.
       type: string
       enum: [GONE, LEVEL_MISMATCH, PARENT_MISMATCH, RENAMED, START_DIFFERS, END_DIFFERS, TARGET_DIFFERS, UNSCHEDULED_IN_PLAN, UNSCHEDULED_IN_JIRA, ESTIMATE_DIFFERS, ESTIMATE_NOT_COMPARABLE, PROGRESS_MISMATCH, UNLINKED_IN_JIRA, UNLINKED_IN_PLAN, CHILDREN_DONE, CHILDREN_OPEN]
     NullableDeviationKind:
@@ -6342,28 +6082,21 @@ components:
       enum: [GONE, LEVEL_MISMATCH, PARENT_MISMATCH, RENAMED, START_DIFFERS, END_DIFFERS, TARGET_DIFFERS, UNSCHEDULED_IN_PLAN, UNSCHEDULED_IN_JIRA, ESTIMATE_DIFFERS, ESTIMATE_NOT_COMPARABLE, PROGRESS_MISMATCH, UNLINKED_IN_JIRA, UNLINKED_IN_PLAN, CHILDREN_DONE, CHILDREN_OPEN]
     DeviationDetail:
       type: object
-      description: |
-        The evidence, every member optional and text so one shape serves every kind. `GONE`: jira = the gone reason (`DELETED`, `FORBIDDEN`, `OUT_OF_SCOPE`, `MOVED_OUT` for
-        a probed-readable issue whose current key is outside the connection's projects, `NOT_LISTED` for one inside them). `LEVEL_MISMATCH`:
-        jira = the observed hierarchy level (`unknown` when none), plan = the mapped one. `PARENT_MISMATCH`: jira = the observed parent's
-        key, plan = the plan parent's name. `RENAMED`: jira = the summary, plan = the name. `START_DIFFERS` / `END_DIFFERS`: the two ISO
-        dates and `days`. `TARGET_DIFFERS`: `days` only (the item's `jira` and `plan` blocks hold the dates). `ESTIMATE_DIFFERS`: jira =
-        the figure in man-days, plan = the milestone's. `ESTIMATE_NOT_COMPARABLE`: jira = the raw figure, plan = the milestone's man-days.
-        `PROGRESS_MISMATCH`: jira = the status category, plan = the plan date that contradicts it. `UNSCHEDULED_*`: nothing.
-        `UNLINKED_IN_JIRA`: jira = the Jira KEYS (at most 10, `, `-joined, ascending by issue id, never a summary) of open items under the
-        bound issue that no binding covers. `UNLINKED_IN_PLAN`: plan = the NAMES (at most 10, `, `-joined, ascending by id) of the bound
-        node's plan children that no binding covers. `CHILDREN_DONE`: jira = `done/children`, plan = the plan's end date.
-        `CHILDREN_OPEN`: jira = `open/children`, plan = the plan's end date. A member that does not apply to the kind (or holds nothing)
-        is ABSENT from the object, never `null` (1.15); an `UNSCHEDULED_*` detail is `{}`.
+      description: >-
+        Evidence of a deviation; a member that does not apply is absent, never `null`. `jira`/`plan` hold each side: the gone reason;
+        the level (`unknown` when none); the parent's key, the plan parent's name; the summary, the name; the status category, the
+        contradicting plan date; the man-days figure (`ESTIMATE_DIFFERS`) or raw (`ESTIMATE_NOT_COMPARABLE`), the plan's;
+        `done/children` or `open/children`, the plan's end. Dates: two ISO dates, `days`; `TARGET_DIFFERS`: `days` only.
+        `UNLINKED_IN_JIRA`: Jira keys; `UNLINKED_IN_PLAN`: plan names (at most 10, comma-joined, by id). `UNSCHEDULED_*`: `{}`.
       properties:
         jira: { type: string }
         plan: { type: string }
-        days: { type: integer, format: int32, description: "Working days, POSITIVE = the plan is later." }
+        days: { type: integer, format: int32, description: "Working days on the live calendar, POSITIVE = the plan is later." }
         count: { type: integer, format: int32, description: "The full count behind a truncated list (`UNLINKED_*`: items, at most 10 listed) or the children (`CHILDREN_DONE`, `CHILDREN_OPEN`); absent for every other kind." }
     FlagDeviation:
       type: object
       description: >-
-        The evidence a `JIRA_DEVIATION` flag carries (1.15): a deviation's `kind` and `detail`. Its severity is the flag's own
+        The evidence a `JIRA_DEVIATION` flag carries: a deviation's `kind` and `detail`. Its severity is the flag's own
         (`PlanFlag.severity`), so it is not repeated here.
       required: [kind, detail]
       properties:
@@ -6434,6 +6167,11 @@ components:
         issueKey: { type: string }
         gone: { type: boolean, description: "The binding's observation says the issue is gone from Jira (false when never observed)." }
     DeviationConnection:
+      description: >-
+        A connection as the view lists it: its name, site and project keys, never the email, token or mapping. `mappingOk` is false
+        when its effective mapping cannot be resolved against its discovery now (never discovered, unreadable or stale). `status` is
+        the derived sync state, computed per read from the same snapshot (nothing stored); it and `lastRun` are operational and
+        secret-free (never the token, an error message or a count). The registry itself is ADMIN only.
       type: object
       required: [id, name, siteUrl, enabled, projectKeys, mappingOk, lastRun, status]
       properties:
@@ -6445,8 +6183,8 @@ components:
           type: array
           maxItems: 50
           items: { type: string }
-          description: "The connection's Jira project keys, the import's scope options (a work-stream owner's import dialog reads them here; project keys are not secrets)."
-        mappingOk: { type: boolean, description: "False when the effective mapping cannot be resolved against the discovery now: no level or estimate comparison is made for this connection's bindings." }
+          description: The connection's Jira project keys, the import's scope options (not secrets, so every login reads them).
+        mappingOk: { type: boolean, description: "False when the effective mapping cannot be resolved against the discovery now: no level or estimate comparison is raised for this connection's bindings, and a bind through it is refused with `409`." }
         lastRun:
           allOf:
             - $ref: '#/components/schemas/SyncLastRun'
@@ -6454,10 +6192,14 @@ components:
         status: { $ref: '#/components/schemas/SyncStatus' }
     DeviationTotals:
       type: object
-      description: Before the 2,000-item cap. `bindings` counts what the list answers; `warnings`, `infos`, `gone`, `stillInJira` and `acknowledged` share one basis, the bindings matching every filter but the acknowledgement state.
+      description: >-
+        Before the 2,000-item cap. `bindings` counts what the list answers (the filtered ones, so only open ones unless `all`,
+        `acknowledged` or a project or team filter applies - not the number of links); `warnings`, `infos`, `gone`, `stillInJira` and
+        `acknowledged` share one basis, the bindings matching every filter but the acknowledgement state, so all are known whichever
+        state the list shows.
       required: [warnings, infos, bindings, gone, stillInJira, acknowledged]
       properties:
-        warnings: { type: integer, format: int32, minimum: 0, description: "The OPEN WARNING lines (listed deviations without a current acknowledgement, 1.12) of the open bindings matching every filter but the acknowledgement state." }
+        warnings: { type: integer, format: int32, minimum: 0, description: "The OPEN WARNING lines (listed deviations without a current acknowledgement) of the open bindings matching every filter but the acknowledgement state." }
         infos: { type: integer, format: int32, minimum: 0, description: "The OPEN INFO lines of the open bindings matching every filter but the acknowledgement state." }
         bindings: { type: integer, format: int32, minimum: 0, description: "The bindings the list answers (the open ones by default), before the cap." }
         gone: { type: integer, format: int32, minimum: 0, description: "The OPEN bindings (matching every filter but the acknowledgement state) whose issue is gone." }
@@ -6482,7 +6224,7 @@ components:
     JiraRollup:
       type: object
       description: >-
-        An epic's children as the last census holds them (1.4): the non-sub-task Jira issues at the child level (the milestone mapping's
+        An epic's children as the last census holds them: the non-sub-task Jira issues at the child level (the milestone mapping's
         hierarchy level minus one, never below 0) whose parent is the bound issue. Read from the mirror the sync run keeps, never from
         Jira at request time; absent (null where it is a member) while the issue has no mirrored child.
       required: [children, done, points, observedAt]
@@ -6548,12 +6290,13 @@ components:
           type: string
           pattern: '^[0-9a-f]{64}$'
           description: >-
-            The SHA-256 (lower-case hex) of the canonical JSON of the binding's FULL deviation list (`ESTIMATE_NOT_COMPARABLE` included even
-            where `deviations` hides it): the token to send back to `POST .../acknowledge`, for one line (with `kind`) or for all.
+            The SHA-256 (lower-case hex) of the canonical JSON of the binding's FULL deviation list (`ESTIMATE_NOT_COMPARABLE`
+            included even where `deviations` hides it), the same for every filter and stable across reads while nothing changes: the
+            token to send back to `POST .../acknowledge`, for one line (with `kind`) or for all.
         can: { $ref: '#/components/schemas/DeviationCan' }
     DeviationLine:
       type: object
-      description: One listed deviation (a `Deviation`'s members, flat) with the state of its own acknowledgement (1.12).
+      description: One listed deviation with the state of its own acknowledgement.
       required: [kind, severity, detail, acknowledgement]
       properties:
         kind: { $ref: '#/components/schemas/DeviationKind' }
@@ -6565,7 +6308,7 @@ components:
           nullable: true
     DeviationAcknowledgement:
       type: object
-      description: A stored acknowledgement of one line.
+      description: A stored acknowledgement of one line. A line that leaves the list and returns identical is still acknowledged.
       required: [at, by, current]
       properties:
         at: { type: integer, format: int64, description: "When it was acknowledged (epoch milliseconds)." }
@@ -6667,8 +6410,9 @@ components:
       type: object
       required: [projectId, projects, pairs]
       description: >-
-        Present only with `?criticalPath=N`, on `GET /views/roadmap` and (1.16) `GET /views/programs` (the same block for the same plan): the
-        critical chain toward project N's end, rolled up to projects and project pairs.
+        Present only with `?criticalPath=N`, on `GET /views/roadmap` and `GET /views/programs` (the same block for the same plan): the
+        critical chain toward project N's end over the whole plan graph on the planned dates (the project view's rule), rolled up to
+        projects and project pairs. A project with nothing scheduled answers both lists empty.
       properties:
         projectId: { type: integer, format: int32, minimum: 0, description: The target project (N). }
         projects:
@@ -6680,7 +6424,9 @@ components:
             $ref: '#/components/schemas/RoadmapCriticalProject'
         pairs:
           type: array
-          description: The ordered project pairs holding at least one link on the chain, by (predecessor, successor) project id.
+          description: >-
+            The ordered project pairs holding at least one link on the chain, by (predecessor, successor) project id; a pair with a
+            direct link and several milestone links is critical when any of them is (the per-link truth is the project view's).
           items:
             $ref: '#/components/schemas/RoadmapCriticalPair'
     RoadmapCriticalProject:
@@ -6743,10 +6489,9 @@ components:
         flags:
           type: array
           description: >-
-            The flags raised on this project: the drift and rank-inversion flags, (1.3) the Jira ones - `JIRA_DEVIATION` per open
-            deviation of its own binding, one `JIRA_MILESTONES` roll-up of its milestones' (never one flag per milestone) - and (1.23)
-            one `FLOW_CAPACITY_MILESTONES` per team whose open Flow capacity difference covers days of a scheduled milestone of the
-            project; WARNING first, then by kind, team and other project.
+            The drift and rank-inversion flags, the Jira ones (`JIRA_DEVIATION` per open line of its own binding, one
+            `JIRA_MILESTONES` roll-up of its milestones, never one flag per milestone) and one `FLOW_CAPACITY_MILESTONES` per team
+            with an open Flow capacity difference over its scheduled milestones; WARNING first, then by kind, team and other project.
           items:
             $ref: '#/components/schemas/PlanFlag'
         can:
@@ -6756,7 +6501,7 @@ components:
             editTargetWindow: { type: boolean, description: 'The caller may `PUT /projects/{id}/target-window`: ADMIN, an owner above the project, or a ROADMAP_EDITOR holder.' }
         jira:
           nullable: true
-          description: The project's own Jira item (1.3); null when it is unbound. Through a disabled connection it is kept with null dates.
+          description: The project's own Jira item; null when it is unbound. Through a disabled connection it is kept with null dates.
           allOf:
             - $ref: '#/components/schemas/JiraLink'
         baseline:
@@ -6765,22 +6510,20 @@ components:
       type: object
       required: [kind, severity]
       description: >-
-        One flag raised on a project or, for `JIRA_DEVIATION`, a milestone, or (1.9) on a team: `FLOW_CAPACITY`, in `GET /views/team/{id}`'s
-        `team.flags`; (1.23) a project's `FLOW_CAPACITY_MILESTONES`, one per team. Warnings only - nothing is ever moved. Only `kind` and `severity` are always present; every other member is ABSENT
-        (never `null`) when it does not apply to the kind (1.15, the timeline documents' size).
+        A flag raised on a project, a milestone or a team; a warning only, nothing is ever moved. Only `kind` and `severity` are
+        always present; every other member is absent (never `null`) when it does not apply to the kind. `FLOW_CAPACITY_MILESTONES` is
+        raised when a scheduled milestone of the project on that team lies in days an open capacity difference of the team covers:
+        WARNING when the plan holds more capacity than Flow in a sprint such a milestone meets, else INFO. An acknowledged difference,
+        a disabled Flow connection, an unscheduled milestone or a team whose Flow team is gone raises nothing.
       properties:
         kind:
           type: string
           enum: [DRIFT_END_LATE, DRIFT_START_LATE, DRIFT_END_EARLY, RANK_INVERSION, NO_WORKING_DAY, JIRA_DEVIATION, JIRA_MILESTONES, FLOW_CAPACITY, FLOW_CAPACITY_MILESTONES]
           description: >-
-            `JIRA_DEVIATION` is one open deviation between a node and its Jira item (a binding through an enabled connection that is not
-            currently acknowledged; `ESTIMATE_NOT_COMPARABLE` never raises one), `JIRA_MILESTONES` a project's roll-up of its milestones',
-            `FLOW_CAPACITY` (1.9, only in `GET /views/team/{id}`'s `team.flags`) the team's roll-up of its open Flow capacity deviations,
-            `FLOW_CAPACITY_MILESTONES` (1.23, only on a project row of the roadmap and programs views) one team's share of a project:
-            `teamId` names the team and `count` how many of the project's scheduled milestones on it lie in days an open capacity
-            difference of that team covers; WARNING when the plan holds more capacity than Flow in such a sprint, INFO otherwise.
-            `NO_WORKING_DAY` (the project and team views' milestone rows) the scheduled span holds no working day on the current calendar:
-            a holiday added after the schedule was written (decision D2); it carries no other member.
+            Drift: `DRIFT_END_LATE` (WARNING), `DRIFT_START_LATE` and `DRIFT_END_EARLY` (INFO; an early start raises nothing).
+            `RANK_INVERSION`. `NO_WORKING_DAY`: a milestone's span holds no working day. `JIRA_DEVIATION`: one open deviation line.
+            `JIRA_MILESTONES`: a project's roll-up. `FLOW_CAPACITY`: a team's roll-up (`team.flags`). `FLOW_CAPACITY_MILESTONES`: one
+            team's share of a project row.
         severity: { $ref: '#/components/schemas/Severity' }
         days:
           type: integer
@@ -6796,7 +6539,11 @@ components:
           type: integer
           format: int32
           minimum: 0
-          description: The higher-ranked project of a rank inversion; absent for drift and on every other kind.
+          description: >-
+            The higher-ranked project A of a `RANK_INVERSION`, raised on the lower-ranked B; absent on every other kind. Per team,
+            adjacent ranked projects with scheduled work there where B starts strictly before A: WARNING with that `teamId`, `days` =
+            how much earlier. Adjacent ranked projects sharing no team with scheduled work, B's span starting before A's: INFO, no
+            `teamId`. A tie is no inversion.
         deviation:
           description: The evidence of a `JIRA_DEVIATION` flag (its severity is the flag's, not repeated inside); absent on every other kind.
           allOf:
@@ -6805,13 +6552,18 @@ components:
           type: integer
           format: int32
           minimum: 1
-          description: The milestones of the project that raised a Jira flag, for `JIRA_MILESTONES` (the flag's severity is the worst among them), the open sprint rows for `FLOW_CAPACITY`, or the project's milestones on the team in disputed days for `FLOW_CAPACITY_MILESTONES`; absent on every other kind.
+          description: >-
+            The milestones of the project that raised a Jira flag, for `JIRA_MILESTONES` (the flag's severity is the worst among
+            them); the open sprint rows for `FLOW_CAPACITY` (a sprint the plan has no capacity for counts as an INFO row); the
+            project's milestones on the team in the disputed days for `FLOW_CAPACITY_MILESTONES`. Absent on every other kind.
     JiraLink:
       type: object
       required: [bindingId, connectionId, issueKey, start, end, rollup]
       description: >-
-        A plan node's Jira item (1.3). The browse URL is not per row: find `connectionId` in the document's `jiraSites`. Present for every bound node;
-        through a DISABLED connection the dates and the roll-up are null (nothing refreshes it) and the node raises no flag.
+        A plan node's Jira item. Find its connection in the document's `jiraSites`. Present for every bound node; through a disabled
+        connection the dates and the roll-up are null (nothing refreshes it) and the node raises no flag. Through an enabled one the
+        node's open deviation lines raise `JIRA_DEVIATION` flags (`ESTIMATE_NOT_COMPARABLE` never does) and a project's milestones add
+        one `JIRA_MILESTONES` roll-up.
       properties:
         bindingId: { type: integer, format: int32, minimum: 0 }
         connectionId: { type: integer, format: int32, minimum: 0 }
@@ -6819,7 +6571,9 @@ components:
         start: { type: string, format: date, nullable: true, description: 'The start Jira was last observed to hold; null when never observed, absent in Jira, or the item is gone.' }
         end: { type: string, format: date, nullable: true, description: 'The end Jira was last observed to hold; null when never observed, absent in Jira, or the item is gone.' }
         rollup:
-          description: "A milestone's epic's children as the last census holds them (1.4), the figure `GET /views/deviations` serves as `jira.rollup`; null for a project link, a DISABLED connection, a gone issue, or an epic with no mirrored child."
+          description: >-
+            A milestone's epic's children as the last census holds them, the figure `GET /views/deviations` serves as `jira.rollup`;
+            null for a project link, a disabled connection, a gone issue, or an epic with no mirrored child.
           allOf:
             - $ref: '#/components/schemas/JiraRollup'
           nullable: true
@@ -6827,20 +6581,19 @@ components:
       type: object
       required: [connectionId, siteUrl, state, mappingOk]
       description: >-
-        A Jira connection (enabled or not) that a binding in the document's scope links to, with (1.16) its derived sync state and whether its mapping fits, so
-        a chip can say its figure "may be out of date". `state` and `mappingOk` are operational and already public: `GET /views/deviations` tells every
-        authenticated user both for every active connection (`connections[].status.state` and `connections[].mappingOk`). Never the connection's name,
-        project keys, last run, error code or any credential.
+        A Jira connection (enabled or not) that a binding in the document's scope links to, with its derived sync state and whether
+        its mapping fits, so a client can say a figure may be out of date. `state` and `mappingOk` are operational and already public
+        (`connections[].status.state` and `connections[].mappingOk` of `GET /views/deviations`). Never the connection's name, project
+        keys, last run, error code or any credential.
       properties:
         connectionId: { type: integer, format: int32, minimum: 0 }
         siteUrl: { type: string, description: 'The site''s origin, e.g. `https://example.atlassian.net`; append `/browse/` and an issue key.' }
         state:
           allOf: [{ $ref: '#/components/schemas/SyncState' }]
           description: >-
-            The connection's derived sync state, the very value `GET /views/deviations` answers in `connections[].status.state`, judged inside the view's
-            snapshot against the same clock: `DISABLED` switched off; `FAILED` the newest finished run failed or was abandoned, or the newest run was
-            interrupted; `NEVER_SYNCED` no run ever succeeded; `STALE` the last success is older than three polling intervals; else `CURRENT` (a
-            manual-only connection stays `CURRENT` after any success).
+            The connection's derived sync state: `DISABLED` switched off; `FAILED` the newest finished run failed or was abandoned, or
+            the newest run was interrupted; `NEVER_SYNCED` no run ever succeeded; `STALE` the last success is older than three polling
+            intervals; else `CURRENT` (a manual-only connection stays `CURRENT` after any success).
         mappingOk:
           type: boolean
           description: Whether the connection's effective mapping resolves against its stored discovery now (`GET /views/deviations` `connections[].mappingOk`).
@@ -6885,8 +6638,8 @@ components:
       type: object
       required: [revision, plan, me, jiraSites]
       description: >-
-        The Home page's document (1.18.0): the plan's figures and the caller's own items. Every figure is one an existing page shows, so Home never
-        disagrees with the page it links to.
+        The plan's figures (`plan`) and the caller's own items (`me`). Every figure is one an existing view shows, so Home never
+        disagrees with the view it links to.
       properties:
         revision:
           type: integer
@@ -6910,27 +6663,27 @@ components:
       required: [workStreams, programs, projects, rankedProjects, unrankedProjects, milestones, unscheduledMilestones, flags, conflicts, overloadedTeams, wipExceededTeams]
       description: The whole plan in figures; the same for every caller.
       properties:
-        workStreams: { type: integer, format: int32, minimum: 0, description: 'The active work streams (the Programs page''s facts line, nothing picked).' }
+        workStreams: { type: integer, format: int32, minimum: 0, description: "The active work streams." }
         programs: { type: integer, format: int32, minimum: 0, description: The active programs. }
         projects: { type: integer, format: int32, minimum: 0, description: The active projects. }
-        rankedProjects: { type: integer, format: int32, minimum: 0, description: 'The projects with a position in the global rank (the Roadmap''s facts line, nothing filtered).' }
+        rankedProjects: { type: integer, format: int32, minimum: 0, description: "The projects with a position in the global rank." }
         unrankedProjects: { type: integer, format: int32, minimum: 0, description: The projects without a position. }
         milestones: { type: integer, format: int32, minimum: 0, description: The active milestones. }
         unscheduledMilestones: { type: integer, format: int32, minimum: 0, description: The active milestones without dates. }
         flags:
-          description: The warnings and infos the Roadmap raises over every project, Jira's included.
+          description: The warnings and infos the roadmap view raises over every project, Jira's included.
           allOf:
             - $ref: '#/components/schemas/FlagCounts'
         conflicts: { type: integer, format: int32, minimum: 0, description: 'The violated dependencies: each link once, a link inside one project included.' }
-        overloadedTeams: { type: integer, format: int32, minimum: 0, description: The teams with at least one week the team page flags overloaded. }
+        overloadedTeams: { type: integer, format: int32, minimum: 0, description: "The teams with at least one week the team view flags overloaded." }
         wipExceededTeams: { type: integer, format: int32, minimum: 0, description: The teams with at least one week over their WIP limit. }
     HomeMe:
       type: object
       required: [personId, name, workStreams, programs, projects, teams, truncated]
       description: >-
-        What the caller's linked person may manage through the owner chain (1.23) and the teams that person manages, each list holding at most
-        100 rows: the work streams they own; the programs they own or that sit in a work stream they own; the projects they own or that sit in
-        one of those programs (each of the last two says whose it is and whether it is the person's own, `direct`).
+        What the caller's linked person may manage through the owner chain and the teams that person manages, each list holding at
+        most 100 rows: the work streams they own; the programs they own or that sit in a work stream they own; the projects they own
+        or that sit in one of those programs (each of the last two says whose it is and whether it is the person's own, `direct`).
       properties:
         personId: { type: integer, format: int32, minimum: 0 }
         name: { type: string, description: The person's name. }
@@ -6958,7 +6711,7 @@ components:
     HomeWorkStream:
       type: object
       required: [id, name, endDate, programs, projects, flags]
-      description: A work stream's row on the Programs page.
+      description: A work stream's row.
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
@@ -6972,7 +6725,7 @@ components:
     HomeProgram:
       type: object
       required: [id, name, workStreamName, ownerName, direct, projects, flags]
-      description: A program's row on the Programs page.
+      description: A program's row.
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
@@ -6987,7 +6740,7 @@ components:
     HomeProject:
       type: object
       required: [id, name, programName, ownerName, direct, rankPosition, milestones, unscheduledMilestones, flags, conflicts]
-      description: A project's Roadmap row with the project page's milestone figures and conflicts badge.
+      description: A project's roadmap row with the project view's milestone figures and conflicts count.
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
@@ -7005,17 +6758,17 @@ components:
     HomeTeam:
       type: object
       required: [id, name, milestones, unscheduledMilestones, conflicts, overloadedWeeks, wipExceededWeeks, jira, flags]
-      description: The figures of a managed team's page header.
+      description: A managed team's figures, the team view's own.
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
         milestones: { type: integer, format: int32, minimum: 0 }
         unscheduledMilestones: { type: integer, format: int32, minimum: 0 }
         conflicts: { type: integer, format: int32, minimum: 0, description: 'The violated dependencies with a milestone end in this team, each once.' }
-        overloadedWeeks: { type: integer, format: int32, minimum: 0, description: The weeks the team page flags overloaded. }
+        overloadedWeeks: { type: integer, format: int32, minimum: 0, description: "The weeks the team view flags overloaded." }
         wipExceededWeeks: { type: integer, format: int32, minimum: 0, description: The weeks over the WIP limit. }
         jira:
-          description: The open Jira deviations of the team's milestones (the team page's Jira chip), by severity.
+          description: The open Jira deviations of the team's milestones, by severity.
           allOf:
             - $ref: '#/components/schemas/FlagCounts'
         flags:
@@ -7027,21 +6780,21 @@ components:
       type: object
       required: [revision, currentWeekStart, totals, teams, truncated, warningWeeksTruncated]
       description: >-
-        The Team load page's document (1.19.0): every team's milestones and flagged weeks (1.21.0: and the flagged weeks themselves;
-        1.22.0: the current week, and the weeks' budget handed out by date). Every figure is one the team page shows, so the list
-        never disagrees with the page it links to or with Home.
+        Every team's milestones and flagged weeks. Every figure is one the team view shows, so the list never disagrees with it or
+        with Home.
       properties:
         revision:
           type: integer
           format: int64
           minimum: 0
-          description: The PLAN revision, read before the rows. Informational - the page sends nothing back.
+          description: >-
+            The plan revision, read before the rows. Informational: nothing sends it back.
         currentWeekStart:
           type: string
           format: date
           description: >-
-            The Monday of the server's current week (UTC), the same for every caller: the week from which the 2,000-week budget of
-            the rows' `warningWeeks` is handed out first. A page that hides the earlier weeks cuts at this date, never at its own clock.
+            The Monday of the server's current week (UTC), the same for every caller and never the caller's clock: the week from which
+            the 2,000-week budget of the rows' `warningWeeks` is handed out first.
         totals:
           $ref: '#/components/schemas/TeamLoadTotals'
         teams:
@@ -7054,16 +6807,16 @@ components:
         warningWeeksTruncated:
           type: boolean
           description: >-
-            True when a listed row left a warning week out because the document lists at most 2,000 weeks in all (the weeks from
-            `currentWeekStart` on first, the nearest first, then the earlier ones, the latest first). The three week counts of a row and
-            `totals` never change with the cut.
+            True when a listed row left a warning week out because the document lists at most 2,000 in all: the weeks from
+            `currentWeekStart` on first, the nearest first, then the earlier ones, the latest first (a tie goes to the earlier row; a
+            team cut from `teams` uses none). The week counts of a row and `totals` never change with the cut.
     TeamLoadTotals:
       type: object
       required: [teams, overloadedTeams, wipExceededTeams]
       description: The figures over EVERY active team, whatever the rows cut.
       properties:
         teams: { type: integer, format: int32, minimum: 0, description: The active teams. }
-        overloadedTeams: { type: integer, format: int32, minimum: 0, description: 'The teams with at least one week the team page flags overloaded (Home''s `plan.overloadedTeams`).' }
+        overloadedTeams: { type: integer, format: int32, minimum: 0, description: "The teams with at least one week the team view flags overloaded (Home's `plan.overloadedTeams`)." }
         wipExceededTeams: { type: integer, format: int32, minimum: 0, description: 'The teams with at least one week over the WIP limit (Home''s `plan.wipExceededTeams`).' }
     TeamLoadRow:
       type: object
@@ -7078,33 +6831,33 @@ components:
           description: The team's active manager; null when it has none (a deleted person is none).
         milestones: { type: integer, format: int32, minimum: 0, description: The team's active milestones. }
         unscheduledMilestones: { type: integer, format: int32, minimum: 0, description: The team's active milestones without dates. }
-        overloadedWeeks: { type: integer, format: int32, minimum: 0, description: The weeks the team page flags overloaded. }
+        overloadedWeeks: { type: integer, format: int32, minimum: 0, description: "The weeks the team view flags overloaded." }
         wipExceededWeeks: { type: integer, format: int32, minimum: 0, description: The weeks over the WIP limit. }
         weeksWithoutCapacity: { type: integer, format: int32, minimum: 0, description: 'The weeks of the team''s load with no capacity period in force (never flagged overloaded).' }
         warningWeeks:
           type: array
           maxItems: 520
           description: >-
-            The weeks of the team's load that are overloaded or over the WIP limit, oldest first, each the team page's own week
-            (never with `flowCapacity`). While nothing is cut, `overloadedWeeks` is the number of listed weeks with `overloaded` and
-            `wipExceededWeeks` the number with `wipExceeded`; the document lists at most 2,000 weeks in all
-            (`warningWeeksTruncated`), handed out by date (see `currentWeekStart`), so a row may list none or only some of its weeks.
+            The team's overloaded or over-WIP-limit weeks, oldest first, each the team view's own `weeks[]` item (never with
+            `flowCapacity`). While nothing is cut, `overloadedWeeks` is the number of listed weeks with `overloaded` and
+            `wipExceededWeeks` the number with `wipExceeded`; the document lists at most 2,000 weeks in all (`warningWeeksTruncated`),
+            so a row may list none or only some.
           items:
             $ref: '#/components/schemas/WeekLoad'
     DependencyListView:
       type: object
       required: [revision, totals, projects, teams, milestones, dependencies, truncated]
       description: >-
-        The Dependencies page's document (1.20.0; the ends' names stated once since 1.21.0): every dependency of the plan. A row names
-        its ends by kind and id and carries the project view's own type, lag and check, so the list never disagrees with the page it
-        links to; `totals.violated` is Home's `plan.conflicts`. `projects`, `teams` and `milestones` hold exactly what the listed
-        rows name. The document is the same for every caller except each row's `can` (1.22.0).
+        Every dependency of the plan. A row names its ends by kind and id and carries the project view's own type, lag and check, so
+        the list never disagrees with it; `totals.violated` is Home's `plan.conflicts`. `projects`, `teams` and `milestones` hold
+        exactly what the listed rows name. The document is the same for every caller except each row's `can`.
       properties:
         revision:
           type: integer
           format: int64
           minimum: 0
-          description: The PLAN revision, read before the rows. Informational - the page sends nothing back.
+          description: >-
+            The plan revision, read before the rows. Informational: nothing sends it back.
         totals:
           $ref: '#/components/schemas/DependencyListTotals'
         projects:
@@ -7162,8 +6915,8 @@ components:
       type: object
       required: [id, predecessor, successor, type, lagDays, check, can]
       description: >-
-        One dependency: the project view's item (`ProjectDependency`) without `critical`, its two ends by kind and id; the names are in
-        the document's `milestones`, `projects` and `teams`. `can` is the CALLER's own (1.22.0).
+        One dependency: the project view's item (`ProjectDependency`) without `critical`, its two ends by kind and id; the names are
+        in the document's `milestones`, `projects` and `teams`. `can` is the caller's own.
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         predecessor: { $ref: '#/components/schemas/EndpointRef' }
@@ -7180,7 +6933,8 @@ components:
           type: integer
           format: int64
           minimum: 0
-          description: The PLAN revision, read before the rows. Informational - no flow on the programs page sends it back.
+          description: >-
+            The plan revision, read before the rows. Informational: nothing sends it back.
         teams:
           type: array
           description: The roadmap view's `teams` (active teams with milestones in the plan, by name).
@@ -9032,10 +8786,18 @@ components:
     CapacityDeviationKind:
       type: string
       enum: [CAPACITY_DIFFERS, CAPACITY_MISSING, TEAM_GONE]
-      description: "`CAPACITY_DIFFERS` (the plan's and Flow's capacity over a sprint differ by 0.5 man-days or more), `CAPACITY_MISSING` (no capacity in the plan for the sprint), `TEAM_GONE` (the linked Flow team left Flow's document)."
+      description: >-
+        `CAPACITY_DIFFERS` (`abs(gapMd) >= 0.5`: WARNING when the plan has more capacity than Flow, INFO when less; a day before the
+        team's first period counts 0), `CAPACITY_MISSING` (INFO: no capacity period is in force on any working day of the sprint),
+        `TEAM_GONE` (WARNING: the connection has mirrored a document and the linked Flow team is not in it; it is the team's only row
+        and every `detail` member is null; a truncated document never raises one). A team whose connection never mirrored a document
+        is not listed.
     CapacityDeviationDetail:
       type: object
-      description: The evidence of one deviation. Every member is null for `TEAM_GONE`; `planMd` and `gapMd` are null for `CAPACITY_MISSING`. Man-days are decimal numbers rounded to two decimals.
+      description: >-
+        The evidence of one deviation, over the days the sprint holds (`effectiveFrom` to its end, working days on the live calendar).
+        Every member is null for `TEAM_GONE`; `planMd` and `gapMd` are null for `CAPACITY_MISSING`. Man-days are decimal numbers
+        rounded to two decimals, and the figures are rounded before they are compared.
       required: [sprintId, sprintName, start, end, effectiveFrom, workingDays, flowMd, flowTotalMd, planMd, gapMd]
       properties:
         sprintId: { type: integer, format: int64, nullable: true }
@@ -9045,7 +8807,7 @@ components:
         effectiveFrom: { type: string, format: date, nullable: true, description: "The first day the sprint holds (the capacity import's claim: a day an earlier sprint holds is not here)." }
         workingDays: { type: integer, format: int32, minimum: 0, nullable: true, description: "Working days from `effectiveFrom` to `end`." }
         flowMd: { type: number, format: double, nullable: true, description: "What the capacity import would make the plan carry over those days." }
-        flowTotalMd: { type: number, format: double, nullable: true, description: "Flow's own total for the whole sprint." }
+        flowTotalMd: { type: number, format: double, nullable: true, description: "Flow's own total for the whole sprint; it differs from `flowMd` for a fixed per-sprint figure that shares days with an earlier sprint." }
         planMd: { type: number, format: double, nullable: true, description: "The plan's capacity over those days (the team view's arithmetic); null when no capacity period is in force on any of them." }
         gapMd: { type: number, format: double, nullable: true, description: "`planMd - flowMd`: POSITIVE = the plan has more than Flow." }
     CapacityDeviation:
@@ -9058,7 +8820,10 @@ components:
         fingerprint:
           type: string
           pattern: '^[0-9a-f]{64}$'
-          description: "The SHA-256 of the row's kind, severity and figures, the sprint's name excluded (a rename in Flow changes nothing): what an acknowledgement of this row is keyed on. Send it back to `POST .../acknowledge` with the row's `detail.sprintId`."
+          description: >-
+            The SHA-256 of the row's kind, severity and figures, the sprint's name excluded (a rename in Flow changes nothing), stable
+            across reads while nothing changes: what an acknowledgement of this row is keyed on. Send it back to `POST
+            .../acknowledge` with the row's `detail.sprintId`.
         acknowledgement:
           allOf:
             - $ref: '#/components/schemas/CapacityDeviationAcknowledgement'
@@ -9066,7 +8831,8 @@ components:
           description: "The row's stored acknowledgement, null until someone acknowledges it."
     CapacityDeviationAcknowledgement:
       type: object
-      description: A row's stored acknowledgement.
+      description: >-
+        A row's stored acknowledgement. The unit is the sprint row: acknowledging one leaves the team's other listed rows alone.
       required: [at, by, current]
       properties:
         at: { type: integer, format: int64, description: "When it was acknowledged (epoch milliseconds)." }
@@ -9195,6 +8961,8 @@ components:
       properties:
         asOf: { type: string, format: date, description: The UTC date of the read. }
         connections:
+          description: >-
+            Every active Flow connection (at most 100), enabled or not, by name then id, with its sync `status` and `teamsAt`.
           type: array
           maxItems: 100
           items:
