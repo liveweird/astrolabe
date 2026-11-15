@@ -2,6 +2,7 @@ package ch.nokillswit
 
 import ch.nokillswit.planning.HomeView
 import ch.nokillswit.planning.MAX_TEAM_LOAD_ROWS
+import ch.nokillswit.planning.MAX_TEAM_LOAD_WARNING_WEEKS
 import ch.nokillswit.planning.TeamLoadRow
 import ch.nokillswit.planning.TeamLoadView
 import ch.nokillswit.planning.TeamLoadViewService
@@ -14,6 +15,8 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonArray
@@ -45,9 +48,10 @@ class TeamLoadViewTest {
      * The document with NO row cap. The endpoint cuts at 200 rows by name, and the shared database of a CI fork holds far more
      * teams than that (every `planWorld` and `TestTeams.seed` leaves its teams), so a test's own team may sort past the cut: row
      * lookups and "not truncated" claims are made here, and the HTTP reads keep what only HTTP proves (status, shape, one body for
-     * every caller, the cut itself).
+     * every caller, the cut itself). The weeks' budget is lifted too (the shared database may hold more than 2,000 warning weeks).
      */
-    private suspend fun uncapped(): TeamLoadView = TeamLoadViewService(sharedDatabaseForTests(), maxRows = Int.MAX_VALUE).view()
+    private suspend fun uncapped(): TeamLoadView =
+        TeamLoadViewService(sharedDatabaseForTests(), maxRows = Int.MAX_VALUE, maxWarningWeeks = Int.MAX_VALUE).view()
 
     /** The seeded teams: a (overloaded, over WIP), b (overloaded), c (neither), d (work, no capacity), e (empty). */
     private class Seeded(val w: PlanWorld, val manager: UInt, val teams: List<UInt>)
@@ -80,16 +84,23 @@ class TeamLoadViewTest {
             val response = s.w.stranger.client.get("$path?personId=${s.w.stranger.personId}&foo=bar")
             assertEquals(HttpStatusCode.OK, response.status)
             val root = Json.parseToJsonElement(response.bodyAsText()).jsonObject
-            assertEquals(setOf("revision", "totals", "teams", "truncated"), root.keys, "no can")
+            assertEquals(setOf("revision", "totals", "teams", "truncated", "warningWeeksTruncated"), root.keys, "no can")
             assertEquals(setOf("teams", "overloadedTeams", "wipExceededTeams"), root.getValue("totals").jsonObject.keys)
             val row = root.getValue("teams").jsonArray.first().jsonObject
             assertEquals(
                 setOf(
                     "id", "name", "managerName", "milestones", "unscheduledMilestones", "overloadedWeeks", "wipExceededWeeks",
-                    "weeksWithoutCapacity",
+                    "weeksWithoutCapacity", "warningWeeks",
                 ),
                 row.keys,
             )
+            // A listed week is exactly the team page's week: no Flow flag, no other member. Read off the uncapped document (the endpoint's
+            // 200 rows and 2,000-week budget may hold none of this test's teams on a shared database), as the wire form of the same class.
+            val uncappedJson = Json.encodeToJsonElement(TeamLoadView.serializer(), uncapped()).jsonObject
+            val week = uncappedJson.getValue("teams").jsonArray.map { it.jsonObject }.firstNotNullOf { team ->
+                team.getValue("warningWeeks").jsonArray.firstOrNull()?.jsonObject
+            }
+            assertEquals(setOf("weekStart", "load", "capacity", "overloaded", "overloadMd", "maxWip", "wipExceeded"), week.keys)
             // A leading "!" sorts before every other team name, so this row is inside the 200-row cut whatever else the database holds.
             val managerless = TestTeams.seed("!${planName("tl1-nomanager")}")
             val rows = Json.parseToJsonElement(s.w.stranger.client.get(path).bodyAsText()).jsonObject.getValue("teams").jsonArray
@@ -129,6 +140,7 @@ class TeamLoadViewTest {
             assertEquals(page.weeks.count { it.capacity == null }, row.weeksWithoutCapacity)
             assertEquals(page.scheduled.size + page.unscheduled.size, row.milestones)
             assertEquals(page.unscheduled.size, row.unscheduledMilestones)
+            assertEquals(page.weeks.filter { it.overloaded || it.wipExceeded }, row.warningWeeks, "the team page's own weeks, oldest first")
         }
         fun figures(index: Int) = load.row(s.teams[index]).let {
             listOf(it.overloadedWeeks, it.wipExceededWeeks, it.weeksWithoutCapacity, it.milestones, it.unscheduledMilestones)
@@ -138,6 +150,8 @@ class TeamLoadViewTest {
         assertEquals(listOf(0, 0, 0, 2, 1), figures(2))
         assertEquals(listOf(0, 0, 1, 1, 0), figures(3), "work and no capacity: one week without capacity, never overloaded")
         assertEquals(listOf(0, 0, 0, 0, 0), figures(4), "a team with nothing scheduled reads zeros")
+        val listed = s.teams.map { load.row(it).warningWeeks.size }
+        assertEquals(listOf(1, 1, 0, 0, 0), listed, "a's one week carries both flags; d's week has no capacity")
         val names = load.teams.map { it.name.lowercase() to it.id }
         assertEquals(names.sortedWith(compareBy({ it.first }, { it.second })), names, "by name case-insensitively, then id")
     }
@@ -223,4 +237,64 @@ class TeamLoadViewTest {
             assertEquals(now.totals.teams > MAX_TEAM_LOAD_ROWS, now.truncated)
             assertEquals(minOf(now.totals.teams, MAX_TEAM_LOAD_ROWS), now.teams.size)
         }
+
+    @Test
+    fun `a budget of one week lists one week in all and says so, with the counts and totals of the uncapped document`() = testApplication {
+        val s = seeded("tl7", world("tl7"))
+        val whole = uncapped()
+        assertFalse(whole.warningWeeksTruncated)
+        val listedInWhole = whole.teams.sumOf { it.warningWeeks.size }
+        assertTrue(listedInWhole >= 2, "non-vacuous: the seeded teams a and b list one week each")
+        val cut = TeamLoadViewService(sharedDatabaseForTests(), maxRows = Int.MAX_VALUE, maxWarningWeeks = 1).view()
+        assertEquals(1, cut.teams.sumOf { it.warningWeeks.size })
+        assertTrue(cut.warningWeeksTruncated)
+        assertEquals(whole.totals, cut.totals)
+        assertEquals(
+            whole.teams.map { listOf(it.id, it.overloadedWeeks, it.wipExceededWeeks, it.weeksWithoutCapacity) },
+            cut.teams.map { listOf(it.id, it.overloadedWeeks, it.wipExceededWeeks, it.weeksWithoutCapacity) },
+        )
+        // The one week listed is the first week of the first row that has one.
+        val first = whole.teams.first { it.warningWeeks.isNotEmpty() }.warningWeeks.first()
+        assertEquals(first, cut.teams.flatMap { it.warningWeeks }.single())
+        assertTrue(s.teams.all { id -> whole.teams.any { it.id == id } })
+    }
+
+    @Test
+    fun `the endpoint lists at most 2000 weeks, the first ones of the uncapped order, and says it cut`() = testApplication {
+        val w = world("tl8")
+        val project = TestPlan.project(w.programId, w.projectOwner.personId!!)
+        val prefix = "!!${planName("tl8")}"
+        val teams = mutableListOf<UInt>()
+        try {
+            // Four teams, each with one milestone over 520 weeks (the 2050s: no other class has load there) and a capacity of
+            // 0.00 man-days a week: every week is overloaded. 500 man-days over about 2,600 working days is about 0.96 a week,
+            // which does not round to 0.00.
+            repeat(4) { index ->
+                val team = TestTeams.seed("$prefix-$index")
+                teams += team
+                TestPlan.capacityPeriod(team, "2049-01-04", 0.0)
+                TestPlan.schedule(TestPlan.milestone(project, team, estimate = 500.0), "2050-01-03", "2059-12-19")
+            }
+            val whole = uncapped()
+            val http = w.stranger.client.load()
+            assertTrue(whole.teams.sumOf { it.warningWeeks.size } > 0)
+            assertEquals(MAX_TEAM_LOAD_WARNING_WEEKS, http.teams.sumOf { it.warningWeeks.size }, "exactly the budget")
+            assertTrue(http.warningWeeksTruncated)
+            assertFalse(whole.warningWeeksTruncated)
+            val expected = whole.teams.take(MAX_TEAM_LOAD_ROWS).flatMap { row -> row.warningWeeks.map { row.id to it } }
+                .take(MAX_TEAM_LOAD_WARNING_WEEKS)
+            val listed = http.teams.flatMap { row -> row.warningWeeks.map { row.id to it } }
+            assertEquals(expected, listed, "the first 2,000 weeks in row order")
+            assertEquals(whole.totals, http.totals)
+        } finally {
+            withContext(NonCancellable) {
+                val ids = teams.joinToString(",")
+                if (ids.isNotEmpty()) {
+                    jbSql("DELETE FROM milestones WHERE team_id IN ($ids)")
+                    jbSql("DELETE FROM team_capacity_periods WHERE team_id IN ($ids)")
+                    jbSql("DELETE FROM teams WHERE id IN ($ids)")
+                }
+            }
+        }
+    }
 }

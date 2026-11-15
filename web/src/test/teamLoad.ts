@@ -15,6 +15,7 @@ export function teamLoadRow(over: Partial<Row> = {}): Row {
     overloadedWeeks: 0,
     wipExceededWeeks: 0,
     weeksWithoutCapacity: 0,
+    warningWeeks: [],
     ...over,
   };
 }
@@ -30,6 +31,7 @@ export function teamLoadView(teams: Row[], over: Partial<View> = {}): View {
     },
     teams,
     truncated: false,
+    warningWeeksTruncated: false,
     ...over,
   };
 }

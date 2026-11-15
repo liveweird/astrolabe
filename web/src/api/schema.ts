@@ -1224,7 +1224,13 @@ export interface paths {
          *     envelope), the same for every caller: every ACTIVE team by name (case-insensitive, then id), at most 200 rows (`truncated`
          *     says the list was cut; `totals` always count every team). Every figure is the team page's own (`GET /views/team/{id}`): the
          *     team's milestones and the ones not scheduled, the weeks the page flags overloaded and over the WIP limit, and the weeks of
-         *     its load with no capacity period in force (such a week is never flagged overloaded). `totals.overloadedTeams` and
+         *     its load with no capacity period in force (such a week is never flagged overloaded). Each row also lists its `warningWeeks`:
+         *     the weeks the team page flags overloaded or over the WIP limit, oldest first, each exactly the team page's `weeks[]` item
+         *     (`WeekLoad`, never with `flowCapacity`: this view reads no external source); at most 2,000 weeks are listed in the whole
+         *     document, handed out in row order, and `warningWeeksTruncated` says a week was left out (the counts and `totals` are never
+         *     cut; a team past the 200-row cut uses none of the budget). A week without capacity is not listed, only counted. These weeks
+         *     are the team page's own and open to every authenticated user already, so the list discloses nothing new.
+         *     `totals.overloadedTeams` and
          *     `totals.wipExceededTeams` are `plan.overloadedTeams` and `plan.wipExceededTeams` of `GET /views/home`. `managerName` is null
          *     when the team has no active manager. `revision` is the plan revision read before the rows (informational: the view offers no
          *     write, so there is no `can`).
@@ -5673,7 +5679,7 @@ export interface components {
             /** @description The team view's `team.flags` - at most one `FLOW_CAPACITY` flag. */
             flags: components["schemas"]["PlanFlag"][];
         };
-        /** @description The Team load page's document (1.19.0): every team's milestones and flagged weeks. Every figure is one the team page shows, so the list never disagrees with the page it links to or with Home. */
+        /** @description The Team load page's document (1.19.0): every team's milestones and flagged weeks (1.21.0: and the flagged weeks themselves). Every figure is one the team page shows, so the list never disagrees with the page it links to or with Home. */
         TeamLoadView: {
             /**
              * Format: int64
@@ -5685,6 +5691,8 @@ export interface components {
             teams: components["schemas"]["TeamLoadRow"][];
             /** @description True when `teams` was cut at 200 rows. */
             truncated: boolean;
+            /** @description True when a listed row left a warning week out because the document lists at most 2,000 weeks in all (handed out in row order). The three week counts of a row and `totals` never change with the cut. */
+            warningWeeksTruncated: boolean;
         };
         /** @description The figures over EVERY active team, whatever the rows cut. */
         TeamLoadTotals: {
@@ -5736,6 +5744,8 @@ export interface components {
              * @description The weeks of the team's load with no capacity period in force (never flagged overloaded).
              */
             weeksWithoutCapacity: number;
+            /** @description The weeks of the team's load that are overloaded or over the WIP limit, oldest first, each the team page's own week (never with `flowCapacity`). While nothing is cut, `overloadedWeeks` is the number of listed weeks with `overloaded` and `wipExceededWeeks` the number with `wipExceeded`; the document lists at most 2,000 weeks in all (`warningWeeksTruncated`), so a later row may list none or only its first weeks. */
+            warningWeeks: components["schemas"]["WeekLoad"][];
         };
         /** @description The Dependencies page's document (1.20.0): every dependency of the plan. Every row is the project view's own item for the link, so the list never disagrees with the page it links to, and `totals.violated` is Home's `plan.conflicts`. */
         DependencyListView: {

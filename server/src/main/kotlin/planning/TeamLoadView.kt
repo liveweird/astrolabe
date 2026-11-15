@@ -5,15 +5,26 @@ import kotlinx.serialization.Serializable
 /** The most rows [TeamLoadView.teams] holds (the plan has about 15 teams, so nothing is cut in practice). */
 const val MAX_TEAM_LOAD_ROWS = 200
 
+/** The most warning weeks the whole document lists across its rows (handed out in row order; [TeamLoadView.warningWeeksTruncated]). */
+const val MAX_TEAM_LOAD_WARNING_WEEKS = 2_000
+
 /**
  * `GET /api/v1/views/team-load` (1.19.0) - every active team with its milestones and the weeks its page flags, in one document (the
  * documented view-endpoint shape exception, `list-endpoints.md`). Every figure is the team page's own ([TeamLoadKernels]), so the list
  * can never disagree with the page it links to or with Home's two team counts. [revision] is the PLAN's, read first (informational:
  * the view offers no write, so there is no `can`). The document is the same for every caller. [truncated] says [teams] was cut at
- * [MAX_TEAM_LOAD_ROWS]; [totals] always count every team. No defaults: the response encoder writes every member.
+ * [MAX_TEAM_LOAD_ROWS]; [totals] always count every team. Each row lists its warning weeks (1.21.0), at most
+ * [MAX_TEAM_LOAD_WARNING_WEEKS] in all; [warningWeeksTruncated] says a week was left out (counts and [totals] never change with it).
+ * No defaults: the response encoder writes every member.
  */
 @Serializable
-data class TeamLoadView(val revision: Long, val totals: TeamLoadTotals, val teams: List<TeamLoadRow>, val truncated: Boolean)
+data class TeamLoadView(
+    val revision: Long,
+    val totals: TeamLoadTotals,
+    val teams: List<TeamLoadRow>,
+    val truncated: Boolean,
+    val warningWeeksTruncated: Boolean,
+)
 
 /**
  * The plan's team figures: [teams] is every ACTIVE team; [overloadedTeams] and [wipExceededTeams] are how many teams have at least one
@@ -27,7 +38,9 @@ data class TeamLoadTotals(val teams: Int, val overloadedTeams: Int, val wipExcee
  * One team: its ACTIVE manager's name ([managerName] is null without one, a deleted person included), its ACTIVE [milestones] and the
  * [unscheduledMilestones] among them (the team page's two trays summed and the Unscheduled tray), and its weeks - [overloadedWeeks]
  * and [wipExceededWeeks] are the team page's two orange badges, [weeksWithoutCapacity] the weeks of its load with no capacity period
- * in force (never flagged overloaded, so a team with work and no capacity would otherwise look fine).
+ * in force (never flagged overloaded, so a team with work and no capacity would otherwise look fine). [warningWeeks] are the weeks
+ * behind the first two counts - the team page's own overloaded or over-WIP weeks, oldest first (the team view's [WeekLoadView], never
+ * with a Flow flag), as many as the document's budget left this row.
  */
 @Serializable
 data class TeamLoadRow(
@@ -39,4 +52,5 @@ data class TeamLoadRow(
     val overloadedWeeks: Int,
     val wipExceededWeeks: Int,
     val weeksWithoutCapacity: Int,
+    val warningWeeks: List<WeekLoadView>,
 )

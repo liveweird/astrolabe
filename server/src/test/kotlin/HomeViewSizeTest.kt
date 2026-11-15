@@ -245,12 +245,19 @@ class HomeViewSizeTest {
             assertTrue(load.p50 <= P50_TRIPWIRE_MS, "team load p50 ${load.p50} ms")
             // The gated size is a FIXED document: the uncapped view reduced to the sample's 15 teams (the endpoint's own document holds
             // every team of the shared database, cut at 200, so its size depends on what other classes left behind).
-            val whole = TeamLoadViewService(sharedDatabaseForTests(), maxRows = Int.MAX_VALUE).view()
+            val whole = TeamLoadViewService(sharedDatabaseForTests(), maxRows = Int.MAX_VALUE, maxWarningWeeks = Int.MAX_VALUE).view()
             assertFalse(whole.truncated)
+            assertFalse(whole.warningWeeksTruncated)
             val sampleRows = whole.teams.filter { it.id in sample.teamIds }
             assertEquals(sample.teamIds.size, sampleRows.size, "the sample's 15 teams are rows")
             val sampleBytes = Json.encodeToString(TeamLoadView.serializer(), whole.copy(teams = sampleRows)).toByteArray().size
             ScaleFigures.printBytes("team load (sample's 15 teams, gated) size", sampleBytes)
+            val sampleJson = Json.encodeToString(TeamLoadView.serializer(), whole.copy(teams = sampleRows)).toByteArray()
+            val sampleGzip = java.io.ByteArrayOutputStream().also { out ->
+                java.util.zip.GZIPOutputStream(out).use { it.write(sampleJson) }
+            }.size()
+            ScaleFigures.printBytes("team load (sample's 15 teams, gated) gzip", sampleGzip)
+            println("scale-figure\tteam load warning weeks listed for the sample's 15 teams\t${sampleRows.sumOf { it.warningWeeks.size }}")
             assertTrue(sampleBytes <= TEAM_LOAD_MAX_BYTES, "the team-load document is $sampleBytes bytes for 15 teams, over the gate")
 
             // The dependency list on the same plan: every link, whoever asks; FIVE statements (revision, calendar, milestones, links,
@@ -345,8 +352,11 @@ class HomeViewSizeTest {
         /** The dependency list's statements: revision, calendar, milestones with teams, links, active projects' names. */
         const val DEPENDENCIES_STATEMENTS = 5
 
-        /** The team-load view's gate for the sample's 15 teams (calculated about 2.6 KB, measured about 2.9 KB): 1.5 times the figure. */
-        const val TEAM_LOAD_MAX_BYTES = 4_500
+        /**
+         * The team-load view's gate for the sample's 15 teams: measured 27,896 B (203 listed warning weeks, 2,544 B gzip; 1.21.0,
+         * calculated about 26 KB, 2.9 KB before the weeks), 1.5 times the figure rounded up to the next 1,000 B.
+         */
+        const val TEAM_LOAD_MAX_BYTES = 42_000
 
         /** The team-load view's statements: revision, calendar, teams with managers, milestone counts, scheduled milestones, periods. */
         const val TEAM_LOAD_STATEMENTS = 6

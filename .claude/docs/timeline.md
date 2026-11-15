@@ -608,6 +608,18 @@ One-off, **NON-BINDING**, this machine only (Apple M5 Max, 2026-11-15, in-proces
 - **Latency.** Well under the roadmap view's: five selects and one `checkedLinks` run, no owner names, ranks, inversion flags or external source. Nothing here is near the 500 ms tripwire the test asserts.
 - **Statements** (counted below Exposed as for Home, only `SELECT`s): **exactly 5** and independent of the Jira side, because the view reads no external source: the revision, the holidays (the calendar), the active milestones with their team's name, the active links, the active projects' names. No statement grows with the plan.
 
+#### Measured figures (1.21)
+
+One-off, **NON-BINDING**, this machine only (Apple M5 Max, 2026-11-15, in-process `testApplication` against the Postgres container; re-measure rather than quote). `HomeViewSizeTest` reads `GET /views/team-load` as for 1.19, now that every row lists its warning weeks (`warningWeeks`, the team page's own overloaded or over-WIP weeks, oldest first; at most 2,000 listed in the whole document).
+
+| Document | Bytes | Gzip | Median of five | Statements |
+|---|---|---|---|---|
+| `GET /views/team-load`, the GATED fixed document: the sample's 15 teams, 203 warning weeks listed (gate 42,000 B, 1.5 times the figure rounded up to 1,000 B) | **27,896-27,924** (about 123 B a listed week; 2,941-2,950 before) | 2,544-2,554 | n/a | n/a |
+| The same, the endpoint's own document (inside the full server gate: the sample plus whatever the shared database holds, cut at 200 rows) | 40,655 | 4,978 | **20.6-25.7 ms** (max 22.1-29.2) | **6** |
+
+- **Size.** The calculated 26 KB (20 to 35 KB plausible) held: the sample's 15 teams list 203 weeks (the calculated estimate was about 200), no week without capacity is listed. At both caps (200 rows, 2,000 weeks) the document is about 290 KB uncompressed (about 123 B a listed week: (27,896 - 2,941) / 203, so about 246 KB of weeks plus about 40 KB of rows). The wire is gzip (about a ninth).
+- **Latency and statements.** Unchanged in kind: the weeks are `teamWeeks`' own, so the six statements stay six (a per-team read would break the pin) and the median stays at the 1.19 level.
+
 #### Deliberate departures from the bootstrap sketch
 
 A div grid instead of a `<table>` (virtual rows); `top` instead of `translateY` for virtual rows (stacking); the tray's drag is pointer-only with an explicit Schedule button; the row handle is pointer-only like the tray's (the row menu's Move items are the keyboard path); dnd-kit's live region is the single announcer for drags (the page's polite region announces only non-drag changes).
