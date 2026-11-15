@@ -39,7 +39,10 @@
     "allPrograms": "All programs",
     "clearPrograms": "Clear the program pick",
     "contains": "Contains…",
-    "clearName": "Clear name filter"
+    "clearName": "Clear name filter",
+    "project": "Project",
+    "clearProject": "Clear project filter",
+    "teamUnknown": "Team {{id}}"
   },
   "table": {
     "rowsPerPage": "Rows per page",

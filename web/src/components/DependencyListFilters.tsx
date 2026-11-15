@@ -1,22 +1,23 @@
 import { useTranslation } from "react-i18next";
 import { Select } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
-import { listTeams } from "../api/teams";
+import { useTeamOptions } from "../hooks/useTeamOptions";
 import { narrowingCount, type DependencyListFilter, type DependencyListStatus } from "../utils/dependencyListFilters";
 import FilterPanel from "./FilterPanel";
+import ProjectFilterSelect from "./ProjectFilterSelect";
 import ProjectScopeChip from "./ProjectScopeChip";
+import TeamFilterSelect from "./TeamFilterSelect";
 
 type StatusChoice = "all" | DependencyListStatus;
 const CHOICES: readonly StatusChoice[] = ["all", "violated", "ok", "unscheduled"];
 
 /**
  * The Dependencies page's filters, which live in the URL (`utils/dependencyListFilters.ts`): the Status select (All / Violated / OK / Not scheduled yet,
- * never clearable: a choice always applies) and a team select (the Milestones page's options read) inside the collapsible panel; a `projectId` from a
- * link is a removable chip beside the toggle. They only hide rows that arrived.
+ * never clearable: a choice always applies), a team select (EVERY team, `useTeamOptions`) and a project select (every project of the plan) inside the
+ * collapsible panel; a `projectId` is also a removable chip beside the toggle, so the scope shows with the panel closed. They only hide rows that arrived.
  */
 export default function DependencyListFilters({ filter, onChange }: { filter: DependencyListFilter; onChange: (patch: Partial<DependencyListFilter>) => void }) {
   const { t } = useTranslation();
-  const teams = useQuery({ queryKey: ["teams", "options"], queryFn: () => listTeams({ page: 1, pageSize: 100, sort: "name" }) });
+  const teams = useTeamOptions();
   const labels: Record<StatusChoice, string> = {
     all: t("dependencyList.status.all"),
     violated: t("dependencyList.status.violated"),
@@ -36,16 +37,8 @@ export default function DependencyListFilters({ filter, onChange }: { filter: De
         onChange={(selected) => selected !== null && onChange({ status: selected === "all" ? undefined : (selected as DependencyListStatus) })}
         allowDeselect={false}
       />
-      <Select
-        label={t("roadmap.filter.team")}
-        placeholder={t("common.state.any")}
-        data={(teams.data?.items ?? []).map((team) => ({ value: String(team.id), label: team.name }))}
-        value={filter.teamId === undefined ? null : String(filter.teamId)}
-        onChange={(selected) => onChange({ teamId: selected === null ? undefined : Number(selected) })}
-        searchable
-        clearable
-        clearButtonProps={{ "aria-label": t("roadmap.filter.clearTeam") }}
-      />
+      <TeamFilterSelect teamId={filter.teamId} onChange={(teamId) => onChange({ teamId })} teams={teams.teams} settled={teams.settled} />
+      <ProjectFilterSelect projectId={filter.projectId} onChange={(projectId) => onChange({ projectId })} />
     </FilterPanel>
   );
 }

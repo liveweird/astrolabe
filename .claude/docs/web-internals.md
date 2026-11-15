@@ -238,6 +238,7 @@ The template and its rules: `web/CLAUDE.md` "Shared list-page building blocks". 
   its OWN `Table.Th` (so the sort state lands as `aria-sort` on the header cell — don't wrap it in another Th); `TableLoadingRow` (`isLoading && !data`) / rows
   / `EmptyState` (`!isError`) triage in the tbody; a `color="red" variant="light"` Alert with `loadErrorMessage` ABOVE the table on error; `PaginationBar`
   below.
+- **A filter select is complete, or says what it lacks (1.21)**: the team options are ALL teams (`api/teams.ts` `listEveryTeam`: pages of 100 by name until the teams read reach `total` or a page is empty, at most 20 pages; `hooks/useTeamOptions.ts` answers `{ teams, settled }` under the one key `["teams","options"]`, so every team write still refreshes it), the project options every project of the plan view (`utils/planNames.ts` `projectOptions`: two of one name carry their program, as the program pick does). An id from a link that a SETTLED list does not hold is one more option, "Team 12" / "Project 12"; while a read runs or failed the field is blank - nothing is said about a team or project from data that has not arrived. The Project select owns its plan read (a panel's fields mount only while it is open); `TeamSelect` / `ProjectSelect` stay the dialogs' search-as-you-type pickers.
 - **Delete**: `useDeleteConfirm` + `ConfirmDeleteModal` — the hook owns modal state and the success toast, the page owns cache refresh. For mutations while a
   list remains mounted, use `refreshQueriesAfterMutation(queryClient, ["area"], ...)` from `utils/queryRefresh.ts` after success. It cancels all affected query
   groups before invalidating them: a newly keyed initial fetch has no cached data even when `keepPreviousData` displays rows, so default invalidation alone may
@@ -923,9 +924,9 @@ integers, `idOf`) and `name`; a malformed value is dropped, a change `replace`s 
 `utils/milestoneLinks.ts` spells the route once (`milestonesPath`, `unscheduledMilestonesPath({teamId?, projectId?})`, the builder Home's "not scheduled"
 figures use).
 
-- **Filters** (`components/MilestonesFilters.tsx`): the Schedule select (All / Not scheduled / Scheduled, never clearable), the team select (the teams list under
-  `["teams","options"]`, shared with the Deviations panel) and the name search (`ClearableTextInput`); a `projectId` from a link is a removable chip beside the
-  toggle (`components/ProjectScopeChip.tsx`, shared with the Dependencies page: "Project: Invoices", named from `GET /views/plan` under `["plan","view"]` through `utils/planNames.ts`, the Deviations page's strings). The name
+- **Filters** (`components/MilestonesFilters.tsx`): the Schedule select (All / Not scheduled / Scheduled, never clearable), the team select (EVERY team: `hooks/useTeamOptions.ts`, key
+  `["teams","options"]`, shared with the Deviations panel; `components/TeamFilterSelect.tsx`), the **Project** select (1.21: every project of the plan view, `components/ProjectFilterSelect.tsx`) and the name search (`ClearableTextInput`); a `projectId` is also a removable chip beside the
+  toggle (`components/ProjectScopeChip.tsx`, shared with the Dependencies page: "Project: Invoices", named from `GET /views/plan` under `["plan","view"]` through `utils/planNames.ts`, the Deviations page's strings), so the scope shows with the panel closed; the select and the chip are two views of one parameter. The name
   input keeps the text as typed and writes it trimmed to the URL at once; the REQUEST waits 300 ms (the debounced value is in the query key), and a URL change
   from elsewhere (Back, a link, "Clear the filters") that disagrees with the typed text replaces it during render.
 - **Query**: key `["plan","milestones","list", page, pageSize, sortParam, scheduled, teamId, projectId, name]` (under `["plan"]`, so a schedule or plan write refreshes
@@ -953,8 +954,8 @@ spells the route once (`dependenciesPath`, `dependenciesFilteredPath(filter)`, `
 Home's links use).
 
 - **Filters** (`components/DependencyListFilters.tsx`): the Status select (All / Violated / OK / Not scheduled yet, never clearable; "OK" and "Not scheduled yet" are the
-  project table's `project.dependency.status.*`), the team select (the teams list under `["teams","options"]`, the Milestones page's) and, for a `projectId` from a
-  link, the removable chip `components/ProjectScopeChip.tsx` beside the toggle.
+  project table's `project.dependency.status.*`), the team select (EVERY team, `useTeamOptions`, the Milestones page's) and the Project select (1.21, every project of the plan view; they narrow the rows in the browser, no second read of the document), plus, for a `projectId`, the removable chip
+  `components/ProjectScopeChip.tsx` beside the toggle.
 - **Table** (`components/DependencyListTable.tsx`, named "Dependencies of the plan" - not "Dependencies of the project", which the project page's table and five e2e
   specs address): a plain table in a `ScrollRegion` with a 70vh height cap and a sticky header (the baseline comparison's shape). Status, lag and dates are the
   project table's own cells (`components/DependencyCells.tsx`: `DependencyStatusBadge`, `DependencyLagText`); the type and the column headers are its strings. An end's
@@ -1079,7 +1080,7 @@ rule: the response that first reports the run finished carries the new data.
 `workStreamId`, `programId`, `projectId`, `teamId`, `acknowledged`, `all`; a malformed or unknown value is dropped (a stale link never breaks the page), a
 change `replace`s the entry, the chips link in with a normal navigation, so Back and a reload restore the view. The panel (`components/DeviationsFilters.tsx`)
 holds a select each for **Status** (Open / Acknowledged / All, first), connection, plan item type, severity, work stream (from `GET /views/plan`, the page's
-cache entry) and team, plus the **"Show everything"** switch (`all=true`: items with no deviation AND the `ESTIMATE_NOT_COMPARABLE` lines, which are never
+cache entry) and team (1.21: the options come from `useTeamOptions`, every team; the markup, strings and address behaviour are unchanged, and it has no "Team N" option), plus the **"Show everything"** switch (`all=true`: items with no deviation AND the `ESTIMATE_NOT_COMPARABLE` lines, which are never
 listed otherwise nor counted by a chip; a project or team scope IMPLIES `all` server-side, so the switch reads ON there and turning it off sends `all=false`,
 which the URL accepts); a project / program / kind scope from the URL is a removable chip beside the toggle ("Project: Invoices"), named from the plan view.
 

@@ -39,7 +39,10 @@
     "allPrograms": "Wszystkie programy",
     "clearPrograms": "Wyczyść wybór programów",
     "contains": "Zawiera…",
-    "clearName": "Wyczyść filtr nazwy"
+    "clearName": "Wyczyść filtr nazwy",
+    "project": "Projekt",
+    "clearProject": "Wyczyść filtr projektu",
+    "teamUnknown": "Zespół {{id}}"
   },
   "table": {
     "rowsPerPage": "Wierszy na stronę",

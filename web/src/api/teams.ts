@@ -24,6 +24,26 @@ export async function listTeams(q: TeamListQuery): Promise<TeamPage> {
   return jsonRequest<TeamPage>(`/api/v1/teams?${params}`);
 }
 
+/** Teams are read 100 at a time (the page ceiling) and at most this many pages: 2,000 teams, far past a plan's size (about 15). */
+export const MAX_TEAM_OPTION_PAGES = 20;
+const TEAM_OPTION_PAGE_SIZE = 100;
+
+/**
+ * EVERY team by name, for the filter selects (Covenant's `listAllTeams`, bounded): pages of 100 from page 1 until the teams read reach `total` or a
+ * page is empty, at most `MAX_TEAM_OPTION_PAGES`. A team created between two reads shifts the next page, so a team answered twice is listed once;
+ * a team deleted (or renamed across a page boundary) between two reads can shift one team past the read, until the next refetch - only on a plan of
+ * more than 100 teams.
+ */
+export async function listEveryTeam(): Promise<TeamListItem[]> {
+  const byId = new Map<number, TeamListItem>();
+  for (let page = 1; page <= MAX_TEAM_OPTION_PAGES; page++) {
+    const read = await listTeams({ page, pageSize: TEAM_OPTION_PAGE_SIZE, sort: "name" });
+    for (const team of read.items) if (!byId.has(team.id)) byId.set(team.id, team);
+    if (read.items.length === 0 || byId.size >= read.total) break;
+  }
+  return [...byId.values()];
+}
+
 export async function getTeam(id: number): Promise<TeamResponse> {
   return jsonRequest<TeamResponse>(`/api/v1/teams/${id}`);
 }

@@ -1,18 +1,19 @@
 import { useTranslation } from "react-i18next";
 import { Select } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
-import { listTeams } from "../api/teams";
+import { useTeamOptions } from "../hooks/useTeamOptions";
 import { narrowingCount, scheduleChoice, scheduledOf, type MilestoneFilter, type ScheduleChoice } from "../utils/milestoneFilters";
 import ClearableTextInput from "./ClearableTextInput";
 import FilterPanel from "./FilterPanel";
+import ProjectFilterSelect from "./ProjectFilterSelect";
 import ProjectScopeChip from "./ProjectScopeChip";
+import TeamFilterSelect from "./TeamFilterSelect";
 
 const CHOICES: readonly ScheduleChoice[] = ["all", "unscheduled", "scheduled"];
 
 /**
  * The Milestones page's filters, which live in the URL (`utils/milestoneFilters.ts`): the Schedule select (All / Not scheduled / Scheduled, never
- * clearable: a choice always applies), a team select (the teams list, the Deviations panel's options entry) and the name search inside the collapsible
- * panel; a `projectId` from a link is a removable chip beside the toggle. `name` is the text as typed; the page debounces it for the request.
+ * clearable: a choice always applies), a team select (EVERY team, `useTeamOptions`), a project select (every project of the plan) and the name search
+ * inside the collapsible panel; a `projectId` is also a removable chip beside the toggle, so the scope shows with the panel closed. `name` is the text as typed; the page debounces it for the request.
  */
 export default function MilestonesFilters({
   filter,
@@ -26,7 +27,7 @@ export default function MilestonesFilters({
   onChange: (patch: Partial<MilestoneFilter>) => void;
 }) {
   const { t } = useTranslation();
-  const teams = useQuery({ queryKey: ["teams", "options"], queryFn: () => listTeams({ page: 1, pageSize: 100, sort: "name" }) });
+  const teams = useTeamOptions();
   return (
     <FilterPanel
       activeFilterCount={narrowingCount(filter)}
@@ -40,16 +41,8 @@ export default function MilestonesFilters({
         onChange={(selected) => selected !== null && onChange({ scheduled: scheduledOf(selected as ScheduleChoice) })}
         allowDeselect={false}
       />
-      <Select
-        label={t("roadmap.filter.team")}
-        placeholder={t("common.state.any")}
-        data={(teams.data?.items ?? []).map((team) => ({ value: String(team.id), label: team.name }))}
-        value={filter.teamId === undefined ? null : String(filter.teamId)}
-        onChange={(selected) => onChange({ teamId: selected === null ? undefined : Number(selected) })}
-        searchable
-        clearable
-        clearButtonProps={{ "aria-label": t("roadmap.filter.clearTeam") }}
-      />
+      <TeamFilterSelect teamId={filter.teamId} onChange={(teamId) => onChange({ teamId })} teams={teams.teams} settled={teams.settled} />
+      <ProjectFilterSelect projectId={filter.projectId} onChange={(projectId) => onChange({ projectId })} />
       <ClearableTextInput label={t("common.field.name")} value={name} onChange={onName} clearLabel={t("common.filter.clearName")} />
     </FilterPanel>
   );

@@ -4,6 +4,8 @@ import {
   createCapacityPeriod,
   deleteCapacityPeriod,
   getTeamView,
+  listEveryTeam,
+  MAX_TEAM_OPTION_PAGES,
   proposeTeamSchedule,
   putTeamOrder,
   scheduleTeamMilestones,
@@ -96,5 +98,56 @@ describe("team view and capacity API wrappers", () => {
     expect(url).toBe("/api/v1/teams/9/milestone-schedules");
     expect(init.method).toBe("POST");
     expect(JSON.parse(init.body as string)).toEqual(body);
+  });
+});
+
+describe("listEveryTeam", () => {
+  let mockFetch: ReturnType<typeof vi.fn>;
+  const team = (id: number) => ({ id, name: `Team ${id}` });
+  const pageOf = (items: { id: number; name: string }[], total: number, page = 1) => jsonResponse(200, { items, page, pageSize: 100, total });
+  const urls = () => mockFetch.mock.calls.map(([url]) => String(url));
+
+  beforeEach(() => {
+    mockFetch = vi.fn();
+    vi.stubGlobal("fetch", mockFetch);
+    localStorage.setItem("astrolabe.auth.token", "fake-token");
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    localStorage.clear();
+  });
+
+  test("one request when the total fits a page, by name", async () => {
+    mockFetch.mockResolvedValue(pageOf([team(1), team(2)], 2));
+    expect((await listEveryTeam()).map((t) => t.id)).toEqual([1, 2]);
+    expect(urls()).toEqual(["/api/v1/teams?page=1&pageSize=100&sort=name"]);
+  });
+
+  test("a second page when the total does not fit, the pages joined in order", async () => {
+    const first = Array.from({ length: 100 }, (_, i) => team(i + 1));
+    mockFetch.mockImplementation((url: string) => Promise.resolve(url.includes("page=2") ? pageOf([team(101)], 101, 2) : pageOf(first, 101)));
+    const all = await listEveryTeam();
+    expect(all).toHaveLength(101);
+    expect(all.at(-1)?.id).toBe(101);
+    expect(urls()).toEqual(["/api/v1/teams?page=1&pageSize=100&sort=name", "/api/v1/teams?page=2&pageSize=100&sort=name"]);
+  });
+
+  test("an empty page ends the read even when the total says more", async () => {
+    mockFetch.mockImplementation((url: string) => Promise.resolve(url.includes("page=2") ? pageOf([], 500, 2) : pageOf([team(1)], 500)));
+    expect(await listEveryTeam()).toHaveLength(1);
+    expect(urls()).toHaveLength(2);
+  });
+
+  test("the read stops at the page bound", async () => {
+    let next = 0;
+    mockFetch.mockImplementation(() => Promise.resolve(pageOf([team(++next)], 100000)));
+    expect(await listEveryTeam()).toHaveLength(MAX_TEAM_OPTION_PAGES);
+    expect(urls()).toHaveLength(MAX_TEAM_OPTION_PAGES);
+  });
+
+  test("a team answered twice (a page shifted by a new team) is listed once", async () => {
+    mockFetch.mockImplementation((url: string) => Promise.resolve(url.includes("page=2") ? pageOf([team(2), team(3)], 3, 2) : pageOf([team(1), team(2)], 3)));
+    expect((await listEveryTeam()).map((t) => t.id)).toEqual([1, 2, 3]);
   });
 });

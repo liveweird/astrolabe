@@ -3,7 +3,7 @@ import { Badge, CloseButton, Group, Select, Stack, Switch, Text } from "@mantine
 import { useQuery } from "@tanstack/react-query";
 import type { DeviationConnection, DeviationFilter, DeviationLevel, DeviationSeverity } from "../api/deviations";
 import { getPlanView, type PlanView } from "../api/plan";
-import { listTeams } from "../api/teams";
+import { useTeamOptions } from "../hooks/useTeamOptions";
 import { deviationKindLabel } from "../utils/deviations";
 import { planNames } from "../utils/planNames";
 import { deviationStatus, deviationStatusPatch, narrowingCount, type DeviationStatus } from "../utils/deviationFilters";
@@ -44,7 +44,7 @@ function ScopeChips({ filter, plan, onChange }: { filter: DeviationFilter; plan:
 export default function DeviationsFilters({ filter, connections, onChange }: { filter: DeviationFilter; connections: readonly DeviationConnection[]; onChange: (patch: Partial<DeviationFilter>) => void }) {
   const { t } = useTranslation();
   const plan = useQuery({ queryKey: ["plan", "view"], queryFn: getPlanView });
-  const teams = useQuery({ queryKey: ["teams", "options"], queryFn: () => listTeams({ page: 1, pageSize: 100, sort: "name" }) });
+  const teams = useTeamOptions();
   // A project or team scope implies "everything" (the server's rule), so the switch reads ON then, and turning it off sends `all=false` explicitly.
   const implied = filter.projectId !== undefined || filter.teamId !== undefined;
   const value = (id: number | undefined) => (id === undefined ? null : String(id));
@@ -98,7 +98,7 @@ export default function DeviationsFilters({ filter, connections, onChange }: { f
         <Select
           label={t("deviations.filter.team")}
           placeholder={t("common.state.any")}
-          data={(teams.data?.items ?? []).map((team) => ({ value: String(team.id), label: team.name }))}
+          data={teams.teams.map((team) => ({ value: String(team.id), label: team.name }))}
           value={value(filter.teamId)}
           onChange={(selected) => onChange({ teamId: idOf(selected) })}
           searchable

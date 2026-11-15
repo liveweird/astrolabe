@@ -257,6 +257,61 @@ describe("Milestones page", () => {
     expect(screen.queryByText("Project: Invoices")).not.toBeInTheDocument();
   });
 
+  test("a teamId beyond the first 100 teams is shown selected by name: the options are read to the end", async () => {
+    const first = Array.from({ length: 100 }, (_, i) => ({ id: 1000 + i, name: `Team ${String(i).padStart(3, "0")}` }));
+    mockFetch.mockImplementation((url: string) => {
+      if (url.startsWith("/api/v1/milestones?")) return Promise.resolve(answer(url));
+      if (url === "/api/v1/views/plan") return Promise.resolve(jsonResponse(200, PLAN));
+      if (url.startsWith("/api/v1/teams?")) {
+        const second = url.includes("page=2");
+        return Promise.resolve(jsonResponse(200, { items: second ? [{ id: 4, name: "Zeta" }] : first, page: second ? 2 : 1, pageSize: 100, total: 101 }));
+      }
+      return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
+    });
+    const user = userEvent.setup();
+    renderPage("/milestones?teamId=4");
+    await user.click(await screen.findByRole("button", { name: /^Filters/ }));
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Team" })).toHaveValue("Zeta"));
+    const teamReads = mockFetch.mock.calls.map(([url]) => String(url)).filter((url) => url.startsWith("/api/v1/teams?"));
+    expect(teamReads).toEqual(["/api/v1/teams?page=1&pageSize=100&sort=name", "/api/v1/teams?page=2&pageSize=100&sort=name"]);
+  });
+
+  test("a teamId no team holds is shown as Team N once the list has answered", async () => {
+    const user = userEvent.setup();
+    renderPage("/milestones?teamId=99");
+    await user.click(await screen.findByRole("button", { name: /^Filters/ }));
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Team" })).toHaveValue("Team 99"));
+  });
+
+  test("the Project select lists the plan's projects and writes projectId; the chip appears and the list is re-read with it", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("Design");
+    await user.click(screen.getByRole("button", { name: "Filters" }));
+    await user.click(screen.getByRole("combobox", { name: "Project" }));
+    await user.click(await screen.findByRole("option", { name: "Invoices" }));
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/milestones?projectId=7"));
+    expect(screen.getByTestId("nav")).toHaveTextContent("REPLACE");
+    await waitFor(() => expect(lastQuery().get("projectId")).toBe("7"));
+    expect(await screen.findByText("Project: Invoices")).toBeInTheDocument();
+  });
+
+  test("removing the chip empties the Project select", async () => {
+    const user = userEvent.setup();
+    renderPage("/milestones?projectId=7");
+    await user.click(await screen.findByRole("button", { name: /^Filters/ }));
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Project" })).toHaveValue("Invoices"));
+    await user.click(screen.getByRole("button", { name: "Remove the project filter" }));
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Project" })).toHaveValue(""));
+    expect(screen.getByTestId("where")).toHaveTextContent(/^\/milestones$/);
+  });
+
+  test("with the panel closed and no project chip the plan view is not requested", async () => {
+    renderPage();
+    await screen.findByText("Design");
+    expect(mockFetch.mock.calls.some(([url]) => url === "/api/v1/views/plan")).toBe(false);
+  });
+
   test("a project the plan view does not know is named by its number", async () => {
     renderPage("/milestones?projectId=99");
     expect(await screen.findByText("Project: Project 99")).toBeInTheDocument();

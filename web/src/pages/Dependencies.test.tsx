@@ -214,6 +214,27 @@ describe("Dependencies page", () => {
     expect(screen.queryByText("Project: Checkout")).not.toBeInTheDocument();
   });
 
+  test("the Project select narrows the rows in the browser, writes the address and reads nothing more", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("table", { name: TABLE });
+    await user.click(screen.getByRole("button", { name: "Filters" }));
+    await user.click(screen.getByRole("combobox", { name: "Project" }));
+    await user.click(await screen.findByRole("option", { name: "Checkout" }));
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/dependencies?projectId=3"));
+    expect(screen.getByTestId("nav")).toHaveTextContent("REPLACE");
+    expect(rowIds()).toEqual(["Violated · 3 working days short", "OK"]);
+    expect(await screen.findByText("Project: Checkout")).toBeInTheDocument();
+    expect(readCalls()).toHaveLength(1);
+  });
+
+  test("a teamId no team holds is shown as Team N once the list has answered", async () => {
+    const user = userEvent.setup();
+    renderPage("/dependencies?teamId=99");
+    await user.click(await screen.findByRole("button", { name: /^Filters/ }));
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Team" })).toHaveValue("Team 99"));
+  });
+
   test("a project the plan view does not know is named by its number", async () => {
     renderPage("/dependencies?projectId=99");
     expect(await screen.findByText("Project: Project 99")).toBeInTheDocument();
