@@ -61,8 +61,8 @@ suspend fun <T> lockActiveConnection(table: T, id: UInt): Boolean
 
 /**
  * The scheduler's rows of one connector's connections: every ACTIVE connection, in id order, in one budgeted transaction
- * ([queryTimeoutSeconds], 0 = none). It selects the shared [ConnectionColumns] (never a credential) plus the connector's own [extra]
- * columns that [toRow] needs for `ready` and `changedAt` (those two rules differ per connector and stay with it).
+ * ([queryTimeoutSeconds], 0 = the pool's own limit). It selects the shared [ConnectionColumns] (never a credential) plus the connector's
+ * own [extra] columns that [toRow] needs for `ready` and `changedAt` (those two rules differ per connector and stay with it).
  */
 suspend fun <T> pollRowsOf(
     database: R2dbcDatabase,
@@ -71,7 +71,8 @@ suspend fun <T> pollRowsOf(
     queryTimeoutSeconds: Int,
     toRow: (ResultRow) -> ConnectorConnection,
 ): List<ConnectorConnection> where T : UIntIdTable, T : ConnectionColumns = suspendTransaction(database) {
-    queryTimeout = queryTimeoutSeconds
+    // Only a POSITIVE budget is assigned: 0 would switch the pool's default limit OFF for this transaction (persistence.md).
+    if (queryTimeoutSeconds > 0) queryTimeout = queryTimeoutSeconds
     table.select(listOf(table.id, table.name, table.enabled, table.pollIntervalMinutes, table.updatedAt) + extra)
         .where { table.active() }.orderBy(table.id).toList().map(toRow)
 }

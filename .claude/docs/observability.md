@@ -50,7 +50,11 @@ to be a routine denial path).
 1.1.3 driver bug; it follows the driver's own `Connection Error` ERROR, e.g. "Response queue is full"); `leaked-socket guard disabled:
 r2dbc-postgresql internals not found` once at boot (pool setup), if a driver upgrade renamed the internals it reads. A pooled session
 the server ends under `idle_in_transaction_session_timeout` surfaces in Astrolabe only as a generic connection-closed error on its next
-statement (in its own request or job); the `FATAL 25P03` naming the idle timeout is in the PostgreSQL log alone.
+statement (in its own request or job); the `FATAL 25P03` naming the idle timeout is in the PostgreSQL log alone. A statement the pool's
+statement limit cancelled (`postgres.statementTimeoutSeconds`, SQLSTATE `57014`) is ONE WARN from `plugins/ErrorHandling.kt` (Ktor's application logger):
+`Statement cancelled by the database time limit while processing GET /api/v1/views/team/26` - the method and the path only, with no exception
+object, so no SQL text, bound value, query string or stack reaches the log (an unrelated database failure still logs its ERROR with the trace).
+No audit event (a failure, not a security event); the request answers the typed `500` and the telemetry panel counts it among the route's errors.
 
 **Audit trail.** Security-relevant events are structured INFO logs on the dedicated
 `ch.nokillswit.audit` logger with the `AUDIT` marker, emitted via `audit("area.event", "key" to value, …)`

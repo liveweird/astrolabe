@@ -66,6 +66,10 @@ fun TestApplicationBuilder.configureApp(vararg overrides: Pair<String, String>) 
                 // The sync scheduler is off for the same reason: it would start SCHEDULED runs for every tested connection other tests
                 // left in the shared database. Its tests build `SyncScheduler` directly or opt in with "sync.scheduler.enabled" to "true".
                 "sync.scheduler.enabled" to "false",
+                // The shipped limit is 15 s a statement; the suite boots with 60 so a stalled CI runner cannot turn a deliberate lock wait
+                // (the plan lock, a held row) into a failure. The tests of the limit itself override it (`StatementTimeoutAnswerTest`,
+                // `ConnectionPoolTest`), and one pins the shipped default. `sharedDatabaseForTests()` and the tests' own pools keep 0.
+                "postgres.statementTimeoutSeconds" to "60",
                 *overrides,
             )
         )

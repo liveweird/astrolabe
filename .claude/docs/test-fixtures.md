@@ -209,6 +209,7 @@ above any legitimate statement (a lock wait behind another transaction) and belo
   configure-and-start shorthand. It sets `mail.appUrl` to `https://localhost:8086` (the origin the emailed reset link is built
   from, validated at boot in every mode - so `https`, which the production-mode boot tests, reusing this config, also accept); a test
   that wants the blank-origin 503 or a malformed origin overrides it.
+  It sets `postgres.statementTimeoutSeconds` to `60` (the shipped limit is 15 s; a stalled CI runner must not turn a deliberate lock wait into a failure; the tests of the limit itself override it to 1, and `sharedDatabaseForTests()` and a test's own pool keep no limit).
   It sets `telemetry.enabled` to `false` (the sampler would write a process row and samples into the shared database from every booted app):
   the telemetry tests (`TelemetrySamplerTest`, `TelemetryStoreTest`) build the sampler directly over `TelemetryFixtures.kt`'s helpers and empty `ops`
   before each test (`wipeTelemetry`; nothing else writes there); a test that wants the real sampler opts in with `"telemetry.enabled" to "true"` plus

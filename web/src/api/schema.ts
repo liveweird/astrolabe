@@ -6160,7 +6160,7 @@ export interface components {
         /** @description RFC 7807 problem detail. Served as `application/problem+json`; instance is the request path without query parameters. */
         ProblemDetail: {
             /**
-             * @description A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking, milestone-schedule or team-order PUT, or a batch schedule from a future revision, `urn:astrolabe:problem:stale-scope` on a batch accept whose team plan changed since its proposal (a pin flipped meanwhile included), `urn:astrolabe:problem:milestone-unscheduled` on a pin of an unscheduled milestone, `urn:astrolabe:problem:dependency-cycle` on a dependency that would close a cycle, `urn:astrolabe:problem:stale-deviations` on an acknowledge whose fingerprint is no longer the binding's or whose binding has no deviation).
+             * @description A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking, milestone-schedule or team-order PUT, or a batch schedule from a future revision, `urn:astrolabe:problem:stale-scope` on a batch accept whose team plan changed since its proposal (a pin flipped meanwhile included), `urn:astrolabe:problem:milestone-unscheduled` on a pin of an unscheduled milestone, `urn:astrolabe:problem:dependency-cycle` on a dependency that would close a cycle, `urn:astrolabe:problem:stale-deviations` on an acknowledge whose fingerprint is no longer the binding's or whose binding has no deviation, `urn:astrolabe:problem:database-timeout` on a `500` whose statement the database cancelled at its time limit: try again shortly).
              * @default about:blank
              */
             type: string;
@@ -8033,7 +8033,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetail"];
             };
         };
-        /** @description Unexpected server error. */
+        /** @description Unexpected server error. One case has a type of its own: a statement the database did not finish within its time limit (`postgres.statementTimeoutSeconds`, 15 s by default) is cancelled and answers `type: urn:astrolabe:problem:database-timeout`; the transaction whose statement was cancelled is rolled back (no row, no revision move, no audit event from it), but an earlier committed step of the same request stays (a create's re-read for its response, say), so a retry may meet a `409`. */
         InternalServerError: {
             headers: {
                 [name: string]: unknown;

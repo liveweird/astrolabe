@@ -52,7 +52,8 @@ go through R2DBC.
   default 2, 0..maxSize — the floor the pool fills up to on its FIRST acquire, not at
   construction: r2dbc-pool warms up lazily and `warmup()` is deliberately not called),
   `maxAcquireTimeSeconds` (`POSTGRES_POOL_MAX_ACQUIRE_SECONDS`, default 10,
-  1..600) and `maxIdleTimeSeconds` (`POSTGRES_POOL_MAX_IDLE_SECONDS`, default 600, 1..86400). Every
+  1..600) and `maxIdleTimeSeconds` (`POSTGRES_POOL_MAX_IDLE_SECONDS`, default 600, 1..86400); beside the `pool` block, `postgres.statementTimeoutSeconds`
+  (`POSTGRES_STATEMENT_TIMEOUT_SECONDS`, default 15, 0..300, 0 = off, read with the same helpers: "Statement timeouts" below). Every
   pooled connection carries `application_name = astrolabe` (`postgres.pool.applicationName`, test-only
   override), so operators count this instance's backends with
   `SELECT count(*) FROM pg_stat_activity WHERE application_name = 'astrolabe'`. The driver's per-connection
@@ -65,9 +66,25 @@ go through R2DBC.
   lazily, only while the statement that carries it is assembled, so the rows in flight are one statement's cap, not the call's, and
   each body runs exactly once (`upsertRows` builds them all first: its collapse of repeated keys needs every key). Exposed lists every
   statement a transaction ran until it ends (parsed SQL and encoded parameters included): `insertRows` clears the list after each statement.
-- **Statement timeouts: use the transaction's `queryTimeout`, nothing else.** Exposed's R2DBC executor *requests* the
-  transaction's `queryTimeout` (whole seconds, default 0, never null) from the driver before EVERY statement. The telemetry reads
-  use it (`queryTimeout` 5 s, "Telemetry (V9)"). **The per-connection cache (`infra/db/StatementTimeoutCache.kt`).**
+- **Statement timeouts: use the transaction's `queryTimeout` and the pool's default of it, nothing else.** Exposed's R2DBC executor *requests* the
+  transaction's `queryTimeout` (whole seconds, never null) from the driver before EVERY statement. **The pool's default (1.23):**
+  `connectPooledDatabase(…, statementTimeoutSeconds)` hands `postgres.statementTimeoutSeconds` (15 s) to Exposed as `defaultQueryTimeout`
+  (beside `defaultMaxAttempts = 1`), so every statement of every transaction that does not assign its own `queryTimeout` is limited: the
+  views, the lists, the previews, the sync runs and a save waiting for the plan lock (a lock wait included: `FOR UPDATE` on `plan_state`, a row
+  lock, a unique-index wait). The default is the same for every transaction, so the cache below never has to switch it (no extra round trip);
+  the parameter comes last with a default of 0, so `sharedDatabaseForTests()` and a test's own pool keep no limit, and the harness boots the app
+  with 60 s (`TestEnvironment.kt`). Chosen against the measured worst waits: the plan lock is held longest by the 2,000-item Jira import apply
+  (about 2.1 s), the slowest view measured takes 0.2 s; 15 s sits under the browser's 30 s, so the server's answer arrives first. **What it does
+  not bound:** the wait for a pooled connection (`maxAcquireTimeSeconds`), a whole request (the limit is per statement), a frozen server (a
+  frozen backend never runs the cancel; Toadie's client-side deadline is not ported) and Flyway's own JDBC connection. **A cancelled statement**
+  (SQLSTATE `57014`) aborts its transaction, Exposed rolls it back (that transaction wrote nothing, moved no revision and emitted no audit
+  event: routes audit after the service returns; but an EARLIER committed step of the same request stays, e.g. a create's re-read for its response
+  runs in a second transaction, so a cut re-read leaves the row and a retry may meet a 409) and the connection stays valid; the request answers the existing `500` with
+  `type: urn:astrolabe:problem:database-timeout` (`plugins/ErrorHandling.kt`, `observability.md`). **Own budgets win:** a transaction that
+  assigns a `queryTimeout` keeps it (the telemetry reads, 5 s, "Telemetry (V9)"); an explicit `queryTimeout = 0` would switch the pool's
+  limit OFF for that transaction, so the two `sync` readers that take a budget as a parameter (`pollRowsOf`, `SyncRunService.recentRuns`;
+  default 0, the telemetry read API passes its own) assign it only when positive: 0 there means "the pool's own".
+  **The per-connection cache (`infra/db/StatementTimeoutCache.kt`).**
   r2dbc-postgresql answers each request with its own `SET STATEMENT_TIMEOUT` simple query that Exposed awaits — a large share of all
   round trips. `connectPooledDatabase` therefore wraps the RAW connection factory (below the pool) in
   `StatementTimeoutCachingConnectionFactory`: each physical connection remembers the value the server last confirmed, and the
@@ -78,12 +95,15 @@ go through R2DBC.
   transaction — a naive cache would then believe the budget is still set and run the next query unbudgeted. The remembered value
   is therefore forgotten on every rollback (also to a savepoint), on a failed commit and on `setAutoCommit(true)`, forgotten
   before a SET is sent and remembered only once it completed under an unchanged generation, and kept across a successful commit.
-  **Rule: ONLY the transaction's `queryTimeout` may set the statement timeout.** A `SET LOCAL statement_timeout` may stay in
+  **Rule: ONLY the transaction's `queryTimeout` (and the pool's default of it) may set the statement timeout.** A `SET LOCAL statement_timeout` may stay in
   force for the rest of its transaction (the cache no longer sends a request that matches its remembered value, so nothing
   overwrites it), and a session-level `SET`, `set_config(…, false)`, `RESET` or `DISCARD` on a pooled connection desyncs the cache
   from the backend. Deployment assumption: one client connection is one server session — a transaction-mode PgBouncer in front of
   Postgres would break the cache (none today). `StatementTimeoutCacheTest` (own one-connection pool) pins convergence, the
   rolled-back SET, the aborted-transaction canary, a budget enforced again after a cancelled statement, and the skip with its limit.
+  `ConnectionPoolTest` pins the pool's default (the server reports it, a long statement is cancelled, it survives a rollback and a cancelled
+  statement on one connection, the range check and the shipped 15) and `StatementTimeoutAnswerTest` the answer (a view and a save cut by a lock
+  held in a second session, the log line, the own-budget rules).
 - **Sizing.** Size it as `maxSize × replicas + 1` (Flyway's short-lived JDBC connection, `infra/db/Flyway.kt`) well under
   the server's `max_connections`. `maxAcquireTimeSeconds` is a per-attempt deadline, and the effective
   bound is about 2× the setting. r2dbc-pool 1.0.2's `ConnectionPool` builds `create()` as

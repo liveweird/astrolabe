@@ -205,7 +205,10 @@ class JiraConnectionService(
             ?.let { JiraBindContext(targetOf(it), it.toMappingState(), it[Connections.enabled], it[Connections.mappingChangedAt]) }
     }
 
-    /** The scheduler's rows (`JiraConnectionPolling.kt`): the active connections' poll facts, never the token or the discovery. */
+    /**
+     * The scheduler's rows (`JiraConnectionPolling.kt`): the active connections' poll facts, never the token or the discovery.
+     * [queryTimeoutSeconds]: 0 = the pool's own limit.
+     */
     suspend fun pollRows(queryTimeoutSeconds: Int = 0): List<ConnectorConnection> = jiraPollRows(database, queryTimeoutSeconds)
 
     /** Whether the connection is active and enabled: what a run needs before it claims (no token is read). */

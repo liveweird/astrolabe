@@ -215,7 +215,7 @@ class SyncRunService(
 
     /**
      * [recentRunsInTransaction] in a transaction of its own: one snapshot for the whole batch of connections, under a statement budget of
-     * [queryTimeoutSeconds] (whole seconds; 0 = none, the default).
+     * [queryTimeoutSeconds] (whole seconds; 0 = the pool's own limit, the default).
      */
     suspend fun recentRuns(
         kind: SyncKind,
@@ -223,7 +223,8 @@ class SyncRunService(
         limit: Int = MAX_LISTED_RUNS,
         queryTimeoutSeconds: Int = 0,
     ): Map<UInt, List<RunFact>> = suspendTransaction(database) {
-        queryTimeout = queryTimeoutSeconds
+        // Only a POSITIVE budget is assigned: 0 would switch the pool's default limit OFF for this transaction (persistence.md).
+        if (queryTimeoutSeconds > 0) queryTimeout = queryTimeoutSeconds
         recentRunsInTransaction(kind, connectionIds, limit)
     }
 

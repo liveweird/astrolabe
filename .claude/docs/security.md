@@ -75,7 +75,7 @@ Ktor's JWT provider turns any throw out of `validate` into a plain challenge, so
 answers the catch-all's logged `500` (`respondInternalError`, `plugins/ErrorHandling.kt`) instead
 of `401` — the SPA reads a `401` as session expiry and would sign the user out over a transient
 outage. A malformed/expired/wrong-audience/wrong-`typ` token never reaches the lookup and stays
-the uniform `401`. Pinned by `BlocklistOutageTest`; the OpenAPI spec already declares `500` on
+the uniform `401`. A cancelled access-check read (the 15 s statement limit, SQLSTATE `57014`) answers the typed `database-timeout` `500` through the same `respondInternalError`, still never a `401` (pinned by `StatementTimeoutAnswerTest`, a lock on `users`). Pinned by `BlocklistOutageTest`; the OpenAPI spec already declares `500` on
 every operation and the coverage gate ignores it (`CROSS_CUTTING_STATUSES` in
 `OpenApiConformance.kt`), so no spec change is needed. Full token/refresh/logout semantics: see
 "Authorization model" in `.claude/docs/authorization.md`.
@@ -404,6 +404,7 @@ payloads. Declared in the spec on every body-taking operation (25 today; the spe
 - *Tested:* an idle keep-alive connection with no request open is not closed.
 - *Tested:* the timeout is re-armed: a connection that idled past it (twice over, with no request open) and then starts a request that stalls is answered `408` and closed after the same gap, with no WARN logged for the idle firings. An idle connection with no request open is still never closed (a deliberate keep-alive; closing it would be a separate decision).
 - *Bytecode only, untested:* (re-arming makes this apply to every request on every connection, reused keep-alive ones included, which were exempt in practice once the one-shot was spent: a call that runs past the timeout with no inbound byte gets the 408.) The gap also counts the time a handler runs AFTER the request is fully read (the call stays in `activeCalls`), so the value must outlast the slowest legitimate call, a writer queued behind the `plan_state` lock included: such a request gets a 408 (and its work is cancelled) once the lock wait plus the work exceeds 60 s without a byte arriving. Nothing in the repo is expected to approach that (pool acquire is 10 s; the SPA gives up at 30 s anyway).
+- *Statement limit beneath it:* every statement on the application's pool has a 15 s limit, except a transaction with its own budget (the telemetry reads) and Flyway (`postgres.statementTimeoutSeconds`, `persistence.md`), so the browser's 30 s and this 60 s cut stay the outer bounds and a writer queued behind the lock answers the typed `500` long before them.
 - Default 60 s = twice the SPA's 30 s request deadline (`web/src/api/http.ts`), the nginx `client_body_timeout` default, and well above the pool-acquire wait; legitimate bodies are small JSON (field `maxLength`s). The write side is Ktor's own `responseWriteTimeoutSeconds` default of 10 s (a stalled response write), not configurable here.
 
 **Request payload validation (convention — API-SEC-003/API-ERR-005).** Mutating routes validate

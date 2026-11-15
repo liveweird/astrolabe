@@ -191,7 +191,7 @@ class FlowConnectionService(
         true
     }
 
-    /** The scheduler's rows (no token): `flowPollRows` in `FlowConnectionPolling.kt`. */
+    /** The scheduler's rows (no token): `flowPollRows` in `FlowConnectionPolling.kt`; [queryTimeoutSeconds] 0 = the pool's own limit. */
     suspend fun pollRows(queryTimeoutSeconds: Int = 0): List<ConnectorConnection> = flowPollRows(database, queryTimeoutSeconds)
 
     /** Whether the connection is active and enabled: what a manual run needs before it claims (no token is read). */

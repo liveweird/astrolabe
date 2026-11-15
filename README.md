@@ -278,6 +278,7 @@ class-data-sharing (AppCDS) archive, and setting it drops the archive. Build-tim
 | `POSTGRES_POOL_MAX_ACQUIRE_SECONDS` | `10` | How long a caller waits for a free pooled connection before failing (1..600). |
 | `POSTGRES_POOL_MAX_IDLE_SECONDS` | `600` | How long an idle pooled connection may sit before recycling (1..86400). |
 | `POSTGRES_POOL_IDLE_IN_TRANSACTION_TIMEOUT_SECONDS` | `300` | PostgreSQL's `idle_in_transaction_session_timeout` on every pooled connection: a session left idle inside an open transaction is ended and its locks released (0 = off, else up to 86400; `.claude/docs/persistence.md` "Connection pool"). |
+| `POSTGRES_STATEMENT_TIMEOUT_SECONDS` | `15` | PostgreSQL's `statement_timeout` for every statement on the application's pool (except a transaction with its own budget, the telemetry reads, and Flyway): one the database does not finish in time (a lock wait, a runaway query) is cancelled and the request answers a `500` of type `urn:astrolabe:problem:database-timeout` (0 = off, else up to 300; `.claude/docs/persistence.md` "Connection pool"). |
 
 ## Useful Gradle tasks
 

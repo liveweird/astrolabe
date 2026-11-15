@@ -92,9 +92,15 @@ private const val PG_UNIQUE_VIOLATION = "23505"
 // error (nothing legitimate contains NUL), not a server fault.
 private const val PG_CHARACTER_NOT_IN_REPERTOIRE = "22021"
 
-// query_canceled: raised when a statement outruns its statement timeout (`StatementTimeoutCache`). A future read with its own
-// budget maps it to a friendly answer where it is raised; here it only classifies the failure (StatementTimeoutCacheTest).
+// query_canceled: raised when a statement outruns its statement timeout - the pool's own limit (`postgres.statementTimeoutSeconds`,
+// `ConnectionPool.kt`) or a transaction's `queryTimeout` (the telemetry reads). Answered by [respondQueryTimedOut].
 private const val PG_QUERY_CANCELED = "57014"
+
+/**
+ * The `type` of the `500` that answers a statement the database cancelled at its time limit (`persistence.md` "Connection pool"): the
+ * SPA reads it to say "the request timed out" at once and not to retry.
+ */
+const val DATABASE_TIMEOUT_PROBLEM = "urn:astrolabe:problem:database-timeout"
 
 /** One cause-chain walk for every predicate below (self included). */
 private inline fun Throwable.anyInChain(predicate: (Throwable) -> Boolean): Boolean {
@@ -154,13 +160,29 @@ private suspend fun ApplicationCall.respondDbFailure(cause: Throwable) = when {
     cause.isUniqueViolation() -> respondConflict(cause)
     cause.isCharacterNotInRepertoire() ->
         respondProblem(HttpStatusCode.BadRequest, "Text must not contain the NUL character")
+    cause.isQueryCanceled() -> respondQueryTimedOut()
     else -> respondInternalError(cause)
+}
+
+// A statement cancelled by the statement timeout is the limit doing its job, not a defect: ONE WARN with the method and the path - no
+// exception, so no SQL text, bound value or stack reaches the log, and never the query string - instead of respondInternalError's
+// ERROR with its trace. It answers the existing, cross-cutting `500` with a type of its own: a new status would have to be declared and
+// covered on every operation (`CROSS_CUTTING_STATUSES`). No audit event: a failure, not a security event.
+private suspend fun ApplicationCall.respondQueryTimedOut() {
+    application.log.warn("Statement cancelled by the database time limit while processing ${request.local.method.value} ${request.path()}")
+    respondProblem(
+        HttpStatusCode.InternalServerError,
+        "The database did not answer in time. Try again shortly.",
+        type = DATABASE_TIMEOUT_PROBLEM,
+    )
 }
 
 // Internal (not private): the JWT `validate`/`challenge` pair in plugins/Security.kt answers a
 // blocklist-lookup failure with this same catch-all 500 instead of a 401 (the 500-not-401 rule —
 // see "JWT model" in .claude/docs/security.md).
 internal suspend fun ApplicationCall.respondInternalError(cause: Throwable) {
+    // The catch-all and the access check's failed read (plugins/Security.kt) reach here without passing respondDbFailure.
+    if (cause.isQueryCanceled()) return respondQueryTimedOut()
     application.log.error("Unhandled exception while processing ${request.local.method.value} ${request.path()}", cause)
     respondProblem(HttpStatusCode.InternalServerError, "An unexpected error occurred")
 }

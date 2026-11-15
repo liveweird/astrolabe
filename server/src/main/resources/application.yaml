@@ -343,6 +343,14 @@ postgres:
   # ~63 s) before failing, so a cold start with Postgres not yet accepting connections waits instead
   # of crash-looping (infra/db/Flyway.kt). 0 = fail fast.
   connectRetries: "$POSTGRES_CONNECT_RETRIES:10"
+  # PostgreSQL's server-side statement_timeout, in whole seconds, for every statement on the application's pool (0 = no limit,
+  # 0..300; a transaction with its own budget keeps it): one that a LIVE but stuck server runs longer (a lock wait, a runaway query) is cancelled, rolls its transaction back and answers a
+  # typed 500 (`urn:astrolabe:problem:database-timeout`). The slowest view measured takes 0.2 s and the longest hold of the plan lock
+  # (a 2,000-item Jira import) 2 s; 15 s is below the browser's 30 s, so the server's own answer arrives first. It does NOT bound the
+  # wait for a pooled connection (maxAcquireTimeSeconds below), a whole request (the limit is per statement), a frozen server (the
+  # cancel is never run) or Flyway's own JDBC connection. A transaction that sets its own `queryTimeout` (the telemetry reads)
+  # keeps it. Set through Exposed's defaultQueryTimeout (infra/db/ConnectionPool.kt), never a driver option, a SET or a SET LOCAL.
+  statementTimeoutSeconds: "$POSTGRES_STATEMENT_TIMEOUT_SECONDS:15"
   # Bounded R2DBC connection pool (infra/db/ConnectionPool.kt, `.claude/docs/persistence.md`
   # "Connection pool") — a plain r2dbc:postgresql:// connect opens one PostgreSQL backend
   # per suspendTransaction with nothing capping how many run at once. Sizing assumes a

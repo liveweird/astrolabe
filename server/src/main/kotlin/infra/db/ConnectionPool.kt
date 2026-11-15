@@ -37,6 +37,7 @@ private data class PoolBounds(
     val maxAcquireTimeSeconds: Long,
     val maxIdleTimeSeconds: Long,
     val idleInTransactionTimeoutSeconds: Long,
+    val statementTimeoutSeconds: Int,
     val applicationName: String,
 )
 
@@ -47,12 +48,17 @@ private fun readPoolBounds(config: ApplicationConfig): PoolBounds {
     val maxIdleTimeSeconds = requireConfigLong(config, "postgres.pool.maxIdleTimeSeconds", min = 1, max = 86400)
     // 0 = off (PostgreSQL's own meaning); see DEFAULT_IDLE_IN_TRANSACTION_TIMEOUT for the default and why.
     val idleInTransactionTimeoutSeconds = requireConfigLong(config, "postgres.pool.idleInTransactionTimeoutSeconds", min = 0, max = 86400)
+    // The per-statement limit of EVERY pooled transaction (0 = off); see [connectPooledDatabase] for how and why it is set there.
+    val statementTimeoutSeconds = requireConfigInt(config, "postgres.statementTimeoutSeconds", min = 0, max = 300)
     // application_name = astrolabe on every pooled connection by default (deliberate — ops can count
     // this instance's own connections in pg_stat_activity, and ConnectionPoolTest relies on it);
     // overridable per test application instance so overlapping test apps sharing the
     // Testcontainer never share one count.
     val applicationName = config.propertyOrNull("postgres.pool.applicationName")?.getString() ?: "astrolabe"
-    return PoolBounds(maxSize, initialSize, maxAcquireTimeSeconds, maxIdleTimeSeconds, idleInTransactionTimeoutSeconds, applicationName)
+    return PoolBounds(
+        maxSize, initialSize, maxAcquireTimeSeconds, maxIdleTimeSeconds, idleInTransactionTimeoutSeconds,
+        statementTimeoutSeconds, applicationName,
+    )
 }
 
 /**
@@ -150,6 +156,10 @@ private val STARTUP_OPTIONS = PostgresqlConnectionFactoryProvider.OPTIONS as Opt
  * and the test harness's own direct-access database (`sharedDatabaseForTests()`, which had been an
  * UNPOOLED connect paying a fresh PostgreSQL backend, ~4 ms, per transaction). The caller owns
  * disposing the returned [ConnectionPool].
+ *
+ * [statementTimeoutSeconds] (whole seconds, 0 = none, the default so the harness's own pools keep today's behaviour) is the pool's
+ * default `queryTimeout`: the limit of every statement of every transaction that does not set its own (`persistence.md` "Connection
+ * pool").
  */
 internal fun connectPooledDatabase(
     options: ConnectionFactoryOptions,
@@ -158,6 +168,7 @@ internal fun connectPooledDatabase(
     maxAcquireTime: Duration,
     maxIdleTime: Duration,
     idleInTransactionTimeout: Duration = DEFAULT_IDLE_IN_TRANSACTION_TIMEOUT,
+    statementTimeoutSeconds: Int = 0,
 ): Pair<R2dbcDatabase, ConnectionPool> {
     // Bound the driver's prepared-statement cache (its default is unbounded, and every cached text stays a
     // named server-side statement for the connection's life): see PREPARED_STATEMENT_CACHE_QUERIES.
@@ -198,6 +209,13 @@ internal fun connectPooledDatabase(
         // three times would turn the acquire budget into 3x the queueing per request exactly
         // when the pool is already full. Astrolabe has no path relying on Exposed's retry.
         defaultMaxAttempts = 1
+        // PostgreSQL's server-side statement_timeout, for every statement: one that a LIVE but stuck server runs longer (a lock wait,
+        // a runaway query) is cancelled (SQLSTATE 57014; the transaction rolls back, the connection stays valid). It MUST be set
+        // here: Exposed's statement executor asks the driver for the transaction's `queryTimeout` before EVERY statement (default
+        // 0 = no limit), so a driver startup option or a post-allocate SET would be silently overwritten with 0 - nothing else may
+        // SET statement_timeout. A transaction that assigns its own `queryTimeout` (the telemetry reads) keeps that value. Seconds,
+        // as Exposed takes them. The driver sends the SET only when the connection's value differs: StatementTimeoutCache.kt.
+        defaultQueryTimeout = statementTimeoutSeconds
     }
     return R2dbcDatabase.connect(connectionFactory = pool, databaseConfig = databaseConfig) to pool
 }
@@ -209,4 +227,5 @@ private fun connectPooledDatabase(options: ConnectionFactoryOptions, bounds: Poo
     maxAcquireTime = Duration.ofSeconds(bounds.maxAcquireTimeSeconds),
     maxIdleTime = Duration.ofSeconds(bounds.maxIdleTimeSeconds),
     idleInTransactionTimeout = Duration.ofSeconds(bounds.idleInTransactionTimeoutSeconds),
+    statementTimeoutSeconds = bounds.statementTimeoutSeconds,
 )

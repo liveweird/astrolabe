@@ -350,7 +350,7 @@ ad-hoc error JSON.
 | Failed precondition (`If-Match`) | `412` |
 | Semantically invalid (well-formed) entity | `422` |
 | Rate limit / throttle / lockout exceeded | `429` |
-| Unexpected server error (logged) | `500` |
+| Unexpected server error (logged); a statement the database did not finish in time is a typed `500` (a `type` of its own; the cancelled transaction wrote nothing, but an earlier committed step of the request stays, so a retry may meet a `409`) | `500` |
 | Feature disabled in this deployment | `503` |
 | An upstream dependency this API calls failed or was unreachable (a typed problem naming the failure code only, never the upstream's body or URL) | `502` |
 

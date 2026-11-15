@@ -1,8 +1,11 @@
 package ch.nokillswit
 
 import ch.nokillswit.infra.db.R2dbcDatabaseKey
+import ch.nokillswit.infra.db.connectPooledDatabase
+import ch.nokillswit.plugins.isQueryCanceled
 import ch.nokillswit.users.UserService
 import io.ktor.server.testing.testApplication
+import io.r2dbc.spi.ConnectionFactoryOptions
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
@@ -14,6 +17,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.exposed.v1.r2dbc.selectAll
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
+import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.TimeoutException
 import kotlin.test.Test
@@ -240,6 +244,77 @@ class ConnectionPoolTest {
             exec("SHOW idle_in_transaction_session_timeout") { it.get(0, String::class.java) }?.toList()?.single()
         }
         assertEquals("0", shown)
+    }
+
+    // ---- the statement limit (postgres.statementTimeoutSeconds; Toadie's pins, ported) -----------------------
+
+    /** `SHOW statement_timeout` as the server reports it on a pooled connection of [db]. */
+    private suspend fun showStatementTimeout(db: org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase): List<String?>? =
+        suspendTransaction(db) { exec("SHOW statement_timeout") { row -> row.get(0, String::class.java) }?.toList() }
+
+    @Test
+    fun `statementTimeoutSeconds cancels a statement the server runs too long`() = testApplication {
+        configureApp("postgres.pool.applicationName" to "pool-stmt-${UUID.randomUUID()}", "postgres.statementTimeoutSeconds" to "1")
+        startApplication()
+        val db = application.attributes[R2dbcDatabaseKey]
+        // The value the server actually sees: Exposed SETs statement_timeout per statement from its defaultQueryTimeout, which would
+        // silently overwrite any other way of setting it.
+        assertEquals(listOf("1s"), showStatementTimeout(db))
+        val failure = runCatching {
+            suspendTransaction(db) { exec("SELECT pg_sleep(3)") { row -> row.get(0) }?.toList() }
+        }.exceptionOrNull()
+        assertNotNull(failure, "a 3 s statement must not survive a 1 s statement_timeout")
+        assertTrue(failure.isQueryCanceled(), "expected query_canceled (57014), got $failure")
+    }
+
+    @Test
+    fun `statementTimeoutSeconds 0 turns the limit off and boots`() = testApplication {
+        configureApp("postgres.pool.applicationName" to "pool-stmt-${UUID.randomUUID()}", "postgres.statementTimeoutSeconds" to "0")
+        startApplication()
+        assertEquals(listOf("0"), showStatementTimeout(application.attributes[R2dbcDatabaseKey]))
+    }
+
+    @Test
+    fun `the shipped statement limit is 15 seconds`() {
+        // The yaml text itself, not the resolved config: the variable POSTGRES_STATEMENT_TIMEOUT_SECONDS may be set in the test JVM.
+        val yaml = checkNotNull(ConnectionPoolTest::class.java.classLoader.getResource("application.yaml")).readText()
+        assertTrue("""statementTimeoutSeconds: "${'$'}POSTGRES_STATEMENT_TIMEOUT_SECONDS:15"""" in yaml, "the shipped default is 15")
+    }
+
+    @Test
+    fun `postgres statementTimeoutSeconds out of range or malformed fails startup naming the key`() {
+        for (bad in listOf("-1", "301", "abc")) {
+            testApplication {
+                configureApp("postgres.statementTimeoutSeconds" to bad)
+                assertStartupFails("postgres.statementTimeoutSeconds") { startApplication() }
+            }
+        }
+    }
+
+    @Test
+    fun `the statement limit survives a rollback and a cancelled statement on one pooled connection`() = runBlocking {
+        PostgresTestSupport.ensureMigrated()
+        val options = ConnectionFactoryOptions.parse(PostgresTestSupport.r2dbcUrl)
+            .mutate()
+            .option(ConnectionFactoryOptions.USER, PostgresTestSupport.user)
+            .option(ConnectionFactoryOptions.PASSWORD, PostgresTestSupport.password)
+            .build()
+        // ONE connection, never used before: the first transaction sends the SET and is then rolled back, which PostgreSQL reverts. The
+        // per-connection cache (infra/db/StatementTimeoutCache.kt) must have forgotten it, or the next transaction would run unlimited.
+        val (db, pool) = connectPooledDatabase(options, 1, 0, Duration.ofSeconds(10), Duration.ofMinutes(1), statementTimeoutSeconds = 1)
+        try {
+            runCatching { suspendTransaction(db) { exec("SELECT 1/0") } }
+            assertEquals(listOf("1s"), showStatementTimeout(db), "a transaction aborted by an error must not leave the limit forgotten")
+            repeat(2) {
+                val failure = runCatching { suspendTransaction(db) { exec("SELECT pg_sleep(3)") { row -> row.get(0) }?.toList() } }
+                    .exceptionOrNull()
+                assertNotNull(failure, "a 3 s statement must not survive a 1 s limit, even after a cancelled one")
+                assertTrue(failure.isQueryCanceled(), "expected query_canceled (57014), got $failure")
+            }
+            assertEquals(listOf("1s"), showStatementTimeout(db))
+        } finally {
+            pool.dispose()
+        }
     }
 
     private companion object {
