@@ -37,6 +37,7 @@
     "earlier_one": "{{count}} earlier week is left out here. Turn on \"Include past weeks\" to list it.",
     "earlier_other": "{{count}} earlier weeks are left out here. Turn on \"Include past weeks\" to list them.",
     "tableAria": "Weeks with a warning, by team",
-    "truncated": "Not every week is listed: the list holds {{count}} weeks, those from this week on first (the nearest first), then earlier ones (the latest first)."
+    "truncated_one": "Not every week is listed: the list holds {{count}} week, those from this week on first (the nearest first), then earlier ones (the latest first).",
+    "truncated_other": "Not every week is listed: the list holds {{count}} weeks, those from this week on first (the nearest first), then earlier ones (the latest first)."
   }
 }

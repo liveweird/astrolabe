@@ -34,6 +34,6 @@ Own world, dated from the run (UTC): a team with 1 man-day a week from the Monda
 ## Not covered here (and why)
 
 - The values of `totals`, the WIP badge, the "weeks without capacity" badge, the "Not scheduled" link and the `truncated` line: four workers share the plan or the case needs another capacity setup; vitest and `TeamLoadViewTest` pin them.
-- The weeks table's budget and its cut line ("Not every week is listed: the list stops after N weeks, team by team, so a later team may show fewer weeks or none."), a week over the WIP limit and the filter's effect on the listed weeks: a cut needs thousands of warning weeks, the WIP case another capacity setup, and four workers share the plan; vitest and `TeamLoadViewTest` pin them.
+- The weeks table's budget and its cut line ("Not every week is listed: the list holds N weeks, those from this week on first (the nearest first), then earlier ones (the latest first)."), a week over the WIP limit and the filter's effect on the listed weeks: a cut needs thousands of warning weeks, the WIP case another capacity setup, and four workers share the plan; vitest and `TeamLoadViewTest` pin them.
 - The 2,000-week budget and its order by date (`TeamLoadKernelsTest`, `TeamLoadViewTest`), the "earlier weeks" line's count and the Polish text (vitest), and the week boundary itself (a pinned clock in `TeamLoadViewTest`).
 - Home's two capacity badge links (vitest pins the hrefs) and the Polish text (vitest).

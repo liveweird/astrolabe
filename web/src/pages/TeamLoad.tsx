@@ -125,7 +125,7 @@ export default function TeamLoad() {
           onChange={(selected) => selected !== null && choose(selected as Choice)}
           allowDeselect={false}
         />
-        <Switch label={t("teamLoad.filter.past")} checked={filter.past === true} onChange={(event) => choosePast(event.currentTarget.checked)} />
+        <Switch label={t("teamLoad.filter.past")} checked={filter.past === true} onChange={(event) => choosePast(event.currentTarget.checked)} pb={6} />
       </FilterPanel>
 
       {isError && <ErrorAlert error={error} title={t("teamLoad.loadFailed")} />}

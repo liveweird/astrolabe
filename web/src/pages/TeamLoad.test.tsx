@@ -355,6 +355,13 @@ describe("Team load page: the weeks with a warning (1.21)", () => {
     expect(screen.getByText("Not every week is listed: the list holds 0 weeks, those from this week on first (the nearest first), then earlier ones (the latest first).")).toBeInTheDocument();
   });
 
+  test("a cut document that lists one week says 'week', never 'weeks'", async () => {
+    answer = () => jsonResponse(200, teamLoadView([WITH_WEEKS[1]!], { warningWeeksTruncated: true }));
+    renderPage();
+    await weeksTable();
+    expect(screen.getByText(/^Not every week is listed: the list holds 1 week, those from/)).toBeInTheDocument();
+  });
+
   test("a complete document says nothing about a cut", async () => {
     renderPage();
     await weeksTable();
@@ -397,7 +404,7 @@ describe("Team load page: the weeks with a warning (1.21)", () => {
     const table = await screen.findByRole("table", { name: "Tygodnie z ostrzeżeniem według zespołów" });
     expect(screen.getByRole("heading", { level: 3, name: "Tygodnie z ostrzeżeniem" })).toBeInTheDocument();
     expect(within(table).getByText("Przeciążenie · +9.00 osobodnia")).toBeInTheDocument();
-    expect(screen.getByText("Lista nie zawiera wszystkich tygodni: mieści 3, najpierw tygodnie od bieżącego (od najbliższego), potem wcześniejsze (od najpóźniejszego).")).toBeInTheDocument();
+    expect(screen.getByText("Lista nie zawiera wszystkich tygodni: mieści 3 tygodnie: najpierw tygodnie od bieżącego (od najbliższego), potem wcześniejsze (od najpóźniejszego).")).toBeInTheDocument();
   });
 });
 
@@ -518,9 +525,11 @@ describe("Team load page: the weeks from this week on (1.22)", () => {
   });
 
   test("past=1 and past=false read as off", async () => {
-    renderPage("/team-load?past=1");
-    const table = await weeksTable();
-    expect(weekLabels(table)).toEqual(["W14 · 2027-04-05", "W15 · 2027-04-12"]);
+    for (const query of ["past=1", "past=false"]) {
+      const { unmount } = renderPage(`/team-load?${query}`);
+      expect(weekLabels(await weeksTable())).toEqual(["W14 · 2027-04-05", "W15 · 2027-04-12"]);
+      unmount();
+    }
   });
 
   test("the teams table counts every week whatever the date hides", async () => {
