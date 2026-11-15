@@ -28,4 +28,11 @@ describe("roadmapFilteredPath", () => {
     expect(roadmapFilteredPath({ pick: [9] })).toBe("/roadmap?programId=9");
     expect(roadmapFilteredPath({ filters: { teamId: 1, flaggedOnly: true }, pick: [3, 2] })).toBe("/roadmap?programId=2&programId=3&teamId=1&flagged=true");
   });
+
+  test("the unranked and severity links Home opens", () => {
+    expect(roadmapFilteredPath({ filters: { unrankedOnly: true } })).toBe("/roadmap?unranked=true");
+    expect(roadmapFilteredPath({ filters: { severity: "WARNING" } })).toBe("/roadmap?severity=WARNING");
+    expect(roadmapFilteredPath({ filters: { severity: "INFO" } })).toBe("/roadmap?severity=INFO");
+    expect(roadmapFilteredPath({ filters: { severity: null, unrankedOnly: false } })).toBe("/roadmap");
+  });
 });

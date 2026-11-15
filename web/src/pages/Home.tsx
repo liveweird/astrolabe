@@ -103,29 +103,36 @@ function PlanFigures({ plan }: { plan: HomePlan | undefined }) {
 
 /**
  * The Roadmap card's figures: the ranked and unranked counts and the warnings and infos of the Roadmap's facts line, then what else needs attention
- * (a badge only when positive). Warnings and infos link to the Roadmap with "flagged only" (a link is shown as written, so no remembered filter narrows
- * it) and the two capacity figures to the Team load page filtered to them. Violated dependencies count every link once, a link inside one project included, so
+ * (a badge only when positive). The unranked count links to the Roadmap with "unranked projects only", the warnings badge to the projects with a warning and the
+ * infos badge to the projects with an info (a link is shown as written, so no remembered filter narrows it) and the two capacity figures to the Team load page filtered to them. Violated dependencies count every link once, a link inside one project included, so
  * they are worded as dependencies, not as the arrows the Roadmap draws between projects; the red badge opens the Dependencies page narrowed to the violated ones.
  */
 function RoadmapFigures({ plan, jiraStale }: { plan: HomePlan | undefined; jiraStale: boolean }) {
   const { t } = useTranslation();
   const warnings = plan ? t("roadmap.facts.warnings", { count: plan.flags.warnings }) : "";
   const infos = plan ? t("roadmap.facts.infos", { count: plan.flags.infos }) : "";
-  const flaggedPath = roadmapFilteredPath({ filters: { flaggedOnly: true } });
+  const warningsPath = roadmapFilteredPath({ filters: { severity: "WARNING" } });
+  const infosPath = roadmapFilteredPath({ filters: { severity: "INFO" } });
   return (
     <Stack gap={4} role="group" aria-label={t("home.roadmap.factsAria")} mih={ROADMAP_FIGURES_MIN_HEIGHT}>
       {plan && (
         <>
           <Text size="sm">{t("roadmap.facts.ranked", { count: plan.rankedProjects })}</Text>
-          <Text size="sm">{t("roadmap.facts.unranked", { count: plan.unrankedProjects })}</Text>
+          {plan.unrankedProjects > 0 ? (
+            <Anchor component={RouterLink} to={roadmapFilteredPath({ filters: { unrankedOnly: true } })} size="sm">
+              {t("roadmap.facts.unranked", { count: plan.unrankedProjects })}
+            </Anchor>
+          ) : (
+            <Text size="sm">{t("roadmap.facts.unranked", { count: plan.unrankedProjects })}</Text>
+          )}
           <Group gap="xs">
             {plan.flags.warnings > 0 && (
-              <BadgeLink to={flaggedPath} color="orange" ariaLabel={t("home.roadmap.flaggedAria", { figure: warnings })}>
+              <BadgeLink to={warningsPath} color="orange" ariaLabel={t("home.roadmap.warningsAria", { figure: warnings })}>
                 {warnings}
               </BadgeLink>
             )}
             {plan.flags.infos > 0 && (
-              <BadgeLink to={flaggedPath} color="gray" ariaLabel={t("home.roadmap.flaggedAria", { figure: infos })}>
+              <BadgeLink to={infosPath} color="gray" ariaLabel={t("home.roadmap.infosAria", { figure: infos })}>
                 {infos}
               </BadgeLink>
             )}

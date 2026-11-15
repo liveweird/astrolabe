@@ -1,19 +1,22 @@
 import { idOf } from "./deviationFilters";
 import type { RoadmapFilters } from "./roadmapRows";
 
-/** The Roadmap's whole filter state: the four filters and the program pick (the ids of the picked programs; empty = every program). */
+/** The Roadmap's whole filter state: the six filters and the program pick (the ids of the picked programs; empty = every program). */
 export type RoadmapFilterState = { filters: RoadmapFilters; pick: number[] };
 
 /** What a link may name: any of the filters and the pick (an unnamed one is off). */
 export type RoadmapFilterLink = { filters?: Partial<RoadmapFilters>; pick?: readonly number[] };
 
-/** The five parameter names, in the order they are written. */
-const NAMES = ["programId", "workStreamId", "teamId", "ownerPersonId", "flagged"] as const;
+/** The seven parameter names, in the order they are written. */
+const NAMES = ["programId", "workStreamId", "teamId", "ownerPersonId", "flagged", "severity", "unranked"] as const;
+
+/** A flag severity a URL may name (the exact words; anything else is dropped). */
+const severityOf = (value: string | null): RoadmapFilters["severity"] => (value === "WARNING" || value === "INFO" ? value : null);
 
 /** More programs than this in one URL are cut (the plan has about twenty). */
 const MAX_PICK = 100;
 
-/** True when the URL names any of the five filter parameters (even a malformed one): such a URL is taken as written, a bare one is not. */
+/** True when the URL names any of the seven filter parameters (even a malformed one): such a URL is taken as written, a bare one is not. */
 export function hasRoadmapFilterParams(params: URLSearchParams): boolean {
   return NAMES.some((name) => params.has(name));
 }
@@ -35,8 +38,8 @@ export function withProgramPick(current: URLSearchParams, pick: readonly number[
 }
 
 /**
- * The filter state a URL names: every malformed value is dropped (a stale link never breaks the page), `flagged` is a state only as the exact word
- * `true`, a repeated `programId` is the pick ({@link parseProgramPick}). Anything the URL does not name is off.
+ * The filter state a URL names: every malformed value is dropped (a stale link never breaks the page), `flagged` and `unranked` are a state only as the exact
+ * word `true`, `severity` only as `WARNING` or `INFO`, a repeated `programId` is the pick ({@link parseProgramPick}). Anything the URL does not name is off.
  */
 export function parseRoadmapFilter(params: URLSearchParams): RoadmapFilterState {
   const pick = parseProgramPick(params);
@@ -46,6 +49,8 @@ export function parseRoadmapFilter(params: URLSearchParams): RoadmapFilterState 
       teamId: idOf(params.get("teamId")) ?? null,
       ownerPersonId: idOf(params.get("ownerPersonId")) ?? null,
       flaggedOnly: params.get("flagged") === "true",
+      severity: severityOf(params.get("severity")),
+      unrankedOnly: params.get("unranked") === "true",
     },
     pick,
   };
@@ -59,10 +64,12 @@ export function roadmapFilterParams({ filters, pick }: RoadmapFilterLink): URLSe
   if (filters?.teamId != null) params.set("teamId", String(filters.teamId));
   if (filters?.ownerPersonId != null) params.set("ownerPersonId", String(filters.ownerPersonId));
   if (filters?.flaggedOnly === true) params.set("flagged", "true");
+  if (filters?.severity != null) params.set("severity", filters.severity);
+  if (filters?.unrankedOnly === true) params.set("unranked", "true");
   return params;
 }
 
-/** The URL's search with its five filter parameters replaced by `state`'s; a foreign parameter is kept. */
+/** The URL's search with its seven filter parameters replaced by `state`'s; a foreign parameter is kept. */
 export function withRoadmapFilterParams(current: URLSearchParams, state: RoadmapFilterLink): URLSearchParams {
   const next = new URLSearchParams(current);
   for (const name of NAMES) next.delete(name);

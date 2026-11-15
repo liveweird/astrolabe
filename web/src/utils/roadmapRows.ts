@@ -17,6 +17,10 @@ export type RoadmapFilters = {
   teamId: number | null;
   ownerPersonId: number | null;
   flaggedOnly: boolean;
+  /** Keep the projects with a flag of this severity (any flag, Jira's included); null = any. */
+  severity: PlanFlag["severity"] | null;
+  /** Keep the unranked projects only: no ranked row is shown. */
+  unrankedOnly: boolean;
 };
 
 /** What the filters and the program pick leave of the view: the ranked rows (keeping the server's positions, so a gap shows) and the unranked ones. */
@@ -84,24 +88,32 @@ export function visibleProjects(view: RoadmapView, filters: RoadmapFilters, pick
     (filters.workStreamId === null || project.workStreamId === filters.workStreamId) &&
     (filters.teamId === null || project.teamIds.includes(filters.teamId)) &&
     (filters.ownerPersonId === null || project.ownerPersonId === filters.ownerPersonId) &&
-    (!filters.flaggedOnly || project.flags.length > 0);
-  return { ranked: view.ranked.filter((entry) => keeps(entry.project)), unranked: view.unranked.filter(keeps) };
+    (!filters.flaggedOnly || project.flags.length > 0) &&
+    (filters.severity === null || project.flags.some((flag) => flag.severity === filters.severity));
+  return { ranked: filters.unrankedOnly ? [] : view.ranked.filter((entry) => keeps(entry.project)), unranked: view.unranked.filter(keeps) };
 }
 
 /**
  * The baseline's deleted projects the filters and the program pick leave visible (1.10): the work stream filter and the pick compare the ids the
- * baseline froze; a team, owner or flagged-only filter hides them ALL (nothing frozen says a deleted project's teams or owner, and it has no flags: a
- * row the filter might exclude is never shown).
+ * baseline froze; a team, owner, flagged-only, severity or unranked-only filter hides them ALL (nothing frozen says a deleted project's teams or owner,
+ * and it has no flags and no live rank: a row the filter might exclude is never shown).
  */
 export function visibleRemoved(view: Pick<RoadmapView, "baseline">, filters: RoadmapFilters, pick: ReadonlySet<number> | null): RemovedProject[] {
-  if (filters.teamId !== null || filters.ownerPersonId !== null || filters.flaggedOnly) return [];
+  if (filters.teamId !== null || filters.ownerPersonId !== null || filters.flaggedOnly || filters.severity !== null || filters.unrankedOnly) return [];
   return (view.baseline?.removedProjects ?? []).filter((gone) => (pick === null || pick.has(gone.programId)) && (filters.workStreamId === null || gone.workStreamId === filters.workStreamId));
 }
 
 /** How many filters are in force (the toggle's badge): each field of the filters, plus the program pick. */
 export function activeFilterCount(filters: RoadmapFilters, pick: ReadonlySet<number> | null): number {
   const set = [filters.workStreamId, filters.teamId, filters.ownerPersonId].filter((id) => id !== null).length;
-  return set + (filters.flaggedOnly ? 1 : 0) + (pick === null ? 0 : 1);
+  return set + (filters.flaggedOnly ? 1 : 0) + (filters.severity === null ? 0 : 1) + (filters.unrankedOnly ? 1 : 0) + (pick === null ? 0 : 1);
+}
+
+/** The row next to `id` in `rows`: the one after it, else the one before it; `undefined` when `id` is the only row (or is not among them). */
+export function neighbourOf(rows: readonly { id: number }[], id: number): number | undefined {
+  const index = rows.findIndex((row) => row.id === id);
+  if (index < 0) return undefined;
+  return (rows[index + 1] ?? rows[index - 1])?.id;
 }
 
 /** One row of the timeline: a project (with its server position when ranked) or the divider between the ranked and the unranked. */

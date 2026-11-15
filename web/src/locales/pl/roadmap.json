@@ -144,7 +144,10 @@
     "clearTeam": "Wyczyść filtr zespołu",
     "owner": "Właściciel/ka",
     "clearOwner": "Wyczyść filtr właściciela/ki",
-    "flaggedOnly": "Tylko projekty z flagami"
+    "severity": "Waga flag",
+    "clearSeverity": "Wyczyść filtr wagi flag",
+    "flaggedOnly": "Tylko projekty z flagami",
+    "unrankedOnly": "Tylko projekty bez rankingu"
   },
   "stale": "Roadmapa zmieniła się w międzyczasie — lista została wczytana ponownie. Twoja ostatnia zmiana nie została zapisana; wykonaj ją jeszcze raz, jeśli nadal jej chcesz.",
   "saveForbidden": "Nie masz uprawnień do zmiany roadmapy",

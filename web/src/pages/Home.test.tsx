@@ -183,36 +183,41 @@ describe("Home", () => {
       expect(screen.queryByText(/arrow|conflict/i)).not.toBeInTheDocument();
     });
 
-    test("six figures are links with their href and a name that contains their visible text; the counts are not", async () => {
+    test("seven figures are links with their href and a name that contains their visible text; the counts are not", async () => {
       stubViews();
       renderWithProviders(<Home />);
       const roadmap = within(await screen.findByRole("group", { name: "The roadmap in figures" }));
       const plan = within(screen.getByRole("group", { name: "The plan in figures" }));
       const notScheduled = await plan.findByRole("link", { name: "100 not scheduled yet" });
       expect(notScheduled).toHaveAttribute("href", "/milestones?scheduled=false");
-      const warnings = await roadmap.findByRole("link", { name: "208 warnings: the flagged projects on the roadmap" });
-      expect(warnings).toHaveAttribute("href", "/roadmap?flagged=true");
+      const unranked = await roadmap.findByRole("link", { name: "20 unranked" });
+      expect(unranked).toHaveAttribute("href", "/roadmap?unranked=true");
+      expect(unranked).toHaveTextContent("20 unranked");
+      const warnings = roadmap.getByRole("link", { name: "208 warnings: the projects with a warning on the roadmap" });
+      expect(warnings).toHaveAttribute("href", "/roadmap?severity=WARNING");
       expect(warnings).toHaveTextContent("208 warnings");
-      const infos = roadmap.getByRole("link", { name: "52 infos: the flagged projects on the roadmap" });
-      expect(infos).toHaveAttribute("href", "/roadmap?flagged=true");
+      const infos = roadmap.getByRole("link", { name: "52 infos: the projects with an info on the roadmap" });
+      expect(infos).toHaveAttribute("href", "/roadmap?severity=INFO");
       expect(infos).toHaveTextContent("52 infos");
       expect(roadmap.getByRole("link", { name: "3 teams with an overloaded week" })).toHaveAttribute("href", "/team-load?warning=overloaded");
       expect(roadmap.getByRole("link", { name: "1 team over the WIP limit" })).toHaveAttribute("href", "/team-load?warning=wip");
       const violated = roadmap.getByRole("link", { name: "9 violated dependencies" });
       expect(violated).toHaveAttribute("href", "/dependencies?status=violated");
       expect(violated).toHaveTextContent("9 violated dependencies");
-      expect(roadmap.getAllByRole("link")).toHaveLength(5);
+      expect(roadmap.getAllByRole("link")).toHaveLength(6);
       expect(roadmap.getByText("80 ranked").closest("a")).toBeNull();
       expect(plan.getAllByRole("link")).toHaveLength(1);
     });
 
     test("a zero figure is neither a badge nor a link", async () => {
-      stubViews({ home: homeWith({ plan: { ...homeView().plan, unscheduledMilestones: 0, flags: { warnings: 0, infos: 0 }, conflicts: 0, overloadedTeams: 0, wipExceededTeams: 0 } }) });
+      stubViews({ home: homeWith({ plan: { ...homeView().plan, unscheduledMilestones: 0, unrankedProjects: 0, flags: { warnings: 0, infos: 0 }, conflicts: 0, overloadedTeams: 0, wipExceededTeams: 0 } }) });
       renderWithProviders(<Home />);
       const plan = within(await screen.findByRole("group", { name: "The plan in figures" }));
       expect(await plan.findByText("0 not scheduled yet")).toBeInTheDocument();
       expect(plan.queryByRole("link")).not.toBeInTheDocument();
-      expect(within(screen.getByRole("group", { name: "The roadmap in figures" })).queryByRole("link")).not.toBeInTheDocument();
+      const roadmap = within(screen.getByRole("group", { name: "The roadmap in figures" }));
+      expect(await roadmap.findByText("0 unranked")).toBeInTheDocument();
+      expect(roadmap.queryByRole("link")).not.toBeInTheDocument();
     });
 
     test("before the read answers there is no figure-link, and the three card links are there", () => {
@@ -394,7 +399,9 @@ describe("Home", () => {
     expect(screen.getByText("9 naruszonych zależności")).toBeInTheDocument();
     expect(screen.getByText("3 zespoły z przeciążonym tygodniem")).toBeInTheDocument();
     expect(screen.getByText("1 zespół ponad limitem WIP")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "208 ostrzeżeń: projekty z flagami na roadmapie" })).toHaveAttribute("href", "/roadmap?flagged=true");
+    expect(screen.getByRole("link", { name: "208 ostrzeżeń: projekty z ostrzeżeniem na roadmapie" })).toHaveAttribute("href", "/roadmap?severity=WARNING");
+    expect(screen.getByRole("link", { name: "52 informacje: projekty z informacją na roadmapie" })).toHaveAttribute("href", "/roadmap?severity=INFO");
+    expect(screen.getByRole("link", { name: "Bez rankingu: 20" })).toHaveAttribute("href", "/roadmap?unranked=true");
     expect(screen.getByText("Dane z Jiry mogą być nieaktualne")).toBeInTheDocument();
     expect(await screen.findByText("Dane z Flow mogą być nieaktualne")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 3, name: "Twoje" })).toBeInTheDocument();

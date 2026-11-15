@@ -15,6 +15,7 @@ import {
   flagTotals,
   knownFilters,
   knownPick,
+  neighbourOf,
   ownerOptions,
   pairKey,
   pickAmong,
@@ -27,7 +28,7 @@ import {
   type RoadmapFilters,
 } from "./roadmapRows";
 
-const NONE: RoadmapFilters = { workStreamId: null, teamId: null, ownerPersonId: null, flaggedOnly: false };
+const NONE: RoadmapFilters = { workStreamId: null, teamId: null, ownerPersonId: null, flaggedOnly: false, severity: null, unrankedOnly: false };
 
 const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"], over: Partial<PlanFlag> = {}): PlanFlag => ({ kind, severity, days: 3, ...over });
 
@@ -88,10 +89,27 @@ describe("visibleProjects", () => {
     ["owner", { ...NONE, ownerPersonId: 6 }, [2], [4]],
     ["flagged only", { ...NONE, flaggedOnly: true }, [1, 3], []],
     ["two filters AND together", { ...NONE, workStreamId: 1, flaggedOnly: true }, [1, 3], []],
+    ["warning severity (a project with a warning among its flags)", { ...NONE, severity: "WARNING" as const }, [1, 3], []],
+    ["info severity (a project with an info, the other severity alone does not count)", { ...NONE, severity: "INFO" as const }, [1], []],
+    ["unranked only", { ...NONE, unrankedOnly: true }, [], [4]],
+    ["unranked only with a work stream that has none", { ...NONE, unrankedOnly: true, workStreamId: 1 }, [], []],
   ])("the %s filter", (_name, filters, ranked, unranked) => {
     const visible = visibleProjects(view(), filters, null);
     expect(visible.ranked.map((e) => e.project.id)).toEqual(ranked);
     expect(visible.unranked.map((p) => p.id)).toEqual(unranked);
+  });
+
+  test("a severity and unranked only combine with the other filters, and a Jira flag counts like any other", () => {
+    const jiraFlagged = project(5, "Epsilon", { flags: [flag("JIRA_DEVIATION", "INFO")] });
+    const plain = project(6, "Zeta");
+    const withUnranked = view({ unranked: [D, jiraFlagged, plain] });
+    const ids = (filters: RoadmapFilters, pick: ReadonlySet<number> | null = null) => visibleProjects(withUnranked, filters, pick).unranked.map((p) => p.id);
+    expect(ids({ ...NONE, unrankedOnly: true })).toEqual([4, 5, 6]);
+    expect(ids({ ...NONE, unrankedOnly: true, severity: "INFO" })).toEqual([5]);
+    expect(ids({ ...NONE, unrankedOnly: true, severity: "WARNING" })).toEqual([]);
+    expect(ids({ ...NONE, unrankedOnly: true, flaggedOnly: true })).toEqual([5]);
+    expect(ids({ ...NONE, unrankedOnly: true }, new Set([11]))).toEqual([4]);
+    expect(visibleProjects(withUnranked, { ...NONE, unrankedOnly: true }, null).ranked).toEqual([]);
   });
 
   test("the program pick keeps only the picked programs, with the filters", () => {
@@ -109,7 +127,12 @@ describe("options and stored values", () => {
   });
 
   test("a stored filter id the view no longer offers filters nothing", () => {
-    expect(knownFilters(view(), { workStreamId: 99, teamId: 8, ownerPersonId: 98, flaggedOnly: true })).toEqual({ workStreamId: null, teamId: 8, ownerPersonId: null, flaggedOnly: true });
+    expect(knownFilters(view(), { ...NONE, workStreamId: 99, teamId: 8, ownerPersonId: 98, flaggedOnly: true, severity: "INFO" })).toEqual({
+      ...NONE,
+      teamId: 8,
+      flaggedOnly: true,
+      severity: "INFO",
+    });
   });
 
   test("a stored pick keeps the programs that exist; none left = no pick", () => {
@@ -126,7 +149,21 @@ describe("options and stored values", () => {
 
   test("the filter badge counts each field in force plus the pick", () => {
     expect(activeFilterCount(NONE, null)).toBe(0);
-    expect(activeFilterCount({ workStreamId: 1, teamId: 7, ownerPersonId: null, flaggedOnly: true }, new Set([10]))).toBe(4);
+    expect(activeFilterCount({ ...NONE, workStreamId: 1, teamId: 7, flaggedOnly: true }, new Set([10]))).toBe(4);
+    expect(activeFilterCount({ ...NONE, severity: "WARNING" }, null)).toBe(1);
+    expect(activeFilterCount({ ...NONE, unrankedOnly: true }, null)).toBe(1);
+    expect(activeFilterCount({ ...NONE, severity: "INFO", unrankedOnly: true, flaggedOnly: true }, new Set([10]))).toBe(4);
+  });
+});
+
+describe("neighbourOf", () => {
+  const rows = [{ id: 4 }, { id: 5 }, { id: 6 }];
+  test("the next row, else the previous one; nothing for a lone row or an unknown id", () => {
+    expect(neighbourOf(rows, 4)).toBe(5);
+    expect(neighbourOf(rows, 5)).toBe(6);
+    expect(neighbourOf(rows, 6)).toBe(5);
+    expect(neighbourOf([{ id: 4 }], 4)).toBeUndefined();
+    expect(neighbourOf(rows, 99)).toBeUndefined();
   });
 });
 
@@ -173,8 +210,8 @@ describe("visibleRemoved (1.10)", () => {
     expect(ids(visibleRemoved(withRemoved, { ...NONE, workStreamId: 1 }, new Set([11])))).toEqual([]);
   });
 
-  test("a team, owner or flagged-only filter hides them all: a deleted project's teams, owner and flags are not known", () => {
-    for (const filter of [{ teamId: 7 }, { ownerPersonId: 5 }, { flaggedOnly: true }]) expect(visibleRemoved(withRemoved, { ...NONE, ...filter }, null)).toEqual([]);
+  test("a team, owner, flagged-only, severity or unranked-only filter hides them all: a deleted project's teams, owner, flags and live rank are not known", () => {
+    for (const filter of [{ teamId: 7 }, { ownerPersonId: 5 }, { flaggedOnly: true }, { severity: "WARNING" as const }, { unrankedOnly: true }]) expect(visibleRemoved(withRemoved, { ...NONE, ...filter }, null)).toEqual([]);
   });
 
   test("datesOf covers their frozen spans", () => {

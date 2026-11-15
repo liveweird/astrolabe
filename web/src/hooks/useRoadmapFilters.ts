@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { isBoolean, readStoredJson, writeStoredJson } from "./useStoredState";
+import { isBoolean, isOneOfOrNull, readStoredJson, writeStoredJson } from "./useStoredState";
 import {
   hasRoadmapFilterParams,
   isRoadmapFilterEmpty,
@@ -11,14 +11,17 @@ import {
 import type { RoadmapFilters } from "../utils/roadmapRows";
 
 const isIdOrNull = (value: unknown): value is number | null => value === null || Number.isInteger(value);
+const isSeverityOrNull = isOneOfOrNull<NonNullable<RoadmapFilters["severity"]>>(["WARNING", "INFO"]);
 const isIdList = (value: unknown): value is number[] => Array.isArray(value) && value.every((id) => Number.isInteger(id));
 
-// The five remembered keys (`astrolabe.viewSettings.<key>`): the four filters are the roadmap's own, the pick is the ONE key the programs page reads too.
+// The seven remembered keys (`astrolabe.viewSettings.<key>`): the six filters are the roadmap's own, the pick is the ONE key the programs page reads too.
 const KEYS = {
   workStreamId: "roadmap.filter.workStream",
   teamId: "roadmap.filter.team",
   ownerPersonId: "roadmap.filter.owner",
   flaggedOnly: "roadmap.filter.flagged",
+  severity: "roadmap.filter.severity",
+  unrankedOnly: "roadmap.filter.unranked",
   pick: "planning.programPick",
 } as const;
 
@@ -28,6 +31,8 @@ function readRemembered(): RoadmapFilterState {
     return isIdOrNull(stored) ? stored : null;
   };
   const flagged = readStoredJson(KEYS.flaggedOnly);
+  const severity = readStoredJson(KEYS.severity);
+  const unranked = readStoredJson(KEYS.unrankedOnly);
   const pick = readStoredJson(KEYS.pick);
   return {
     filters: {
@@ -35,6 +40,8 @@ function readRemembered(): RoadmapFilterState {
       teamId: idOf(KEYS.teamId),
       ownerPersonId: idOf(KEYS.ownerPersonId),
       flaggedOnly: isBoolean(flagged) ? flagged : false,
+      severity: isSeverityOrNull(severity) ? severity : null,
+      unrankedOnly: isBoolean(unranked) ? unranked : false,
     },
     pick: isIdList(pick) ? pick : [],
   };
@@ -45,16 +52,18 @@ function remember({ filters, pick }: RoadmapFilterState) {
   writeStoredJson(KEYS.teamId, filters.teamId);
   writeStoredJson(KEYS.ownerPersonId, filters.ownerPersonId);
   writeStoredJson(KEYS.flaggedOnly, filters.flaggedOnly);
+  writeStoredJson(KEYS.severity, filters.severity);
+  writeStoredJson(KEYS.unrankedOnly, filters.unrankedOnly);
   writeStoredJson(KEYS.pick, pick);
 }
 
 /**
- * The roadmap's four filters and its program pick: the address bar always holds what the page shows (a link you can copy), and the browser remembers
- * what the user last set (Flow's rule, ported from its `useReportFilter`; the five stored keys are the memory, not the state).
+ * The roadmap's six filters and its program pick: the address bar always holds what the page shows (a link you can copy), and the browser remembers
+ * what the user last set (Flow's rule, ported from its `useReportFilter`; the seven stored keys are the memory, not the state).
  *
  *  - A URL naming any filter parameter is shown exactly as written (anything it does not name is off, the pick included) and is NOT stored.
  *  - A bare URL shows the remembered filters and pick and rewrites the address by `replace` to say so (nothing remembered = stays bare).
- *  - Only the user's own change is stored: the WHOLE shown state, written to all five keys, and the address is rewritten by `replace`
+ *  - Only the user's own change is stored: the WHOLE shown state, written to all seven keys, and the address is rewritten by `replace`
  *    (bare when empty). Back, forward and the rewrite of a bare visit write nothing.
  *
  * The values may name things that are gone: the page reads them through `knownFilters` / `knownPick`.

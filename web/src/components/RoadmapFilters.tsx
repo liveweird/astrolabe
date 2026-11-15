@@ -4,11 +4,13 @@ import type { RoadmapView } from "../api/roadmap";
 import { ownerOptions, programOptions, workStreamOptions, type NamedId, type RoadmapFilters } from "../utils/roadmapRows";
 import ProgramPickField from "./ProgramPickField";
 
+const SEVERITIES = ["WARNING", "INFO"] as const;
+
 const toOptions = (options: readonly NamedId[]) => options.map((option) => ({ value: String(option.id), label: option.name }));
 
 /**
- * The fields of the roadmap's filter panel: work stream, team (a project matches when it has milestones on the team), owner, "flagged only" and
- * the program pick (a multi-select, empty = every program; the key is shared with the programs page). The page keeps the state and the persistence;
+ * The fields of the roadmap's filter panel: work stream, team (a project matches when it has milestones on the team), owner, the flag severity (a project matches when
+ * one of its flags has it), "flagged only", "unranked projects only" and the program pick (a multi-select, empty = every program; the key is shared with the programs page). The page keeps the state and the persistence;
  * the options come from the view, so they only offer what the plan has.
  */
 export default function RoadmapFilterFields({
@@ -60,7 +62,17 @@ export default function RoadmapFilterFields({
         clearable
         clearButtonProps={{ "aria-label": t("roadmap.filter.clearOwner") }}
       />
+      <Select
+        label={t("roadmap.filter.severity")}
+        placeholder={t("common.state.any")}
+        data={SEVERITIES.map((severity) => ({ value: severity, label: t(`roadmap.flags.${severity}`) }))}
+        value={filters.severity}
+        onChange={(value) => onFilters({ severity: value === "WARNING" || value === "INFO" ? value : null })}
+        clearable
+        clearButtonProps={{ "aria-label": t("roadmap.filter.clearSeverity") }}
+      />
       <Switch label={t("roadmap.filter.flaggedOnly")} checked={filters.flaggedOnly} onChange={(event) => onFilters({ flaggedOnly: event.currentTarget.checked })} pb={6} />
+      <Switch label={t("roadmap.filter.unrankedOnly")} checked={filters.unrankedOnly} onChange={(event) => onFilters({ unrankedOnly: event.currentTarget.checked })} pb={6} />
     </>
   );
 }

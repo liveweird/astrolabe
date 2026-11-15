@@ -5,9 +5,14 @@ import { useLocation, useNavigate, useNavigationType } from "react-router-dom";
 import { useRoadmapFilters } from "./useRoadmapFilters";
 import { renderWithProviders } from "../test/render";
 
+const OFF = { workStreamId: null, teamId: null, ownerPersonId: null, flaggedOnly: false, severity: null, unrankedOnly: false };
 const KEY = (name: string) => `astrolabe.viewSettings.${name}`;
 const stored = (name: string) => JSON.parse(localStorage.getItem(KEY(name)) ?? "null") as unknown;
-const ALL_KEYS = ["roadmap.filter.workStream", "roadmap.filter.team", "roadmap.filter.owner", "roadmap.filter.flagged", "planning.programPick"];
+const ALL_KEYS = ["roadmap.filter.workStream", "roadmap.filter.team", "roadmap.filter.owner", "roadmap.filter.flagged",
+  "roadmap.filter.severity",
+  "roadmap.filter.unranked",
+  "planning.programPick",
+];
 
 /** Shows what the hook answers and the address, and gives the test the user's changes and two navigations. */
 function Probe() {
@@ -20,6 +25,7 @@ function Probe() {
       <output data-testid="url">{location.search}</output>
       <output data-testid="nav">{useNavigationType()}</output>
       <button onClick={() => setFilters({ teamId: 4 })}>team 4</button>
+      <button onClick={() => setFilters({ severity: "INFO" })}>severity info</button>
       <button onClick={() => setFilters({ flaggedOnly: false, teamId: null, workStreamId: null })}>clear filters</button>
       <button onClick={() => setPick([])}>clear pick</button>
       <button onClick={() => setPick([21])}>pick 21</button>
@@ -40,7 +46,7 @@ afterEach(() => localStorage.clear());
 describe("useRoadmapFilters", () => {
   test("a bare URL with nothing remembered stays bare and writes nothing", () => {
     renderWithProviders(<Probe />, { route: "/roadmap" });
-    expect(shown()).toEqual({ filters: { workStreamId: null, teamId: null, ownerPersonId: null, flaggedOnly: false }, pick: [] });
+    expect(shown()).toEqual({ filters: OFF, pick: [] });
     expect(url()).toBe("");
     expect(screen.getByTestId("nav")).toHaveTextContent("POP");
     expect(viewSettings()).toEqual([]);
@@ -62,9 +68,11 @@ describe("useRoadmapFilters", () => {
   test("a stored value that fails its validator reads as off", () => {
     localStorage.setItem(KEY("roadmap.filter.team"), '"x"');
     localStorage.setItem(KEY("roadmap.filter.flagged"), "1");
+    localStorage.setItem(KEY("roadmap.filter.severity"), '"ERROR"');
+    localStorage.setItem(KEY("roadmap.filter.unranked"), '"yes"');
     localStorage.setItem(KEY("planning.programPick"), '["a"]');
     renderWithProviders(<Probe />, { route: "/roadmap" });
-    expect(shown()).toEqual({ filters: { workStreamId: null, teamId: null, ownerPersonId: null, flaggedOnly: false }, pick: [] });
+    expect(shown()).toEqual({ filters: OFF, pick: [] });
     expect(url()).toBe("");
   });
 
@@ -72,7 +80,7 @@ describe("useRoadmapFilters", () => {
     localStorage.setItem(KEY("roadmap.filter.workStream"), "2");
     localStorage.setItem(KEY("planning.programPick"), "[11]");
     renderWithProviders(<Probe />, { route: "/roadmap?flagged=true" });
-    expect(shown().filters).toEqual({ workStreamId: null, teamId: null, ownerPersonId: null, flaggedOnly: true });
+    expect(shown().filters).toEqual({ ...OFF, flaggedOnly: true });
     expect(shown().pick).toEqual([]);
     expect(url()).toBe("?flagged=true");
     expect(screen.getByTestId("nav")).toHaveTextContent("POP");
@@ -92,7 +100,31 @@ describe("useRoadmapFilters", () => {
     expect(stored("roadmap.filter.team")).toBe(4);
     expect(stored("roadmap.filter.owner")).toBeNull();
     expect(stored("roadmap.filter.flagged")).toBe(true);
+    expect(stored("roadmap.filter.severity")).toBeNull();
+    expect(stored("roadmap.filter.unranked")).toBe(false);
     expect(stored("planning.programPick")).toEqual([]);
+  });
+
+  test("a link naming only unranked=true leaves everything else off and stores nothing", () => {
+    localStorage.setItem(KEY("roadmap.filter.severity"), '"INFO"');
+    renderWithProviders(<Probe />, { route: "/roadmap?unranked=true" });
+    expect(shown().filters).toEqual({ ...OFF, unrankedOnly: true });
+    expect(shown().pick).toEqual([]);
+    expect(url()).toBe("?unranked=true");
+    expect(localStorage.getItem(KEY("roadmap.filter.unranked"))).toBeNull();
+    expect(stored("roadmap.filter.severity")).toBe("INFO");
+  });
+
+  test("a bare visit restores the remembered severity and unranked-only, and a change stores both", async () => {
+    localStorage.setItem(KEY("roadmap.filter.severity"), '"WARNING"');
+    localStorage.setItem(KEY("roadmap.filter.unranked"), "true");
+    renderWithProviders(<Probe />, { route: "/roadmap" });
+    expect(shown().filters).toMatchObject({ severity: "WARNING", unrankedOnly: true });
+    expect(await screen.findByText("?severity=WARNING&unranked=true")).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByText("severity info"));
+    expect(url()).toBe("?severity=INFO&unranked=true");
+    expect(stored("roadmap.filter.severity")).toBe("INFO");
+    expect(stored("roadmap.filter.unranked")).toBe(true);
   });
 
   test("clearing the last filter leaves a bare address and empty stored keys, and it stays bare", async () => {
@@ -103,7 +135,7 @@ describe("useRoadmapFilters", () => {
     await user.click(screen.getByText("clear filters"));
     expect(url()).toBe("");
     expect(shown().filters.teamId).toBeNull();
-    for (const key of ALL_KEYS) expect(stored(key)).toEqual(key === "planning.programPick" ? [] : key === "roadmap.filter.flagged" ? false : null);
+    for (const key of ALL_KEYS) expect(stored(key)).toEqual(key === "planning.programPick" ? [] : ["roadmap.filter.flagged", "roadmap.filter.unranked"].includes(key) ? false : null);
   });
 
   test("a pick change is written to the shared pick key and the address", async () => {

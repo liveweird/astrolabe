@@ -120,7 +120,10 @@
     "clearTeam": "Clear team filter",
     "owner": "Owner",
     "clearOwner": "Clear owner filter",
-    "flaggedOnly": "Flagged projects only"
+    "severity": "Flag severity",
+    "clearSeverity": "Clear flag severity filter",
+    "flaggedOnly": "Flagged projects only",
+    "unrankedOnly": "Unranked projects only"
   },
   "stale": "The roadmap changed in the meantime — the list was reloaded. Your last change was not saved; make it again if you still want it.",
   "saveForbidden": "You are not allowed to change the roadmap",

@@ -14,15 +14,18 @@ import type { TimelineHandle } from "../components/Timeline";
  * second the ones that stay.
  */
 export function useRowMenuFocus(timelineRef: RefObject<TimelineHandle | null>): {
-  /** Put the focus back on the row of `id` after the next render and again when its menu has closed - only when the change was `taken`. */
-  keep: (id: number, taken?: boolean) => void;
+  /**
+   * Put the focus back on the row of `id` after the next render and again when the menu of `from` (default: the same row) has closed - only when
+   * the change was `taken`. `from` differs when the used row leaves the list and the focus goes to a neighbour (Rank under "Unranked projects only").
+   */
+  keep: (id: number, taken?: boolean, from?: number) => void;
   /** Put the focus back on the row of `id` after the next render only: a dialog opened from the menu has closed (its menu finished closing long ago). */
   restore: (id: number) => void;
   /** The row's menu has finished closing: refocus if a change asked for it. */
   menuClosed: (id: number) => void;
 } {
   const refocus = useRef<number | null>(null);
-  const afterExit = useRef<number | null>(null);
+  const afterExit = useRef<{ menu: number; target: number } | null>(null);
   const putFocusOn = (id: number) => {
     const button = document.querySelector<HTMLElement>(`[data-operations-for="${id}"]`);
     if (button === null) timelineRef.current?.focusRow(id);
@@ -36,18 +39,19 @@ export function useRowMenuFocus(timelineRef: RefObject<TimelineHandle | null>): 
     putFocusOn(id);
   });
   return {
-    keep: (id, taken = true) => {
+    keep: (id, taken = true, from = id) => {
       if (!taken) return;
       refocus.current = id;
-      afterExit.current = id;
+      afterExit.current = { menu: from, target: id };
     },
     restore: (id) => {
       refocus.current = id;
     },
     menuClosed: (id) => {
-      if (afterExit.current !== id) return;
+      const armed = afterExit.current;
+      if (armed?.menu !== id) return;
       afterExit.current = null;
-      putFocusOn(id);
+      putFocusOn(armed.target);
     },
   };
 }

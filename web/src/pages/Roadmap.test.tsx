@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient } from "@tanstack/react-query";
 import { act, screen, waitFor, within } from "@testing-library/react";
 import { DndContext } from "@dnd-kit/core";
+import { useLocation } from "react-router-dom";
 import Roadmap from "./Roadmap";
 import type { PlanFlag, RoadmapLink, RoadmapProject, RoadmapView } from "../api/roadmap";
 import { applyRanking } from "../utils/roadmapOrder";
@@ -573,6 +574,147 @@ describe("Roadmap page: the filters in the address", () => {
     expect(localStorage.getItem(WS_KEY)).toBe("null");
     expect(JSON.parse(localStorage.getItem("astrolabe.viewSettings.roadmap.filter.team") ?? "null")).toBe(1);
     expect(JSON.parse(localStorage.getItem("astrolabe.viewSettings.roadmap.filter.flagged") ?? "null")).toBe(true);
+  });
+});
+
+describe("Roadmap page: unranked projects only and the flag severity", () => {
+  const WS_KEY = "astrolabe.viewSettings.roadmap.filter.workStream";
+  const facts = () => screen.getByRole("group", { name: "Roadmap facts" });
+  const stored = (name: string) => JSON.parse(localStorage.getItem(`astrolabe.viewSettings.roadmap.filter.${name}`) ?? "null") as unknown;
+
+  function Where() {
+    const location = useLocation();
+    return <p data-testid="where">{location.pathname + location.search}</p>;
+  }
+  const renderAt = (route: string) =>
+    renderWithProviders(
+      <>
+        <Roadmap />
+        <Where />
+      </>,
+      { route },
+    );
+  const where = () => screen.getByTestId("where").textContent;
+  async function openFiltersPanel(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(await screen.findByRole("button", { name: /^Filters/ }));
+  }
+
+  test("?unranked=true over a remembered pick lists every unranked project and no ranked row; the switch reads on and the memory is intact", async () => {
+    localStorage.setItem(PICK_KEY, JSON.stringify([10]));
+    localStorage.setItem(WS_KEY, "1");
+    const user = userEvent.setup();
+    renderAt("/roadmap?unranked=true");
+    await screen.findByRole("grid", { name: "Roadmap timeline" });
+    expect(rowLabels()).toEqual(["Unranked", "Ledger"]);
+    expect(within(facts()).getByText("0 ranked")).toBeInTheDocument();
+    expect(within(facts()).getByText("1 unranked")).toBeInTheDocument();
+    await openFiltersPanel(user);
+    expect(screen.getByRole("switch", { name: "Unranked projects only" })).toBeChecked();
+    expect(screen.getByRole("switch", { name: "Flagged projects only" })).not.toBeChecked();
+    expect(JSON.parse(localStorage.getItem(PICK_KEY) ?? "null")).toEqual([10]);
+    expect(localStorage.getItem(WS_KEY)).toBe("1");
+    expect(localStorage.getItem("astrolabe.viewSettings.roadmap.filter.unranked")).toBeNull();
+  });
+
+  test("?severity=WARNING lists the projects with a warning and the select shows it; INFO lists the ones with an info", async () => {
+    const user = userEvent.setup();
+    const { unmount } = renderAt("/roadmap?severity=WARNING");
+    await screen.findByRole("grid", { name: "Roadmap timeline" });
+    expect(rowLabels()).toEqual(["Invoices", "Taxes"]);
+    await openFiltersPanel(user);
+    expect(screen.getByRole("combobox", { name: "Flag severity" })).toHaveValue("Warning");
+    expect(screen.getByRole("switch", { name: "Unranked projects only" })).not.toBeChecked();
+    unmount();
+    renderAt("/roadmap?severity=INFO");
+    await screen.findByRole("grid", { name: "Roadmap timeline" });
+    expect(rowLabels()).toEqual(["Invoices", "Audit"]);
+  });
+
+  test("the select and the switch rewrite the address by replace, narrow the rows and are remembered", async () => {
+    const user = userEvent.setup();
+    renderAt("/roadmap");
+    await screen.findByRole("grid", { name: "Roadmap timeline" });
+    await openFiltersPanel(user);
+    await user.click(screen.getByRole("combobox", { name: "Flag severity" }));
+    await user.click(await screen.findByRole("option", { name: "Info" }));
+    expect(where()).toBe("/roadmap?severity=INFO");
+    expect(rowLabels()).toEqual(["Invoices", "Audit"]);
+    expect(stored("severity")).toBe("INFO");
+    await user.click(screen.getByRole("switch", { name: "Unranked projects only" }));
+    expect(where()).toBe("/roadmap?severity=INFO&unranked=true");
+    expect(stored("unranked")).toBe(true);
+    // Unranked and an info: Ledger has no flag, so nothing matches.
+    expect(await screen.findByText("No project matches the filters")).toBeInTheDocument();
+    await user.click(screen.getByLabelText("Clear flag severity filter"));
+    expect(where()).toBe("/roadmap?unranked=true");
+    expect(stored("severity")).toBeNull();
+    expect(rowLabels()).toEqual(["Unranked", "Ledger"]);
+  });
+
+  test("a remembered severity and unranked-only come back on a bare visit", async () => {
+    localStorage.setItem("astrolabe.viewSettings.roadmap.filter.severity", '"WARNING"');
+    localStorage.setItem("astrolabe.viewSettings.roadmap.filter.unranked", "false");
+    renderAt("/roadmap");
+    await screen.findByRole("grid", { name: "Roadmap timeline" });
+    expect(rowLabels()).toEqual(["Invoices", "Taxes"]);
+    await waitFor(() => expect(where()).toBe("/roadmap?severity=WARNING"));
+  });
+
+  test("the filter badge counts the new filters, and the flag panel still lists the infos of the rows shown with its own control", async () => {
+    const user = userEvent.setup();
+    renderAt("/roadmap?severity=WARNING&unranked=false");
+    await screen.findByRole("grid", { name: "Roadmap timeline" });
+    expect(screen.getByRole("button", { name: /^Filters/ })).toHaveTextContent("1");
+    // Invoices (a warning and an info) and Taxes (a warning): the panel lists all three flags of the rows shown.
+    await user.click(screen.getByRole("button", { name: "Show the 3 flags" }));
+    const filter = await screen.findByRole("radiogroup", { name: "Filter the flags by severity" });
+    expect(within(filter).getByRole("radio", { name: "Infos (1)" })).toBeInTheDocument();
+    await user.click(within(filter).getByRole("radio", { name: "Infos (1)" }));
+    const rows = within(screen.getByRole("table", { name: "Flags of the projects shown" })).getAllByRole("row").slice(1);
+    expect(rows.map((row) => within(row).getAllByRole("cell")[0].textContent)).toEqual(["Info"]);
+  });
+
+  describe("Rank under Unranked projects only", () => {
+    const MORTGAGE = project(5, "Mortgage");
+    const ZONING = project(6, "Zoning");
+    beforeEach(() => {
+      view = viewOf({ unranked: [LEDGER, MORTGAGE, ZONING] });
+    });
+
+    test("the row leaves at once, the PUT is the appended order, the page says so and the focus lands on the next row's menu button", async () => {
+      const user = userEvent.setup();
+      renderAt("/roadmap?unranked=true");
+      await screen.findByRole("grid", { name: "Roadmap timeline" });
+      expect(rowLabels()).toEqual(["Unranked", "Ledger", "Mortgage", "Zoning"]);
+      await openMenu(user, "Mortgage");
+      await user.click(await screen.findByRole("menuitem", { name: "Rank Mortgage" }));
+      expect(rowLabels()).toEqual(["Unranked", "Ledger", "Zoning"]);
+      await waitFor(() => expect(puts(mockFetch)).toEqual([{ expectedRevision: 7, projectIds: [1, 2, 3, 5] }]));
+      expect(liveText()).toContain("Mortgage ranked at position 4 of 4");
+      await waitFor(() => expect(grid()).toHaveAttribute("aria-busy", "false"));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Operations for Zoning" })).toHaveFocus());
+    });
+
+    test("the last row hands the focus to the previous one", async () => {
+      const user = userEvent.setup();
+      renderAt("/roadmap?unranked=true");
+      await screen.findByRole("grid", { name: "Roadmap timeline" });
+      await openMenu(user, "Zoning");
+      await user.click(await screen.findByRole("menuitem", { name: "Rank Zoning" }));
+      expect(rowLabels()).toEqual(["Unranked", "Ledger", "Mortgage"]);
+      await waitFor(() => expect(grid()).toHaveAttribute("aria-busy", "false"));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Operations for Mortgage" })).toHaveFocus());
+    });
+
+    test("without the filter the ranked row keeps the focus on its own menu button (unchanged)", async () => {
+      const user = userEvent.setup();
+      renderAt("/roadmap");
+      await screen.findByRole("grid", { name: "Roadmap timeline" });
+      await openMenu(user, "Mortgage");
+      await user.click(await screen.findByRole("menuitem", { name: "Rank Mortgage" }));
+      await waitFor(() => expect(grid()).toHaveAttribute("aria-busy", "false"));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Operations for Mortgage" })).toHaveFocus());
+    });
   });
 });
 

@@ -44,6 +44,7 @@ import {
   flagTotals,
   knownFilters,
   knownPick,
+  neighbourOf,
   visibleProjects,
   visibleRemoved,
   type FlagCounts,
@@ -180,7 +181,8 @@ function RoadmapBody({
   const visibleRankedIds = visible.ranked.map((entry) => entry.project.id);
 
   // The menu's moves are relative to the rows the user sees; the page binds the visible ranked ids. A taken menu change keeps the keyboard user on
-  // the row they were working on (`useRowMenuFocus`: the row's menu button, or its header where the virtual path has unmounted the row).
+  // the row they were working on (`useRowMenuFocus`: the row's menu button, or its header where the virtual path has unmounted the row); a row that
+  // leaves the list on the spot (Rank under "Unranked projects only") hands the focus to its neighbour.
   const focus = useRowMenuFocus(timelineRef);
   // The target window's dialog: only which project it is open on; the project is read from the view on every render.
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -207,7 +209,13 @@ function RoadmapBody({
     menuClosed: (project) => focus.menuClosed(project.id),
     move: (project, delta) => focus.keep(project.id, ranking.move(project.id, delta, visibleRankedIds)),
     moveTo: (project, edge) => focus.keep(project.id, ranking.moveTo(project.id, edge, visibleRankedIds)),
-    rank: (project) => focus.keep(project.id, ranking.rank(project.id)),
+    rank: (project) => {
+      // Under "Unranked projects only" the ranked row leaves the list at once (the optimistic reorder), so its menu button goes with it: the focus
+      // moves to the neighbouring row (the next, else the previous), read BEFORE the write. With no row left there is nothing to focus.
+      const neighbour = filters.unrankedOnly ? neighbourOf(visible.unranked, project.id) : undefined;
+      // `from`: the ranked row's menu is the one that closes, so its close re-puts the focus on the neighbour and nothing stays armed.
+      return focus.keep(neighbour ?? project.id, ranking.rank(project.id), project.id);
+    },
     unrank: (project) => focus.keep(project.id, ranking.unrank(project.id)),
     window: {
       edit: (project) => setEditingId(project.id),
