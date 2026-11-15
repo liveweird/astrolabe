@@ -3,12 +3,6 @@ package ch.nokillswit.jira
 import io.ktor.server.plugins.BadRequestException
 import kotlinx.serialization.Serializable
 
-/**
- * `409` problem type: the node already carries a binding, or the issue is already bound (to another node, or through another connection
- * of the site).
- */
-const val ALREADY_BOUND_PROBLEM = "urn:astrolabe:problem:already-bound"
-
 /** `409` problem type: the connection's stored mapping no longer fits the site's current discovery - an administrator must fix it. */
 const val JIRA_MAPPING_INVALID_PROBLEM = "urn:astrolabe:problem:jira-mapping-invalid"
 

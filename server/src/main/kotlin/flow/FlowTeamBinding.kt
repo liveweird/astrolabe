@@ -3,9 +3,6 @@ package ch.nokillswit.flow
 import io.ktor.server.plugins.BadRequestException
 import kotlinx.serialization.Serializable
 
-/** `409` problem type: the Astrolabe team already has a Flow team, or the Flow team is already linked to a (live) Astrolabe team. */
-const val FLOW_ALREADY_BOUND_PROBLEM = "urn:astrolabe:problem:already-bound"
-
 /** `400` text of a link whose Flow team is not in the connection's mirror (never mirrored, or gone from Flow since). */
 const val UNKNOWN_FLOW_TEAM = "Unknown Flow team: refresh the connection"
 

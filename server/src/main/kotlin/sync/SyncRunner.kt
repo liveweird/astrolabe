@@ -1,6 +1,7 @@
 package ch.nokillswit.sync
 
 import ch.nokillswit.infra.catchingFailures
+import ch.nokillswit.infra.time.MILLIS_PER_MINUTE
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -23,8 +24,6 @@ private const val FINISH_TIMEOUT_MS = 10_000L
 
 /** How long the shutdown waits for in-flight runs to write their `FAILED/SHUTDOWN` row before the pool is disposed. */
 const val SHUTDOWN_JOIN_TIMEOUT_MS = 5_000L
-
-private const val MILLIS_PER_MINUTE = 60_000L
 
 /** A run must end before another claim may abandon it: one minute under `sync.maxRunMinutes`, but never under half a minute. */
 internal fun runDeadlineMillis(maxRunMinutes: Int): Long = maxOf(maxRunMinutes * MILLIS_PER_MINUTE - MILLIS_PER_MINUTE, MIN_DEADLINE_MS)

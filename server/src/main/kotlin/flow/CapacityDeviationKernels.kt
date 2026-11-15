@@ -1,6 +1,8 @@
 package ch.nokillswit.flow
 
 import ch.nokillswit.infra.json.fingerprintOf
+import ch.nokillswit.infra.time.MAN_DAY_SCALE
+import ch.nokillswit.infra.time.WORKING_DAYS_PER_WEEK
 import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.planning.CapacityPeriod
 import ch.nokillswit.planning.DeviationSeverity
@@ -14,8 +16,7 @@ import java.time.LocalDate
 /** Q5a, the ONE home of the threshold: a sprint deviates when its two ROUNDED figures differ by at least this many man-days. */
 internal val CAPACITY_DEVIATION_THRESHOLD_MD: BigDecimal = BigDecimal("0.50")
 
-private val WORKING_DAYS_PER_WEEK = BigDecimal(5)
-private const val MD_SCALE = 2
+private val WORKING_DAYS_DIVISOR = BigDecimal(WORKING_DAYS_PER_WEEK)
 private const val SHARE_SCALE = 6
 
 /**
@@ -64,7 +65,7 @@ object CapacityDeviationKernels {
         val end = LocalDate.parse(checkNotNull(item.end))
         val workingDays = checkNotNull(item.workingDays)
         val flowMd = BigDecimal.valueOf(checkNotNull(item.mdPerWeek)).multiply(BigDecimal(workingDays))
-            .divide(WORKING_DAYS_PER_WEEK, MD_SCALE, RoundingMode.HALF_UP)
+            .divide(WORKING_DAYS_DIVISOR, MAN_DAY_SCALE, RoundingMode.HALF_UP)
         val covered = generateSequence(effectiveFrom) { it.plusDays(1) }.takeWhile { !it.isAfter(end) }.filter(calendar::isWorkingDay)
             .mapNotNull { capacityOn(it, periods) }.toList()
         val planMd = covered.takeIf { it.isNotEmpty() }?.let(::capacityOver)
@@ -97,8 +98,8 @@ object CapacityDeviationKernels {
 
     /** The `weekCapacity` arithmetic over a sprint: each covered day's figure over 5 at scale 6, summed, rounded once to two decimals. */
     private fun capacityOver(figures: List<BigDecimal>): BigDecimal =
-        figures.fold(BigDecimal.ZERO) { sum, md -> sum + md.divide(WORKING_DAYS_PER_WEEK, SHARE_SCALE, RoundingMode.HALF_UP) }
-            .setScale(MD_SCALE, RoundingMode.HALF_UP)
+        figures.fold(BigDecimal.ZERO) { sum, md -> sum + md.divide(WORKING_DAYS_DIVISOR, SHARE_SCALE, RoundingMode.HALF_UP) }
+            .setScale(MAN_DAY_SCALE, RoundingMode.HALF_UP)
 }
 
 /** What a row's fingerprint hashes: its kind, severity and detail (the sprint's name excluded, see [capacityFingerprint]). */

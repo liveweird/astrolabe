@@ -10,6 +10,7 @@ import ch.nokillswit.infra.outbound.guardedOkHttpClient
 import ch.nokillswit.infra.outbound.loadCaBundleTrust
 import ch.nokillswit.infra.outbound.parseFlowInsecureOrigins
 import ch.nokillswit.infra.outbound.parseSelfManagedHosts
+import ch.nokillswit.infra.time.MILLIS_PER_SECOND
 import ch.nokillswit.sync.SyncConnectorsKey
 import ch.nokillswit.teams.CapacityWriteListener
 import ch.nokillswit.teams.CapacityWriteListenersKey
@@ -138,4 +139,3 @@ private const val MIN_RETRIES = 0
 private const val MAX_RETRIES = 8
 private const val MIN_SPRINTS_SINCE_DAYS = 30
 private const val MAX_SPRINTS_SINCE_DAYS = 1_095
-private const val MILLIS_PER_SECOND = 1_000L

@@ -110,3 +110,6 @@ private val FINGERPRINT_JSON = Json {
  */
 fun <T> fingerprintOf(serializer: KSerializer<T>, value: T): String =
     sha256Hex(canonicalJson(FINGERPRINT_JSON.encodeToJsonElement(serializer, value)))
+
+/** The length of a [fingerprintOf] value (a SHA-256 in lower-case hex): the `fingerprint` column width of both acknowledge tables. */
+const val FINGERPRINT_WIDTH = 64

@@ -8,6 +8,7 @@ import ch.nokillswit.infra.fetch.FetchException
 import ch.nokillswit.infra.fetch.LIMIT_EXCEEDED_CODE
 import ch.nokillswit.infra.fetch.RATE_LIMITED_KEY
 import ch.nokillswit.infra.fetch.TENANT_PAUSED_MS_KEY
+import ch.nokillswit.infra.time.MILLIS_PER_MINUTE
 import ch.nokillswit.sync.ClaimedRun
 import ch.nokillswit.sync.Connector
 import ch.nokillswit.sync.ConnectorConnection
@@ -26,8 +27,6 @@ import org.slf4j.LoggerFactory
 val JiraObserverKey = AttributeKey<JiraObserver>("JiraObserver")
 
 private val log = LoggerFactory.getLogger("ch.nokillswit.sync")
-
-private const val MILLIS_PER_MINUTE = 60_000L
 
 /** Typed run failures the connector reports as `FAILED` + [code]; none involves a call to Jira. */
 private class RunProblem(val code: String, val detail: String) : RuntimeException(detail)

@@ -34,3 +34,6 @@ const val BASELINE_LIMIT_PROBLEM = "urn:astrolabe:problem:baseline-limit"
  * `GET /views/baseline/{id}` addresses the baseline itself and answers a plain 404 instead.
  */
 const val UNKNOWN_BASELINE_PROBLEM = "urn:astrolabe:problem:unknown-baseline"
+
+/** The most ids a `400` for unknown or deleted ids lists in its `detail` (the ranking PUT and the team-order PUT). */
+internal const val MAX_LISTED_MISSING = 20

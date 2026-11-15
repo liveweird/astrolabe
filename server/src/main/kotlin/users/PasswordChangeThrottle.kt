@@ -70,7 +70,7 @@ internal class PasswordChangeThrottle(
         lockedAudit.admit("password-change:$userId")?.let { suppressed ->
             audit("password.change_rejected_locked", "targetUserId" to userId.toLong(), "suppressed" to suppressed)
         }
-        throw TooManyRequestsException("Too many wrong current passwords — try again later", PASSWORD_CHANGE_LOCKED_TYPE)
+        throw TooManyRequestsException("Too many wrong current passwords — try again later", PASSWORD_CHANGE_LOCKED_PROBLEM)
     }
 
     private fun rejectCapacity(userId: UInt): Nothing {
@@ -84,7 +84,7 @@ internal class PasswordChangeThrottle(
  * The problem `type` of the lock's 429 (`urn:astrolabe:problem:password-change-locked`): the SPA tells it from a rate-bucket 429
  * (`about:blank`, with `Retry-After`) on this, never on the prose. The capacity 429 keeps `about:blank`: it is not the owner's lock.
  */
-internal const val PASSWORD_CHANGE_LOCKED_TYPE = "urn:astrolabe:problem:password-change-locked"
+internal const val PASSWORD_CHANGE_LOCKED_PROBLEM = "urn:astrolabe:problem:password-change-locked"
 
 internal val PasswordChangeThrottleKey = AttributeKey<PasswordChangeThrottle>("PasswordChangeThrottle")
 

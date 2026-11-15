@@ -1,5 +1,7 @@
 package ch.nokillswit.flow
 
+import ch.nokillswit.infra.time.MAN_DAY_SCALE
+import ch.nokillswit.infra.time.WORKING_DAYS_PER_WEEK
 import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.planning.validateManDays
 import ch.nokillswit.teams.CapacityPeriodRow
@@ -11,9 +13,6 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
-
-private const val WORKING_DAYS_PER_WEEK = 5L
-private const val MD_SCALE = 2
 
 /**
  * Flow's `capacity_source` values whose total is a FIXED per-sprint figure that claims do not reduce: the team's default, and the legacy
@@ -255,7 +254,7 @@ object CapacityImportKernels {
 
     private fun figureOf(sprint: FlowMirrorSprint, workingDays: Long): Figure {
         val total = checkNotNull(sprint.capacityMd)
-        val perWeek = BigDecimal(WORKING_DAYS_PER_WEEK).multiply(total).divide(BigDecimal(workingDays), MD_SCALE, RoundingMode.HALF_UP)
+        val perWeek = BigDecimal(WORKING_DAYS_PER_WEEK).multiply(total).divide(BigDecimal(workingDays), MAN_DAY_SCALE, RoundingMode.HALF_UP)
         // The bounds are the capacity period's own: the same rule that would refuse the figure on a manual write.
         val inRange = try {
             validateManDays(perWeek.toDouble(), "mdPerWeek")

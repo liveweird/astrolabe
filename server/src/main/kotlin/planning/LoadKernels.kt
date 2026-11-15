@@ -1,5 +1,6 @@
 package ch.nokillswit.planning
 
+import ch.nokillswit.infra.time.WORKING_DAYS_PER_WEEK
 import ch.nokillswit.infra.time.WorkingCalendar
 import java.math.BigDecimal
 import java.math.BigInteger
@@ -22,7 +23,6 @@ import java.time.temporal.TemporalAdjusters
 /** The most weeks the team view reports (about ten years); a longer range is cut at this many weeks from its start. */
 const val MAX_LOAD_WEEKS = 520
 
-private const val WORKING_DAYS_PER_WEEK = 5
 private const val DAYS_PER_WEEK = 7L
 private const val MONEY_SCALE = 2
 private const val SHARE_SCALE = 6

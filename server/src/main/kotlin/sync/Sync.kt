@@ -1,6 +1,7 @@
 package ch.nokillswit.sync
 
 import ch.nokillswit.infra.config.requireConfigInt
+import ch.nokillswit.infra.time.MILLIS_PER_SECOND
 import io.ktor.server.application.*
 import io.ktor.server.auth.authenticate
 import io.ktor.server.routing.routing
@@ -24,8 +25,6 @@ internal const val MAX_TICK_SECONDS = 600
  * runs after the yaml modules and before [ApplicationStarted] - so a boot test is independent of the real 10 s delay. Absent in production.
  */
 val SyncFirstTickDelayKey = AttributeKey<Long>("SyncFirstTickDelayMillis")
-
-private const val MILLIS_PER_SECOND = 1_000L
 
 /**
  * The run registry's module (`.claude/docs/observability.md` "Sync runs"): the executor, the scheduler and the routes. Registered after

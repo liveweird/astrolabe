@@ -107,7 +107,7 @@ Source files sit flat under `server/src/main/kotlin/<area>/` but declare `packag
 - `infra/validation/` — cross-feature input helpers (`sanitizeSingleLine`: trim + control-char 400; `Dates.kt`: `parseIsoDate`, `requireDateOrder`).
 - `infra/outbound/` — `OutboundGuard.kt`, the SSRF guard for EVERY server-initiated call (address check, `GuardedDns`, origin rule, no proxy/redirects); its consumers are `jira/` and `flow/`, binding guidance in `security.md` "Outbound HTTP calls".
 - `infra/json/` — `CanonicalJson.kt` (canonical JSON, sha256, `fingerprintOf`), `JsonArrays.kt`.
-- `infra/time/` — `Millis.kt` (`MILLIS_PER_DAY`), `WorkingCalendar.kt` (the pure working-day calendar, Flow's `WorkingDayIndex` ported; kernels take it as a parameter, `MON_FRI` = no holidays; views load the V19 dictionary).
+- `infra/time/` — `Millis.kt` (`MILLIS_PER_SECOND`…`MILLIS_PER_DAY`, the one home), `ManDays.kt` (`MAN_DAY_SCALE`), `WorkingCalendar.kt` (the pure working-day calendar and `WORKING_DAYS_PER_WEEK`, Flow's `WorkingDayIndex` ported; kernels take it as a parameter, `MON_FRI` = no holidays; views load the V19 dictionary).
 - `infra/config/` — `requireConfigInt`/`requireConfigLong`, boot-validated numeric config (Lettuce's).
 - `infra/Failures.kt` — `catchingFailures` (keeps the failure without swallowing cancellation).
 - `audit/` — the security audit trail: `audit(event, fields…)` → AUDIT-marked structured logs.
@@ -120,7 +120,7 @@ Source files sit flat under `server/src/main/kotlin/<area>/` but declare `packag
 - `infra/fetch/` — the bounded outbound transport (Flow's, ported): retry/backoff, permits, size and page ceilings.
 - `jira/` — the Jira sync (V21–V23, V27–V30, `/api/v1/integrations/jira`, `GET /views/deviations`, `GET /views/jira-links`): the ADMIN registry (token encrypted), probes, mapping, 1:1 bindings, observer, census, deviation kernel, import, acknowledge, flag source; routes per concern (`jira-sync.md`).
 - `flow/` — the Flow sync (V24, `/api/v1/integrations/flow`, `GET /teams/{id}/flow`, `GET /views/capacity-deviations`; stub-proven): the ADMIN registry (token encrypted), probes, run, mirror, bindings by name, the capacity import (preview, apply via `teams/`), the deviation kernel, the per-sprint and all-open acknowledge (V26), `FlowFlagSource` (the team view's capacity flag and, for every team at once, the roadmap rows' flag, through `planning`'s seam); `sync/`, `planning/`, `teams/` name nothing of it, nor it of `jira/` (`flow-sync.md`).
-- `sync/` — the connector-agnostic run registry (`sync_runs`, unique-index claim), its executor, the poll scheduler, the connection status and the shared acknowledge vocabulary (`Acknowledge.kt`).
+- `sync/` — the connector-agnostic run registry (`sync_runs`, unique-index claim), its executor, the poll scheduler, the connection status and the shared acknowledge vocabulary (`Acknowledge.kt`) and the one `already-bound` problem type (`Bindings.kt`).
 - `telemetry/` — per-process JVM/cgroup/request/storage samples in `ops.*` (V9), 90 days, hourly, ADMIN read API (`observability.md`).
 
 **Feature template — copy `teams/`** (a small ADMIN-curated registry; the only shape the foundation ships). Before adding a feature, route, service, migration or page, read `.claude/docs/conventions.md` in full.

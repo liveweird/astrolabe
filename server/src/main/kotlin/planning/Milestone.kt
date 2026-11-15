@@ -1,6 +1,7 @@
 package ch.nokillswit.planning
 
 import ch.nokillswit.infra.paging.PageResponse
+import ch.nokillswit.infra.time.MAN_DAY_SCALE
 import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.infra.validation.parseIsoDate
 import ch.nokillswit.infra.validation.requireDateOrder
@@ -146,7 +147,6 @@ fun validateMilestoneFields(name: String, description: String?, estimateMd: Doub
 }
 
 private const val MAX_MAN_DAYS = 1_000_000.0
-private const val MAN_DAYS_SCALE = 2
 
 /**
  * A man-day figure (a milestone's estimate, a team's capacity per week): finite, non-negative, below one million and with at most two
@@ -158,8 +158,8 @@ fun validateManDays(value: Double, field: String): BigDecimal {
     val message = "$field must be a non-negative man-day figure with at most two decimals"
     if (!value.isFinite() || value < 0.0 || value >= MAX_MAN_DAYS) throw BadRequestException(message)
     val exact = BigDecimal(value.toString()).stripTrailingZeros()
-    if (exact.scale() > MAN_DAYS_SCALE) throw BadRequestException(message)
-    return exact.setScale(MAN_DAYS_SCALE)
+    if (exact.scale() > MAN_DAY_SCALE) throw BadRequestException(message)
+    return exact.setScale(MAN_DAY_SCALE)
 }
 
 /** The schedule request rules: a non-negative `expectedRevision` (400, as the spec's `minimum: 0` promises), then [validateSchedule]. */

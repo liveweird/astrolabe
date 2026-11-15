@@ -2,6 +2,7 @@ package ch.nokillswit.plugins
 
 import ch.nokillswit.authz.caller
 import ch.nokillswit.infra.config.requireConfigInt
+import ch.nokillswit.infra.time.MILLIS_PER_SECOND
 import io.ktor.http.HttpHeaders
 import io.ktor.server.application.*
 import io.ktor.server.plugins.origin
@@ -272,5 +273,3 @@ private fun RateLimitProviderConfig.retryAfterOnly() = modifyResponse { call, st
  * at once into the same refusal).
  */
 internal fun retryAfterSeconds(waitMillis: Long): Long = (waitMillis + MILLIS_PER_SECOND - 1) / MILLIS_PER_SECOND
-
-private const val MILLIS_PER_SECOND = 1_000L

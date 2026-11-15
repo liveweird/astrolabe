@@ -13,6 +13,7 @@ import ch.nokillswit.planning.MilestoneService
 import ch.nokillswit.planning.ProgramService
 import ch.nokillswit.planning.ProjectService
 import ch.nokillswit.planning.creatorsOf
+import ch.nokillswit.sync.ALREADY_BOUND_PROBLEM
 import ch.nokillswit.users.UserService
 import io.ktor.server.plugins.BadRequestException
 import io.ktor.util.AttributeKey

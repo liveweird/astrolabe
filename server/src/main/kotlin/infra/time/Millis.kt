@@ -3,9 +3,12 @@ package ch.nokillswit.infra.time
 /**
  * Milliseconds in a fixed 24-hour day — for retention windows, staleness thresholds and elapsed-day
  * figures, where a constant length is the intent. Calendar-day boundaries (a DST day is 23h or 25h)
- * come from `metrics/WorkingCalendar.kt`, never from this constant.
+ * come from `WorkingCalendar.kt` (this package), never from this constant.
  */
 const val MILLIS_PER_DAY = 24L * 60 * 60 * 1000
+
+/** Milliseconds in a second - for second-denominated config (request deadlines, tick and sampling intervals) and ceil-to-seconds maths. */
+const val MILLIS_PER_SECOND = 1_000L
 
 /** Milliseconds in an hour - the telemetry rollup's bucket width. */
 const val MILLIS_PER_HOUR = 3_600_000L

@@ -80,8 +80,6 @@ private suspend fun requireActiveProjects(ids: List<UInt>) {
     }
 }
 
-private const val MAX_LISTED_MISSING = 20
-
 /**
  * Takes a deleted project out of the ranking and closes the gap: its `roadmap_entries` row is hard-deleted and the positions above
  * it shift down by one, so the ranking stays dense 1..n. Runs inside the caller's transaction — `ProjectService.delete` calls it in

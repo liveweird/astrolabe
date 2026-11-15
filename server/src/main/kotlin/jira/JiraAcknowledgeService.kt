@@ -7,6 +7,7 @@ import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.db.insertRows
 import ch.nokillswit.infra.db.lockActiveForWrite
 import ch.nokillswit.infra.db.nowMillis
+import ch.nokillswit.infra.json.FINGERPRINT_WIDTH
 import ch.nokillswit.planning.DeviationKind
 import ch.nokillswit.planning.DeviationSeverity
 import ch.nokillswit.planning.creatorsOf
@@ -215,6 +216,5 @@ class JiraAcknowledgeService(private val database: R2dbcDatabase, private val de
     private companion object {
         const val NOT_FOUND = "Jira binding not found"
         const val KIND_WIDTH = 32
-        const val FINGERPRINT_WIDTH = 64
     }
 }

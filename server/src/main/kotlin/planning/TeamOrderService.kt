@@ -122,8 +122,6 @@ private suspend fun requireMilestonesOfTeam(teamId: UInt, ids: List<UInt>) {
     }
 }
 
-private const val MAX_LISTED_MISSING = 20
-
 /** The team's stored order revision, or 0 when its order was never written. Runs inside the caller's transaction. */
 internal suspend fun orderRevisionOf(teamId: UInt): Long =
     TeamOrderService.TeamOrderState.select(TeamOrderService.TeamOrderState.revision)

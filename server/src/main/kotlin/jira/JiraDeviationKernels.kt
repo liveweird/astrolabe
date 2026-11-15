@@ -1,5 +1,6 @@
 package ch.nokillswit.jira
 
+import ch.nokillswit.infra.time.MAN_DAY_SCALE
 import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.planning.DaySpan
 import ch.nokillswit.planning.Deviation
@@ -69,7 +70,6 @@ data class PlanSide(
 data class DeviationMapping(val hierarchyLevel: Int, val estimateUnit: JiraEstimateUnit, val manDaysPerUnit: Double?)
 
 private val ESTIMATE_TOLERANCE = BigDecimal("0.01")
-private const val MD_SCALE = 2
 
 /** The most keys or names one coverage deviation lists; its `count` carries the full figure. */
 private const val MAX_LISTED = 10
@@ -205,14 +205,16 @@ object JiraDeviationKernels {
         // DAYS needs no factor and ignores a leftover one (a mapping saved under another unit); POINTS and HOURS convert only with one.
         val factor = if (mapping.estimateUnit == JiraEstimateUnit.DAYS) BigDecimal.ONE else mapping.manDaysPerUnit?.let(BigDecimal::valueOf)
         if (factor == null || issue.estimateUnit != mapping.estimateUnit) {
-            val detail = DeviationDetail(figure.toPlainString(), md.setScale(MD_SCALE, RoundingMode.HALF_UP).toPlainString(), null, null)
+            val detail = DeviationDetail(
+                figure.toPlainString(), md.setScale(MAN_DAY_SCALE, RoundingMode.HALF_UP).toPlainString(), null, null,
+            )
             return Deviation(DeviationKind.ESTIMATE_NOT_COMPARABLE, DeviationSeverity.INFO, detail)
         }
         val converted = figure.multiply(factor)
         if (converted.subtract(md).abs() < ESTIMATE_TOLERANCE) return null
         val detail = DeviationDetail(
-            converted.setScale(MD_SCALE, RoundingMode.HALF_UP).toPlainString(),
-            md.setScale(MD_SCALE, RoundingMode.HALF_UP).toPlainString(),
+            converted.setScale(MAN_DAY_SCALE, RoundingMode.HALF_UP).toPlainString(),
+            md.setScale(MAN_DAY_SCALE, RoundingMode.HALF_UP).toPlainString(),
             null,
             null,
         )

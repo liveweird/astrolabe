@@ -7,6 +7,7 @@ import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.db.insertRows
 import ch.nokillswit.infra.db.lockActiveForWrite
 import ch.nokillswit.infra.db.nowMillis
+import ch.nokillswit.infra.json.FINGERPRINT_WIDTH
 import ch.nokillswit.infra.time.WorkingCalendar
 import ch.nokillswit.planning.creatorsOf
 import ch.nokillswit.planning.loadWorkingCalendar
@@ -394,6 +395,5 @@ class CapacityAcknowledgeService(
 
     private companion object {
         const val NOT_FOUND = "Flow team binding not found"
-        const val FINGERPRINT_WIDTH = 64
     }
 }

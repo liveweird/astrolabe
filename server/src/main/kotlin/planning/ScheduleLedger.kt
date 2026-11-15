@@ -1,5 +1,6 @@
 package ch.nokillswit.planning
 
+import ch.nokillswit.infra.time.WORKING_DAYS_PER_WEEK
 import ch.nokillswit.infra.time.WorkingCalendar
 import java.math.BigDecimal
 import java.math.BigInteger
@@ -15,7 +16,6 @@ import java.time.temporal.ChronoUnit
  * [WorkingCalendar], so a holiday simply is not a day and consecutive indexes are consecutive working days.
  */
 
-private const val WORKING_DAYS_PER_WEEK = 5
 private const val NO_LIMIT = Int.MAX_VALUE
 private const val DAYS_PER_WEEK = 7L
 
@@ -106,7 +106,7 @@ internal class ScheduleLedger(
             val day = calendar.workingDayOfIndex(lo + i)
             weekOf[i] = ChronoUnit.WEEKS.between(firstMonday, mondayOf(day)).toInt()
             val period = periodOn(day, periods)?.takeIf { it.takesWork() } ?: continue
-            val perDay = exactOf(period.mdPerWeek).over(WORKING_DAYS_PER_WEEK)
+            val perDay = exactOf(period.mdPerWeek).over(WORKING_DAYS_PER_WEEK.toInt())
             usable[i] = true
             dailyCap[i] = perDay
             limit[i] = period.wipLimit ?: NO_LIMIT
@@ -132,7 +132,7 @@ internal class ScheduleLedger(
     private fun weekCapacityOf(monday: LocalDate): Fraction =
         (0L until DAYS_PER_WEEK).map(monday::plusDays).filter(calendar::isWorkingDay).fold(Fraction.ZERO) { sum, day ->
             val perWeek = capacityOn(day, periods) ?: return@fold sum
-            sum + exactOf(perWeek).over(WORKING_DAYS_PER_WEEK)
+            sum + exactOf(perWeek).over(WORKING_DAYS_PER_WEEK.toInt())
         }
 
     /**

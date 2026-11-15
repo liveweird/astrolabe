@@ -5,6 +5,7 @@ import ch.nokillswit.authz.NotFoundException
 import ch.nokillswit.infra.db.SoftDeletable
 import ch.nokillswit.infra.db.active
 import ch.nokillswit.infra.db.nowMillis
+import ch.nokillswit.sync.ALREADY_BOUND_PROBLEM
 import ch.nokillswit.teams.TeamGuard
 import ch.nokillswit.teams.TeamService
 import io.ktor.server.plugins.BadRequestException
@@ -166,13 +167,13 @@ class FlowTeamBindingService(private val database: R2dbcDatabase) {
             ?: throw NotFoundException(TEAM_NOT_FOUND)
         guard(command.teamId)
         own.firstOrNull()?.let { other ->
-            throw ConflictException("Team $teamName is already linked to Flow team ${other.flowTeamName}", FLOW_ALREADY_BOUND_PROBLEM)
+            throw ConflictException("Team $teamName is already linked to Flow team ${other.flowTeamName}", ALREADY_BOUND_PROBLEM)
         }
         val released = lockedHolders(
             (Bindings.connectionId eq command.connectionId) and (Bindings.flowTeamId eq command.flowTeamId),
         ).map { other ->
             other.teamName?.let { holder ->
-                throw ConflictException("Flow team $flowName is already linked to team $holder", FLOW_ALREADY_BOUND_PROBLEM)
+                throw ConflictException("Flow team $flowName is already linked to team $holder", ALREADY_BOUND_PROBLEM)
             }
             release(other)
         }

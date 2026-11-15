@@ -2,6 +2,7 @@ package ch.nokillswit.jira
 
 import ch.nokillswit.infra.fetch.FetchException
 import ch.nokillswit.infra.fetch.LIMIT_EXCEEDED_CODE
+import ch.nokillswit.infra.time.MILLIS_PER_HOUR
 import ch.nokillswit.sync.ClaimedRun
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -14,8 +15,6 @@ private val log = LoggerFactory.getLogger("ch.nokillswit.sync")
 
 private const val HEALING_REASON = "a sweep keeps listing an issue the mirror lacks; census_at is cleared once a day instead of every run"
 private const val FAILING_REASON = "the children read keeps failing; census_at is stamped, so it is retried once a day"
-
-private const val MILLIS_PER_HOUR = 3_600_000L
 
 /** The run's search, as the census calls it: the observer's shared pager with its per-page stop and call tally. */
 internal typealias CensusSearch = suspend (jql: () -> String, fields: String, onPage: suspend (JsonArray) -> Unit) -> Unit

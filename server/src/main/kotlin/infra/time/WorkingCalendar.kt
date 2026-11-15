@@ -5,7 +5,10 @@ import java.time.LocalDate
 import java.util.Arrays
 
 private const val WEEK_LENGTH_DAYS = 7L
-private const val WORKING_DAYS_IN_WEEK = 5L
+
+/** Working days (Monday to Friday) in a week: the divisor of a weekly man-day figure and the stride of the working-day index. */
+const val WORKING_DAYS_PER_WEEK = 5L
+
 private const val LAST_WEEKDAY_OF_WORK_WEEK = 4L
 
 // 1970-01-01 (epoch day 0) was a Thursday; with Monday = 0 the weekday of an epoch day is floorMod(epochDay + 3, 7).
@@ -116,15 +119,15 @@ class WorkingCalendar(holidays: Map<LocalDate, String>) {
          */
         private fun monFriIndexOfEpochDay(epochDay: Long): Long {
             val shifted = epochDay + EPOCH_WEEKDAY_SHIFT
-            return WORKING_DAYS_IN_WEEK * Math.floorDiv(shifted, WEEK_LENGTH_DAYS) +
+            return WORKING_DAYS_PER_WEEK * Math.floorDiv(shifted, WEEK_LENGTH_DAYS) +
                 minOf(Math.floorMod(shifted, WEEK_LENGTH_DAYS), LAST_WEEKDAY_OF_WORK_WEEK) + 1
         }
 
         /** The inverse of [monFriIndexOfEpochDay]: the Monday-Friday date with the given index. */
         private fun monFriOfIndex(index: Long): LocalDate {
             val zeroBased = index - 1
-            val week = Math.floorDiv(zeroBased, WORKING_DAYS_IN_WEEK)
-            val weekday = Math.floorMod(zeroBased, WORKING_DAYS_IN_WEEK)
+            val week = Math.floorDiv(zeroBased, WORKING_DAYS_PER_WEEK)
+            val weekday = Math.floorMod(zeroBased, WORKING_DAYS_PER_WEEK)
             return LocalDate.ofEpochDay(WEEK_LENGTH_DAYS * week - EPOCH_WEEKDAY_SHIFT + weekday)
         }
     }

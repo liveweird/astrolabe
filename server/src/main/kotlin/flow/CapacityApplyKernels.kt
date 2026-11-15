@@ -1,5 +1,6 @@
 package ch.nokillswit.flow
 
+import ch.nokillswit.infra.time.MAN_DAY_SCALE
 import ch.nokillswit.teams.CapacityImportCreate
 import ch.nokillswit.teams.CapacityImportUpdate
 import ch.nokillswit.teams.CapacityImportWrites
@@ -47,16 +48,14 @@ object CapacityApplyKernels {
 
     private fun matches(item: CapacityImportItem, row: CapacityApplyRow): Boolean =
         item.action == row.action && item.effectiveFrom == row.effectiveFrom.toString() &&
-            item.mdPerWeek?.let { figureOf(it).compareTo(row.mdPerWeek.setScale(MD_SCALE, RoundingMode.HALF_UP)) == 0 } == true
+            item.mdPerWeek?.let { figureOf(it).compareTo(row.mdPerWeek.setScale(MAN_DAY_SCALE, RoundingMode.HALF_UP)) == 0 } == true
 
     /**
      * The kernel's figure as the plan carries it on the wire (a two-decimal `Double` below 1,000,000: the round trip through
      * [BigDecimal.valueOf] is exact); rounding is explicit (`HALF_UP`), so a figure can never make this throw.
      */
-    private fun figureOf(wire: Double): BigDecimal = BigDecimal.valueOf(wire).setScale(MD_SCALE, RoundingMode.HALF_UP)
+    private fun figureOf(wire: Double): BigDecimal = BigDecimal.valueOf(wire).setScale(MAN_DAY_SCALE, RoundingMode.HALF_UP)
 
     private fun changed(sprintId: Long? = null, periodId: UInt? = null) =
         CapacityApplySkipped(sprintId, periodId, CapacityApplySkipReason.CHANGED)
-
-    private const val MD_SCALE = 2
 }

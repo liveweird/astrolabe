@@ -1,5 +1,6 @@
 package ch.nokillswit.flow
 
+import ch.nokillswit.infra.time.MAN_DAY_SCALE
 import java.math.BigDecimal
 import java.math.RoundingMode
 
@@ -15,7 +16,6 @@ internal const val FLOW_DISPLAY_NAME_WIDTH = 255
 /** `NUMERIC(8,2)` and `NUMERIC(10,2)`: the digits before the point (`flow_teams.default_capacity_md`, `flow_sprints.capacity_md`). */
 private const val TEAM_DEFAULT_INTEGER_DIGITS = 6
 private const val SPRINT_CAPACITY_INTEGER_DIGITS = 8
-private const val MD_SCALE = 2
 
 /**
  * One team of Flow's document as the mirror keeps it (`flow_teams` with its `flow_sprints` and `flow_members`). The run builds these from
@@ -78,7 +78,7 @@ internal fun String.fittedTo(width: Int): String =
 
 /** A man-day figure on `NUMERIC(p,2)`: two decimals, half up; null when it is negative or has more than [integerDigits] integer digits. */
 private fun BigDecimal?.fittedMd(integerDigits: Int): BigDecimal? {
-    val scaled = this?.setScale(MD_SCALE, RoundingMode.HALF_UP) ?: return null
+    val scaled = this?.setScale(MAN_DAY_SCALE, RoundingMode.HALF_UP) ?: return null
     val limit = BigDecimal.TEN.pow(integerDigits)
     return scaled.takeIf { it.signum() >= 0 && it < limit }
 }

@@ -11,6 +11,7 @@ import ch.nokillswit.infra.outbound.isAllowedJiraHost
 import ch.nokillswit.infra.outbound.isAllowedJiraOrigin
 import ch.nokillswit.infra.outbound.isDevelopmentFixtureAddress
 import ch.nokillswit.infra.outbound.publicAddressesOnly
+import ch.nokillswit.infra.time.MILLIS_PER_SECOND
 import ch.nokillswit.sync.SyncConnectorsKey
 import ch.nokillswit.sync.SyncRunServiceKey
 import io.ktor.client.HttpClient
@@ -202,6 +203,5 @@ private const val MIN_OVERLAP_MINUTES = 0L
 private const val MAX_OVERLAP_MINUTES = 1_440L
 private const val MIN_CENSUS_HOURS = 1
 private const val MAX_CENSUS_HOURS = 168
-private const val MILLIS_PER_SECOND = 1_000L
 private const val HTTPS_PORT = 443
 private const val HTTP_PORT = 80

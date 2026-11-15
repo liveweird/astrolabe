@@ -1,5 +1,6 @@
 package ch.nokillswit.telemetry
 
+import ch.nokillswit.infra.time.MILLIS_PER_SECOND
 import org.jetbrains.exposed.v1.r2dbc.R2dbcTransaction
 
 /**
@@ -30,5 +31,3 @@ class HeavyCollector(
 internal fun heavyCollectors(config: TelemetryConfig): List<HeavyCollector> = listOf(
     HeavyCollector("storage", TelemetryMetrics.STORAGE_TICK, config.storageIntervalSeconds * MILLIS_PER_SECOND) { storageReadings() },
 )
-
-private const val MILLIS_PER_SECOND = 1000L

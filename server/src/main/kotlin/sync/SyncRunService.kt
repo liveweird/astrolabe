@@ -3,6 +3,7 @@ package ch.nokillswit.sync
 import ch.nokillswit.authz.ConflictException
 import ch.nokillswit.infra.catchingFailures
 import ch.nokillswit.infra.db.nowMillis
+import ch.nokillswit.infra.time.MILLIS_PER_MINUTE
 import ch.nokillswit.plugins.isUniqueViolation
 import io.ktor.util.AttributeKey
 import kotlinx.coroutines.flow.toList
@@ -16,7 +17,6 @@ val SyncRunServiceKey = AttributeKey<SyncRunService>("SyncRunService")
 
 private val log = LoggerFactory.getLogger("ch.nokillswit.sync")
 
-private const val MILLIS_PER_MINUTE = 60_000L
 private const val MAX_ERROR_DETAIL = 500
 private const val MAX_ERROR_CODE = 40
 

@@ -1,11 +1,10 @@
 package ch.nokillswit.infra.outbound
 
+import ch.nokillswit.infra.time.MILLIS_PER_SECOND
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpTimeout
 import okhttp3.OkHttpClient
-
-private const val MILLIS_PER_SECOND = 1_000L
 
 /**
  * The Ktor `HttpClient(OkHttp)` over a [guardedOkHttpClient], shared by the Jira and the Flow wiring so the two cannot drift.
