@@ -3361,6 +3361,42 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @enum {string} */
+        PlanLevel: "PROGRAM" | "PROJECT" | "MILESTONE";
+        /**
+         * @description A `PlanLevel` or null (the validator reads a nullable enum behind an `allOf` as non-null, so the values are spelled here).
+         * @enum {string|null}
+         */
+        NullablePlanLevel: "PROGRAM" | "PROJECT" | "MILESTONE" | null;
+        /** @enum {string} */
+        Severity: "WARNING" | "INFO";
+        /** @enum {string} */
+        SyncKind: "JIRA" | "FLOW";
+        /** @enum {string} */
+        EstimateUnit: "POINTS" | "HOURS" | "DAYS";
+        /**
+         * @description An `EstimateUnit` or null (the validator reads a nullable enum behind an `allOf` as non-null, so the values are spelled here).
+         * @enum {string|null}
+         */
+        NullableEstimateUnit: "POINTS" | "HOURS" | "DAYS" | null;
+        /** @enum {string} */
+        StatusCategory: "TODO" | "IN_PROGRESS" | "DONE" | "UNKNOWN";
+        /** @enum {string} */
+        TelemetryGroup: "memory" | "storage" | "requests" | "jvm";
+        /** @enum {string} */
+        TelemetryRange: "24h" | "7d" | "90d";
+        /** @enum {string} */
+        CapacitySource: "MANUAL" | "FLOW";
+        /** @enum {string} */
+        SyncTrigger: "MANUAL" | "SCHEDULED";
+        /** @enum {string} */
+        SyncState: "NEVER_SYNCED" | "CURRENT" | "STALE" | "FAILED" | "DISABLED";
+        /** @enum {string} */
+        JiraAuthScheme: "BASIC" | "BEARER";
+        /** @enum {string} */
+        JiraImportParentKind: "EXISTING" | "NEW_ROW" | "DEFAULT";
+        /** @enum {string|null} */
+        SyncOutcome: "SUCCEEDED" | "FAILED" | "ABANDONED" | null;
         HealthResponse: {
             /**
              * @description Always `ok` on a 200 — a failed probe is a problem body, never a status word.
@@ -3689,11 +3725,8 @@ export interface components {
              * @description Epoch millis
              */
             updatedAt: number;
-            /**
-             * @description Who wrote the period: `MANUAL` (every period before 1.5.0 and every hand-entered one) or `FLOW` (imported for a Flow sprint). A `PUT` of a `FLOW` period makes it `MANUAL`.
-             * @enum {string}
-             */
-            source: "MANUAL" | "FLOW";
+            /** @description Who wrote the period: `MANUAL` (every period before 1.5.0 and every hand-entered one) or `FLOW` (imported for a Flow sprint). A `PUT` of a `FLOW` period makes it `MANUAL`. */
+            source: components["schemas"]["CapacitySource"];
             /** @description The Flow sprint a `FLOW` period was imported for; null on a `MANUAL` one. */
             flowSprintName: string | null;
         };
@@ -4910,11 +4943,8 @@ export interface components {
             maxWip: number;
             /** @description Some working day's in-progress count exceeds the WIP limit in force that day. */
             wipExceeded: boolean;
-            /**
-             * @description Present only on `GET /views/team/{id}` and only when an OPEN Flow capacity deviation's held days meet the week (1.9): the worst severity among the rows that meet it. Absent otherwise, and always absent on a proposal's or a check's weeks.
-             * @enum {string}
-             */
-            flowCapacity?: "WARNING" | "INFO";
+            /** @description Present only on `GET /views/team/{id}` and only when an OPEN Flow capacity deviation's held days meet the week (1.9): the worst severity among the rows that meet it. Absent otherwise, and always absent on a proposal's or a check's weeks. */
+            flowCapacity?: components["schemas"]["Severity"];
         };
         /** @description A milestone as the team view shows it - the `MilestoneResponse` fields plus the names of its project chain and its project's rank. Both dates are null in `unscheduled`. */
         TeamMilestone: {
@@ -5019,18 +5049,15 @@ export interface components {
             startedAt: number;
             /** Format: int64 */
             finishedAt: number | null;
-            /** @enum {string|null} */
-            outcome: "SUCCEEDED" | "FAILED" | "ABANDONED" | null;
+            outcome: components["schemas"]["SyncOutcome"];
             errorCode: string | null;
-            /** @enum {string} */
-            trigger: "MANUAL" | "SCHEDULED";
+            trigger: components["schemas"]["SyncTrigger"];
             /** @description True only for an unfinished run younger than `sync.maxRunMinutes`; an older unfinished run was interrupted. */
             running: boolean;
         };
         /** @description A connection's derived sync state (1.3; nothing is stored). In order: disabled is DISABLED; the newest FINISHED run failed or was abandoned, or the newest run was interrupted (unfinished and older than the claim window), is FAILED; no run ever succeeded is NEVER_SYNCED; a polling interval and a last success that started more than three intervals ago is STALE; else CURRENT (a manual-only connection stays CURRENT after any success). */
         SyncStatus: {
-            /** @enum {string} */
-            state: "NEVER_SYNCED" | "CURRENT" | "STALE" | "FAILED" | "DISABLED";
+            state: components["schemas"]["SyncState"];
             lastRun: components["schemas"]["SyncLastRun"] | null;
             /**
              * Format: int64
@@ -5131,8 +5158,7 @@ export interface components {
         };
         /** @description The bound node and every level it sits under (its own level included); a program has no project and only a milestone has a team. */
         DeviationNode: {
-            /** @enum {string} */
-            kind: "PROGRAM" | "PROJECT" | "MILESTONE";
+            kind: components["schemas"]["PlanLevel"];
             /** Format: int32 */
             id: number;
             name: string;
@@ -5197,8 +5223,7 @@ export interface components {
              * @description In `estimateUnit`.
              */
             estimate: number | null;
-            /** @enum {string|null} */
-            estimateUnit: "POINTS" | "HOURS" | "DAYS" | null;
+            estimateUnit: components["schemas"]["NullableEstimateUnit"];
             parentKey: string | null;
             teamName: string | null;
             /** Format: int64 */
@@ -5231,8 +5256,7 @@ export interface components {
             bindingId: number;
             /** Format: int32 */
             connectionId: number;
-            /** @enum {string} */
-            level: "PROGRAM" | "PROJECT" | "MILESTONE";
+            level: components["schemas"]["PlanLevel"];
             node: components["schemas"]["DeviationNode"];
             jira: components["schemas"]["DeviationJira"];
             plan: components["schemas"]["DeviationPlan"];
@@ -5250,8 +5274,7 @@ export interface components {
         /** @description One listed deviation (a `Deviation`'s members, flat) with the state of its own acknowledgement (1.12). */
         DeviationLine: {
             kind: components["schemas"]["DeviationKind"];
-            /** @enum {string} */
-            severity: "WARNING" | "INFO";
+            severity: components["schemas"]["Severity"];
             detail: components["schemas"]["DeviationDetail"];
             acknowledgement: components["schemas"]["DeviationAcknowledgement"] | null;
         };
@@ -5426,8 +5449,7 @@ export interface components {
              * @enum {string}
              */
             kind: "DRIFT_END_LATE" | "DRIFT_START_LATE" | "DRIFT_END_EARLY" | "RANK_INVERSION" | "NO_WORKING_DAY" | "JIRA_DEVIATION" | "JIRA_MILESTONES" | "FLOW_CAPACITY" | "FLOW_CAPACITY_MILESTONES";
-            /** @enum {string} */
-            severity: "WARNING" | "INFO";
+            severity: components["schemas"]["Severity"];
             /**
              * Format: int32
              * @description Calendar days: the drift, or for a rank inversion how much earlier this project starts than `otherProjectId`; absent on every other kind.
@@ -5478,11 +5500,8 @@ export interface components {
             connectionId: number;
             /** @description The site's origin, e.g. `https://example.atlassian.net`; append `/browse/` and an issue key. */
             siteUrl: string;
-            /**
-             * @description The connection's derived sync state, the very value `GET /views/deviations` answers in `connections[].status.state`, judged inside the view's snapshot against the same clock: `DISABLED` switched off; `FAILED` the newest finished run failed or was abandoned, or the newest run was interrupted; `NEVER_SYNCED` no run ever succeeded; `STALE` the last success is older than three polling intervals; else `CURRENT` (a manual-only connection stays `CURRENT` after any success).
-             * @enum {string}
-             */
-            state: "NEVER_SYNCED" | "CURRENT" | "STALE" | "FAILED" | "DISABLED";
+            /** @description The connection's derived sync state, the very value `GET /views/deviations` answers in `connections[].status.state`, judged inside the view's snapshot against the same clock: `DISABLED` switched off; `FAILED` the newest finished run failed or was abandoned, or the newest run was interrupted; `NEVER_SYNCED` no run ever succeeded; `STALE` the last success is older than three polling intervals; else `CURRENT` (a manual-only connection stays `CURRENT` after any success). */
+            state: components["schemas"]["SyncState"];
             /** @description Whether the connection's effective mapping resolves against its stored discovery now (`GET /views/deviations` `connections[].mappingOk`). */
             mappingOk: boolean;
         };
@@ -6247,8 +6266,7 @@ export interface components {
         };
         /** @description One connection's derived sync status. Never its site, email or token. */
         TelemetrySyncConnection: {
-            /** @enum {string} */
-            kind: "JIRA" | "FLOW";
+            kind: components["schemas"]["SyncKind"];
             /** Format: int32 */
             connectionId: number;
             name: string;
@@ -6430,10 +6448,8 @@ export interface components {
             rateLimited: number;
         };
         TelemetryHistory: {
-            /** @enum {string} */
-            group: "memory" | "storage" | "requests" | "jvm";
-            /** @enum {string} */
-            range: "24h" | "7d" | "90d";
+            group: components["schemas"]["TelemetryGroup"];
+            range: components["schemas"]["TelemetryRange"];
             /**
              * Format: int32
              * @description The width of a point's bucket.
@@ -6502,9 +6518,8 @@ export interface components {
             /**
              * @description `BASIC` = `base64(email:token)` (an Atlassian API token), `BEARER` = the token alone.
              * @default BASIC
-             * @enum {string}
              */
-            authScheme: "BASIC" | "BEARER";
+            authScheme: components["schemas"]["JiraAuthScheme"];
             /** @description The Jira project keys in scope (1 to 50, distinct). */
             projectKeys: string[];
             /** @default true */
@@ -6523,8 +6538,7 @@ export interface components {
             email: string;
             /** @description Whether a token is stored. The token itself is write-only and appears in no response. */
             hasApiToken: boolean;
-            /** @enum {string} */
-            authScheme: "BASIC" | "BEARER";
+            authScheme: components["schemas"]["JiraAuthScheme"];
             projectKeys: string[];
             enabled: boolean;
             /**
@@ -6682,11 +6696,8 @@ export interface components {
             milestone: components["schemas"]["JiraLevelMapping"];
         };
         JiraEstimateMapping: {
-            /**
-             * @description What the estimate field counts (default `POINTS`). `DAYS` compares as man-days without a factor.
-             * @enum {string}
-             */
-            unit?: "POINTS" | "HOURS" | "DAYS";
+            /** @description What the estimate field counts (default `POINTS`). `DAYS` compares as man-days without a factor. */
+            unit?: components["schemas"]["EstimateUnit"];
             /**
              * Format: double
              * @description Man-days per unit; greater than 0 and at most 1000 with at most two decimals. Without a factor (and not `DAYS`) the Jira figure is shown, never compared.
@@ -6716,8 +6727,7 @@ export interface components {
         };
         /** @description One mapped plan level's counts over the connection's census mirror. Counts only; never a key, name or summary. */
         JiraCoverageLevel: {
-            /** @enum {string} */
-            level: "PROGRAM" | "PROJECT" | "MILESTONE";
+            level: components["schemas"]["PlanLevel"];
             /**
              * Format: int32
              * @description The Jira hierarchy level the plan level is mapped to.
@@ -6763,16 +6773,12 @@ export interface components {
              * @description From the issue's own type when the site sent it, else the discovery's.
              */
             hierarchyLevel?: number | null;
-            /** @enum {string} */
-            statusCategory: "TODO" | "IN_PROGRESS" | "DONE" | "UNKNOWN";
+            statusCategory: components["schemas"]["StatusCategory"];
             parentKey?: string | null;
         };
         JiraPeekResolved: {
-            /**
-             * @description The Astrolabe level the issue's hierarchy level maps to; null when it maps to none (then start, end and estimate are null too).
-             * @enum {string|null}
-             */
-            level?: "PROGRAM" | "PROJECT" | "MILESTONE" | null;
+            /** @description The Astrolabe level the issue's hierarchy level maps to; null when it maps to none (then start, end and estimate are null too). */
+            level?: components["schemas"]["NullablePlanLevel"] | null;
             /** Format: date */
             start?: string | null;
             /** Format: date */
@@ -6782,8 +6788,7 @@ export interface components {
              * @description The mapped estimate field in `unit`, read the way a sync reads it: at two decimals, half up; null for a figure a sync would not observe (a string, a non-number, 10 billion or more, or a literal over 40 characters).
              */
             estimate?: number | null;
-            /** @enum {string} */
-            unit: "POINTS" | "HOURS" | "DAYS";
+            unit: components["schemas"]["EstimateUnit"];
             teamName?: string | null;
         };
         JiraPeekResponse: {
@@ -6893,11 +6898,8 @@ export interface components {
         };
         /** @description Where a CREATE row lands (absent for a program, which lands under the picked work stream). */
         JiraImportParent: {
-            /**
-             * @description An existing node, the node another row of the batch creates, or the level's default parent.
-             * @enum {string}
-             */
-            kind: "EXISTING" | "NEW_ROW" | "DEFAULT";
+            /** @description An existing node, the node another row of the batch creates, or the level's default parent. */
+            kind: components["schemas"]["JiraImportParentKind"];
             /** Format: int32 */
             nodeId?: number | null;
             nodeName: string;
@@ -6909,8 +6911,7 @@ export interface components {
             /** Format: int32 */
             nodeId: number;
             nodeName: string;
-            /** @enum {string|null} */
-            nodeKind?: "PROGRAM" | "PROJECT" | "MILESTONE" | null;
+            nodeKind?: components["schemas"]["NullablePlanLevel"];
             /** Format: int32 */
             connectionId?: number | null;
         };
@@ -6935,11 +6936,8 @@ export interface components {
             hierarchyLevel?: number | null;
             parentJiraId?: string | null;
             parentIssueKey?: string | null;
-            /**
-             * @description The plan level the issue's hierarchy level maps to (an unmapped one keeps the nearest, with action SKIP).
-             * @enum {string}
-             */
-            level: "PROGRAM" | "PROJECT" | "MILESTONE";
+            /** @description The plan level the issue's hierarchy level maps to (an unmapped one keeps the nearest, with action SKIP). */
+            level: components["schemas"]["PlanLevel"];
             /** @enum {string} */
             action: "CREATE" | "BIND" | "SKIP";
             /**
@@ -7023,8 +7021,7 @@ export interface components {
              * @enum {string}
              */
             action: "CREATE" | "BIND";
-            /** @enum {string} */
-            level: "PROGRAM" | "PROJECT" | "MILESTONE";
+            level: components["schemas"]["PlanLevel"];
             /** @description The row's `parentJiraId` as previewed. */
             parentJiraId?: string | null;
             /**
@@ -7041,11 +7038,8 @@ export interface components {
             teamId?: number | null;
         };
         JiraImportExpectedParent: {
-            /**
-             * @description The preview row's `parent.kind`.
-             * @enum {string}
-             */
-            kind: "EXISTING" | "NEW_ROW" | "DEFAULT";
+            /** @description The preview row's `parent.kind`. */
+            kind: components["schemas"]["JiraImportParentKind"];
             /**
              * Format: int32
              * @description The preview row's `parent.nodeId` (null for a NEW_ROW).
@@ -7077,8 +7071,7 @@ export interface components {
         JiraImportCreated: {
             jiraId: string;
             issueKey: string;
-            /** @enum {string} */
-            kind: "PROGRAM" | "PROJECT" | "MILESTONE";
+            kind: components["schemas"]["PlanLevel"];
             /**
              * Format: int32
              * @description The new node's id.
@@ -7093,8 +7086,7 @@ export interface components {
         JiraImportBound: {
             jiraId: string;
             issueKey: string;
-            /** @enum {string} */
-            kind: "PROGRAM" | "PROJECT" | "MILESTONE";
+            kind: components["schemas"]["PlanLevel"];
             /**
              * Format: int32
              * @description The existing node that was bound.
@@ -7124,19 +7116,15 @@ export interface components {
         JiraBindRequest: {
             /** Format: int32 */
             connectionId: number;
-            /**
-             * @description The kind of plan node; `nodeId` is the id of a program, project or milestone accordingly.
-             * @enum {string}
-             */
-            level: "PROGRAM" | "PROJECT" | "MILESTONE";
+            /** @description The kind of plan node; `nodeId` is the id of a program, project or milestone accordingly. */
+            level: components["schemas"]["PlanLevel"];
             /** Format: int32 */
             nodeId: number;
             /** @description The Jira issue key, e.g. `ABC-12`; trimmed. */
             issueKey: string;
         };
         JiraBindingNode: {
-            /** @enum {string} */
-            kind: "PROGRAM" | "PROJECT" | "MILESTONE";
+            kind: components["schemas"]["PlanLevel"];
             /** Format: int32 */
             id: number;
             name: string;
@@ -7163,8 +7151,7 @@ export interface components {
             /** Format: int32 */
             hierarchyLevel?: number | null;
             statusName?: string | null;
-            /** @enum {string} */
-            statusCategory: "TODO" | "IN_PROGRESS" | "DONE" | "UNKNOWN";
+            statusCategory: components["schemas"]["StatusCategory"];
             parentIssueId?: string | null;
             parentIssueKey?: string | null;
             /** Format: date */
@@ -7176,8 +7163,7 @@ export interface components {
              * @description In `estimateUnit`, at two decimals; null when the mapping reads none or the site sent no usable number.
              */
             estimate?: number | null;
-            /** @enum {string|null} */
-            estimateUnit?: "POINTS" | "HOURS" | "DAYS" | null;
+            estimateUnit?: components["schemas"]["NullableEstimateUnit"];
             teamName?: string | null;
             /** Format: int64 */
             jiraUpdatedAt?: number | null;
@@ -7194,8 +7180,7 @@ export interface components {
             id: number;
             /** Format: int32 */
             connectionId: number;
-            /** @enum {string} */
-            level: "PROGRAM" | "PROJECT" | "MILESTONE";
+            level: components["schemas"]["PlanLevel"];
             node: components["schemas"]["JiraBindingNode"];
             /** @description The numeric Jira issue id (a key changes when an issue moves project). */
             issueId: string;
@@ -7373,8 +7358,7 @@ export interface components {
             periodId: number;
             /** Format: double */
             mdPerWeek: number;
-            /** @enum {string} */
-            source: "MANUAL" | "FLOW";
+            source: components["schemas"]["CapacitySource"];
         };
         CapacityImportItem: {
             /** Format: int64 */
@@ -7766,8 +7750,7 @@ export interface components {
         };
         CapacityDeviation: {
             kind: components["schemas"]["CapacityDeviationKind"];
-            /** @enum {string} */
-            severity: "WARNING" | "INFO";
+            severity: components["schemas"]["Severity"];
             detail: components["schemas"]["CapacityDeviationDetail"];
             /** @description The SHA-256 of the row's kind, severity and figures, the sprint's name excluded (a rename in Flow changes nothing): what an acknowledgement of this row is keyed on. Send it back to `POST .../acknowledge` with the row's `detail.sprintId`. */
             fingerprint: string;
@@ -7917,8 +7900,7 @@ export interface components {
             truncated: boolean;
         };
         SyncRunRequest: {
-            /** @enum {string} */
-            kind: "JIRA" | "FLOW";
+            kind: components["schemas"]["SyncKind"];
             /** Format: int32 */
             connectionId: number;
         };
@@ -7926,12 +7908,10 @@ export interface components {
         SyncRun: {
             /** Format: int32 */
             id: number;
-            /** @enum {string} */
-            kind: "JIRA" | "FLOW";
+            kind: components["schemas"]["SyncKind"];
             /** Format: int32 */
             connectionId: number;
-            /** @enum {string} */
-            trigger: "MANUAL" | "SCHEDULED";
+            trigger: components["schemas"]["SyncTrigger"];
             /**
              * Format: int32
              * @description The login that asked; null for a scheduled run.
@@ -7941,11 +7921,8 @@ export interface components {
             startedAt: number;
             /** Format: int64 */
             finishedAt?: number | null;
-            /**
-             * @description `ABANDONED` is written by a later claim for a run that never finished.
-             * @enum {string|null}
-             */
-            outcome?: "SUCCEEDED" | "FAILED" | "ABANDONED" | null;
+            /** @description `ABANDONED` is written by a later claim for a run that never finished. */
+            outcome?: components["schemas"]["SyncOutcome"] | null;
             errorCode?: string | null;
             errorDetail?: string | null;
             /** @description The server's verdict: true only for an unfinished run younger than `sync.maxRunMinutes`. An unfinished run that is not running was interrupted; no client judges a run's age by its own clock. */
@@ -8101,6 +8078,11 @@ export interface components {
         Page: number;
         /** @description Rows per page. Defaults to 20, maximum 100. */
         PageSize: number;
+        NameQuery: string;
+        EmailQuery: string;
+        ConnectionIdQuery: number;
+        TeamIdQuery: number;
+        LevelQuery: components["schemas"]["PlanLevel"];
         /**
          * @description Free-text search (API-LIST-005): a case- and accent-insensitive substring of the resource's own name, at most 100 characters.
          *     A blank value is no filter; a repeated key is a `400`.
@@ -8382,8 +8364,8 @@ export interface operations {
                  *     always appended as a deterministic tiebreaker.
                  */
                 sort?: components["parameters"]["Sort"];
-                name?: string;
-                email?: string;
+                name?: components["parameters"]["NameQuery"];
+                email?: components["parameters"]["EmailQuery"];
                 role?: "ADMIN" | "USER";
                 /** @description Feature-flag state filter — must be paired with `featureEnabled` (400 otherwise). */
                 feature?: components["schemas"]["Feature"];
@@ -8593,15 +8575,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
-            /** @description Caller is not ADMIN */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetail"];
-                };
-            };
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
@@ -8632,15 +8606,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
-            /** @description Caller is not ADMIN */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetail"];
-                };
-            };
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
@@ -8748,8 +8714,8 @@ export interface operations {
                  *     always appended as a deterministic tiebreaker.
                  */
                 sort?: components["parameters"]["Sort"];
-                name?: string;
-                email?: string;
+                name?: components["parameters"]["NameQuery"];
+                email?: components["parameters"]["EmailQuery"];
             };
             header?: never;
             path?: never;
@@ -8917,7 +8883,7 @@ export interface operations {
                  *     always appended as a deterministic tiebreaker.
                  */
                 sort?: components["parameters"]["Sort"];
-                name?: string;
+                name?: components["parameters"]["NameQuery"];
             };
             header?: never;
             path?: never;
@@ -9514,7 +9480,7 @@ export interface operations {
                  *     always appended as a deterministic tiebreaker.
                  */
                 sort?: components["parameters"]["Sort"];
-                name?: string;
+                name?: components["parameters"]["NameQuery"];
             };
             header?: never;
             path?: never;
@@ -9731,7 +9697,7 @@ export interface operations {
                  *     always appended as a deterministic tiebreaker.
                  */
                 sort?: components["parameters"]["Sort"];
-                name?: string;
+                name?: components["parameters"]["NameQuery"];
                 /** @description Strictly `true` or `false`. `true` lists the scheduled milestones, `false` the ones without dates. */
                 scheduled?: boolean;
                 /** @description Only the milestones of this team. */
@@ -10369,16 +10335,16 @@ export interface operations {
     getDeviationsView: {
         parameters: {
             query?: {
-                connectionId?: number;
-                level?: "PROGRAM" | "PROJECT" | "MILESTONE";
+                connectionId?: components["parameters"]["ConnectionIdQuery"];
+                level?: components["parameters"]["LevelQuery"];
                 /** @description Lists the bindings with a line of this severity IN THE SELECTED STATUS (1.12): an open line by default and under `acknowledged=false`, a currently acknowledged one under `acknowledged=true`, any listed line under `all=true` without `acknowledged`. The listed binding still shows every line. */
-                severity?: "WARNING" | "INFO";
+                severity?: components["schemas"]["Severity"];
                 /** @description Lists the bindings with a line of this kind IN THE SELECTED STATUS, as `severity` does (so Open + `END_DIFFERS` does not list a binding whose End line is acknowledged). `ESTIMATE_NOT_COMPARABLE` is listed, as a line, only when named here or under `all=true`. */
                 kind?: components["schemas"]["DeviationKind"];
                 workStreamId?: number;
                 programId?: number;
                 projectId?: number;
-                teamId?: number;
+                teamId?: components["parameters"]["TeamIdQuery"];
                 /** @description Also list bindings with no deviation and acknowledged ones. Strictly `true` or `false`; defaults to true when `projectId` or `teamId` is given. */
                 all?: boolean;
                 /** @description `true` lists only the bindings with at least one currently acknowledged line, `false` the open ones (and, under `all`, the clean ones). Strictly `true` or `false`; absent, the default lists the open bindings. A repeated key is a `400`. */
@@ -10435,9 +10401,9 @@ export interface operations {
     getCapacityDeviationsView: {
         parameters: {
             query?: {
-                connectionId?: number;
-                teamId?: number;
-                severity?: "WARNING" | "INFO";
+                connectionId?: components["parameters"]["ConnectionIdQuery"];
+                teamId?: components["parameters"]["TeamIdQuery"];
+                severity?: components["schemas"]["Severity"];
                 kind?: components["schemas"]["CapacityDeviationKind"];
                 /** @description Also list the acknowledged rows. Strictly `true` or `false`; defaults to true when `teamId` is given. A repeated key is a `400`. */
                 all?: boolean;
@@ -11070,9 +11036,9 @@ export interface operations {
         parameters: {
             query: {
                 /** @description The panel section. */
-                group: "memory" | "storage" | "requests" | "jvm";
+                group: components["schemas"]["TelemetryGroup"];
                 /** @description How far back the history reaches. */
-                range: "24h" | "7d" | "90d";
+                range: components["schemas"]["TelemetryRange"];
             };
             header?: never;
             path?: never;
@@ -11540,8 +11506,8 @@ export interface operations {
                  *     always appended as a deterministic tiebreaker.
                  */
                 sort?: components["parameters"]["Sort"];
-                connectionId?: number;
-                level?: "PROGRAM" | "PROJECT" | "MILESTONE";
+                connectionId?: components["parameters"]["ConnectionIdQuery"];
+                level?: components["parameters"]["LevelQuery"];
                 /**
                  * @description Free-text search (API-LIST-005): a case- and accent-insensitive substring of the resource's own name, at most 100 characters.
                  *     A blank value is no filter; a repeated key is a `400`.
@@ -12284,8 +12250,8 @@ export interface operations {
     listSyncRuns: {
         parameters: {
             query?: {
-                kind?: "JIRA" | "FLOW";
-                connectionId?: number;
+                kind?: components["schemas"]["SyncKind"];
+                connectionId?: components["parameters"]["ConnectionIdQuery"];
             };
             header?: never;
             path?: never;

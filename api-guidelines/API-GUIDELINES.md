@@ -681,7 +681,7 @@ prioritized. Reviewers cite these as "registered gap"; the Spectral ruleset carr
 | API-IDEM-001 | No `Idempotency-Key` handling | Domain no-duplicate `409`s cover double-submits today; adopt the header if external/retrying clients appear |
 | API-HTTP-001 | HTTP/1.1 only (Netty defaults; no edge HTTP/2) | Configure HTTP/2 at the TLS-terminating ingress when one exists |
 | API-META-001/002 | No `x-sla`, no `info.termsOfService` in the spec | Add both to `documentation.yaml` when commitments/terms exist to publish |
-| API-DOC-004 | Some generic error declarations are inline duplicates rather than `$ref`s | Fold pure duplicates into `#/components/responses` opportunistically; keep case-specific descriptions inline |
+| API-DOC-004 | A plain `403` is the shared `Forbidden`; every other inline error declaration carries a case-specific description (three `403`s, the typed `409`s, a few `400`/`503`s), two pairs of them word for word (the people `409`, a view's `400`) | Fold a pair into `#/components/responses` if a third use appears; keep case-specific descriptions inline |
 
 ### Lost-update inventory (the API-CACHE-003 row's per-write record)
 

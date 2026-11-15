@@ -155,14 +155,25 @@ class OpenApiSpecTest {
         )
     }
 
-    /** The spec spells the deviation vocabulary out twice (`NullableDeviationKind` cannot `$ref` the enum): both must follow the code. */
+    /**
+     * A nullable enum cannot `$ref` its base (the validator reads a nullable enum behind an `allOf` as non-null), so the spec spells the
+     * values of every `Nullable<X>` out again: each lists exactly `X`'s values, in order. `NullableDeviationKind` also follows the code.
+     */
     @Test
-    fun `both deviation kind enums list exactly the DeviationKind entries`() {
-        val expected = ch.nokillswit.planning.DeviationKind.entries.map { it.name }
-        for (name in listOf("DeviationKind", "NullableDeviationKind")) {
-            val schema = assertNotNull(OpenApiSpec.parsed.components.schemas[name], name)
-            assertEquals(expected, schema.enum.filterNotNull().map { it.toString() }, "$name must list DeviationKind.entries in order")
+    fun `every nullable enum lists exactly the values of its base enum`() {
+        val schemas = OpenApiSpec.parsed.components.schemas
+        val nullables = schemas.keys.filter { it.startsWith("Nullable") }
+        assertTrue(nullables.isNotEmpty(), "no Nullable<X> schema found")
+        for (name in nullables) {
+            val base = name.removePrefix("Nullable")
+            val baseValues = assertNotNull(schemas[base], "$name needs a $base schema").enum.filterNotNull().map { it.toString() }
+            assertTrue(baseValues.isNotEmpty(), "$base is not an enum")
+            val values = schemas.getValue(name).enum.filterNotNull().map { it.toString() }
+            assertEquals(baseValues, values, "$name must list $base's values in order")
         }
+        val kinds = ch.nokillswit.planning.DeviationKind.entries.map { it.name }
+        val listed = schemas.getValue("DeviationKind").enum.filterNotNull().map { it.toString() }
+        assertEquals(kinds, listed, "DeviationKind must list the entries in order")
     }
 
     /**

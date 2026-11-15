@@ -3,24 +3,20 @@ info:
   title: astrolabe-api
   version: 1.23.0
   description: |
-    JWT-authenticated REST API for Astrolabe — a planning and roadmapping tool. It serves the Astrolabe web app and is
-    versioned by its `/api/v1` path prefix. This foundation exposes the accounts, teams, feature-flag and operational
-    surface (people and teams included) and the first planning feature: the plan structure (work streams, programs, projects).
+    REST API of Astrolabe, a planning and roadmapping app: the plan (work streams, programs, projects, milestones, dependencies, baselines),
+    the views over it, teams, people, users with their permissions and the Jira and Flow syncs. It serves the Astrolabe web app and is
+    versioned by its `/api/v1` path prefix.
 
-    Authorization model: every user is implicitly a regular user; additional global roles (`ADMIN`) are carried as
-    the `roles` array and only ever ADD privileges on top of that baseline. Every operation requires a bearer
-    access token except the seven that declare `security: []` (`/login`, `/login/mfa`, `/refresh`, `/password-reset`,
-    `/password-reset/confirm` and the two probes). Beyond that each operation states its own rule: user management (`/users`, apart from
-    reading or changing one's own record where noted) and the writes on people, teams and the public-holiday dictionary are `ADMIN` only; reading people, teams and the holidays is open to
-    any authenticated user; telemetry and the Jira connections (reads included) are `ADMIN` only. A caller without the right gets a `403`. On the plan nodes (`/work-streams`, `/programs`, `/projects`) any
-    authenticated user reads, creating a work stream is `ADMIN` only, and every other write needs the owner of the node or of anything above it
-    (or `ADMIN`) - checked after the node is found, so a missing node is a `404` for every caller; elsewhere the `403` is uniform whether or
-    not the addressed resource exists.
+    Every operation requires a bearer JWT access token except the seven that declare `security: []` (`/login`, `/login/mfa`, `/refresh`,
+    `/password-reset`, `/password-reset/confirm` and the two health probes). Global roles (`ADMIN`) only add privileges to the baseline of an
+    authenticated user; each operation states who may call it, and a caller without the right gets a `403`.
 
-    List operations page with `page` / `pageSize` / `sort` into an `{items, page, pageSize, total}` envelope.
+    Errors are RFC 7807 `application/problem+json` documents; the problem types are listed in `ProblemDetail.type`. A `429` from a rate
+    bucket carries `Retry-After`.
 
-    All error responses use RFC 7807 `application/problem+json` (`ProblemDetail`). Any endpoint may additionally
-    return `500` (`InternalServerError`) on an unexpected server fault.
+    Lists are paged envelopes (`page`, `pageSize`, `sort`, `q` into `{items, page, pageSize, total}`). Views (`/views/…`) answer one
+    document each; ten of them carry a weak `ETag` and answer `If-None-Match` with `304`. Dates are ISO dates (`YYYY-MM-DD`); instants
+    are epoch milliseconds.
 servers:
   - url: http://localhost:8086
     description: Local dev
@@ -350,14 +346,8 @@ paths:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
         - $ref: '#/components/parameters/Sort'
-        - name: name
-          in: query
-          required: false
-          schema: { type: string }
-        - name: email
-          in: query
-          required: false
-          schema: { type: string }
+        - $ref: '#/components/parameters/NameQuery'
+        - $ref: '#/components/parameters/EmailQuery'
         - name: role
           in: query
           required: false
@@ -536,11 +526,7 @@ paths:
         '204': { description: Disabled-feature set replaced }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '403':
-          description: Caller is not ADMIN
-          content:
-            application/problem+json:
-              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '500': { $ref: '#/components/responses/InternalServerError' }
@@ -570,11 +556,7 @@ paths:
         '204': { description: Granted-permission set replaced }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '403':
-          description: Caller is not ADMIN
-          content:
-            application/problem+json:
-              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '500': { $ref: '#/components/responses/InternalServerError' }
@@ -685,14 +667,8 @@ paths:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
         - $ref: '#/components/parameters/Sort'
-        - name: name
-          in: query
-          required: false
-          schema: { type: string }
-        - name: email
-          in: query
-          required: false
-          schema: { type: string }
+        - $ref: '#/components/parameters/NameQuery'
+        - $ref: '#/components/parameters/EmailQuery'
       responses:
         '200':
           description: A page of people
@@ -821,10 +797,7 @@ paths:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
         - $ref: '#/components/parameters/Sort'
-        - name: name
-          in: query
-          required: false
-          schema: { type: string }
+        - $ref: '#/components/parameters/NameQuery'
       responses:
         '200':
           description: A page of teams
@@ -1319,10 +1292,7 @@ paths:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
         - $ref: '#/components/parameters/Sort'
-        - name: name
-          in: query
-          required: false
-          schema: { type: string }
+        - $ref: '#/components/parameters/NameQuery'
       responses:
         '200':
           description: A page of projects
@@ -1516,10 +1486,7 @@ paths:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
         - $ref: '#/components/parameters/Sort'
-        - name: name
-          in: query
-          required: false
-          schema: { type: string }
+        - $ref: '#/components/parameters/NameQuery'
         - name: scheduled
           in: query
           required: false
@@ -2328,19 +2295,13 @@ paths:
         (the program, its projects and milestones), `projectId` (the project and its milestones), `teamId` (milestones), `severity` and
         `kind` (the bindings having such a deviation, whatever `all` says), `all`. Every item shows all of its binding's deviations.
       parameters:
-        - name: connectionId
-          in: query
-          required: false
-          schema: { type: integer, format: int32, minimum: 0 }
-        - name: level
-          in: query
-          required: false
-          schema: { type: string, enum: [PROGRAM, PROJECT, MILESTONE] }
+        - $ref: '#/components/parameters/ConnectionIdQuery'
+        - $ref: '#/components/parameters/LevelQuery'
         - name: severity
           in: query
           required: false
           description: "Lists the bindings with a line of this severity IN THE SELECTED STATUS (1.12): an open line by default and under `acknowledged=false`, a currently acknowledged one under `acknowledged=true`, any listed line under `all=true` without `acknowledged`. The listed binding still shows every line."
-          schema: { type: string, enum: [WARNING, INFO] }
+          schema: { $ref: '#/components/schemas/Severity' }
         - name: kind
           in: query
           required: false
@@ -2358,10 +2319,7 @@ paths:
           in: query
           required: false
           schema: { type: integer, format: int32, minimum: 0 }
-        - name: teamId
-          in: query
-          required: false
-          schema: { type: integer, format: int32, minimum: 0 }
+        - $ref: '#/components/parameters/TeamIdQuery'
         - name: all
           in: query
           required: false
@@ -2479,18 +2437,12 @@ paths:
         and `all`. **`severity` and `kind` narrow the rows of each team as well as the teams** (the unit here is a sprint: "warnings
         only" lists only the warning sprints), unlike the Jira view, where the binding is the unit.
       parameters:
-        - name: connectionId
-          in: query
-          required: false
-          schema: { type: integer, format: int32, minimum: 0 }
-        - name: teamId
-          in: query
-          required: false
-          schema: { type: integer, format: int32, minimum: 0 }
+        - $ref: '#/components/parameters/ConnectionIdQuery'
+        - $ref: '#/components/parameters/TeamIdQuery'
         - name: severity
           in: query
           required: false
-          schema: { type: string, enum: [WARNING, INFO] }
+          schema: { $ref: '#/components/schemas/Severity' }
         - name: kind
           in: query
           required: false
@@ -3225,16 +3177,12 @@ paths:
         - name: group
           in: query
           required: true
-          schema:
-            type: string
-            enum: [memory, storage, requests, jvm]
+          schema: { $ref: '#/components/schemas/TelemetryGroup' }
           description: The panel section.
         - name: range
           in: query
           required: true
-          schema:
-            type: string
-            enum: [24h, 7d, 90d]
+          schema: { $ref: '#/components/schemas/TelemetryRange' }
           description: How far back the history reaches.
       responses:
         '200':
@@ -3772,14 +3720,8 @@ paths:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
         - $ref: '#/components/parameters/Sort'
-        - name: connectionId
-          in: query
-          required: false
-          schema: { type: integer, format: int32, minimum: 0 }
-        - name: level
-          in: query
-          required: false
-          schema: { type: string, enum: [PROGRAM, PROJECT, MILESTONE] }
+        - $ref: '#/components/parameters/ConnectionIdQuery'
+        - $ref: '#/components/parameters/LevelQuery'
         - $ref: '#/components/parameters/Q'
       responses:
         '200':
@@ -4581,11 +4523,8 @@ paths:
         - name: kind
           in: query
           required: false
-          schema: { type: string, enum: [JIRA, FLOW] }
-        - name: connectionId
-          in: query
-          required: false
-          schema: { type: integer, format: int32, minimum: 0 }
+          schema: { $ref: '#/components/schemas/SyncKind' }
+        - $ref: '#/components/parameters/ConnectionIdQuery'
       responses:
         '200':
           description: The runs, newest first
@@ -4710,6 +4649,31 @@ components:
       required: false
       schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
       description: Rows per page. Defaults to 20, maximum 100.
+    NameQuery:
+      name: name
+      in: query
+      required: false
+      schema: { type: string }
+    EmailQuery:
+      name: email
+      in: query
+      required: false
+      schema: { type: string }
+    ConnectionIdQuery:
+      name: connectionId
+      in: query
+      required: false
+      schema: { type: integer, format: int32, minimum: 0 }
+    TeamIdQuery:
+      name: teamId
+      in: query
+      required: false
+      schema: { type: integer, format: int32, minimum: 0 }
+    LevelQuery:
+      name: level
+      in: query
+      required: false
+      schema: { $ref: '#/components/schemas/PlanLevel' }
     Q:
       name: q
       in: query
@@ -4809,6 +4773,58 @@ components:
           schema: { $ref: '#/components/schemas/ProblemDetail' }
 
   schemas:
+    # Named vocabularies: an enum used in two or more places is declared once. A nullable use spells the values again (`Nullable<X>`):
+    # the validator reads a nullable enum behind an allOf as non-null. Value order is the wire's.
+    PlanLevel:
+      type: string
+      enum: [PROGRAM, PROJECT, MILESTONE]
+    NullablePlanLevel:
+      type: string
+      nullable: true
+      description: A `PlanLevel` or null (the validator reads a nullable enum behind an `allOf` as non-null, so the values are spelled here).
+      enum: [PROGRAM, PROJECT, MILESTONE]
+    Severity:
+      type: string
+      enum: [WARNING, INFO]
+    SyncKind:
+      type: string
+      enum: [JIRA, FLOW]
+    EstimateUnit:
+      type: string
+      enum: [POINTS, HOURS, DAYS]
+    NullableEstimateUnit:
+      type: string
+      nullable: true
+      description: An `EstimateUnit` or null (the validator reads a nullable enum behind an `allOf` as non-null, so the values are spelled here).
+      enum: [POINTS, HOURS, DAYS]
+    StatusCategory:
+      type: string
+      enum: [TODO, IN_PROGRESS, DONE, UNKNOWN]
+    TelemetryGroup:
+      type: string
+      enum: [memory, storage, requests, jvm]
+    TelemetryRange:
+      type: string
+      enum: [24h, 7d, 90d]
+    CapacitySource:
+      type: string
+      enum: [MANUAL, FLOW]
+    SyncTrigger:
+      type: string
+      enum: [MANUAL, SCHEDULED]
+    SyncState:
+      type: string
+      enum: [NEVER_SYNCED, CURRENT, STALE, FAILED, DISABLED]
+    JiraAuthScheme:
+      type: string
+      enum: [BASIC, BEARER]
+    JiraImportParentKind:
+      type: string
+      enum: [EXISTING, NEW_ROW, DEFAULT]
+    SyncOutcome:
+      type: string
+      nullable: true
+      enum: [SUCCEEDED, FAILED, ABANDONED]
     HealthResponse:
       type: object
       required: [status]
@@ -5257,8 +5273,7 @@ components:
         createdAt: { type: integer, format: int64, description: Epoch millis }
         updatedAt: { type: integer, format: int64, description: Epoch millis }
         source:
-          type: string
-          enum: [MANUAL, FLOW]
+          allOf: [{ $ref: '#/components/schemas/CapacitySource' }]
           description: >-
             Who wrote the period: `MANUAL` (every period before 1.5.0 and every hand-entered one) or `FLOW` (imported for a Flow sprint). A
             `PUT` of a `FLOW` period makes it `MANUAL`.
@@ -6449,8 +6464,7 @@ components:
           description: The most scheduled milestones in progress on one working day of the week.
         wipExceeded: { type: boolean, description: Some working day's in-progress count exceeds the WIP limit in force that day. }
         flowCapacity:
-          type: string
-          enum: [WARNING, INFO]
+          allOf: [{ $ref: '#/components/schemas/Severity' }]
           description: >-
             Present only on `GET /views/team/{id}` and only when an OPEN Flow capacity deviation's held days meet the week (1.9): the worst
             severity among the rows that meet it. Absent otherwise, and always absent on a proposal's or a check's weeks.
@@ -6535,9 +6549,9 @@ components:
         id: { type: integer, format: int32, minimum: 0 }
         startedAt: { type: integer, format: int64 }
         finishedAt: { type: integer, format: int64, nullable: true }
-        outcome: { type: string, enum: [SUCCEEDED, FAILED, ABANDONED], nullable: true }
+        outcome: { $ref: '#/components/schemas/SyncOutcome' }
         errorCode: { type: string, nullable: true, maxLength: 40 }
-        trigger: { type: string, enum: [MANUAL, SCHEDULED] }
+        trigger: { $ref: '#/components/schemas/SyncTrigger' }
         running: { type: boolean, description: "True only for an unfinished run younger than `sync.maxRunMinutes`; an older unfinished run was interrupted." }
     SyncStatus:
       type: object
@@ -6547,7 +6561,7 @@ components:
         intervals ago is STALE; else CURRENT (a manual-only connection stays CURRENT after any success).
       required: [state, lastRun, lastSucceededAt, consecutiveFailures, nextPollAt]
       properties:
-        state: { type: string, enum: [NEVER_SYNCED, CURRENT, STALE, FAILED, DISABLED] }
+        state: { $ref: '#/components/schemas/SyncState' }
         lastRun:
           allOf:
             - $ref: '#/components/schemas/SyncLastRun'
@@ -6626,7 +6640,7 @@ components:
       description: The bound node and every level it sits under (its own level included); a program has no project and only a milestone has a team.
       required: [kind, id, name, projectId, projectName, programId, programName, workStreamId, workStreamName, teamId, teamName]
       properties:
-        kind: { type: string, enum: [PROGRAM, PROJECT, MILESTONE] }
+        kind: { $ref: '#/components/schemas/PlanLevel' }
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
         projectId: { type: integer, format: int32, minimum: 0, nullable: true }
@@ -6666,7 +6680,7 @@ components:
         start: { type: string, format: date, nullable: true }
         end: { type: string, format: date, nullable: true }
         estimate: { type: number, format: double, nullable: true, description: "In `estimateUnit`." }
-        estimateUnit: { type: string, enum: [POINTS, HOURS, DAYS], nullable: true }
+        estimateUnit: { $ref: '#/components/schemas/NullableEstimateUnit' }
         parentKey: { type: string, nullable: true }
         teamName: { type: string, nullable: true }
         observedAt: { type: integer, format: int64, nullable: true }
@@ -6693,7 +6707,7 @@ components:
       properties:
         bindingId: { type: integer, format: int32, minimum: 0 }
         connectionId: { type: integer, format: int32, minimum: 0 }
-        level: { type: string, enum: [PROGRAM, PROJECT, MILESTONE] }
+        level: { $ref: '#/components/schemas/PlanLevel' }
         node: { $ref: '#/components/schemas/DeviationNode' }
         jira: { $ref: '#/components/schemas/DeviationJira' }
         plan: { $ref: '#/components/schemas/DeviationPlan' }
@@ -6724,7 +6738,7 @@ components:
       required: [kind, severity, detail, acknowledgement]
       properties:
         kind: { $ref: '#/components/schemas/DeviationKind' }
-        severity: { type: string, enum: [WARNING, INFO] }
+        severity: { $ref: '#/components/schemas/Severity' }
         detail: { $ref: '#/components/schemas/DeviationDetail' }
         acknowledgement:
           allOf:
@@ -6948,9 +6962,7 @@ components:
             difference of that team covers; WARNING when the plan holds more capacity than Flow in such a sprint, INFO otherwise.
             `NO_WORKING_DAY` (the project and team views' milestone rows) the scheduled span holds no working day on the current calendar:
             a holiday added after the schedule was written (decision D2); it carries no other member.
-        severity:
-          type: string
-          enum: [WARNING, INFO]
+        severity: { $ref: '#/components/schemas/Severity' }
         days:
           type: integer
           format: int32
@@ -7004,8 +7016,7 @@ components:
         connectionId: { type: integer, format: int32, minimum: 0 }
         siteUrl: { type: string, description: 'The site''s origin, e.g. `https://example.atlassian.net`; append `/browse/` and an issue key.' }
         state:
-          type: string
-          enum: [NEVER_SYNCED, CURRENT, STALE, FAILED, DISABLED]
+          allOf: [{ $ref: '#/components/schemas/SyncState' }]
           description: >-
             The connection's derived sync state, the very value `GET /views/deviations` answers in `connections[].status.state`, judged inside the view's
             snapshot against the same clock: `DISABLED` switched off; `FAILED` the newest finished run failed or was abandoned, or the newest run was
@@ -7914,7 +7925,7 @@ components:
       description: One connection's derived sync status. Never its site, email or token.
       required: [kind, connectionId, name, pollIntervalMinutes, ready, status]
       properties:
-        kind: { type: string, enum: [JIRA, FLOW] }
+        kind: { $ref: '#/components/schemas/SyncKind' }
         connectionId: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
         pollIntervalMinutes: { type: integer, format: int32, nullable: true, description: Minutes between scheduled runs; null means manual only. }
@@ -8028,8 +8039,8 @@ components:
       type: object
       required: [group, range, bucketSeconds, from, to, historyFrom, truncated, series]
       properties:
-        group: { type: string, enum: [memory, storage, requests, jvm] }
-        range: { type: string, enum: [24h, 7d, 90d] }
+        group: { $ref: '#/components/schemas/TelemetryGroup' }
+        range: { $ref: '#/components/schemas/TelemetryRange' }
         bucketSeconds: { type: integer, format: int32, description: The width of a point's bucket. }
         from: { type: integer, format: int64, description: Epoch millis of the range start (the first bucket may begin up to one bucket earlier). }
         to: { type: integer, format: int64, description: Epoch millis of the read }
@@ -8088,8 +8099,7 @@ components:
             Required on create (non-blank). On update an omitted, empty or blank token keeps the stored one and a present one rotates it. Encrypted at rest;
             never returned, logged or audited.
         authScheme:
-          type: string
-          enum: [BASIC, BEARER]
+          allOf: [{ $ref: '#/components/schemas/JiraAuthScheme' }]
           default: BASIC
           description: "`BASIC` = `base64(email:token)` (an Atlassian API token), `BEARER` = the token alone."
         projectKeys:
@@ -8122,7 +8132,7 @@ components:
         hasApiToken:
           type: boolean
           description: Whether a token is stored. The token itself is write-only and appears in no response.
-        authScheme: { type: string, enum: [BASIC, BEARER] }
+        authScheme: { $ref: '#/components/schemas/JiraAuthScheme' }
         projectKeys:
           type: array
           maxItems: 50
@@ -8277,7 +8287,7 @@ components:
     JiraEstimateMapping:
       type: object
       properties:
-        unit: { type: string, enum: [POINTS, HOURS, DAYS], description: "What the estimate field counts (default `POINTS`). `DAYS` compares as man-days without a factor." }
+        unit: { allOf: [{ $ref: '#/components/schemas/EstimateUnit' }], description: "What the estimate field counts (default `POINTS`). `DAYS` compares as man-days without a factor." }
         manDaysPerUnit:
           type: number
           format: double
@@ -8325,7 +8335,7 @@ components:
       description: One mapped plan level's counts over the connection's census mirror. Counts only; never a key, name or summary.
       required: [level, hierarchyLevel, inScope, linked, openUnlinked]
       properties:
-        level: { type: string, enum: [PROGRAM, PROJECT, MILESTONE] }
+        level: { $ref: '#/components/schemas/PlanLevel' }
         hierarchyLevel: { type: integer, format: int32, minimum: 0, description: "The Jira hierarchy level the plan level is mapped to." }
         inScope: { type: integer, format: int32, minimum: 0, description: "The level's issues in the connection's project keys (the census mirror)." }
         linked: { type: integer, format: int32, minimum: 0, description: "Of those, the ones an active binding names (same site)." }
@@ -8364,17 +8374,17 @@ components:
         summary: { type: string, nullable: true, maxLength: 255 }
         typeName: { type: string, nullable: true }
         hierarchyLevel: { type: integer, format: int32, nullable: true, description: "From the issue's own type when the site sent it, else the discovery's." }
-        statusCategory: { type: string, enum: [TODO, IN_PROGRESS, DONE, UNKNOWN] }
+        statusCategory: { $ref: '#/components/schemas/StatusCategory' }
         parentKey: { type: string, nullable: true }
     JiraPeekResolved:
       type: object
       required: [unit]
       properties:
-        level: { type: string, enum: [PROGRAM, PROJECT, MILESTONE], nullable: true, description: "The Astrolabe level the issue's hierarchy level maps to; null when it maps to none (then start, end and estimate are null too)." }
+        level: { allOf: [{ $ref: '#/components/schemas/NullablePlanLevel' }], nullable: true, description: "The Astrolabe level the issue's hierarchy level maps to; null when it maps to none (then start, end and estimate are null too)." }
         start: { type: string, format: date, nullable: true }
         end: { type: string, format: date, nullable: true }
         estimate: { type: number, format: double, nullable: true, description: "The mapped estimate field in `unit`, read the way a sync reads it: at two decimals, half up; null for a figure a sync would not observe (a string, a non-number, 10 billion or more, or a literal over 40 characters)." }
-        unit: { type: string, enum: [POINTS, HOURS, DAYS] }
+        unit: { $ref: '#/components/schemas/EstimateUnit' }
         teamName: { type: string, nullable: true, maxLength: 100 }
     JiraPeekResponse:
       type: object
@@ -8475,7 +8485,7 @@ components:
       required: [kind, nodeName]
       description: Where a CREATE row lands (absent for a program, which lands under the picked work stream).
       properties:
-        kind: { type: string, enum: [EXISTING, NEW_ROW, DEFAULT], description: "An existing node, the node another row of the batch creates, or the level's default parent." }
+        kind: { allOf: [{ $ref: '#/components/schemas/JiraImportParentKind' }], description: "An existing node, the node another row of the batch creates, or the level's default parent." }
         nodeId: { type: integer, format: int32, minimum: 0, nullable: true }
         nodeName: { type: string }
         rowJiraId: { type: string, nullable: true, description: "The batch row the parent depends on (a NEW_ROW parent, or the row of a BIND parent)." }
@@ -8486,7 +8496,7 @@ components:
       properties:
         nodeId: { type: integer, format: int32, minimum: 0 }
         nodeName: { type: string }
-        nodeKind: { type: string, enum: [PROGRAM, PROJECT, MILESTONE], nullable: true }
+        nodeKind: { $ref: '#/components/schemas/NullablePlanLevel' }
         connectionId: { type: integer, format: int32, minimum: 0, nullable: true }
     JiraImportTeam:
       type: object
@@ -8506,7 +8516,7 @@ components:
         hierarchyLevel: { type: integer, format: int32, nullable: true }
         parentJiraId: { type: string, nullable: true }
         parentIssueKey: { type: string, nullable: true }
-        level: { type: string, enum: [PROGRAM, PROJECT, MILESTONE], description: "The plan level the issue's hierarchy level maps to (an unmapped one keeps the nearest, with action SKIP)." }
+        level: { allOf: [{ $ref: '#/components/schemas/PlanLevel' }], description: "The plan level the issue's hierarchy level maps to (an unmapped one keeps the nearest, with action SKIP)." }
         action: { type: string, enum: [CREATE, BIND, SKIP] }
         reason:
           type: string
@@ -8578,7 +8588,7 @@ components:
       description: What the preview showed for a ticked row. A difference after the apply's re-browse and re-read is a `CHANGED` skip.
       properties:
         action: { type: string, enum: [CREATE, BIND], description: "A BIND carries `nodeId`, a CREATE does not." }
-        level: { type: string, enum: [PROGRAM, PROJECT, MILESTONE] }
+        level: { $ref: '#/components/schemas/PlanLevel' }
         parentJiraId: { type: string, nullable: true, description: "The row's `parentJiraId` as previewed." }
         nodeId: { type: integer, format: int32, minimum: 0, nullable: true, description: "The BIND target node as previewed." }
         parent:
@@ -8596,7 +8606,7 @@ components:
       type: object
       required: [kind]
       properties:
-        kind: { type: string, enum: [EXISTING, NEW_ROW, DEFAULT], description: "The preview row's `parent.kind`." }
+        kind: { allOf: [{ $ref: '#/components/schemas/JiraImportParentKind' }], description: "The preview row's `parent.kind`." }
         nodeId: { type: integer, format: int32, minimum: 0, nullable: true, description: "The preview row's `parent.nodeId` (null for a NEW_ROW)." }
     JiraImportOverrides:
       type: object
@@ -8631,7 +8641,7 @@ components:
       properties:
         jiraId: { type: string }
         issueKey: { type: string }
-        kind: { type: string, enum: [PROGRAM, PROJECT, MILESTONE] }
+        kind: { $ref: '#/components/schemas/PlanLevel' }
         id: { type: integer, format: int32, minimum: 0, description: "The new node's id." }
         bindingId: { type: integer, format: int32, minimum: 0 }
         name: { type: string, maxLength: 100 }
@@ -8642,7 +8652,7 @@ components:
       properties:
         jiraId: { type: string }
         issueKey: { type: string }
-        kind: { type: string, enum: [PROGRAM, PROJECT, MILESTONE] }
+        kind: { $ref: '#/components/schemas/PlanLevel' }
         id: { type: integer, format: int32, minimum: 0, description: "The existing node that was bound." }
         bindingId: { type: integer, format: int32, minimum: 0 }
     JiraImportSkipped:
@@ -8665,14 +8675,14 @@ components:
       required: [connectionId, level, nodeId, issueKey]
       properties:
         connectionId: { type: integer, format: int32, minimum: 0 }
-        level: { type: string, enum: [PROGRAM, PROJECT, MILESTONE], description: "The kind of plan node; `nodeId` is the id of a program, project or milestone accordingly." }
+        level: { allOf: [{ $ref: '#/components/schemas/PlanLevel' }], description: "The kind of plan node; `nodeId` is the id of a program, project or milestone accordingly." }
         nodeId: { type: integer, format: int32, minimum: 0 }
         issueKey: { type: string, pattern: '^[A-Z][A-Z0-9_]{1,9}-[0-9]{1,10}$', maxLength: 21, description: "The Jira issue key, e.g. `ABC-12`; trimmed." }
     JiraBindingNode:
       type: object
       required: [kind, id, name]
       properties:
-        kind: { type: string, enum: [PROGRAM, PROJECT, MILESTONE] }
+        kind: { $ref: '#/components/schemas/PlanLevel' }
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
         projectName: { type: string, nullable: true, description: "A milestone's project." }
@@ -8696,13 +8706,13 @@ components:
         typeName: { type: string, nullable: true }
         hierarchyLevel: { type: integer, format: int32, nullable: true }
         statusName: { type: string, nullable: true }
-        statusCategory: { type: string, enum: [TODO, IN_PROGRESS, DONE, UNKNOWN] }
+        statusCategory: { $ref: '#/components/schemas/StatusCategory' }
         parentIssueId: { type: string, nullable: true }
         parentIssueKey: { type: string, nullable: true }
         startDate: { type: string, format: date, nullable: true }
         endDate: { type: string, format: date, nullable: true }
         estimate: { type: number, format: double, nullable: true, description: "In `estimateUnit`, at two decimals; null when the mapping reads none or the site sent no usable number." }
-        estimateUnit: { type: string, enum: [POINTS, HOURS, DAYS], nullable: true }
+        estimateUnit: { $ref: '#/components/schemas/NullableEstimateUnit' }
         teamName: { type: string, nullable: true, maxLength: 100 }
         jiraUpdatedAt: { type: integer, format: int64, nullable: true }
         gone: { type: boolean, description: "The issue could not be read on a later run (set by the run, never by a bind)." }
@@ -8717,7 +8727,7 @@ components:
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         connectionId: { type: integer, format: int32, minimum: 0 }
-        level: { type: string, enum: [PROGRAM, PROJECT, MILESTONE] }
+        level: { $ref: '#/components/schemas/PlanLevel' }
         node: { $ref: '#/components/schemas/JiraBindingNode' }
         issueId: { type: string, description: The numeric Jira issue id (a key changes when an issue moves project). }
         issueKey: { type: string, pattern: '^[A-Z][A-Z0-9_]{1,9}-[0-9]{1,10}$', maxLength: 21, description: "The issue's current key as Jira last answered it: it follows the issue when a run sees it in another project (a moved issue shows its new key, possibly in a project outside the connection's keys, to every caller who may read the bindings); `observation.issueKey` keeps the key the issue was last read under." }
@@ -8897,7 +8907,7 @@ components:
       properties:
         periodId: { type: integer, format: int32, minimum: 0 }
         mdPerWeek: { type: number, format: double, minimum: 0 }
-        source: { type: string, enum: [MANUAL, FLOW] }
+        source: { $ref: '#/components/schemas/CapacitySource' }
     CapacityImportItem:
       type: object
       required: [sprintId, name, state, start, end, effectiveFrom, workingDays, flowMd, mdPerWeek, action, reason, infos, ticked, existing]
@@ -9234,7 +9244,7 @@ components:
       required: [kind, severity, detail, fingerprint, acknowledgement]
       properties:
         kind: { $ref: '#/components/schemas/CapacityDeviationKind' }
-        severity: { type: string, enum: [WARNING, INFO] }
+        severity: { $ref: '#/components/schemas/Severity' }
         detail: { $ref: '#/components/schemas/CapacityDeviationDetail' }
         fingerprint:
           type: string
@@ -9391,7 +9401,7 @@ components:
       type: object
       required: [kind, connectionId]
       properties:
-        kind: { type: string, enum: [JIRA, FLOW] }
+        kind: { $ref: '#/components/schemas/SyncKind' }
         connectionId: { type: integer, format: int32, minimum: 0 }
     SyncRun:
       type: object
@@ -9399,13 +9409,13 @@ components:
       required: [id, kind, connectionId, trigger, startedAt, running, observedCount, goneCount, callCount, rateLimitedCount, backoffMs]
       properties:
         id: { type: integer, format: int32, minimum: 0 }
-        kind: { type: string, enum: [JIRA, FLOW] }
+        kind: { $ref: '#/components/schemas/SyncKind' }
         connectionId: { type: integer, format: int32, minimum: 0 }
-        trigger: { type: string, enum: [MANUAL, SCHEDULED] }
+        trigger: { $ref: '#/components/schemas/SyncTrigger' }
         requestedByUserId: { type: integer, format: int32, minimum: 0, nullable: true, description: The login that asked; null for a scheduled run. }
         startedAt: { type: integer, format: int64 }
         finishedAt: { type: integer, format: int64, nullable: true }
-        outcome: { type: string, enum: [SUCCEEDED, FAILED, ABANDONED], nullable: true, description: "`ABANDONED` is written by a later claim for a run that never finished." }
+        outcome: { allOf: [{ $ref: '#/components/schemas/SyncOutcome' }], nullable: true, description: "`ABANDONED` is written by a later claim for a run that never finished." }
         errorCode: { type: string, nullable: true, maxLength: 40 }
         errorDetail: { type: string, nullable: true, maxLength: 500 }
         running: { type: boolean, description: "The server's verdict: true only for an unfinished run younger than `sync.maxRunMinutes`. An unfinished run that is not running was interrupted; no client judges a run's age by its own clock." }
