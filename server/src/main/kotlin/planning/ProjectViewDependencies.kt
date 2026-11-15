@@ -73,7 +73,7 @@ internal suspend fun viewDependencies(
 /**
  * The order of a list of links, so that the top of the list IS the conflict list: VIOLATED first (the largest shortfall first), then
  * OK, then UNSCHEDULED; within a group by the successor's name, the predecessor's name (case-insensitive) and the id. Generic over the
- * row so the project view's [ProjectDependency] ([DEPENDENCY_ORDER]) and the dependency list's [DependencyListRow] share ONE rule.
+ * row so the project view's [ProjectDependency] ([DEPENDENCY_ORDER]) and the dependency list's checked links (1.21) share ONE rule.
  */
 internal fun <T> dependencyOrder(
     check: (T) -> DependencyCheck,

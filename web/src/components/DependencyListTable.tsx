@@ -1,7 +1,7 @@
 import { Anchor, Stack, Table, Text } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
-import type { DependencyListRow } from "../api/dependencyList";
+import type { DependencyListRow } from "../utils/dependencyListRows";
 import { projectPath } from "../utils/planLinks";
 import { teamPath } from "../utils/teamLinks";
 import { DependencyStatusBadge, DependencyLagText } from "./DependencyCells";

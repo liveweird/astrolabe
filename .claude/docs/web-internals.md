@@ -941,8 +941,13 @@ figures use).
 
 `/dependencies` (nav: Planning after Milestones, `IconLink`, **everyone**, read-only; palette "Dependencies" / PL "Zależności") lists every dependency of the plan from the
 ONE unpaged `GET /views/dependencies` (`api/dependencyList.ts` `getDependencyListView`, key `DEPENDENCY_LIST_KEY = ["plan","dependencies"]`, under `["plan"]` so every
-plan write refreshes it; at most 1,000 rows with `truncated`, the same document for every caller, no `can`). Each row is the project view's own item minus `critical`
-and `can`, in the server's order (violated first, the largest shortfall first, then OK, then unscheduled): the page never sorts or recounts. The page changes
+plan write refreshes it; at most 1,000 rows with `truncated`, the same document for every caller, no `can`). **The wire document names its ends once (1.21):** a row
+holds `predecessor`/`successor` as `{kind, id}` and the names are in `milestones`, `projects` and `teams`, exactly what the listed rows name;
+`utils/dependencyListRows.ts` `resolveDependencyList` joins them back, once, in the page's query function (`readDependencyList`), so the cache holds the
+resolved list: each row's two ends are `{kind, id, name, projectId, projectName, teamId, teamName}` (the table, the filter and their tests read that, as before). It is
+NOT a `select`: a throwing `select` over a kept document makes TanStack Query 5.105 re-render without end (its error result carries a fresh `errorUpdatedAt` each
+time), whereas an error from the query function is the ordinary one. A reference the lists do not hold throws there: a failed read (below). Each row is the project
+view's own item minus `critical` and `can`, in the server's order (violated first, the largest shortfall first, then OK, then unscheduled): the page never sorts or recounts. The page changes
 nothing: no operations column, no dialog; each end names its project, whose page edits the link. The facts line (`role="group"`, "N dependencies", Home's own red
 string `home.roadmap.conflicts` and a gray "N not scheduled yet", each badge only when positive, the whole line absent while the plan has no dependency) reads the
 document's `totals` over EVERY dependency, so a filter or the cap never changes it. The three filters are in the URL like the Milestones page's
@@ -961,10 +966,11 @@ Home's links use).
   project table's own cells (`components/DependencyCells.tsx`: `DependencyStatusBadge`, `DependencyLagText`); the type and the column headers are its strings. An end's
   cell: its name ("Project X" for a project end), under it its project (link, `plan.openProjectAria`) and, for a milestone, its team (link, `teams.openAria`).
 - **States**: loading (`LoadingBlock`, no facts line and no claim until the read answers), a failed read (`ErrorAlert`; the rows of a kept document stay on screen
-  over a failed re-read, and no empty claim is made from it), no dependency at all (`totals.links === 0`), nothing matches the filters (with "Clear the filters"
+  over a failed re-read, and no empty claim is made from it; a document whose row names an end the lists do not hold is that same failed read), no dependency at all (`totals.links === 0`), nothing matches the filters (with "Clear the filters"
   when a filter narrows), `truncated` (one dimmed line under the rows shown; when the filters hide every row READ, the line says
   "none of the first N" with the same Clear button, never "nothing matches").
-- **Tests**: `Dependencies.test.tsx`, `api/dependencyList.test.ts`, `utils/dependencyListFilters.test.ts`, `utils/dependencyListLinks.test.ts` (fixtures `test/dependencyList.ts`).
+- **Tests**: `Dependencies.test.tsx`, `api/dependencyList.test.ts`, `utils/dependencyListRows.test.ts` (the resolver), `utils/dependencyListFilters.test.ts`, `utils/dependencyListLinks.test.ts`
+  (fixtures `test/dependencyList.ts`: rows and ends are the RESOLVED shapes; `dependencyListView(rows)` answers the wire document built from them).
 
 ## Team load (`pages/TeamLoad.tsx`, 1.19)
 

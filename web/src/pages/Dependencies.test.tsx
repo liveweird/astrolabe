@@ -20,7 +20,7 @@ const VIOLATED = violatedRow({ id: 1 }, 3);
 const HELD = dependencyRow({ id: 2, lagDays: -1 });
 const OPEN = unscheduledRow({
   id: 3,
-  predecessor: milestoneEnd({ id: 20, name: "Scoping", projectId: 8, projectName: "Search", teamId: 9, teamName: "Data", startDate: null, endDate: null }),
+  predecessor: milestoneEnd({ id: 20, name: "Scoping", projectId: 8, projectName: "Search", teamId: 9, teamName: "Data" }),
   successor: projectEnd({ id: 8, name: "Search", projectId: 8, projectName: "Search" }),
   type: "SS",
   lagDays: 2,
@@ -323,6 +323,26 @@ describe("Dependencies page", () => {
     answer = () => jsonResponse(500, { title: "x", status: 500 });
     await queryClient.invalidateQueries({ queryKey: ["plan", "dependencies"] });
     expect(await screen.findByText("Could not read the dependencies")).toBeInTheDocument();
+    expect(rowIds()).toHaveLength(3);
+  });
+
+  test("a document naming an end its lists do not hold is a failed read: the alert, no row, no empty claim", async () => {
+    answer = () => jsonResponse(200, { ...dependencyListView(ALL), milestones: [] });
+    renderPage();
+    expect(await screen.findByText("Could not read the dependencies")).toBeInTheDocument();
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByText("The plan has no dependencies yet")).toBeNull();
+    expect(screen.queryByText("No dependency matches the filters")).toBeNull();
+  });
+
+  test("an unresolvable re-read keeps the rows of the earlier answer under the alert", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderPage("/dependencies", queryClient);
+    await screen.findByRole("table", { name: TABLE });
+    answer = () => jsonResponse(200, { ...dependencyListView(ALL), teams: [] });
+    await queryClient.invalidateQueries({ queryKey: ["plan", "dependencies"] });
+    expect(await screen.findByText("Could not read the dependencies")).toBeInTheDocument();
+    expect(screen.getByText("The server's answer could not be read. Reload the page, or try again later.")).toBeInTheDocument();
     expect(rowIds()).toHaveLength(3);
   });
 

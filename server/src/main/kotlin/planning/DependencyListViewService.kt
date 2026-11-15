@@ -32,6 +32,6 @@ class DependencyListViewService(
         val spans = RoadmapKernels.projectSpans(facts)
         val projects = projectNames.keys.map { PlanProjectFact(it, null, null) }
         val checked = RoadmapKernels.checkedLinks(links, projects, facts, spans, calendar)
-        DependencyListKernels.view(revision, checked, milestones, projectNames, spans, maxRows)
+        DependencyListKernels.view(revision, checked, milestones, projectNames, maxRows)
     }
 }

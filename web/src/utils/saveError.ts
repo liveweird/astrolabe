@@ -1,5 +1,5 @@
 import type { ParseKeys, TFunction } from "i18next";
-import { ApiError, isTimeoutError } from "../api/http";
+import { ApiError, MalformedAnswerError, isTimeoutError } from "../api/http";
 
 export interface SaveErrorKeys {
   /** 401 — omit to route it through the generic fallbacks (the login page's wrong-credentials). */
@@ -50,5 +50,6 @@ export function loadErrorMessage(err: unknown, t: TFunction): string {
   if (err instanceof ApiError && err.status === 429) return t("common.error.tooManyRequests");
   if (err instanceof ApiError) return t("common.error.loadFailedStatus", { status: err.status });
   if (isTimeoutError(err)) return t("common.error.timeout");
+  if (err instanceof MalformedAnswerError) return t("common.error.malformedAnswer");
   return t("common.error.network");
 }

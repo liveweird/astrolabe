@@ -247,11 +247,23 @@ export class ApiError extends Error {
 }
 
 /**
+ * A 200 whose body the client cannot use (a document that names something it does not hold, 1.21): the same answer would come again, so it is
+ * never retried, and it is worded as a broken answer, not as a network failure (`loadErrorMessage`).
+ */
+export class MalformedAnswerError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "MalformedAnswerError";
+  }
+}
+
+/**
  * The QueryClient's retry policy (wired in main.tsx): never retry a 4xx — the server's
  * answer won't change, and retrying only delays the error UI (a 403 used to sit behind
- * ~7 s of backoff); transient failures (network, timeout, 5xx) get up to two retries.
+ * ~7 s of backoff) — nor a malformed answer; transient failures (network, timeout, 5xx) get up to two retries.
  */
 export function shouldRetryQuery(failureCount: number, error: unknown): boolean {
+  if (error instanceof MalformedAnswerError) return false;
   return failureCount < 2 && !(error instanceof ApiError && error.status >= 400 && error.status < 500);
 }
 

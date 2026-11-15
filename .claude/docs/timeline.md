@@ -610,15 +610,18 @@ One-off, **NON-BINDING**, this machine only (Apple M5 Max, 2026-11-15, in-proces
 
 #### Measured figures (1.21)
 
-One-off, **NON-BINDING**, this machine only (Apple M5 Max, 2026-11-15, in-process `testApplication` against the Postgres container; re-measure rather than quote). `HomeViewSizeTest` reads `GET /views/team-load` as for 1.19, now that every row lists its warning weeks (`warningWeeks`, the team page's own overloaded or over-WIP weeks, oldest first; at most 2,000 listed in the whole document).
+One-off, **NON-BINDING**, this machine only (Apple M5 Max, 2026-11-15, in-process `testApplication` against the Postgres container; re-measure rather than quote). `HomeViewSizeTest` reads `GET /views/team-load` as for 1.19, now that every row lists its warning weeks (`warningWeeks`, the team page's own overloaded or over-WIP weeks, oldest first; at most 2,000 listed in the whole document), and `GET /views/dependencies` as for 1.20, now that the document names its ends once.
 
 | Document | Bytes | Gzip | Median of five | Statements |
 |---|---|---|---|---|
 | `GET /views/team-load`, the GATED fixed document: the sample's 15 teams, 203 warning weeks listed (gate 42,000 B, 1.5 times the figure rounded up to 1,000 B) | **27,896-27,924** (about 123 B a listed week; 2,941-2,950 before) | 2,544-2,554 | n/a | n/a |
 | The same, the endpoint's own document (inside the full server gate: the sample plus whatever the shared database holds, cut at 200 rows) | 40,655 | 4,978 | **20.6-25.7 ms** (max 22.1-29.2) | **6** |
+| `GET /views/dependencies` (C8: names once), the GATED fixed document: the uncapped view reduced to the links whose two ends are on the sample's teams, its three lists reduced to what those rows name (gate 170,000 B, 1.5 times the figure rounded up to 10,000 B) | **108,305-110,259** (about 360 B a row; 178,901-180,311 before, in 1.20: 39 % less) | 11,073-11,237 | n/a | n/a |
+| The same, the endpoint's own document (the sample plus whatever the shared database holds) | 114,643-141,887 | 11,893-16,098 | **13.1-14.2 ms** (max 14.0-14.8) | **5** |
 
 - **Size.** The calculated 26 KB (20 to 35 KB plausible) held: the sample's 15 teams list 203 weeks (the calculated estimate was about 200), no week without capacity is listed. At both caps (200 rows, 2,000 weeks) the document is about 290 KB uncompressed (about 123 B a listed week: (27,896 - 2,941) / 203, so about 246 KB of weeks plus about 40 KB of rows). The wire is gzip (about a ninth).
 - **Latency and statements.** Unchanged in kind: the weeks are `teamWeeks`' own, so the six statements stay six (a per-team read would break the pin) and the median stays at the 1.19 level.
+- **Dependencies (names once).** The calculated 121 KB for the sample (about a third less) held: 108,305-110,259 B for 300 links (two runs, the second inside the full server gate), with 455 milestones, 100 projects and 15 teams named once. A row is now about 245 B (two refs, the type, the lag and the check, which is the half that stays); a named milestone is about 90 B. At the 1,000-row cap that is about 340 KB against 600 KB. The wire is gzip either way: about 11,100-11,250 B against 17-20 KB in 1.20. Statements still **exactly 5**, the median at the 1.20 level.
 
 #### Deliberate departures from the bootstrap sketch
 

@@ -4,6 +4,7 @@ import { Badge, Button, Group, Stack, Text } from "@mantine/core";
 import { IconLink } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { DEPENDENCY_LIST_KEY, getDependencyListView, type DependencyListView } from "../api/dependencyList";
+import { resolveDependencyList } from "../utils/dependencyListRows";
 import DependencyListFilters from "../components/DependencyListFilters";
 import DependencyListTable from "../components/DependencyListTable";
 import EmptyState from "../components/EmptyState";
@@ -17,6 +18,15 @@ import {
   parseDependencyListFilter,
   type DependencyListFilter,
 } from "../utils/dependencyListFilters";
+
+/**
+ * The document with its names joined onto the rows, in the query function so the cache holds the resolved list. A reference the lists do not hold throws
+ * here, which is the query's error (the inline alert; an earlier answer's rows stay). Not a `select`: a throwing `select` over a kept document makes TanStack
+ * Query 5.105 re-render without end (its error result carries a fresh `errorUpdatedAt` each time).
+ */
+async function readDependencyList() {
+  return resolveDependencyList(await getDependencyListView());
+}
 
 /** The facts line: the totals exactly as the server counted them over EVERY dependency (never recounted from the rows a filter or the cap left); a zero figure is no claim, so its badge is absent. */
 function DependencyListFacts({ totals }: { totals: DependencyListView["totals"] }) {
@@ -40,7 +50,8 @@ function DependencyListFacts({ totals }: { totals: DependencyListView["totals"] 
 
 /**
  * The Dependencies page (`/dependencies`, everyone, read-only): every dependency of the plan from the one unpaged `GET /views/dependencies` (at most
- * 1,000 rows, the ones that do not hold first, each the project view's own item). The status, team and project filters are in the URL
+ * 1,000 rows, the ones that do not hold first, each the project view's own item; the document names each end once, and the query function joins
+ * the names back onto the rows - a reference it cannot resolve is a failed read). The status, team and project filters are in the URL
  * (`utils/dependencyListFilters.ts`; a change `replace`s the entry, so Home's and the plan pages' links, a reload and Back all restore the view) and only
  * hide rows in the browser: the facts line always shows the server's totals over every dependency. Nothing is changed here - each end names its project,
  * whose page edits the link.
@@ -49,7 +60,7 @@ export default function Dependencies() {
   const { t } = useTranslation();
   const [params, setParams] = useSearchParams();
   const filter = parseDependencyListFilter(params);
-  const { data, isLoading, isError, error } = useQuery({ queryKey: DEPENDENCY_LIST_KEY, queryFn: getDependencyListView });
+  const { data, isLoading, isError, error } = useQuery({ queryKey: DEPENDENCY_LIST_KEY, queryFn: readDependencyList });
 
   const change = (patch: Partial<DependencyListFilter>) => setParams(dependencyListFilterParams({ ...filter, ...patch }), { replace: true });
   const rows = (data?.dependencies ?? []).filter((row) => matchesDependencyFilter(row, filter));

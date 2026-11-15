@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import i18n from "../i18n";
-import { ApiError } from "../api/http";
+import { ApiError, MalformedAnswerError } from "../api/http";
 import { loadErrorMessage, saveErrorMessage } from "./saveError";
 
 const t = i18n.t;
@@ -39,5 +39,6 @@ describe("loadErrorMessage", () => {
     expect(loadErrorMessage(new ApiError(429, null), t)).toBe("Too many requests. Wait a minute and try again.");
     expect(loadErrorMessage(timeout, t)).toBe(t("common.error.timeout"));
     expect(loadErrorMessage(new Error("net"), t)).toBe(t("common.error.network"));
+    expect(loadErrorMessage(new MalformedAnswerError("x"), t)).toBe(t("common.error.malformedAnswer"));
   });
 });

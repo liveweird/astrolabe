@@ -109,13 +109,20 @@ class DependencyListViewTest {
             val response = s.w.stranger.client.get("$path?projectId=${s.w.projectId}&foo=bar")
             assertEquals(HttpStatusCode.OK, response.status)
             val root = Json.parseToJsonElement(response.bodyAsText()).jsonObject
-            assertEquals(setOf("revision", "totals", "dependencies", "truncated"), root.keys, "no can")
+            assertEquals(
+                setOf("revision", "totals", "projects", "teams", "milestones", "dependencies", "truncated"),
+                root.keys,
+                "the three name lists, no can",
+            )
             assertEquals(setOf("links", "violated", "unscheduled"), root.getValue("totals").jsonObject.keys)
             val row = root.getValue("dependencies").jsonArray.first().jsonObject
             assertEquals(setOf("id", "predecessor", "successor", "type", "lagDays", "check"), row.keys, "no critical, no can")
-            val end = setOf("kind", "id", "name", "projectId", "projectName", "teamId", "teamName", "startDate", "endDate")
-            assertEquals(end, row.getValue("predecessor").jsonObject.keys)
+            val end = setOf("kind", "id")
+            assertEquals(end, row.getValue("predecessor").jsonObject.keys, "an end is a kind and an id, no name, no date")
             assertEquals(end, row.getValue("successor").jsonObject.keys)
+            assertEquals(setOf("id", "name", "projectId", "teamId"), root.getValue("milestones").jsonArray.first().jsonObject.keys)
+            assertEquals(setOf("id", "name"), root.getValue("projects").jsonArray.first().jsonObject.keys)
+            assertEquals(setOf("id", "name"), root.getValue("teams").jsonArray.first().jsonObject.keys)
             assertEquals(
                 setOf("status", "shortfallDays", "slackDays", "requiredDate", "actualDate"),
                 row.getValue("check").jsonObject.keys,
@@ -131,12 +138,14 @@ class DependencyListViewTest {
         val client = s.w.stranger.client
         val list = uncapped()
         assertFalse(list.truncated)
+        list.assertListsHoldExactlyWhatTheRowsName()
         assertEquals(listOf(4, 2, 1), list.figuresSince(base), "four links: l1 and l4 do not hold, l3 has an end with nothing scheduled")
         assertEquals(list.totals.links, list.dependencies.size)
 
+        // An end is compared RESOLVED through the lists, without the dates the list's ends do not carry.
         fun assertEqualItem(row: DependencyListRow, item: ProjectDependency, where: String) {
-            assertEquals(row.predecessor, item.predecessor, "$where predecessor of ${row.id}")
-            assertEquals(row.successor, item.successor, "$where successor of ${row.id}")
+            assertEquals(list.endOf(row.predecessor), item.predecessor.withoutDates(), "$where predecessor of ${row.id}")
+            assertEquals(list.endOf(row.successor), item.successor.withoutDates(), "$where successor of ${row.id}")
             assertEquals(row.type, item.type, "$where type of ${row.id}")
             assertEquals(row.lagDays, item.lagDays, "$where lag of ${row.id}")
             assertEquals(row.check, item.check, "$where check of ${row.id}")
@@ -234,6 +243,8 @@ class DependencyListViewTest {
         val cut = DependencyListViewService(sharedDatabaseForTests(), maxRows = 1).view()
         assertTrue(cut.truncated)
         assertEquals(1, cut.dependencies.size)
+        cut.assertListsHoldExactlyWhatTheRowsName()
+        assertTrue(cut.milestones.size <= 2 && cut.projects.size <= 2 && cut.teams.size <= 2, "a cut row's names only, not the plan's")
         assertEquals(whole.dependencies.first(), cut.dependencies.single(), "the first of the order")
         assertEquals(whole.totals, cut.totals, "the totals count every link")
         assertFalse(whole.truncated)
@@ -259,6 +270,7 @@ class DependencyListViewTest {
             assertTrue(http.truncated)
             assertEquals(MAX_DEPENDENCY_ROWS, http.dependencies.size)
             assertEquals(whole.dependencies.take(MAX_DEPENDENCY_ROWS), http.dependencies, "the first 1,000 rows of the one order")
+            http.assertListsHoldExactlyWhatTheRowsName()
             assertEquals(whole.totals, http.totals, "the totals count every link")
             assertEquals(whole.revision, http.revision)
             assertFalse(whole.truncated)

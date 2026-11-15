@@ -1,6 +1,6 @@
 import { Badge } from "@mantine/core";
 import { useTranslation } from "react-i18next";
-import type { DependencyListRow } from "../api/dependencyList";
+import type { DependencyListRow } from "../utils/dependencyListRows";
 
 /** The link's status: a red badge naming the shortfall, or a gray one - never colour alone. Shared by the project page's table and the Dependencies page. */
 export function DependencyStatusBadge({ check }: { check: DependencyListRow["check"] }) {

@@ -58,6 +58,7 @@
   "error": {
     "timeout": "Przekroczono limit czasu żądania. Spróbuj ponownie.",
     "network": "Błąd sieci. Sprawdź połączenie i spróbuj ponownie.",
+    "malformedAnswer": "Nie udało się odczytać odpowiedzi serwera. Odśwież stronę albo spróbuj ponownie później.",
     "loadFailedStatus": "Wczytywanie nie powiodło się ({{status}})",
     "tooManyRequests": "Zbyt wiele żądań. Odczekaj minutę i spróbuj ponownie.",
     "actionFailed": "Akcja nie powiodła się. Sprawdź połączenie i spróbuj ponownie.",

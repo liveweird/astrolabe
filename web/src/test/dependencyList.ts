@@ -1,12 +1,12 @@
-// Shared fixtures for the Dependencies page: a row, an end and a document as GET /views/dependencies answers them.
+// Shared fixtures for the Dependencies page: a row, an end and a document. Rows and ends are the RESOLVED shapes the page works with
+// (`utils/dependencyListRows.ts`); `dependencyListView` answers the WIRE document built from them (the three name lists and the refs).
 import type { components } from "../api/schema";
+import type { DependencyListEnd, DependencyListRow as Row } from "../utils/dependencyListRows";
 
-type Row = components["schemas"]["DependencyListRow"];
-type End = components["schemas"]["DependencyEndpoint"];
 type View = components["schemas"]["DependencyListView"];
 
-/** A milestone end with its project, team and dates; override any member. */
-export function milestoneEnd(over: Partial<End> = {}): End {
+/** A milestone end with its project and team; override any member. */
+export function milestoneEnd(over: Partial<DependencyListEnd> = {}): DependencyListEnd {
   return {
     kind: "MILESTONE",
     id: 12,
@@ -15,14 +15,12 @@ export function milestoneEnd(over: Partial<End> = {}): End {
     projectName: "Checkout",
     teamId: 4,
     teamName: "Backend",
-    startDate: "2027-06-07",
-    endDate: "2027-06-11",
     ...over,
   };
 }
 
-/** A whole-project end: its own id as `projectId`, no team, the derived span; override any member. */
-export function projectEnd(over: Partial<End> = {}): End {
+/** A whole-project end: its own id as `projectId`, no team; override any member. */
+export function projectEnd(over: Partial<DependencyListEnd> = {}): DependencyListEnd {
   return {
     kind: "PROJECT",
     id: 5,
@@ -31,8 +29,6 @@ export function projectEnd(over: Partial<End> = {}): End {
     projectName: "Payments",
     teamId: null,
     teamName: null,
-    startDate: null,
-    endDate: null,
     ...over,
   };
 }
@@ -63,8 +59,15 @@ export function unscheduledRow(over: Partial<Row> = {}): Row {
   return dependencyRow({ check: { status: "UNSCHEDULED", shortfallDays: null, slackDays: null, requiredDate: null, actualDate: null }, ...over });
 }
 
-/** A document over the rows given; `totals` default to what the rows add up to (override to model a cut list). */
+/** Each distinct id once (the first name wins), by ascending id, as the server lists them. */
+function once<T extends { id: number }>(items: T[]): T[] {
+  return [...new Map(items.slice().reverse().map((item) => [item.id, item])).values()].sort((a, b) => a.id - b.id);
+}
+
+/** The WIRE document over the (resolved) rows given: the three name lists hold exactly what the rows name; `totals` default to what the rows add up to (override to model a cut list). */
 export function dependencyListView(dependencies: Row[], over: Partial<View> = {}): View {
+  const ends = dependencies.flatMap((row) => [row.predecessor, row.successor]);
+  const milestones = ends.filter((end) => end.kind === "MILESTONE");
   return {
     revision: 1,
     totals: {
@@ -72,7 +75,17 @@ export function dependencyListView(dependencies: Row[], over: Partial<View> = {}
       violated: dependencies.filter((row) => row.check.status === "VIOLATED").length,
       unscheduled: dependencies.filter((row) => row.check.status === "UNSCHEDULED").length,
     },
-    dependencies,
+    projects: once([
+      ...ends.filter((end) => end.kind === "PROJECT").map((end) => ({ id: end.id, name: end.name })),
+      ...milestones.map((end) => ({ id: end.projectId, name: end.projectName })),
+    ]),
+    teams: once(milestones.map((end) => ({ id: end.teamId ?? 0, name: end.teamName ?? "" }))),
+    milestones: once(milestones.map((end) => ({ id: end.id, name: end.name, projectId: end.projectId, teamId: end.teamId ?? 0 }))),
+    dependencies: dependencies.map((row) => ({
+      ...row,
+      predecessor: { kind: row.predecessor.kind, id: row.predecessor.id },
+      successor: { kind: row.successor.kind, id: row.successor.id },
+    })),
     truncated: false,
     ...over,
   };

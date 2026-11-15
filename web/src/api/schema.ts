@@ -1257,10 +1257,13 @@ export interface paths {
          *     envelope), the same for every caller: every ACTIVE dependency whose two ends resolve to a project, in the project view's order
          *     (violated first, the largest shortfall first, then OK, then unscheduled; the successor's name, the predecessor's name
          *     case-insensitively, then id), at most 1000 rows (`truncated` says the list was cut, which drops the kept and unscheduled
-         *     links first; `totals` always count every link). A row is the item `GET /views/project/{id}` answers for the same link without
-         *     `critical` and `can`: the same two ends and the same check, on working days. `totals.violated` is `plan.conflicts` of
-         *     `GET /views/home`. Filtering by status, team or project is the client's. `revision` is the plan revision read before the rows
-         *     (informational: the view offers no write, so there is no `can`).
+         *     links first; `totals` always count every link). A row names its two ends by kind and id (the item `GET /views/project/{id}`
+         *     answers for the same link, without `critical` and `can`, but with the ends' names stated once): the names are in `milestones`
+         *     (a milestone end: name, project, team), `projects` (a project end, and the project of every named milestone) and `teams` (the
+         *     team of every named milestone), which hold exactly what the LISTED rows name, each once, by ascending id - every reference
+         *     resolves, and a row the cut dropped contributes nothing. The check is the project view's, on working days. `totals.violated` is
+         *     `plan.conflicts` of `GET /views/home`. Filtering by status, team or project is the client's. `revision` is the plan revision
+         *     read before the rows (informational: the view offers no write, so there is no `can`).
          */
         get: operations["getDependencyListView"];
         put?: never;
@@ -5747,7 +5750,7 @@ export interface components {
             /** @description The weeks of the team's load that are overloaded or over the WIP limit, oldest first, each the team page's own week (never with `flowCapacity`). While nothing is cut, `overloadedWeeks` is the number of listed weeks with `overloaded` and `wipExceededWeeks` the number with `wipExceeded`; the document lists at most 2,000 weeks in all (`warningWeeksTruncated`), so a later row may list none or only its first weeks. */
             warningWeeks: components["schemas"]["WeekLoad"][];
         };
-        /** @description The Dependencies page's document (1.20.0): every dependency of the plan. Every row is the project view's own item for the link, so the list never disagrees with the page it links to, and `totals.violated` is Home's `plan.conflicts`. */
+        /** @description The Dependencies page's document (1.20.0; the ends' names stated once since 1.21.0): every dependency of the plan. A row names its ends by kind and id and carries the project view's own type, lag and check, so the list never disagrees with the page it links to; `totals.violated` is Home's `plan.conflicts`. `projects`, `teams` and `milestones` hold exactly what the listed rows name. */
         DependencyListView: {
             /**
              * Format: int64
@@ -5755,6 +5758,12 @@ export interface components {
              */
             revision: number;
             totals: components["schemas"]["DependencyListTotals"];
+            /** @description The projects the listed rows name: a project end, and the project of every milestone in `milestones`; each once, by ascending id. */
+            projects: components["schemas"]["DependencyListProject"][];
+            /** @description The teams of the milestones in `milestones`, each once, by ascending id. */
+            teams: components["schemas"]["RoadmapTeam"][];
+            /** @description The milestones the listed rows name as an end, each once, by ascending id. */
+            milestones: components["schemas"]["DependencyListMilestone"][];
             /** @description The dependencies in the project view's order (violated first), at most 1000. */
             dependencies: components["schemas"]["DependencyListRow"][];
             /** @description True when `dependencies` was cut at 1000 rows. */
@@ -5778,12 +5787,34 @@ export interface components {
              */
             unscheduled: number;
         };
-        /** @description One dependency: the project view's item (`ProjectDependency`) without `critical` and `can`. */
+        /** @description A project a listed dependency names (as an end, or as the project of a named milestone). */
+        DependencyListProject: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+        };
+        /** @description A milestone a listed dependency names as an end; its project is in `projects`, its team in `teams`. */
+        DependencyListMilestone: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            /**
+             * Format: int32
+             * @description Its project, in the document's `projects`.
+             */
+            projectId: number;
+            /**
+             * Format: int32
+             * @description Its team, in the document's `teams`.
+             */
+            teamId: number;
+        };
+        /** @description One dependency: the project view's item (`ProjectDependency`) without `critical` and `can`, its two ends by kind and id; the names are in the document's `milestones`, `projects` and `teams`. */
         DependencyListRow: {
             /** Format: int32 */
             id: number;
-            predecessor: components["schemas"]["DependencyEndpoint"];
-            successor: components["schemas"]["DependencyEndpoint"];
+            predecessor: components["schemas"]["EndpointRef"];
+            successor: components["schemas"]["EndpointRef"];
             type: components["schemas"]["DependencyType"];
             /**
              * Format: int32

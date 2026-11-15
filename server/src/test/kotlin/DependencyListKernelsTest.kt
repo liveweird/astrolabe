@@ -22,7 +22,6 @@ import java.time.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -75,7 +74,7 @@ class DependencyListKernelsTest {
     )
 
     private fun view(maxRows: Int = 1_000, revision: Long = 7) =
-        DependencyListKernels.view(revision, checked, milestones, projectNames, spans, maxRows)
+        DependencyListKernels.view(revision, checked, milestones, projectNames, maxRows)
 
     @Test
     fun `the totals count every link once, a violated link inside one project included`() {
@@ -95,51 +94,66 @@ class DependencyListKernelsTest {
         // twice, tied on everything but the id, then "Next" by predecessor name "Alpha" before "Pred"); the unscheduled ones by name.
         assertEquals(listOf(7u, 3u, 2u, 8u, 9u, 4u, 1u, 6u, 5u), rows.map { it.id })
         assertEquals(listOf(10, 10, 5), rows.take(3).map { it.check.shortfallDays })
-        // ONE rule: the project view's comparator over the same links gives the same order.
+        // ONE rule: the project view's comparator over the same links (their ends resolved through the lists) gives the same order.
+        val document = view()
         val asProjectItems = rows.map {
-            ProjectDependency(it.id, it.predecessor, it.successor, it.type, it.lagDays, it.check, false, ProjectDependencyCan(false, false))
+            ProjectDependency(
+                it.id, document.endOf(it.predecessor), document.endOf(it.successor), it.type, it.lagDays, it.check, false,
+                ProjectDependencyCan(false, false),
+            )
         }
         assertEquals(rows.map { it.id }, asProjectItems.shuffled(kotlin.random.Random(3)).sortedWith(DEPENDENCY_ORDER).map { it.id })
     }
 
     @Test
-    fun `a milestone end carries its own project, team and dates, a project end its derived span and no team`() {
-        val byId = view().dependencies.associateBy { it.id }
+    fun `a row names its ends by kind and id, and the lists hold each named milestone with its project and team, once and by id`() {
+        val document = view()
+        val byId = document.dependencies.associateBy { it.id }
         val one = byId.getValue(1u)
-        assertEquals(EndpointKind.MILESTONE, one.predecessor.kind)
-        assertEquals(
-            listOf<Any?>(11u, "Pred", 1u, "Alpha", 5u, "Platform", "2027-03-08", "2027-03-12"),
-            with(one.predecessor) { listOf(id, name, projectId, projectName, teamId, teamName, startDate, endDate) },
-        )
-        assertEquals(
-            listOf<Any?>(21u, "Next", 2u, "Beta", 6u, "Core"),
-            with(one.successor) { listOf(id, name, projectId, projectName, teamId, teamName) },
-        )
+        assertEquals(m(11u), one.predecessor)
+        assertEquals(m(21u), one.successor)
         assertEquals(DependencyType.FS, one.type)
         assertEquals(0, one.lagDays)
         assertEquals(DependencyStatus.OK, one.check.status)
         assertEquals("2027-03-15", one.check.requiredDate)
+        assertEquals(p(1u), byId.getValue(4u).predecessor)
+        assertEquals(p(3u), byId.getValue(6u).predecessor)
 
-        val fromProject = byId.getValue(4u).predecessor
-        assertEquals(EndpointKind.PROJECT, fromProject.kind)
+        // Every end resolves through the lists to what the end used to carry (without dates).
         assertEquals(
-            listOf<Any?>(1u, "Alpha", 1u, "Alpha"),
-            listOf(fromProject.id, fromProject.name, fromProject.projectId, fromProject.projectName),
+            listOf<Any?>(11u, "Pred", 1u, "Alpha", 5u, "Platform"),
+            with(document.endOf(one.predecessor)) { listOf(id, name, projectId, projectName, teamId, teamName) },
         )
-        assertNull(fromProject.teamId)
-        assertNull(fromProject.teamName)
-        assertEquals("2027-03-08" to "2027-03-12", fromProject.startDate to fromProject.endDate, "the derived span of its two milestones")
+        val fromProject = document.endOf(byId.getValue(4u).predecessor)
+        assertEquals(
+            listOf<Any?>(EndpointKind.PROJECT, 1u, "Alpha", 1u, "Alpha", null, null),
+            with(fromProject) { listOf(kind, id, name, projectId, projectName, teamId, teamName) },
+        )
+        assertEquals("Tray", document.endOf(byId.getValue(5u).successor).name)
+        assertEquals(6u, document.endOf(byId.getValue(5u).successor).teamId, "an unscheduled milestone still has its team")
 
-        val empty = byId.getValue(6u)
-        assertEquals(DependencyStatus.UNSCHEDULED, empty.check.status)
-        assertEquals("Gamma", empty.predecessor.name)
-        assertNull(empty.predecessor.startDate, "nothing scheduled: no dates")
-        assertNull(empty.predecessor.endDate)
-        val tray = byId.getValue(5u).successor
-        assertEquals("Tray", tray.name)
-        assertNull(tray.startDate)
-        assertNull(tray.endDate)
-        assertEquals(6u, tray.teamId, "an unscheduled milestone still has its team")
+        // The lists: the milestones named as an end (22 "Tray" and 23 and 24 too), each once, by id; the projects of those and the
+        // project ends; the teams of the milestones.
+        assertEquals(listOf(11u, 12u, 21u, 22u, 23u, 24u), document.milestones.map { it.id })
+        assertEquals(listOf(1u to "Alpha", 2u to "Beta", 3u to "Gamma"), document.projects.map { it.id to it.name })
+        assertEquals(listOf(5u to "Platform", 6u to "Core"), document.teams.map { it.id to it.name })
+        document.assertListsHoldExactlyWhatTheRowsName()
+    }
+
+    @Test
+    fun `a link between two projects names those projects and no milestone, no team`() {
+        val projectsOnly = RoadmapKernels.checkedLinks(
+            listOf(link(1u, p(1u), p(3u))),
+            projectNames.keys.map { PlanProjectFact(it, null, null) },
+            facts,
+            spans,
+            WorkingCalendar.MON_FRI,
+        )
+        val document = DependencyListKernels.view(1, projectsOnly, milestones, projectNames, 1_000)
+        assertEquals(emptyList(), document.milestones)
+        assertEquals(emptyList(), document.teams)
+        assertEquals(listOf(1u to "Alpha", 3u to "Gamma"), document.projects.map { it.id to it.name })
+        document.assertListsHoldExactlyWhatTheRowsName()
     }
 
     @Test
@@ -149,15 +163,23 @@ class DependencyListKernelsTest {
         assertEquals(9, whole.dependencies.size)
         assertEquals(7L, whole.revision)
         val cut = view(maxRows = 3)
+        val cut1 = view(maxRows = 1)
         assertTrue(cut.truncated)
         assertEquals(whole.dependencies.take(3), cut.dependencies)
         assertEquals(whole.totals, cut.totals)
         assertEquals(3, cut.totals.violated)
         assertTrue(cut.dependencies.all { it.check.status == DependencyStatus.VIOLATED }, "a cut that keeps the violated rows")
+        // The lists name only what the KEPT rows name: the first row (link 7, milestone 21 to project 1) and nothing a cut row names.
+        assertEquals(listOf(21u), cut1.milestones.map { it.id })
+        assertEquals(listOf(1u, 2u), cut1.projects.map { it.id })
+        assertEquals(listOf(6u), cut1.teams.map { it.id })
+        cut1.assertListsHoldExactlyWhatTheRowsName()
+        cut.assertListsHoldExactlyWhatTheRowsName()
         assertFalse(view(maxRows = 9).truncated, "exactly the cap is not a cut")
         assertTrue(view(maxRows = 8).truncated)
-        val none = DependencyListKernels.view(1, emptyList(), emptyList(), emptyMap(), emptyMap(), 1_000)
+        val none = DependencyListKernels.view(1, emptyList(), emptyList(), emptyMap(), 1_000)
         assertEquals(emptyList<DependencyListRow>(), none.dependencies)
+        assertTrue(none.projects.isEmpty() && none.teams.isEmpty() && none.milestones.isEmpty(), "no row, no name")
         assertFalse(none.truncated)
         assertEquals(DependencyListTotals(0, 0, 0), none.totals)
     }

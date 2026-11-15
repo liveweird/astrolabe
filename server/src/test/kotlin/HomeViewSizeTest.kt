@@ -261,21 +261,41 @@ class HomeViewSizeTest {
             assertTrue(sampleBytes <= TEAM_LOAD_MAX_BYTES, "the team-load document is $sampleBytes bytes for 15 teams, over the gate")
 
             // The dependency list on the same plan: every link, whoever asks; FIVE statements (revision, calendar, milestones, links,
-            // project names) and a document of about 560 B a row.
+            // project names) and a document of about 360 B a row.
             val dependencies = personless.readDependencies()
             val dependenciesSql = statements("dependencies") { database, _ -> DependencyListViewService(database).view() }
             val listed = dependenciesSql.joinToString("\n")
             assertEquals(DEPENDENCIES_STATEMENTS, dependenciesSql.size, "the dependency list's statements:\n$listed")
             assertTrue(dependencies.p50 <= P50_TRIPWIRE_MS, "dependencies p50 ${dependencies.p50} ms")
             // The gated size is a FIXED document: the uncapped view reduced to the links whose two ends are on the sample's teams (the
-            // endpoint's own document holds every link of the shared database, cut at 1,000).
+            // endpoint's own document holds every link of the shared database, cut at 1,000), with the three name lists reduced to what
+            // those rows name (a test-local reduction; the ends resolve through the lists, so a project end has no team and is left out).
             val allLinks = DependencyListViewService(sharedDatabaseForTests(), maxRows = Int.MAX_VALUE).view()
             val sampleTeams = sample.teamIds.toSet()
-            val sampleLinks = allLinks.dependencies.filter { it.predecessor.teamId in sampleTeams && it.successor.teamId in sampleTeams }
+            val sampleLinks = allLinks.dependencies.filter {
+                allLinks.endOf(it.predecessor).teamId in sampleTeams && allLinks.endOf(it.successor).teamId in sampleTeams
+            }
             assertTrue(sampleLinks.size >= sample.links, "the sample's ${sample.links} links are rows (${sampleLinks.size})")
-            val sampleDocument = allLinks.copy(dependencies = sampleLinks)
-            val sampleLinkBytes = Json.encodeToString(DependencyListView.serializer(), sampleDocument).toByteArray().size
+            val named = sampleLinks.flatMap { listOf(it.predecessor.id, it.successor.id) }.toSet()
+            val sampleMilestones = allLinks.milestones.filter { it.id in named }
+            val sampleDocument = allLinks.copy(
+                projects = allLinks.projects.filter { project -> sampleMilestones.any { it.projectId == project.id } },
+                teams = allLinks.teams.filter { team -> sampleMilestones.any { it.teamId == team.id } },
+                milestones = sampleMilestones,
+                dependencies = sampleLinks,
+            )
+            sampleDocument.assertListsHoldExactlyWhatTheRowsName()
+            val sampleLinkJson = Json.encodeToString(DependencyListView.serializer(), sampleDocument).toByteArray()
+            val sampleLinkBytes = sampleLinkJson.size
+            val sampleLinkGzip = java.io.ByteArrayOutputStream().also { out ->
+                java.util.zip.GZIPOutputStream(out).use { it.write(sampleLinkJson) }
+            }.size()
             ScaleFigures.printBytes("dependencies (sample's ${sampleLinks.size} links, gated) size", sampleLinkBytes)
+            ScaleFigures.printBytes("dependencies (sample's ${sampleLinks.size} links, gated) gzip", sampleLinkGzip)
+            println(
+                "scale-figure\tdependencies names listed for the sample: ${sampleDocument.milestones.size} milestones, " +
+                    "${sampleDocument.projects.size} projects, ${sampleDocument.teams.size} teams",
+            )
             assertTrue(sampleLinkBytes <= DEPENDENCIES_MAX_BYTES, "the dependency list is $sampleLinkBytes bytes, over the gate")
 
             val managerSql = homeStatements("one manager of one team", manager.userId)
@@ -346,8 +366,12 @@ class HomeViewSizeTest {
         const val TEAM_LOAD_PATH = "/api/v1/views/team-load"
         const val DEPENDENCIES_PATH = "/api/v1/views/dependencies"
 
-        /** The dependency list's gate for the sample's links (calculated about 560 B a row, 170 KB for about 300 links): 1.5 times. */
-        const val DEPENDENCIES_MAX_BYTES = 260_000
+        /**
+         * The dependency list's gate for the sample's 300 links: measured 108,305-110,259 B (11,073-11,237 B gzip; 1.21.0, the ends'
+         * names stated once: 455 milestones, 100 projects, 15 teams; calculated about 121 KB, 179 KB before), 1.5 times the figure
+         * rounded up to the next 10,000 B.
+         */
+        const val DEPENDENCIES_MAX_BYTES = 170_000
 
         /** The dependency list's statements: revision, calendar, milestones with teams, links, active projects' names. */
         const val DEPENDENCIES_STATEMENTS = 5

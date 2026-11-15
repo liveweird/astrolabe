@@ -1,4 +1,4 @@
-import type { DependencyListRow } from "../api/dependencyList";
+import type { DependencyListRow } from "./dependencyListRows";
 import { idOf } from "./deviationFilters";
 
 /** Which dependencies the page lists by their check: the ones that do not hold, the ones that hold, the ones with an unscheduled end. Unset = every one. */

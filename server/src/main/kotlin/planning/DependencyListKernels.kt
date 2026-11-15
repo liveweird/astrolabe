@@ -2,8 +2,9 @@ package ch.nokillswit.planning
 
 /**
  * The dependency list view as pure functions (no I/O, no clock; the [TeamLoadKernels] idiom). Nothing is invented here: the checks
- * are [RoadmapKernels.checkedLinks]'s, each end is built from plain facts exactly as the project view's resolved end
- * ([resolveEndpoints]) reads, and [totals] is the ONE expression behind both this view's `totals` and Home's `plan.conflicts`.
+ * are [RoadmapKernels.checkedLinks]'s, the names are the same facts the project view's resolved end ([resolveEndpoints]) reads
+ * (stated once in the document's lists), and [totals] is the ONE expression behind both this view's `totals` and Home's
+ * `plan.conflicts`.
  */
 object DependencyListKernels {
     /**
@@ -19,62 +20,45 @@ object DependencyListKernels {
     /**
      * The document over [checked] (every link whose two ends resolve): rows in [dependencyOrder] (violated first, the largest shortfall
      * first, then OK, then unscheduled; successor name, predecessor name, id), cut at [maxRows] ([DependencyListView.truncated] says
-     * it was; the cut drops the kept and unscheduled links first). An end is a milestone from [milestones] (its own name, team and
-     * dates, its project's name from [projectNames]) or a project (its name, its DERIVED span from [spans], no team).
-     * [DependencyListTotals] count every link, whatever [maxRows] cuts. Every referenced milestone and project must be present (the
-     * checked links resolved them).
+     * it was; the cut drops the kept and unscheduled links first). A row names its ends by [EndpointRef]; the names are looked up from
+     * [milestones] (a milestone's own name and team) and [projectNames] (a project end, or a milestone's project) for the ORDER, and
+     * the three lists hold exactly what the rows KEPT by the cut name, each once, by ascending id. [DependencyListTotals] count every
+     * link, whatever [maxRows] cuts. Every referenced milestone and project must be present (the checked links resolved them).
      */
     internal fun view(
         revision: Long,
         checked: Collection<CheckedLink>,
         milestones: Collection<MilestoneFactRow>,
         projectNames: Map<UInt, String>,
-        spans: Map<UInt, DaySpan>,
         maxRows: Int,
     ): DependencyListView {
         val milestoneById = milestones.associateBy { it.fact.id }
-        fun end(ref: EndpointRef): DependencyEndpoint = when (ref.kind) {
-            EndpointKind.MILESTONE -> {
-                val row = milestoneById.getValue(ref.id)
-                val span = row.fact.span
-                DependencyEndpoint(
-                    kind = EndpointKind.MILESTONE,
-                    id = ref.id,
-                    name = row.name,
-                    projectId = row.fact.projectId,
-                    projectName = projectNames.getValue(row.fact.projectId),
-                    teamId = row.fact.teamId,
-                    teamName = row.teamName,
-                    startDate = span?.start?.toString(),
-                    endDate = span?.end?.toString(),
-                )
-            }
-            EndpointKind.PROJECT -> {
-                val name = projectNames.getValue(ref.id)
-                val span = spans[ref.id]
-                DependencyEndpoint(
-                    kind = EndpointKind.PROJECT,
-                    id = ref.id,
-                    name = name,
-                    projectId = ref.id,
-                    projectName = name,
-                    teamId = null,
-                    teamName = null,
-                    startDate = span?.start?.toString(),
-                    endDate = span?.end?.toString(),
-                )
-            }
+        fun nameOf(ref: EndpointRef): String = when (ref.kind) {
+            EndpointKind.MILESTONE -> milestoneById.getValue(ref.id).name
+            EndpointKind.PROJECT -> projectNames.getValue(ref.id)
         }
-        val rows = checked.map { c ->
-            DependencyListRow(
-                id = c.link.id,
-                predecessor = end(c.link.predecessor),
-                successor = end(c.link.successor),
-                type = c.link.type,
-                lagDays = c.link.lagDays,
-                check = c.check,
-            )
-        }.sortedWith(dependencyOrder({ it.check }, { it.successor.name }, { it.predecessor.name }, { it.id }))
-        return DependencyListView(revision, totals(checked), rows.take(maxRows), truncated = rows.size > maxRows)
+        val order = dependencyOrder<CheckedLink>(
+            { it.check }, { nameOf(it.link.successor) }, { nameOf(it.link.predecessor) }, { it.link.id },
+        )
+        val ordered = checked.sortedWith(order)
+        val kept = ordered.take(maxRows)
+        val rows = kept.map { c ->
+            DependencyListRow(c.link.id, c.link.predecessor, c.link.successor, c.link.type, c.link.lagDays, c.check)
+        }
+        val ends = rows.flatMap { listOf(it.predecessor, it.successor) }
+        val namedMilestones = ends.filter { it.kind == EndpointKind.MILESTONE }.map { it.id }.distinct().sorted()
+            .map { milestoneById.getValue(it) }
+        val projectIds = (ends.filter { it.kind == EndpointKind.PROJECT }.map { it.id } + namedMilestones.map { it.fact.projectId })
+            .distinct().sorted()
+        val teamNames = namedMilestones.associate { it.fact.teamId to it.teamName }
+        return DependencyListView(
+            revision = revision,
+            totals = totals(checked),
+            projects = projectIds.map { DependencyListProject(it, projectNames.getValue(it)) },
+            teams = teamNames.toSortedMap().map { (id, name) -> RoadmapTeam(id, name) },
+            milestones = namedMilestones.map { DependencyListMilestone(it.fact.id, it.name, it.fact.projectId, it.fact.teamId) },
+            dependencies = rows,
+            truncated = ordered.size > maxRows,
+        )
     }
 }

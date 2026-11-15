@@ -7,6 +7,7 @@ import {
   isTimeoutError,
   jsonRequest,
   shouldRetryQuery,
+  MalformedAnswerError,
   safeJson,
   timeoutSignal,
   voidRequest,
@@ -108,6 +109,10 @@ describe("ApiError and helpers", () => {
     expect(new ApiError(409, { type: "urn:astrolabe:problem:x", status: 409 }).type).toBe("urn:astrolabe:problem:x");
     expect(new ApiError(409, { type: 7 }).type).toBeUndefined();
     expect(new ApiError(500, null).type).toBeUndefined();
+  });
+
+  test("shouldRetryQuery never retries a malformed answer", () => {
+    expect(shouldRetryQuery(0, new MalformedAnswerError("x"))).toBe(false);
   });
 
   test("shouldRetryQuery never retries a 4xx and caps transient retries at two", () => {
