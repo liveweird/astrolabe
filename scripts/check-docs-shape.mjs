@@ -51,7 +51,6 @@ const NOT_YET = [
   ".claude/docs/list-endpoints.md",
   ".claude/docs/observability.md",
   ".claude/docs/planning-model.md",
-  ".claude/docs/test-fixtures.md",
   ".claude/docs/testing.md",
   ".claude/docs/web-internals.md",
   "CLAUDE.md",
