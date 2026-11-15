@@ -185,6 +185,48 @@ describe("JiraImportModal: honest rows", () => {
     expect(within(select).getByRole("option", { name: "Remote Team" })).toBeInTheDocument();
   });
 
+  /** Answers the select's teams read (pages of 100 by name) with `answer(page)`; every other read goes on to the harness. */
+  function stubTeamPages(answer: (page: number) => Promise<Response>) {
+    const harness = api.mock.getMockImplementation()!;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        const params = url.startsWith("/api/v1/teams?") ? new URLSearchParams(url.split("?")[1]) : null;
+        return params?.get("pageSize") === "100" ? answer(Number(params.get("page"))) : harness(url, init);
+      }),
+    );
+  }
+  const teamOf = (id: number, name: string) => ({ id, name, description: null, managerPersonId: null, managerName: null, createdAt: 1, updatedAt: 2 });
+
+  test("a milestone row's Team select offers a team that is only on the second page of teams, and picking it sends its id", async () => {
+    const user = userEvent.setup();
+    const first = Array.from({ length: 100 }, (_, i) => teamOf(1000 + i, `Filler ${String(i).padStart(3, "0")}`));
+    stubTeamPages((page) =>
+      Promise.resolve(jsonResponse(200, { items: page === 1 ? first : [teamOf(101, "Zed Team")], page, pageSize: 100, total: 101 })),
+    );
+    open();
+    await previewScope(user);
+    const select = within(rowOf("IMP-4")).getByRole("combobox", { name: "Team for IMP-4" });
+    await waitFor(() => expect(within(select).getByRole("option", { name: "Zed Team" })).toBeInTheDocument());
+    expect(within(select).getByRole("option", { name: "Filler 099" })).toBeInTheDocument();
+    await user.selectOptions(select, "101");
+    await user.click(importButton());
+    await screen.findByRole("heading", { level: 3, name: "Import finished" });
+    const items = (api.applies()[0] as { items: { jiraId: string; expected: { teamId?: number }; overrides?: unknown }[] }).items;
+    const row = items.find((item) => item.jiraId === "95004")!;
+    expect(row.overrides).toEqual({ teamId: 101 });
+    expect(row.expected.teamId).toBe(5);
+  });
+
+  test("while the teams have not answered the row shows no Team select", async () => {
+    const user = userEvent.setup();
+    stubTeamPages(() => new Promise<Response>(() => {}));
+    open();
+    await previewScope(user);
+    expect(within(rowOf("IMP-4")).queryByRole("combobox", { name: "Team for IMP-4" })).not.toBeInTheDocument();
+    expect(within(rowOf("IMP-4")).getByRole("checkbox", { name: "Import IMP-4" })).toBeInTheDocument();
+  });
+
   test("the type and the plan level share a cell, the new parent reads first, and there is no Level column", async () => {
     const user = userEvent.setup();
     open();

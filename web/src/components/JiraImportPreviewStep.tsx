@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button, Checkbox, Group, Loader, Stack, Table, Text, Title } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
-import { listTeams } from "../api/teams";
 import type { JiraImportMatch } from "../api/jira";
 import type { PreviewState } from "../hooks/useJiraImport";
 import { useImportMatches } from "../hooks/useImportMatches";
+import { useTeamOptions } from "../hooks/useTeamOptions";
 import {
   allSelectable,
   blockingParent,
@@ -80,8 +79,9 @@ export default function JiraImportPreviewStep({
   const [query, setQuery] = useState("");
   // Suggested matches (1.15): a click records a change and nothing else; Import waits until the preview is read again with it.
   const matches = useImportMatches(scope, items, onPreviewAgain);
-  const teams = useQuery({ queryKey: ["teams", "picker", "import"], queryFn: () => listTeams({ page: 1, pageSize: 100, sort: "name" }) });
-  const teamOptions: TeamOption[] | null = teams.data ? teams.data.items.map((team) => ({ value: String(team.id), label: team.name })) : null;
+  // EVERY team (1.22), not the first page: null until the read has answered, so no row shows a select built from data that has not arrived.
+  const { teams, settled } = useTeamOptions();
+  const teamOptions: TeamOption[] | null = settled ? teams.map((team) => ({ value: String(team.id), label: team.name })) : null;
   // Orange only when a skip needs a look: rows that are simply already linked are fine.
   const notable = items.some((item) => item.action === "SKIP" && item.reason !== "ALREADY_BOUND");
   const rights = unscheduledForRights(items, ticks, scope.copyDates);
