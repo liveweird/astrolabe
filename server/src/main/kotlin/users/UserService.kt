@@ -1,12 +1,10 @@
 package ch.nokillswit.users
 
 import ch.nokillswit.infra.db.containsNormalized
-import ch.nokillswit.infra.db.lockActiveForWrite
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.applyPaging
 import ch.nokillswit.infra.validation.canonicalEmail
 import io.ktor.util.AttributeKey
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import ch.nokillswit.infra.db.SoftDeletable
 import ch.nokillswit.infra.db.active
@@ -117,7 +115,7 @@ class UserService(private val database: R2dbcDatabase) {
             .singleOrNull()
             ?.let {
                 val id = it[Users.id].value
-                it.toUser(featuresOf(id), permissionsOf(id), linkedPersonIds(listOf(id))[id])
+                it.toUser(UserGrants.featuresOf(id), UserGrants.permissionsOf(id), linkedPersonIds(listOf(id))[id])
             }
     }
 
@@ -128,7 +126,10 @@ class UserService(private val database: R2dbcDatabase) {
             .where { (Users.email eq canonicalEmail(email)) and Users.active() }
             .toList()
             .singleOrNull()
-            ?.let { it[Users.id].value to it.toUser(featuresOf(it[Users.id].value), permissionsOf(it[Users.id].value)) }
+            ?.let {
+                val id = it[Users.id].value
+                id to it.toUser(UserGrants.featuresOf(id), UserGrants.permissionsOf(id))
+            }
     }
 
     // The plaintext rules (min length, bcrypt byte ceiling) are route-side by necessity:
@@ -158,8 +159,8 @@ class UserService(private val database: R2dbcDatabase) {
                 .toList()
             // One batch query for the page's disabled sets — not a per-row lookup.
             val ids = rows.map { it[Users.id].value }
-            val featuresByUser = disabledFeaturesByUserIds(ids)
-            val permissionsByUser = permissionsByUserIds(ids)
+            val featuresByUser = UserGrants.disabledFeaturesByUserIds(ids)
+            val permissionsByUser = UserGrants.permissionsByUserIds(ids)
             val personByUser = linkedPersonIds(ids)
             val items = rows.map { row ->
                 val id = row[Users.id].value
@@ -171,58 +172,27 @@ class UserService(private val database: R2dbcDatabase) {
 
     /**
      * Wholesale-replace the user's disabled-feature set (V5). Returns 1, or 0 when the id is
-     * unknown or soft-deleted (the route 404s). Idempotent — a same-set re-PUT is a no-op
-     * replace, not a transition.
+     * unknown or soft-deleted (the route 404s). Idempotent. The work is [UserGrants.replaceDisabledFeatures].
      */
     suspend fun setDisabledFeatures(id: UInt, features: Set<Feature>): Int = suspendTransaction(database) {
-        val exists = Users.select(Users.id)
-            .where { (Users.id eq id) and Users.active() }
-            .toList()
-            .isNotEmpty()
-        if (!exists) return@suspendTransaction 0
-        UserDisabledFeatures.deleteWhere { UserDisabledFeatures.userId eq id }
-        features.forEach { f ->
-            UserDisabledFeatures.insert {
-                it[userId] = id
-                it[feature] = f.name
-            }
-        }
-        1
+        UserGrants.replaceDisabledFeatures(id, features)
     }
 
     /**
-     * Whether [userId] holds [permission] (V11), read from the database on every call — the per-request check
-     * behind `requireRoadmapEditorOrAdmin`; never cached and never a JWT claim, so a grant or revoke applies on
-     * the very next request. A soft-deleted user's login is already a 401 at the access check, and their rows
-     * stay inert, so no `active()` join is needed here.
+     * Whether [userId] holds [permission] (V11): ONE uncached read per call, the per-request check behind
+     * `requireRoadmapEditorOrAdmin` (see [UserGrants.hasPermission]).
      */
     suspend fun hasPermission(userId: UInt, permission: Permission): Boolean = suspendTransaction(database) {
-        UserPermissions.select(UserPermissions.userId)
-            .where { (UserPermissions.userId eq userId) and (UserPermissions.permission eq permission.name) }
-            .limit(1)
-            .toList()
-            .isNotEmpty()
+        UserGrants.hasPermission(userId, permission)
     }
 
     /**
      * Wholesale-replace the user's granted-permission set (V11) and return the set it replaced, or null when the id is
-     * unknown or soft-deleted (the route 404s). Idempotent — a same-set re-PUT rewrites the same rows. The user row is
-     * locked `FOR NO KEY UPDATE` for the replace so two concurrent PUTs serialize instead of racing on the primary key,
-     * and the returned previous set is exact for the audit event.
+     * unknown or soft-deleted (the route 404s); the user row is locked `FOR NO KEY UPDATE` for the replace
+     * (see [UserGrants.replacePermissions]).
      */
     suspend fun replacePermissions(id: UInt, permissions: Set<Permission>): Set<Permission>? =
-        suspendTransaction(database) {
-            if (!Users.lockActiveForWrite(id)) return@suspendTransaction null
-            val previous = permissionsOf(id)
-            UserPermissions.deleteWhere { UserPermissions.userId eq id }
-            permissions.forEach { p ->
-                UserPermissions.insert {
-                    it[userId] = id
-                    it[permission] = p.name
-                }
-            }
-            previous
-        }
+        suspendTransaction(database) { UserGrants.replacePermissions(id, permissions) }
 
     /** Outcome of a last-admin-guarded mutation (see [updateGuarded]/[deleteGuarded]). */
     enum class GuardedMutation { DONE, NOT_FOUND, LAST_ADMIN }
@@ -230,63 +200,25 @@ class UserService(private val database: R2dbcDatabase) {
     /**
      * Updates the identity fields + role inside ONE transaction with the last-admin check —
      * password and passwordChangedAt stay untouched. The check and the mutation share the
-     * transaction (admin rows locked via [lockedActiveAdminCount]), so two concurrent demotes
-     * cannot both observe "two admins left" and demote both — the read-then-count-then-update
-     * split across separate transactions was a TOCTOU.
+     * transaction (admin rows locked, see [UserAdminGuard]), so two concurrent demotes
+     * cannot both observe "two admins left".
      */
     suspend fun updateGuarded(id: UInt, name: String, email: String, role: UserRole): GuardedMutation =
-        suspendTransaction(database) {
-            validateNameAndEmail(name, email) // re-checked service-side so direct callers stay guarded
-            val existingRole = activeRole(id) ?: return@suspendTransaction GuardedMutation.NOT_FOUND
-            if (existingRole == UserRole.ADMIN && role != UserRole.ADMIN && lockedActiveAdminCount() <= 1) {
-                return@suspendTransaction GuardedMutation.LAST_ADMIN
-            }
-            val rows = Users.update({ (Users.id eq id) and Users.active() }) {
-                it[Users.name] = name
-                // Canonical identity, folded here too (defense-in-depth like findWithIdByEmail).
-                it[Users.email] = canonicalEmail(email)
-                it[Users.role] = role.name
-            }
-            if (rows == 0) GuardedMutation.NOT_FOUND else GuardedMutation.DONE
-        }
+        suspendTransaction(database) { UserAdminGuard.update(id, name, email, role) }
 
     /**
      * Soft delete with the last-admin check in the SAME transaction (see [updateGuarded]):
      * blocks login, refresh rejects `user_gone`, the V1 partial index frees the email.
      */
     suspend fun deleteGuarded(id: UInt): GuardedMutation = suspendTransaction(database) {
-        val existingRole = activeRole(id) ?: return@suspendTransaction GuardedMutation.NOT_FOUND
-        if (existingRole == UserRole.ADMIN && lockedActiveAdminCount() <= 1) {
-            return@suspendTransaction GuardedMutation.LAST_ADMIN
-        }
-        val rows = Users.update({ (Users.id eq id) and Users.active() }) {
-            it[markedAsDeleted] = true
-        }
-        if (rows == 0) GuardedMutation.NOT_FOUND else GuardedMutation.DONE
+        UserAdminGuard.delete(id)
     }
 
     /** Backs the routes' fast-path 409 pre-checks (the ordering gate; correctness lives in
      *  the guarded mutations above). */
     suspend fun countActiveAdmins(): Long = suspendTransaction(database) {
-        Users.selectAll().where { (Users.role eq UserRole.ADMIN.name) and Users.active() }.count()
+        UserAdminGuard.countActiveAdmins()
     }
-
-    private suspend fun activeRole(id: UInt): UserRole? =
-        Users.select(Users.role)
-            .where { (Users.id eq id) and Users.active() }
-            .toList()
-            .singleOrNull()
-            ?.let { UserRole.valueOf(it[Users.role]) }
-
-    // FOR UPDATE on the active-admin rows serializes concurrent admin mutations: the second
-    // transaction blocks on the first's locks and re-evaluates the predicate after its commit,
-    // so a demoted/deleted row no longer counts. Admins are few — counting in memory is fine.
-    private suspend fun lockedActiveAdminCount(): Int =
-        Users.selectAll()
-            .where { (Users.role eq UserRole.ADMIN.name) and Users.active() }
-            .forUpdate()
-            .toList()
-            .size
 
     private fun buildPredicate(filter: UserListFilter): Op<Boolean> {
         var op: Op<Boolean> = Op.TRUE
@@ -321,34 +253,6 @@ class UserService(private val database: R2dbcDatabase) {
     suspend fun countActiveWithPasswordHash(hash: String): Long = suspendTransaction(database) {
         Users.selectAll().where { (Users.passwordHash eq hash) and Users.active() }.count()
     }
-
-    private suspend fun featuresOf(id: UInt): Set<Feature> =
-        UserDisabledFeatures.selectAll()
-            .where { UserDisabledFeatures.userId eq id }
-            .map { Feature.valueOf(it[UserDisabledFeatures.feature]) }
-            .toList()
-            .toSet()
-
-    private suspend fun disabledFeaturesByUserIds(ids: List<UInt>): Map<UInt, List<Feature>> =
-        if (ids.isEmpty()) emptyMap()
-        else UserDisabledFeatures.selectAll()
-            .where { UserDisabledFeatures.userId inList ids }
-            .toList()
-            .groupBy({ it[UserDisabledFeatures.userId].value }, { Feature.valueOf(it[UserDisabledFeatures.feature]) })
-
-    private suspend fun permissionsOf(id: UInt): Set<Permission> =
-        UserPermissions.selectAll()
-            .where { UserPermissions.userId eq id }
-            .map { Permission.valueOf(it[UserPermissions.permission]) }
-            .toList()
-            .toSet()
-
-    private suspend fun permissionsByUserIds(ids: List<UInt>): Map<UInt, List<Permission>> =
-        if (ids.isEmpty()) emptyMap()
-        else UserPermissions.selectAll()
-            .where { UserPermissions.userId inList ids }
-            .toList()
-            .groupBy({ it[UserPermissions.userId].value }, { Permission.valueOf(it[UserPermissions.permission]) })
 
     private fun ResultRow.toUser(
         disabledFeatures: Set<Feature> = emptySet(),

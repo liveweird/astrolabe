@@ -1,8 +1,6 @@
 package ch.nokillswit.users
 
 import ch.nokillswit.audit.audit
-import ch.nokillswit.auth.MAX_PASSWORD_BYTES
-import ch.nokillswit.auth.exceedsBcryptLimit
 import ch.nokillswit.auth.hashPassword
 import ch.nokillswit.auth.verifyPassword
 import ch.nokillswit.authz.ConflictException
@@ -46,17 +44,6 @@ import kotlinx.serialization.Serializable
 
 /** Minimum accepted password length for create and change. */
 const val MIN_PASSWORD_LENGTH = 10
-
-/** Shared password rule for create and change: the minimum plus bcrypt's byte ceiling. */
-internal fun validatePassword(password: String) {
-    if (password.length < MIN_PASSWORD_LENGTH) {
-        throw BadRequestException("Password must be at least $MIN_PASSWORD_LENGTH characters")
-    }
-    // Longer input would make bcrypt throw (a 500) — see MAX_PASSWORD_BYTES in auth/Passwords.kt.
-    if (exceedsBcryptLimit(password)) {
-        throw BadRequestException("Password must be at most $MAX_PASSWORD_BYTES bytes in UTF-8")
-    }
-}
 
 /** Audit format for a roles/features/permissions set: comma-joined sorted names, "" = empty set. */
 private fun <T : Enum<T>> Set<T>.joinedNames(): String = map { it.name }.sorted().joinToString(",")

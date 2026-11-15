@@ -569,7 +569,7 @@ and speaks raw HTTP; what it pins is marked *tested*, the rest was read from the
 
 Convention (API-SEC-003/API-ERR-005). Mutating routes validate payloads up-front and throw `BadRequestException` (-> `400` +
 `ProblemDetail`) instead of letting oversized/blank values die in the DB as `500`s. One cross-cutting example: password >=
-`MIN_PASSWORD_LENGTH` (10) chars AND <= 71 UTF-8 bytes (`validatePassword` in `users/UserRoutes.kt` + `MAX_PASSWORD_BYTES` in
+`MIN_PASSWORD_LENGTH` (10) chars AND <= 71 UTF-8 bytes (`validatePassword` in `users/Validation.kt` + `MAX_PASSWORD_BYTES` in
 `auth/Passwords.kt` - **the bcrypt ceiling**: longer input makes bcrypt throw, and the 500-vs-401 split would be an
 account-enumeration oracle, so login's `verifyPassword` guards it too). Declare limits as `maxLength` in the OpenAPI spec. Keep new
 validators feature-local and enforce them **after** the authz guard (403 wins over 400). Covered by `PayloadValidationTest`.

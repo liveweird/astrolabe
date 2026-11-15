@@ -1,5 +1,7 @@
 package ch.nokillswit.users
 
+import ch.nokillswit.auth.MAX_PASSWORD_BYTES
+import ch.nokillswit.auth.exceedsBcryptLimit
 import io.ktor.server.plugins.BadRequestException
 
 internal const val MAX_NAME_LENGTH = 50
@@ -29,4 +31,15 @@ internal fun validateNameAndEmail(name: String, email: String) {
         throw BadRequestException("Name must be at most $MAX_NAME_LENGTH characters")
     }
     validateEmail(email)
+}
+
+/** Shared password rule for create, change, reset and bootstrap: the minimum plus bcrypt's byte ceiling. */
+internal fun validatePassword(password: String) {
+    if (password.length < MIN_PASSWORD_LENGTH) {
+        throw BadRequestException("Password must be at least $MIN_PASSWORD_LENGTH characters")
+    }
+    // Longer input would make bcrypt throw (a 500) — see MAX_PASSWORD_BYTES in auth/Passwords.kt.
+    if (exceedsBcryptLimit(password)) {
+        throw BadRequestException("Password must be at most $MAX_PASSWORD_BYTES bytes in UTF-8")
+    }
 }
