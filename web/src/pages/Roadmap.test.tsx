@@ -241,7 +241,7 @@ describe("Roadmap page", () => {
     await screen.findByRole("grid", { name: "Roadmap timeline" });
     expect(document.querySelectorAll("[data-row-handle]")).toHaveLength(4);
     await openMenu(user, "Taxes");
-    for (const name of ["Move up Taxes", "Move down Taxes", "Move to top: Taxes", "Move to bottom: Taxes", "Unrank Taxes", "Open project Taxes"]) {
+    for (const name of ["Move up Taxes", "Move down Taxes", "Move to top: Taxes", "Move to bottom: Taxes", "Unrank Taxes", "Dependencies of Taxes", "Open project Taxes"]) {
       expect(await screen.findByRole("menuitem", { name })).toBeInTheDocument();
     }
     expect(screen.queryByRole("menuitem", { name: /^Rank / })).toBeNull();
@@ -692,6 +692,18 @@ describe("Roadmap page: without rights and the empty states", () => {
     expect(await screen.findByRole("menuitem", { name: "Open project Taxes" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: /Move|Rank/ })).toBeNull();
     expect(screen.getByText(/Everyone can read it/)).toBeInTheDocument();
+  });
+
+  test("a viewer with no right still has the project's Dependencies in the row menu: the text path of the arrows, a real link to the list narrowed to the project", async () => {
+    view = viewOf({ can: { editRank: false } });
+    const user = userEvent.setup();
+    renderWithProviders(<Roadmap />);
+    await screen.findByRole("grid", { name: "Roadmap timeline" });
+    await openMenu(user, "Taxes");
+    const item = await screen.findByRole("menuitem", { name: "Dependencies of Taxes" });
+    expect(item).toHaveAttribute("href", "/dependencies?projectId=2");
+    expect(item).toHaveTextContent("Dependencies");
+    expect(screen.getAllByRole("menuitem").map((entry) => entry.getAttribute("aria-label"))).toContain("Dependencies of Taxes");
   });
 
   test("no projects at all, and a nothing-ranked plan whose divider leads", async () => {

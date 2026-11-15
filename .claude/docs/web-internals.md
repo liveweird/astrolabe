@@ -735,7 +735,7 @@ region, `aria-busy` and a "Saving…" indicator on the grid; every entry point a
 window write sees it). The paths: the **row menu** (the deterministic, keyboard path; after a taken change the page puts focus back on the row's menu button — a
 browser blurs a row moved in the DOM — or, when the virtual path has unmounted the row, `focusRow`s its header; done once at render and again when the menu has
 FINISHED closing, "Roadmap menu focus" below) — ranked rows: Move up / Move down / Move to top / Move to bottom (disabled at the ends of the VISIBLE ranked
-rows) and Unrank, unranked rows: Rank (appended at the END, the v0.2 rule), always Open project — and the **row drag** by the pointer-only handle
+rows) and Unrank, unranked rows: Rank (appended at the END, the v0.2 rule), always Dependencies (1.20: the arrows' text path, a `RouterLink` to `/dependencies?projectId=N` through `dependenciesFilteredPath`, accessible name "Dependencies of {{name}}", offered on EVERY project row to every viewer, also a project without links, since the row's own document cannot tell; `DependenciesItem` in `PlanProjectCells.tsx`) and Open project — and the **row drag** by the pointer-only handle
 (`onReorder(id, slot)` on the page's `TimelineDndContext`, the team page's mechanism): inside the ranked rows it moves the row; **across the divider** a drop
 above it RANKS an unranked row at that slot and a drop below it UNRANKS a ranked row (dropping an unranked row among the unranked changes nothing). A drag
 (including one across the divider) is announced by dnd-kit's region only; every menu change is said by the page ("{{name}} moved to position …", "… ranked at
@@ -832,7 +832,7 @@ the owner dimmed (and "(closed)" for a stream with an end date), a read-only `to
 (`programs.streamBarAria`/`programBarAria`) and the **roll-up counts** of its projects' flags in the Flags cell (the project row's icons: an orange triangle and
 a gray info circle with a visually hidden sentence, `data-flags`); a node with nothing under it (an empty program) shows no chevron. A **project row** is the
 roadmap's row — `projectTrack`: the target-window band, the span bar (with ", N conflicts"), the drift band — with the name as the link into the project (the
-owner dimmed) and a menu that holds the critical-path item (1.16, "Show…"/"Hide critical path", for everyone), "Open project" and, by the project's own `can.editTargetWindow`, the window items. Row ids are `ws:<id>` / `pg:<id>` / the
+owner dimmed) and a menu that holds the critical-path item (1.16, "Show…"/"Hide critical path", for everyone), "Dependencies" (1.20, the roadmap's `DependenciesItem`: the text path of the arrows, a link to the list narrowed to the project), "Open project" and, by the project's own `can.editTargetWindow`, the window items. Row ids are `ws:<id>` / `pg:<id>` / the
 project id; bar ids the same (`ws:`/`pg:` keys, the project id) so the arrows anchor on the project ids as on the roadmap, or, for a project whose row is folded away, on the
 bar of the folded row that stands for it ("Arrows" below).
 
@@ -1353,7 +1353,7 @@ session's roles.
 
 Header: name, description, the manager line, an ADMIN's Edit (`TeamEditorModal` on the view's team block; a save refreshes `["teams"]` and `["plan"]`); **the Flow capacity flag (1.9)** beside the title — `team.flags[]` (the ONE `FLOW_CAPACITY` roll-up of the OPEN rows, so an acknowledged row is not in it) through `PageHeader`'s `titleAddon` slot as a light badge (`TeamPageHeader`'s `TeamFlags`: orange with a triangle for a warning, gray with an info circle for an info; the visible text is `flagSentence`'s "Capacity differs from Flow: N open differences" (open ROWS, not sprints: a gone Flow team is one too), the icon `aria-hidden`, so it is announced once; NO count badge — the roll-up is one flag and the number is in the sentence; nothing for `[]`; the rows themselves are the Flow section's); the
 facts line: "N milestones · M scheduled", ORANGE "N weeks overloaded" and "N weeks over WIP limit" badges (warnings — nothing moves), the RED conflicts badge of
-the project page, a gray "Custom order" badge while the team's own order is in force.
+the project page, a gray "Custom order" badge while the team's own order is in force. **The arrows' text path (1.20, `TeamFacts`):** the red badge is a `BadgeLink` to `/dependencies?status=violated&teamId=N` (accessible name `teams.view.conflictsAria`), and after the badges, only while `view.dependencies` is not empty, a link "N dependencies" (its length, the view's own count) to `/dependencies?teamId=N` (`teams.view.dependenciesAria`); both names start with their visible text, and the paths come from `utils/dependencyListLinks.ts`.
 
 The timeline (`components/TeamTimeline.tsx`, on the shared `Timeline*` with the sticky load `strip`) has one row per SCHEDULED milestone in the server's order —
 **the project rank is only the DEFAULT order; a manager's override is the execution order and is never reshuffled by a rank change** — with the project as a

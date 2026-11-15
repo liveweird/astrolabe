@@ -34,6 +34,8 @@
     "rankAria": "Rank {{name}}",
     "unrank": "Unrank",
     "unrankAria": "Unrank {{name}}",
+    "dependencies": "Dependencies",
+    "dependenciesAria": "Dependencies of {{name}}",
     "openProject": "Open project",
     "openProjectAria": "Open project {{name}}",
     "editWindow": "Edit target window…",

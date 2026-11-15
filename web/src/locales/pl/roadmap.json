@@ -38,6 +38,8 @@
     "rankAria": "Dodaj do rankingu: {{name}}",
     "unrank": "Usuń z rankingu",
     "unrankAria": "Usuń z rankingu: {{name}}",
+    "dependencies": "Zależności",
+    "dependenciesAria": "Zależności projektu {{name}}",
     "openProject": "Otwórz projekt",
     "openProjectAria": "Otwórz projekt {{name}}",
     "editWindow": "Edytuj okno docelowe…",

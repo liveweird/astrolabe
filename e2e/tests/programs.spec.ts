@@ -238,14 +238,15 @@ test("a user without any right reads the tree with read-only bars and a row menu
   await expect(projectRow(page, plan.late)).toBeVisible();
   await expect(nodeRow(page, `Program ${plan.a}`).getByRole("img", { name: `${plan.a}, program span 2026-02-02 to 2026-04-10, read-only` })).toHaveCount(1);
 
-  // Read-only: no row handle, no bar that could be picked up (the project's own span and its window are images), two items in the row menu (open the project, show its critical path).
+  // Read-only: no row handle, no bar that could be picked up (the project's own span and its window are images), three items in the row menu (open the project, its dependencies, show its critical path).
   await expect(page.locator("[data-row-handle]")).toHaveCount(0);
   await expect(projectRow(page, plan.late).getByRole("img", { name: `${plan.late}, target window 2026-03-02 to 2026-03-31, read-only` })).toHaveCount(1);
   await expect(grid(page).getByRole("button", { name: new RegExp(`^${plan.late}, `) })).toHaveCount(0);
   await page.getByRole("button", { name: `Operations for ${plan.late}`, exact: true }).click();
   await expect(page.getByRole("menuitem", { name: `Open project ${plan.late}`, exact: true })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: `Show critical path to this project: ${plan.late}`, exact: true })).toBeVisible();
-  await expect(page.getByRole("menuitem")).toHaveCount(2);
+  await expect(page.getByRole("menuitem", { name: `Dependencies of ${plan.late}`, exact: true })).toBeVisible();
+  await expect(page.getByRole("menuitem")).toHaveCount(3);
   await page.keyboard.press("Escape");
 
   await signOut(page);

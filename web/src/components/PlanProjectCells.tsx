@@ -1,8 +1,9 @@
 import { Anchor, Badge, Group, Menu, VisuallyHidden } from "@mantine/core";
-import { IconAlertTriangle, IconCalendarEvent, IconCalendarOff, IconExternalLink, IconInfoCircle, IconRoute } from "@tabler/icons-react";
+import { IconAlertTriangle, IconCalendarEvent, IconCalendarOff, IconExternalLink, IconInfoCircle, IconLink, IconRoute } from "@tabler/icons-react";
 import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { RoadmapProject } from "../api/roadmap";
+import { dependenciesFilteredPath } from "../utils/dependencyListLinks";
 import { projectPath } from "../utils/planLinks";
 import type { FlagCounts } from "../utils/roadmapRows";
 import type { RovingTarget } from "../utils/timelineModel";
@@ -74,6 +75,19 @@ export function TargetWindowItems({ project, actions }: { project: RoadmapProjec
       )}
       <Menu.Divider />
     </>
+  );
+}
+
+/**
+ * The menu item that opens the Dependencies list narrowed to this project - the text path of the arrows the row's bars draw (they are decoration), offered
+ * on every project row to every viewer: the row's own document cannot tell whether the project has a link, so the list answers "none" when it has none.
+ */
+export function DependenciesItem({ project }: { project: Pick<RoadmapProject, "id" | "name"> }) {
+  const { t } = useTranslation();
+  return (
+    <Menu.Item component={RouterLink} to={dependenciesFilteredPath({ projectId: project.id })} leftSection={<IconLink size={14} />} aria-label={t("roadmap.action.dependenciesAria", { name: project.name })}>
+      {t("roadmap.action.dependencies")}
+    </Menu.Item>
   );
 }
 

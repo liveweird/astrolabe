@@ -61,7 +61,7 @@
    - *Expected*: there is no row handle; `late`'s target window is an image named "<late>, target window 2026-03-02 to 2026-03-31, read-only"
      and no bar of the page is a button.
 3. They open **Operations for <late>**.
-   - *Expected*: the menu offers exactly two items, **Open project <late>** and **Show critical path to this project: <late>** (1.16).
+   - *Expected*: the menu offers exactly three items, in this order: **Show critical path to this project: <late>** (1.16), **Dependencies of <late>** (1.20) and **Open project <late>**.
 4. The user signs out; the admin signs back in and deletes the user.
 
 ## Not covered here (and why)

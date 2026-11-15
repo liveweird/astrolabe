@@ -12,7 +12,7 @@ import { conflictsByProject, countFlags, displayRows, DIVIDER_ID, type DisplayRo
 import type { RovingTarget, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
 import { PLAN_ZOOMS, type TimelineScale, type Zoom } from "../utils/timelineScale";
 import { BaselineRowName } from "./BaselineParts";
-import { CriticalPathItem, FlagCountsCell, OpenProjectItem, ProjectLink, TargetWindowItems, type WindowActions } from "./PlanProjectCells";
+import { CriticalPathItem, DependenciesItem, FlagCountsCell, OpenProjectItem, ProjectLink, TargetWindowItems, type WindowActions } from "./PlanProjectCells";
 import MoveItems from "./MoveItems";
 import RowActionsMenu from "./RowActionsMenu";
 import Timeline, { type TimelineHandle } from "./Timeline";
@@ -113,6 +113,7 @@ function ProjectMenu({
       )}
       <CriticalPathItem project={project} target={actions.critical.target} disabled={actions.critical.disabled} onToggle={() => actions.critical.toggle(project)} />
       <TargetWindowItems project={project} actions={actions.window} />
+      <DependenciesItem project={project} />
       <OpenProjectItem project={project} />
     </RowActionsMenu>
   );

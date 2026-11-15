@@ -416,6 +416,32 @@ describe("Team view page", () => {
     await waitFor(() => expect(viewGets(mockFetch)).toBeGreaterThan(before));
   });
 
+  test("the facts line is the arrows' text path: the red badge links to the team's violated dependencies, \"N dependencies\" to all of them, each name containing its text", async () => {
+    renderPage();
+    await screen.findByRole("grid", { name: "Team milestone timeline" });
+    const facts = screen.getByRole("group", { name: "Team facts" });
+    const conflicts = within(facts).getByRole("link", { name: "1 conflict: the violated dependencies of this team" });
+    expect(conflicts).toHaveAttribute("href", "/dependencies?status=violated&teamId=1");
+    expect(conflicts).toHaveTextContent("1 conflict");
+    const all = within(facts).getByRole("link", { name: "1 dependency: the dependencies of this team's milestones" });
+    expect(all).toHaveAttribute("href", "/dependencies?teamId=1");
+    expect(all).toHaveTextContent("1 dependency");
+  });
+
+  test("the facts line counts the view's own dependencies", async () => {
+    view = viewOf({ dependencies: [LINK, { ...LINK, id: LINK.id + 1 }] });
+    renderPage();
+    await screen.findByRole("grid", { name: "Team milestone timeline" });
+    expect(within(screen.getByRole("group", { name: "Team facts" })).getByRole("link", { name: /^2 dependencies:/ })).toHaveAttribute("href", "/dependencies?teamId=1");
+  });
+
+  test("a team with no dependency has neither the count link nor the conflicts link in its facts line", async () => {
+    view = viewOf({ dependencies: [] });
+    renderPage();
+    await screen.findByRole("grid", { name: "Team milestone timeline" });
+    expect(within(screen.getByRole("group", { name: "Team facts" })).queryByRole("link")).toBeNull();
+  });
+
   test("a team without a manager says so, and an empty team says it has no milestones (the capacity and weekly sections remain)", async () => {
     view = viewOf({ team: { ...viewOf().team, managerPersonId: null, managerName: null }, scheduled: [], unscheduled: [], weeks: [], dependencies: [] });
     renderPage();

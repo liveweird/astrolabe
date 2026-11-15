@@ -197,7 +197,7 @@ describe("Programs page", () => {
     expect(liveText()).toContain("Every work stream and program collapsed");
   });
 
-  test("a project row is the roadmap's: the window band, the span bar, the drift band, the flag icons, a menu with only Open project and the critical-path item (no window items), nothing editable without the right", async () => {
+  test("a project row is the roadmap's: the window band, the span bar, the drift band, the flag icons, a menu with only Open project, Dependencies and the critical-path item (no window items), nothing editable without the right", async () => {
     // A viewer who may change no window (the view's per-project `can`): the band is an image, there is no draw surface and the menu only opens the project or shows its critical path.
     view = viewOf({
       workStreams: [PLATFORM, ARCHIVE].map((stream) => ({
@@ -223,7 +223,9 @@ describe("Programs page", () => {
     expect(within(within(grid()).getByRole("link", { name: "Open Drafts" }).closest('[role="row"]') as HTMLElement).queryByRole("img")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Operations for Invoices" }));
     expect(await screen.findByRole("menuitem", { name: "Open project Invoices" })).toBeInTheDocument();
-    expect(screen.getAllByRole("menuitem").map((item) => item.getAttribute("aria-label"))).toEqual(["Show critical path to this project: Invoices", "Open project Invoices"]);
+    expect(screen.getAllByRole("menuitem").map((item) => item.getAttribute("aria-label"))).toEqual(["Show critical path to this project: Invoices", "Dependencies of Invoices", "Open project Invoices"]);
+    // The text path of the arrows: a real link to the Dependencies list narrowed to the project, for a viewer with no right as well.
+    expect(screen.getByRole("menuitem", { name: "Dependencies of Invoices" })).toHaveAttribute("href", "/dependencies?projectId=1");
   });
 
   test("Month / Quarter / Year with Quarter by default, remembered under the plan pages' own zoom key", async () => {
