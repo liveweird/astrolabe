@@ -6,7 +6,7 @@
 // milestones go with it - then program, work stream, team, people, users).
 import { randomUUID } from "node:crypto";
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
-import { apiAsAdmin, deleteViaApi, expect, login, rowOperation, test, uniqueText } from "./helpers";
+import { addDays, apiAsAdmin, deleteViaApi, expect, login, rowOperation, test, uniqueText } from "./helpers";
 
 // Registered in creation order; torn down in reverse (a project before its program before its stream before the team and the people).
 const teardown: string[] = [];
@@ -87,8 +87,6 @@ async function fillDate(dialog: Locator, label: string, value: string): Promise<
   await dialog.getByLabel(label).fill(value);
   await dialog.getByRole("heading").first().click();
 }
-
-const addDays = (iso: string, days: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
 
 // The page's "today" is the viewer's LOCAL calendar day (`localIsoDate` in the SPA), never UTC. The browser's zone is pinned for this file
 // (the config sets none, so it would follow the machine): UTC+14 puts the local date a day ahead of UTC for 14 hours of every day, which

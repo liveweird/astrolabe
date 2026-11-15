@@ -1,6 +1,5 @@
 package ch.nokillswit
 
-import ch.nokillswit.auth.LoginRequest
 import ch.nokillswit.auth.LoginResponse
 import ch.nokillswit.auth.LogoutRequest
 import ch.nokillswit.auth.MAX_GRACE_REUSES
@@ -31,19 +30,13 @@ import kotlin.test.assertTrue
 
 class RefreshTest {
 
-    private suspend fun io.ktor.client.HttpClient.login(email: String, password: String): LoginResponse =
-        post("/api/v1/login") {
-            contentType(ContentType.Application.Json)
-            setBody(LoginRequest(email, password))
-        }.body<LoginResponse>()
-
     @Test
     fun `a valid refresh token yields a fresh pair`() = testApplication {
         usePostgresTestcontainer()
         val email = uniqueEmail("refresh")
         TestUsers.seed(email = email, password = "pw")
         val client = jsonClient()
-        val session = client.login(email, "pw")
+        val session = client.login(email, "pw").body<LoginResponse>()
 
         val response = client.postJson("/api/v1/refresh", RefreshRequest(session.refreshToken))
 
@@ -63,7 +56,7 @@ class RefreshTest {
         val email = uniqueEmail("grace")
         val userId = TestUsers.seed(email = email, password = "pw")
         val client = jsonClient()
-        val session = client.login(email, "pw")
+        val session = client.login(email, "pw").body<LoginResponse>()
 
         val rotated = client.postJson("/api/v1/refresh", RefreshRequest(session.refreshToken))
         assertEquals(HttpStatusCode.OK, rotated.status)
@@ -102,7 +95,7 @@ class RefreshTest {
         val email = uniqueEmail("replay")
         val userId = TestUsers.seed(email = email, password = "pw")
         val client = jsonClient()
-        val session = client.login(email, "pw")
+        val session = client.login(email, "pw").body<LoginResponse>()
 
         val rotated = client.postJson("/api/v1/refresh", RefreshRequest(session.refreshToken))
         assertEquals(HttpStatusCode.OK, rotated.status)
@@ -139,7 +132,7 @@ class RefreshTest {
         val email = uniqueEmail("race")
         TestUsers.seed(email = email, password = "pw")
         val client = jsonClient()
-        val session = client.login(email, "pw")
+        val session = client.login(email, "pw").body<LoginResponse>()
 
         val statuses = coroutineScope {
             (1..8).map {
@@ -159,7 +152,7 @@ class RefreshTest {
         val email = uniqueEmail("race-grace")
         TestUsers.seed(email = email, password = "pw")
         val client = jsonClient()
-        val session = client.login(email, "pw")
+        val session = client.login(email, "pw").body<LoginResponse>()
 
         val responses = coroutineScope {
             (1..8).map {
@@ -205,13 +198,13 @@ class RefreshTest {
             }
 
             // A: the rotation's response is lost, the client signs out with the token it still holds.
-            val a = client.login(email, "pw")
+            val a = client.login(email, "pw").body<LoginResponse>()
             assertEquals(HttpStatusCode.OK, client.postJson("/api/v1/refresh", RefreshRequest(a.refreshToken)).status)
             logout(a.token, a.refreshToken)
             assertReplayRevoked(a.refreshToken)
 
             // B: R1 -> R2, the client signs out with R2; a copy of R1 must not mint.
-            val b = client.login(email, "pw")
+            val b = client.login(email, "pw").body<LoginResponse>()
             val rotated = client.postJson("/api/v1/refresh", RefreshRequest(b.refreshToken)).body<LoginResponse>()
             logout(rotated.token, rotated.refreshToken)
             assertReplayRevoked(b.refreshToken)
@@ -225,9 +218,9 @@ class RefreshTest {
         TestUsers.seed(email = emailA, password = "pw")
         TestUsers.seed(email = emailB, password = "pw")
         val client = jsonClient()
-        val a = client.login(emailA, "pw")
+        val a = client.login(emailA, "pw").body<LoginResponse>()
         val aRotated = client.postJson("/api/v1/refresh", RefreshRequest(a.refreshToken)).body<LoginResponse>()
-        val b = client.login(emailB, "pw")
+        val b = client.login(emailB, "pw").body<LoginResponse>()
 
         // B's access token authenticates the call; the body carries A's live refresh token.
         val logout = client.post("/api/v1/logout") {
@@ -270,7 +263,7 @@ class RefreshTest {
         val email = uniqueEmail("typ")
         TestUsers.seed(email = email, password = "pw")
         val client = jsonClient()
-        val session = client.login(email, "pw")
+        val session = client.login(email, "pw").body<LoginResponse>()
 
         val response = client.postJson("/api/v1/refresh", RefreshRequest(session.token))
         assertEquals(HttpStatusCode.Unauthorized, response.status)
@@ -289,7 +282,7 @@ class RefreshTest {
         val email = uniqueEmail("revoked")
         TestUsers.seed(email = email, password = "pw")
         val client = jsonClient()
-        val session = client.login(email, "pw")
+        val session = client.login(email, "pw").body<LoginResponse>()
 
         val logout = client.post("/api/v1/logout") {
             header(HttpHeaders.Authorization, "Bearer ${session.token}")
@@ -314,7 +307,7 @@ class RefreshTest {
         val email = uniqueEmail("rotated")
         val userId = TestUsers.seed(email = email, password = "pw")
         val client = jsonClient()
-        val session = client.login(email, "pw")
+        val session = client.login(email, "pw").body<LoginResponse>()
 
         val changed = client.put("/api/v1/users/$userId/password") {
             header(HttpHeaders.Authorization, "Bearer ${session.token}")
@@ -330,7 +323,7 @@ class RefreshTest {
         val response = client.postJson("/api/v1/refresh", RefreshRequest(session.refreshToken))
         assertEquals(HttpStatusCode.Unauthorized, response.status)
 
-        val current = client.login(email, "new-password!")
+        val current = client.login(email, "new-password!").body<LoginResponse>()
         assertEquals(
             HttpStatusCode.OK,
             client.postJson("/api/v1/refresh", RefreshRequest(current.refreshToken)).status,
@@ -344,14 +337,14 @@ class RefreshTest {
         val email = uniqueEmail("repeated-rotation")
         val userId = TestUsers.seed(email = email, password = "pw")
         val client = jsonClient()
-        val generation0 = client.login(email, "pw")
+        val generation0 = client.login(email, "pw").body<LoginResponse>()
         val sameInstant = com.auth0.jwt.JWT.decode(generation0.refreshToken).issuedAt.time + 500
         assertEquals(0L, TestUsers.service.read(userId)?.credentialRevision)
 
         TestUsers.service.updatePassword(userId, hashPassword("generation-one", cost = 4))
         TestUsers.stampPasswordChangedAt(userId, sameInstant)
         assertEquals(1L, TestUsers.service.read(userId)?.credentialRevision)
-        val generation1 = client.login(email, "generation-one")
+        val generation1 = client.login(email, "generation-one").body<LoginResponse>()
         TestUsers.service.updatePassword(userId, hashPassword("generation-two", cost = 4))
         TestUsers.stampPasswordChangedAt(userId, sameInstant)
 
@@ -364,7 +357,7 @@ class RefreshTest {
             HttpStatusCode.Unauthorized,
             client.postJson("/api/v1/refresh", RefreshRequest(generation1.refreshToken)).status,
         )
-        val generation2 = client.login(email, "generation-two")
+        val generation2 = client.login(email, "generation-two").body<LoginResponse>()
         assertEquals(
             HttpStatusCode.OK,
             client.postJson("/api/v1/refresh", RefreshRequest(generation2.refreshToken)).status,
@@ -458,7 +451,7 @@ class RefreshTest {
         val email = uniqueEmail("gone")
         val userId = TestUsers.seed(email = email, password = "pw")
         val client = jsonClient()
-        val session = client.login(email, "pw")
+        val session = client.login(email, "pw").body<LoginResponse>()
 
         TestUsers.softDelete(userId)
 

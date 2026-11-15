@@ -10,7 +10,7 @@
 // week three weeks before it and one three weeks after, both Monday to Friday): it can never meet "this week" or expire. It writes no ranking, no
 // holiday and no connection, and needs no lock.
 import type { APIRequestContext } from "@playwright/test";
-import { apiAsAdmin, deleteViaApi, expect, login, openFilters, test, uniqueText } from "./helpers";
+import { addDays, apiAsAdmin, deleteViaApi, expect, login, openFilters, test, uniqueText } from "./helpers";
 
 // Registered in creation order; torn down in reverse (a project before its program before its stream before the team and the person).
 const teardown: string[] = [];
@@ -53,13 +53,6 @@ async function seedOverloadedTeam(capacityFrom: string, weeks: readonly string[]
   } finally {
     await api.dispose();
   }
-}
-
-/** An ISO date plus whole days (UTC, so no zone or daylight-saving shift can move it). */
-function addDays(iso: string, days: number): string {
-  const date = new Date(`${iso}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
 }
 
 /** The Monday of the week that is `weeksFromNow` weeks from the run's UTC date (the server's "this week" is a UTC Monday too). */

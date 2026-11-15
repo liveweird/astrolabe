@@ -1,6 +1,5 @@
 package ch.nokillswit
 
-import ch.nokillswit.auth.LoginRequest
 import ch.nokillswit.auth.LoginResponse
 import ch.nokillswit.auth.MfaChallengeResponse
 import ch.nokillswit.auth.MfaVerifyRequest
@@ -85,9 +84,6 @@ class MfaLoginTest {
     /** Enable MFA for [userId] — an empty disabled set removes the default MFA row. */
     private suspend fun HttpClient.enableMfa(userId: UInt) =
         putJson("/api/v1/users/$userId/features", UserFeaturesUpdateRequest(emptyList()))
-
-    private suspend fun HttpClient.login(email: String, password: String): HttpResponse =
-        postJson("/api/v1/login", LoginRequest(email, password))
 
     private suspend fun HttpClient.verify(challengeId: String, code: String): HttpResponse =
         postJson("/api/v1/login/mfa", MfaVerifyRequest(challengeId, code))

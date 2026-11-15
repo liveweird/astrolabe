@@ -171,6 +171,13 @@ export function uniqueText(prefix: string): string {
   return `${prefix}-${randomUUID().slice(0, 8)}`;
 }
 
+/** An ISO date plus whole days (UTC, so no zone or daylight-saving shift can move it). */
+export function addDays(iso: string, days: number): string {
+  const date = new Date(`${iso}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 /**
  * Ensure a list view's filter panel is expanded. Idempotent on purpose: the open/collapsed
  * state persists per view in localStorage (astrolabe.viewSettings.*), so within one test a
