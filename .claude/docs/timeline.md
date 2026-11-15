@@ -642,6 +642,25 @@ One-off, **NON-BINDING**, this machine only (Apple M5 Max, 2026-11-15, in-proces
 
 - **Team load with `currentWeekStart` (C7).** `GET /views/team-load` gained `"currentWeekStart":"2026-11-09",` (32 B). `HomeViewSizeTest`, the GATED fixed document (the sample's 15 teams, 203 warning weeks listed): **27,928 B** (27,896 B at the low end of 1.21's range, plus exactly the member), gzip **2,557 B** (2,544-2,554 B before), gate left at 42,000 B; the endpoint's own read median **20.8 ms** (max 24.4), **statements: exactly 6** (the clock is no statement). The date-ordered hand-out is one sort of the candidate weeks; the median sits inside 1.21's range (20.6-25.7 ms).
 
+#### Measured figures (1.23)
+
+One-off, **NON-BINDING**, this machine only (Apple M5 Max, 2026-11-15, headless Chromium 1440 x 900 against the production bundle of the throwaway compose stack, master at `a15d4e8`; re-measure rather than quote). The question (1.22 plan §4.3): does the per-row menu of the Dependencies page cost too much at the view's 1,000-row cap? The stop line was 300 ms between a login with a menu on every row and one with none; above it the menu would have become two icon buttons.
+
+**Method (to repeat it).** An untracked Playwright spec, run once through the e2e wrapper and then deleted. The administrator's API context seeded one project with 46 milestones of one team (one Monday-to-Friday week each in 2046) and 1,000 Finish-to-Start links `i → j` over the pairs `i < j`, 8 writes at a time: 1,000 links in 6.4 s (median 55 ms a write, max 185 ms). A second login owns nothing. Before anything was timed, the view was asserted: 1,000 rows, all this spec's own, none cut; every row `can.edit` and `can.delete` for the administrator, none for the other login. For each login: a fresh context, one warm-up load of `/dependencies`, then five timed loads. The figure is taken in the page: from the view request's resource-timing `responseEnd` to the second animation frame after the 1,000th body row is in the DOM (a `MutationObserver` from `addInitScript`). Long tasks come from a `longtask` `PerformanceObserver` from navigation on, so they include the bundle boot that both logins share. For the administrator also: five clicks on the first row's menu button and five on "Edit…", each to the item or dialog visible and to the second frame after it, closed without saving.
+
+| Figure (median of five, range) | Administrator (1,000 menus) | No rights (no menu) |
+|---|---|---|
+| `responseEnd` → second frame after the 1,000th row | **416.5 ms** (411.5-428.8) | **266.3 ms** (258.4-281.9) |
+| `responseEnd` → the 1,000th row in the DOM | 336.3 ms (332.9-346.9) | 205.3 ms (203.6-207.2) |
+| Long-task time of the load (2 tasks; longest) | 404 ms (401-416; 344) | 260 ms (255-267; 204) |
+| DOM nodes | 24,348 | 17,310 |
+| The view document, decoded / on the wire | 270,027 B / 13,881 B | 272,027 B / 13,916 B |
+| Click on the first row's menu → first item visible / painted | 2.7 ms / 28.4 ms (23.5-39.7) | n/a |
+| Click on "Edit…" → dialog visible / painted | 31.5 ms / 50.0 ms (44.8-53.6) | n/a |
+
+- **Verdict: the menu stays.** The menus cost **150 ms** at the cap (416.5 - 266.3), half the 300 ms stop line, and about 7,000 DOM nodes (seven a row). The administrator's median is far under the 1,000 ms line at which virtualising the table would have been put on the backlog. The memoised rows hold: opening a menu or the editor on the full page takes one frame or three, not a re-render of 1,000 rows.
+- **What 1,000 rows cost on their own.** About 205 ms from the response to the rows being in the DOM without any menu. That is the table, not the menu, and it grows linearly with the rows. The view's cap bounds it.
+
 #### Deliberate departures from the bootstrap sketch
 
 A div grid instead of a `<table>` (virtual rows); `top` instead of `translateY` for virtual rows (stacking); the tray's drag is pointer-only with an explicit Schedule button; the row handle is pointer-only like the tray's (the row menu's Move items are the keyboard path); dnd-kit's live region is the single announcer for drags (the page's polite region announces only non-drag changes).
