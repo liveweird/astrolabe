@@ -414,34 +414,7 @@ both registration loops in `plugins/RateLimits.kt` apply (a new bucket inherits 
 
 ### The Jira import bucket
 
-**`jira-import`** (`RateLimits.JIRA_IMPORT`, keyed by the verified user id): ONE bucket for `POST .../connections/{id}/import-preview`
-and the apply. Each call browses the connection's whole scope with the stored token (up to 200 search pages) for any plan-node owner,
-so the shared Jira quota is bounded per account. It runs before the handler and so before the guard: a request that would be 404, 403
-or 400 spends a token, and an over-limit caller gets `429` whatever it would have answered (`JiraImportPreviewErrorsTest`). Audit:
-bucket `jira-import`, `byUserId`.
-
-- **A confirmed suggested match** is one more preview in this same bucket, with the same browse and no new Jira call; `matches` is
-  bounded (2,000 entries, numeric ids, each once), is only ever compared with the kernel's own suggestion and never reaches a query.
-  **The matcher has a work budget** (`ImportNameMatch.MAX_MATCH_WORK`, 5,000,000 row-word-sibling steps summed per sibling scope, a
-  function of the names alone): past it that scope gets NO suggestion, so thousands of unlinked siblings sharing many words with up to
-  2,000 rows cannot make a preview slow (`JiraImportMatchKernelTest`, adversarial vector).
-- **The browse is bounded to 170 s as a whole** (`IMPORT_BROWSE_DEADLINE_MILLIS`, `JiraImportBrowse.kt`; a `502` with code
-  `TIMEOUT`). A call with an active `filter` may add up to 200 by-id reads (`GET /issue/{id}`, `JiraImportParents.kt`; one after the
-  other, one permit at a time) inside the same deadline and permits, the connection's liveness asked before each: about 1,000 by-id
-  reads per account per fixed window behind this bucket (5 calls x 200 reads; a window edge can admit up to 2,000 in one sliding
-  minute).
-- **Concurrency:** each call lasts up to 170 s while the bucket admits 5 per 60 s, so one account can hold 15 browses in flight at
-  once (20 across a window edge). The bucket limits the RATE, not the concurrency; what bounds the load is the transport: every search
-  page takes one of the process's `jira.maxConcurrentRequests` outbound permits (default 2, max 8; the pool the heap-fit check sized
-  the heap on), so concurrent browses queue for permits instead of adding load, and each holds one parsed page at a time. An
-  administrator's Test connection can queue behind them (a preview, unlike the bind, sets no `PermitWait`).
-- **A rooted call (`root`)** shares ONE budget of 200 requests (the root read and every search page of every round,
-  `MAX_SEARCH_PAGES`; one `PageCeiling`): the request past it is `LIMIT_EXCEEDED` (the `502`), so a site that ignored the parent clause
-  is bounded by that budget, the 2,000-row cap and the 170 s deadline together - not by the 200-page ceiling PER query.
-- **A query is never spliced:** a parent id passes `ISSUE_ID_PATTERN` before it joins a path or a query, a query is shaped only by
-  checked `projectKeys` and the bounded filter (`updatedWithinDays` 1..3,650, validated twice), and the token goes nowhere but the
-  client's `Authorization` header (`JiraImportBrowseTest`, `JiraImportPreviewTest` assert it absent from URL, response and logs). The
-  rooted-call arithmetic and what a fetched document must match are in `jira-sync.md`.
+**`jira-import`** (`RateLimits.JIRA_IMPORT`, per verified user id): ONE bucket of 5 calls a minute for `POST .../connections/{id}/import-preview` and the apply, ahead of the guard (a request that would be `404`, `403` or `400` spends a token; over the limit is `429` whatever it would have answered). Its bounds (the 170 s browse, the by-id reads, concurrency and permits, the rooted budget, the query rules) are `jira-sync.md` "Import".
 
 ## Email MFA
 

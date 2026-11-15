@@ -44,7 +44,6 @@ const ENFORCE_REFS = false;
 const NOT_YET = [
   ".claude/docs/build-times.md",
   ".claude/docs/flow-sync.md",
-  ".claude/docs/jira-sync.md",
 ];
 
 // ---- What is read ------------------------------------------------------------------------------------------------------
