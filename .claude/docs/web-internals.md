@@ -29,20 +29,20 @@ section of the page you touch before changing it, and put a new page's mechanics
 - [Baselines](#baselines)
 - [Schedule proposals](#schedule-proposals)
 - [Deviations, bindings and the Jira chips](#deviations-bindings-and-the-jira-chips)
-- [Teams and the team page](#teams-and-the-team-page-pagesteamstsx-pagesteamdetailstsx-v050)
-- [People](#people-pagespeopletsx-pagespersondetailstsx)
-- [Public holidays](#public-holidays-pagespublicholidaystsx-v070)
-- [Users, feature flags and permissions](#users-feature-flags-and-permissions-pagesuserscreateuseredituserchangepasswordfeatureflagsuserfeaturesuserpermissionstsx)
-- [Jira connections](#jira-connections-pagesjiraconnectionstsx-pagesjiraconnectiondetailstsx-v110)
-- [Flow connections](#flow-connections-pagesflowconnectionstsx-pagesflowconnectiondetailstsx-v150)
-- [Changelog and app versioning](#changelog-and-app-versioning-pageschangelogtsx-srcchangelog)
-- [The telemetry panel](#the-telemetry-panel-componentstelemetrytsx)
+- [Teams and the team page](#teams-and-the-team-page)
+- [People](#people)
+- [Public holidays](#public-holidays)
+- [Users, feature flags and permissions](#users-feature-flags-and-permissions)
+- [Jira connections](#jira-connections)
+- [Flow connections](#flow-connections)
+- [Changelog and app versioning](#changelog-and-app-versioning)
+- [The telemetry panel](#the-telemetry-panel)
 
 **Cross-cutting reference**
 
-- [Internationalization](#internationalization-i18n)
-- [Theming](#theming-tokens-tuple-overlays-logo)
-- [Not yet ported](#not-yet-ported-port-dont-reinvent)
+- [Internationalization](#internationalization)
+- [Theming](#theming)
+- [Not yet ported](#not-yet-ported)
 - [Storage keys, Web Locks and shared reference](#storage-keys-web-locks-and-shared-reference)
 
 ## The shell and page chrome
@@ -245,6 +245,8 @@ The rules are in `web/CLAUDE.md` "Error handling"; the wiring:
 
 - **Boundaries** (`components/ErrorBoundary.tsx`): `RouteErrorBoundary` wraps the `<Outlet />` inside `AppShell.Main` (the header and nav survive; it is keyed by
   `location.pathname`, so navigating anywhere recovers). The plain `ErrorBoundary` in `main.tsx` is the last resort and only catches crashes of the shell itself.
+  The one deliberate third mount is the telemetry panel's: `App.tsx` wraps the right-hand `AppShell.Aside` in its own `ErrorBoundary` with `fallback={<TelemetryPanelCrash onClose={closePanel} />}`, outside every route boundary.
+  The panel's open flag (`astrolabe.viewSettings.telemetry.panelOpen`) survives a reload, so a render crash inside it would come back on every load with no way to switch it off; "Close panel" clears the flag (the account menu opens it again).
 - **Chunk-load recovery**: `main.tsx` listens for `vite:preloadError` (a redeploy 404s the old hashed chunks) and reloads once a minute at most, keyed in
   sessionStorage by `astrolabe.chunkReloadedAt`.
 - **Query retry policy**: the `QueryClient` in `main.tsx` uses `shouldRetryQuery` (`api/http.ts`); the rule is in `web/CLAUDE.md`. The database time-out is the
@@ -1916,664 +1918,652 @@ Pinned by: `Deviations.test.tsx` (also "Capacity from Flow"), `Deviations.ack.te
 - Technique: tests build connections with `connectionIn(shape)` (`test/deviations.ts`: every member of `enabled`/`lastRun`/`status` agrees, as the server derives it), never by overriding
   `lastRun` alone.
 
----
+## Teams and the team page
 
-*The sections above are restructured. Everything from "Teams and the team page" to the end keeps its old shape, with its tags and history, until the step that finishes this document (the 1.24.0 docs restructuring, D25); that step removes this line.*
+`/teams` is the flat teams registry (the Registries template of `web/CLAUDE.md`: reads for everyone, create/edit/delete ADMIN). Its name link opens `/teams/:id`, the team view (lazy; `TeamDetails` is
+`<TeamPage key={id}>`).
 
-## Teams and the team page (`pages/Teams.tsx`, `pages/TeamDetails.tsx`, v0.5.0)
+Files: `api/teams.ts` (`listCapacityPeriods` is deliberately NOT wrapped: the view carries the periods); `hooks/useScheduleWritePath.ts` (the project view's write path, generic over the view document:
+`{queryKey, queryFn, apply, enabled, writeKey}`) with its wrappers `useMilestoneSchedule.ts` and `useTeamSchedule.ts`, `useTeamOrder.ts`, `useRefusal.ts`, `useScheduleProposal.ts`,
+`useScheduleCheck.ts`, `useProposalLock.ts`; `utils/teamOrderList.ts` (`fullOrderList`, `placeScheduled`: the order PUT's FULL list, `planning-model.md` "The team milestone order"),
+`teamViewUpdate.ts`, `pinUpdate.ts`, `roadmapOrder.ts`, `scheduleProposal.ts`; `components/TeamTimeline.tsx` (rows, arrows, the strip; `TeamTray`), `TeamTimelineMenu.tsx`, `TeamTimelineRows.tsx`,
+`TeamPageHeader.tsx`, `TeamFacts.tsx`, `TeamCapacity.tsx`, `TeamWeeklyLoad.tsx`, `TeamProposal.tsx`, `ProposalTable.tsx`.
 
-`/teams` is the flat teams registry (the `Teams.tsx` template of `web/CLAUDE.md`; reads for everyone, create/edit/delete ADMIN). The Teams list's name link opens `/teams/:id`, the team view (lazy).
+### Route and data
 
-Files: `api/teams.ts` (`getTeamView`, `createCapacityPeriod`, `updateCapacityPeriod`, `deleteCapacityPeriod`, `putTeamOrder` and the types `TeamView`,
-`TeamMilestone`, `WeekLoad`, `CapacityPeriod`; `listCapacityPeriods` is deliberately NOT wrapped — the view carries the periods),
-`hooks/useScheduleWritePath.ts` (the project view's write path, generic over the view document: `{queryKey, queryFn, apply, enabled, writeKey}`),
-`hooks/useMilestoneSchedule.ts` and `hooks/useTeamSchedule.ts` (its two wrappers; `ProjectView.tsx` and its test are untouched by the generalisation),
-`hooks/useTeamOrder.ts`, `utils/teamOrderList.ts` (`fullOrderList`, `placeScheduled`: the order PUT's FULL list — the stored `order.milestoneIds` with the
-scheduled permutation filled around the unscheduled listed ids, `planning-model.md` "The team milestone order"), `utils/teamViewUpdate.ts` (`applyTeamSchedule`,
-`applyTeamOrder` — both pure, incl. the server's default order for the reset), `utils/dependencyArrows.ts` (the view-independent halves of
-`projectDependencies.ts`: `arrowSpecsFor`, `conflictsByBarFor`, `conflictCountOf`), `utils/roadmapOrder.ts` `moveToEdge`/`moveToSlot`, `utils/capacityForm.ts`,
-`components/TeamTimeline.tsx` (rows, arrows, the strip; `TeamTray`) with its row menus in `TeamTimelineMenu.tsx`, `TeamCapacity.tsx`, `CapacityPeriodModal.tsx`, `TeamWeeklyLoad.tsx`.
-`TeamDetails` is `<TeamPage key={id}>`.
+`/teams/:id` renders `GET /views/team/{id}` under `["plan","team",id]` (`teamViewKey`), under the `["plan"]` prefix like the project view, so every plan mutation, a schedule write and a capacity write
+refresh a mounted page. The team editor's save refreshes `["teams"]` and `["plan"]`. **Everything is gated by the view's `team.can:{schedule, editCapacity, editOrder}`** (the team's manager or an
+ADMIN), never the session's roles.
 
-`/teams/:id` (the Teams list's name link; any signed-in user reads it) renders `GET /views/team/{id}` under `["plan","team",id]` — under the `["plan"]` prefix
-like the project view. **Everything is gated by the view's `team.can:{schedule, editCapacity, editOrder}`** (the team's manager or an ADMIN), never the
-session's roles.
+- **Header.** Name, description, the manager line, an ADMIN's Edit (`TeamEditorModal` on the view's team block). The Flow capacity flag sits beside the title: `team.flags[]` (the ONE `FLOW_CAPACITY`
+  roll-up of the OPEN rows, so an acknowledged row is not in it) goes through `PageHeader`'s `titleAddon` as a light badge (`TeamFlags`: orange with a triangle for a warning, gray with an info circle
+  for an info). The text is `flagSentence`'s "Capacity differs from Flow: N open differences" (open ROWS, not sprints: a gone Flow team is one too); the icon is `aria-hidden`, so it is announced once;
+  no count badge, nothing for `[]`.
+- **Facts line** (`TeamFacts`). "N milestones · M scheduled", ORANGE "N weeks overloaded" and "N weeks over WIP limit" badges (warnings: nothing moves), the RED conflicts badge of the project page, a
+  gray "N idle gaps" badge (absent at zero) and a gray "Custom order" badge while the team's own order is in force. The red badge is a `BadgeLink` to `/dependencies?status=violated&teamId=N`
+  (accessible name `teams.view.conflictsAria`); after the badges, only while `view.dependencies` is not empty, a link "N dependencies" (its length) to `/dependencies?teamId=N`
+  (`teams.view.dependenciesAria`). Both names start with their visible text; the paths come from `utils/dependencyListLinks.ts`.
+- **The timeline** (`TeamTimeline`, on the shared `Timeline*` with the sticky load `strip`) has one row per SCHEDULED milestone in the server's order: **the project rank is only the DEFAULT order; a
+  manager's override is the execution order and is never reshuffled by a rank change.** A row has the project as a link, the estimate and the row menu. Arrows are drawn only between this timeline's
+  rows (no ghost rows, no Dependencies table; a bar's name gains ", N conflicts"); the Unscheduled tray is the project page's.
+- **Two revisions, never crossed.** The view's `revision` is the PLAN revision: the schedule PUT's `expectedRevision`, adopted from the PUT's answer. `order.revision` is the TEAM's order revision: the
+  order PUT's `expectedRevision`, set ONLY from the order PUT's answer (`TeamOrderResponse.revision`, the plan revision the write left behind). The roadmap's revision is a third thing the page never
+  touches.
+- **Messages shared with the project page:** the busy / milestone-gone / stale / schedule-error / announce sentences are the project page's own keys (`project.busy`, `project.milestoneGone`,
+  `project.stale`, `project.scheduleForbidden`, `project.announce.*`): the same refusal says the same words on both pages.
+- **The strip's data.** `view.weeks` is handed to `TimelineLoadStrip` as it is: the API's `WeekLoad` is structurally the strip's local `LoadWeek` (`flowCapacity?` is optional on both; `stripCells`
+  normalises an absent member to `null`). The weekly table formats with two decimals (what the server flags on); the strip trims zeros.
 
-Header: name, description, the manager line, an ADMIN's Edit (`TeamEditorModal` on the view's team block; a save refreshes `["teams"]` and `["plan"]`); **the Flow capacity flag (1.9)** beside the title — `team.flags[]` (the ONE `FLOW_CAPACITY` roll-up of the OPEN rows, so an acknowledged row is not in it) through `PageHeader`'s `titleAddon` slot as a light badge (`TeamPageHeader`'s `TeamFlags`: orange with a triangle for a warning, gray with an info circle for an info; the visible text is `flagSentence`'s "Capacity differs from Flow: N open differences" (open ROWS, not sprints: a gone Flow team is one too), the icon `aria-hidden`, so it is announced once; NO count badge — the roll-up is one flag and the number is in the sentence; nothing for `[]`; the rows themselves are the Flow section's); the
-facts line: "N milestones · M scheduled", ORANGE "N weeks overloaded" and "N weeks over WIP limit" badges (warnings — nothing moves), the RED conflicts badge of
-the project page, a gray "Custom order" badge while the team's own order is in force. **The arrows' text path (1.20, `TeamFacts`):** the red badge is a `BadgeLink` to `/dependencies?status=violated&teamId=N` (accessible name `teams.view.conflictsAria`), and after the badges, only while `view.dependencies` is not empty, a link "N dependencies" (its length, the view's own count) to `/dependencies?teamId=N` (`teams.view.dependenciesAria`); both names start with their visible text, and the paths come from `utils/dependencyListLinks.ts`.
+### Critical path and the pin
 
-The timeline (`components/TeamTimeline.tsx`, on the shared `Timeline*` with the sticky load `strip`) has one row per SCHEDULED milestone in the server's order —
-**the project rank is only the DEFAULT order; a manager's override is the execution order and is never reshuffled by a rank change** — with the project as a
-link, the estimate and the row menu; arrows are drawn only between this timeline's rows (no ghost rows, no Dependencies table; a bar's name gains ", N
-conflicts"); the Unscheduled tray is the project page's.
+- **Critical path.** The page holds the project page's `useCriticalPathPick()` (the same remembered `timeline.criticalPath`; `<CriticalPathToggle>` in the timeline's `toolbar` after the baseline
+  picker) and passes `criticalPath` to `TeamTimeline`; the Slack column, the critical emphasis and `markCriticalArrows` are `timeline.md` "The critical-path highlight". A dimmed
+  `teams.view.criticalNote` under the timeline title says the figures are toward each milestone's OWN project's end and a link is marked only on the chain of a project the team works on. Read, never
+  recomputed; off, the DOM is the one it was.
+- **The pin.** `PUT /milestones/{id}/pin {pinned}` (`api/milestones.ts` `pinMilestone`, answers `{revision}`; no `expectedRevision`: an idempotent flag) is a SECOND write of `useScheduleWritePath`
+  (`pin(id, pinned)`, so both timeline pages have it). It is its own mutation on the SAME write key (`teamWriteKey`; the project page's `["plan","project-write",id]`), so a drag, a pin and an order
+  save see each other in flight and a change made meanwhile is refused out loud like any other (`refused`, `project.busy`).
+  - The step is optimistic (`applyPin`, pure, generic over both views); success stores the answered plan revision into the entry the pin was made on (only) and refreshes `["plan"]`; a failure rolls
+    back and awaits the refetch.
+  - The quiet confirmation is the live region ("{{name}} pinned" / "unpinned", `project.announce.pinned|unpinned`); there is NO toast (a pin is a state, not an event).
+  - A 403 reads the schedule's forbidden sentence, a 404 the gone one, and the one 409 (`milestone-unscheduled`: it lost its dates meanwhile) `project.pinUnscheduled`, inline through the page's
+    `error`; a taken schedule change and a taken pin each clear the other's old failure.
+  - The server clears the pin on an unschedule, so `applySchedule` / `applyTeamSchedule` set `pinned` false on a null pair (a reschedule keeps it).
+  - The row menu (`TeamTimelineMenu.tsx`) offers Pin / Unpin dates for a SCHEDULED row under `team.can.schedule`, hidden while a proposal previews or requests (`lock.guarded`) and never on a tray row;
+    the pinned row shows `PinMark` after its name and ", pinned" in its bar's name. A baseline's appended rows and the Jira bars are untouched.
+  - **In the proposal**, the Proposed schedule `Summary` appends "N pinned" to the figures line and, when `proposal.pinned` is not empty, a dimmed sentence "N milestones keep their dates because they
+    are pinned" (`teams.proposal.summary.pinnedCount|pinned`; `pinned` lists the dated milestones the proposal keeps ONLY because of the pin). A pin flipped after a proposal was read turns its accept
+    into the `stale-scope` re-proposal that keeps the ticks.
 
-**Critical path (1.7).** The team page holds the project page's `useCriticalPathPick()` (the same remembered `timeline.criticalPath`; `<CriticalPathToggle>` in the
-timeline's `toolbar` after the baseline picker) and passes `criticalPath` to `TeamTimeline`: a **Slack** column (`SlackCell`, after Flags, before Operations; a
-critical row "0" + the hidden "critical path", else "N working days") from the view's `slackDays`/`critical`, `emphasis: "critical"` and ", on the critical path" on a
-critical bar, `markCriticalArrows(specs, view.dependencies)` (`utils/dependencyArrows.ts`, shared with `arrowSpecs`) for the critical links, and a dimmed
-`teams.view.criticalNote` under the timeline title saying the figures are toward each milestone's OWN project's end and a link is marked only on the chain of
-a project the team works on. Read, never recomputed; off, the DOM is the one it was (pinned, `TeamTimeline.test.tsx`).
+### Writes: one at a time, and the team's order
 
-**The pin (1.7).** `PUT /milestones/{id}/pin {pinned}` (`api/milestones.ts` `pinMilestone`, answers `{revision}`; no `expectedRevision`: an idempotent flag) is a SECOND write of `useScheduleWritePath`
-(`pin(id, pinned)`, so both timeline pages have it): its own mutation on the SAME write key (`teamWriteKey`; the project page's `["plan","project-write",id]`), so a drag, a pin and an order save see each other in
-flight and a change made meanwhile is refused out loud like any other (`refused`, `project.busy`). The step is optimistic (`utils/pinUpdate.ts` `applyPin`, pure, generic over both views), success stores the
-answered plan revision into the entry the pin was made on (only) and refreshes `["plan"]` (the views carry `pinned`), a failure rolls back and awaits the refetch; the quiet confirmation is the live region ("{{name}} pinned" /
-"unpinned", `project.announce.pinned|unpinned`) and there is NO toast (a pin is a state, not an event). A 403 reads the schedule's forbidden sentence, a 404 the gone one, and the one 409
-(`milestone-unscheduled`: it lost its dates meanwhile) `project.pinUnscheduled`, inline through the page's `error`; a taken schedule change and a taken pin each clear the other's old failure.
-The server clears the pin on an unschedule, so `applySchedule` / `applyTeamSchedule` set `pinned` false on a null pair (a reschedule keeps it). The row menu (`TeamTimelineMenu.tsx`) offers Pin / Unpin dates
-for a SCHEDULED row under `team.can.schedule` (the schedule PUT's rule), hidden while a proposal previews or requests (`lock.guarded`) and never on a tray row; the pinned row shows `PinMark` after its name
-and ", pinned" in its bar's name (as on the project page); a baseline's appended rows and the Jira bars are untouched. **In the proposal**, the Proposed schedule `Summary` appends "N pinned" to the figures
-line and, when `proposal.pinned` is not empty, a dimmed sentence "N milestones keep their dates because they are pinned" (`teams.proposal.summary.pinnedCount|pinned`; `pinned` lists the dated milestones the
-proposal keeps ONLY because of the pin). A pin flipped after a proposal was read turns its accept into the `stale-scope` re-proposal that keeps the ticks. Tests: `TeamDetails.pin.test.tsx`,
-`TeamTimelineMenu.test.tsx`, `TeamProposal.test.tsx`, `pinUpdate.test.ts`, `teamViewUpdate.test.ts`.
+- **One write at a time.** The schedule mutation and the order mutation carry the same `mutationKey` (`teamWriteKey(id)`); each hook treats `useIsMutating(key) > 0` as "busy" and refuses a change OUT
+  LOUD: `commit` answers `false`, the hook sets its `refused` flag (the page's `role="note"` shows when either hook's is set) and announces `project.busy` in the live region (`onSchedule` answers
+  `false` for a drop; a Move or Reset is refused the same way, and the Reset confirm dialog stays open and says so inside, since a modal's content is all a screen reader reads). `refused` is cleared
+  by `hooks/useRefusal.ts` the moment NO write is in flight any more, whichever write was the busy one. Two optimistic writes on one cached view would roll each other back. The page's `busy`
+  (aria-busy, "Saving…") is either.
+- **Order failures.** A stale 409 and a 400 (a listed milestone was deleted or moved to another team meanwhile: removals do not bump the team's order revision) are both "the list changed": rollback,
+  awaited refetch, the visible `role="note"` "The team's order changed in the meantime" and the same sentence in the live region (announced from `onError`, so a screen-reader user hears the list jump
+  back). 403 reads `teams.view.orderForbidden`; anything else the generic action-failed sentence.
+- **Optimistic order.** Every reorder goes through the hook's one seam `placed(id, permutation)` (a permutation of the displayed scheduled ids; the Move items and the row drop): `placeScheduled` turns
+  it into the full list (unscheduled listed milestones keep their index), `commit` sends it. `applyTeamOrder(view, ids)` (ids = the full list) shows the listed scheduled rows in that order and the
+  unlisted after them in the default order (rank position, project name, project id, start, end, name, id: the server's order without the custom positions); `order.milestoneIds` = the list (ids the
+  view does not hold dropped), `order.custom = ids.length > 0`, so the empty list (Reset) shows the default order at once. `applyTeamSchedule` appends a newly scheduled row (the refetch places it),
+  keeps a rescheduled row where it is and returns an unscheduled row to the tray in the default order.
+- **Order commands.** The order is the wholesale `PUT /teams/{id}/milestone-order` against `view.order.revision`. The row menu's Move up / Move down / Move to top / Move to bottom (`can.editOrder`,
+  disabled at the ends) and the "Reset order" button (confirms with "Reset", then sends the empty list = the project rank again) are announced in the page's one polite live region; a refused Reset
+  keeps its confirm dialog open and says so inside.
+- **Menu focus.** Rows are keyed by milestone id, so a Move keeps the row's DOM node and Mantine's menu returns focus to its (still mounted) kebab; the roving grid's focus handler re-adopts it as the
+  tab stop at its new row.
+- **Row drag.** A manager (`can.editOrder`) also drags a row by its pointer-only handle (`TimelineRowHandle`, the first thing in the name cell). `TimelineDndContext` takes an optional
+  `onReorder(id, slot) → boolean` (`onSchedule`'s twin: `false` = refused, announced as "not changed"); the page passes `order.dropAt(id, slot)` =
+  `placed(id, moveToSlot(scheduledIds, id, slot), false)`, so a drop is the SAME `commit` as a menu Move (the optimistic `applyTeamOrder`, the PUT against `order.revision`, the stale/400 rollback).
+  - `false` as `placed`'s third argument means no page announcement: dnd-kit's region is the drag's single announcer, so the polite region does not repeat the menu's "moved to position". The menu
+    stays the keyboard path.
+  - `moveToSlot` (`utils/roadmapOrder.ts`) removes the id and re-inserts it at `slot − 1` when the gap lies below it, else at `slot`; a slot of `from` or `from + 1` is the identity: the context
+    proposes those too and `placed` answers `true` WITHOUT a PUT when the permutation equals the displayed order, so the page, not a pick-up snapshot, judges a no-op.
+  - `TimelineDndContext` keeps the picked-up `DragData` in a ref because dnd-kit blanks an unmounted active node's data (a virtualised row scrolled out mid-drag). Mechanics and the slot arithmetic:
+    `timeline.md` "Row drag".
 
-- **Query keys.** The view is `["plan","team",id]` (`teamViewKey`), under the `["plan"]` prefix like the project view, so every plan mutation, a schedule write
-  and a capacity write refresh a mounted team page. The team editor's save refreshes `["teams"]` and `["plan"]`.
-- **Two revisions, never crossed.** The view's `revision` is the PLAN revision: the schedule PUT's `expectedRevision`, adopted from the PUT's answer.
-  `order.revision` is the TEAM's order revision: the order PUT's `expectedRevision`, set ONLY from the order PUT's answer (`TeamOrderResponse.revision`, the
-  plan revision the write left behind). The roadmap's revision is a third thing the page never touches.
-- **One write at a time.** The schedule mutation and the order mutation carry the same `mutationKey` (`teamWriteKey(id)`); each hook treats
-  `useIsMutating(key) > 0` as "busy" and refuses a change OUT LOUD: `commit` answers `false`, the hook sets its `refused` flag (the page's visible `role="note"`
-  shows when either hook's is set) and announces `project.busy` in the live region (`onSchedule` answers `false` for a drop; a Move or Reset is refused the same
-  way, and the Reset confirm dialog stays open and says so inside, since a modal's content is all a screen reader reads). `refused` is cleared by
-  `hooks/useRefusal.ts` the moment NO write is in flight any more, whichever write was the busy one (a drop refused during an order save does not leave its note
-  up after that save). Two optimistic writes on one cached view would roll each other back. The page's `busy` (aria-busy, the "Saving…" indicator) is either.
-- **Order failures.** A stale 409 and a 400 (a listed milestone was deleted or moved to another team meanwhile — removals do not bump the team's order revision)
-  are both "the list changed": rollback, awaited refetch, the visible `role="note"` "The team's order changed in the meantime" and the same sentence in the live
-  region (announced from `onError`, so a screen-reader user hears the list jump back). 403 reads `teams.view.orderForbidden`; anything else the generic
-  action-failed sentence.
-- **Optimistic order.** Every reorder goes through the hook's one seam `placed(id, permutation)` (a permutation of the displayed scheduled ids; the Move items
-  and a future row drag): `placeScheduled` turns it into the full list (unscheduled listed milestones keep their index), `commit` sends it.
-  `applyTeamOrder(view, ids)` (ids = the full list): the listed scheduled rows in that order, the unlisted after them in the default order (rank position,
-  project name, project id, start, end, name, id — the server's `effectiveOrder` without the custom positions), `order.milestoneIds` = the list (ids the view
-  does not hold dropped), `order.custom = ids.length > 0`; the empty list (Reset) therefore shows the default order at once. `applyTeamSchedule` appends a newly
-  scheduled row (the refetch places it), keeps a rescheduled row where it is and returns an unscheduled row to the tray in the default order.
-- **Menu focus.** Rows are keyed by milestone id, so a Move keeps the row's DOM node and Mantine's menu returns focus to its (still mounted) kebab; the roving
-  grid's focus handler re-adopts it as the tab stop at its new row. `TeamDetails.test.tsx` pins "the menu button keeps focus" through a real Move.
-- **Row drag (C5b).** `TimelineDndContext` takes an optional `onReorder(id, slot) → boolean` (`onSchedule`'s twin: `false` = refused, announced as "not
-  changed"); the page passes `order.dropAt(id, slot)` = `placed(id, moveToSlot(scheduledIds, id, slot), false)` (`false` = no page announcement: dnd-kit's
-  region is the drag's single announcer) (`moveToSlot` in `utils/roadmapOrder.ts`: remove the id, re-insert at `slot − 1` when the gap lies below it, else at
-  `slot`; a slot of `from` or `from + 1` is the identity — the context proposes those too and `placed` answers `true` WITHOUT a PUT when the permutation equals
-  the displayed order, so the page, not a pick-up snapshot, judges a no-op), so a drop is the SAME `commit` as a menu Move: the optimistic `applyTeamOrder`, the
-  PUT against `order.revision`, the stale/400 rollback. The handle (`TimelineRowHandle`) is rendered by `TeamTimeline`'s name cell under `can.editOrder`;
-  `TimelineDndContext` keeps the picked-up `DragData` in a ref because dnd-kit blanks an unmounted active node's data (a virtualised row scrolled out mid-drag).
-  Mechanics and the slot arithmetic: `timeline.md` "Row drag".
-- **Idle gaps (v0.7.0).** Information only — an idle team week is not a warning: the days inside the team's schedule on which none of its milestones is in
-  progress, 3 or more working days at a time (the view's `idleGaps[]`, the server's list), as hatched `idle` bands across every row, a gray "N idle gaps" badge
-  in the facts line (absent at zero) and `components/IdleGaps.tsx` (`scope="team"`) after the weekly load table. In code: `TeamTimeline` passes
-  `bands={idleBands(view.idleGaps, t)}` (no window band on this page), `TeamFacts` adds the gray `timeline.idle.badge` badge before the "Custom order" one (only
-  when non-empty) and `<IdleGaps gaps scope="team" />` follows `TeamWeeklyLoad`. `applyTeamSchedule` and `applyTeamOrder` spread the view, so the cached gaps
-  stay until the refetch (`teamViewUpdate.test.ts`).
-- **Messages shared with the project page.** The busy / milestone-gone / stale / schedule-error / scheduled-unscheduled sentences are the project page's own
-  keys (`project.busy`, `project.milestoneGone`, `project.stale`, `project.scheduleForbidden`, `project.announce.*`): the same refusal says the same words on
-  both pages.
-- **The strip's data.** `view.weeks` is handed to `TimelineLoadStrip` as it is: the API's `WeekLoad` is structurally the strip's local `LoadWeek`, so no mapping
-  layer exists (`flowCapacity?` is optional on both; `stripCells` normalises an absent member to `null`). The weekly table formats with two decimals (what the server flags on); the strip trims zeros.
-- **The Flow capacity marks (1.9, the web half of `timeline.md` "The Flow capacity marker").** `weeks[].flowCapacity` (`WARNING`|`INFO`, only the weeks an OPEN row's held days meet) is read, never recomputed: the strip cell gets `data-flow-capacity` and a top-left mark `data-part="flow-capacity"` (`data-severity`; a SHAPE per severity, never a hue alone — a solid orange triangle for a warning, a hollow gray ring for an info), the cell's `title` gains "; capacity differs from Flow for this week's sprint", and the weekly table's verdict cell gains a badge "Differs from Flow" (orange / gray, `data-flow-badge`; `data-flow-capacity` is the strip cell's alone) BESIDE the week's own verdict (an OK week reads "OK" + "Differs from Flow"); the table's intro names the corner mark. The marks follow the CURRENT plan: a proposal preview's strip draws the proposal's weeks, which carry none, while the header flag and the Weekly load table keep reading `view.weeks`. An acknowledge refreshes `["plan"]` (1.9 C4), so the flag and every mark follow without a reload. Tests: `TeamPageHeader.test.tsx`, `TimelineLoadStrip.test.tsx`, `timelineLoad.test.ts`, `TeamWeeklyLoad.test.tsx`, `TeamDetails.test.tsx`.
+### Idle gaps and the Flow capacity marks
 
-**The deterministic order path** (the Roadmap rule; the write paths are the bullets above): the dates go through `useScheduleWritePath` → `useTeamSchedule`, the
-order is the wholesale `PUT /teams/{id}/milestone-order` against the TEAM's order revision (`view.order.revision`), and every reorder is
-`placed(id, permutation of the displayed scheduled ids)`. The row menu's Move up / Move down / Move to top / Move to bottom (`can.editOrder`, disabled at the
-ends, the menu button keeps focus) and the "Reset order" button (confirms with "Reset", then sends the empty list = the project rank again), announced in the
-page's one polite live region. A refused Reset keeps its confirm dialog open and says so inside.
+- **Idle gaps** are information only (`timeline.md` "Idle bands"): `TeamTimeline` passes `bands={idleBands(view.idleGaps, t)}` (no window band on this page), `TeamFacts` adds the gray
+  `timeline.idle.badge` before the "Custom order" one (only when non-empty) and `<IdleGaps gaps scope="team" />` follows `TeamWeeklyLoad`. The optimistic steps spread the view, so the cached gaps stay
+  until the refetch.
+- **The Flow capacity marks** (the page half of `timeline.md` "The Flow capacity marker", which holds the strip cell's `data-flow-capacity` / `data-part="flow-capacity"` and the shapes).
+  `weeks[].flowCapacity` (`WARNING`|`INFO`, only the weeks an OPEN row's held days meet) is read, never recomputed. The weekly table's verdict cell gains a badge "Differs from Flow" (orange / gray,
+  `data-flow-badge`) BESIDE the week's own verdict (an OK week reads "OK" + "Differs from Flow"); the table's intro names the corner mark. The marks follow the CURRENT plan: a proposal preview's strip
+  draws the proposal's weeks, which carry none, while the header flag and the table keep reading `view.weeks`. An acknowledge refreshes `["plan"]`.
 
-**Capacity** (`components/TeamCapacity.tsx`, `CapacityPeriodModal.tsx`, `utils/capacityForm.ts`): the periods table is where the limits are READ ("—" = no WIP
-limit); Add/Edit/Delete only with `can.editCapacity`; a period takes effect on ANY date (no weekday rule — a weekend date applies from the next working day),
-man-days per week (0 ≤ x < 1,000,000, two decimals) and an optional WIP limit 1..99 (empty sends `null`); a date clash (409) marks the date field. **The weekly
-load table** (`components/TeamWeeklyLoad.tsx`, behind a `TableDisclosure`; its week, load and verdict cells are `components/WeekLoadCells.tsx`, shared with the Team load page) is the accessible surface of the decorative strip: load, capacity ("—" when none),
-peak WIP and the verdict in words (orange "Overloaded · +X MD", orange "Over WIP limit", gray "OK" / "No capacity", plus the 1.9 "Differs from Flow" badge). **Row drag:** a manager (`can.editOrder`)
-also drags a row by its pointer-only handle (`TimelineRowHandle`, the first thing in the name cell) — a drop becomes `onReorder(id, slot)` on the
-`TimelineDndContext` → `order.dropAt` → the same `commit` as the menu, so the save, the rollback and the stale notice are one path; the menu stays the keyboard
-path, and dnd-kit's region announces the drag (the single announcer of a drag: `dropAt` passes through `placed` silently, so the page's polite region does not
-repeat the menu's "moved to position").
-- **Capacity dialog.** `NumberInput`s use `clampBehavior="none"`: Mantine's default clamps `0` to the `min` of 1 on blur, which would silently turn an invalid
-  WIP limit into a valid one; with `none` the typed value reaches the validator and the inline message. No weekday rule anywhere.
+### Capacity
 
-**The baseline overlay (v0.9)** - the picker sits in the timeline's toolbar (after Today), the query key and the three write hooks (`useTeamSchedule`,
-`useTeamOrder`, `useScheduleProposal`) take the pick, a shadow bar follows each row's bar (after a proposal bar when both are on), a milestone the baseline did
-not know reads "(new since the baseline)", and dimmed rows are appended after the scheduled ones for the baseline's milestones that are gone from the team
-("(removed)", "(moved to {team})") or sit in the tray now ("(unscheduled since the baseline)"); the Movement section (`scope="team"`, with a Project column)
-follows Idle gaps. Tests: `TeamDetails.baseline.test.tsx`, `TeamTimeline.test.tsx`.
+`components/TeamCapacity.tsx`, `CapacityPeriodModal.tsx`, `utils/capacityForm.ts`: the periods table is where the limits are READ ("—" = no WIP limit); Add/Edit/Delete only with `can.editCapacity`. A
+period takes effect on ANY date (no weekday rule: a weekend date applies from the next working day), man-days per week (0 ≤ x < 1,000,000, two decimals) and an optional WIP limit 1..99 (empty sends
+`null`); a date clash (409) marks the date field (the model: `planning-model.md` "Team capacity periods").
 
-**The schedule proposal (v0.8)** - a third write path, `hooks/useScheduleProposal.ts` (the generated view of it: `timeline.md` "The proposal preview").
-"Propose schedule" (timeline header, `team.can.schedule`) POSTs the viewer's local day as `asOf`; a proposal with something to show opens the **Proposed
-schedule section** (`components/TeamProposal.tsx`, h3, mounted under the timeline before the Unscheduled tray; since 1.8 its summary line, table and unplaced rows are `components/ProposalTable.tsx`, a controlled table over the structural `ProposalContent` with no actions, which the cross-team page composes once per team), one that has nothing to show (nothing to propose
-/ no capacity: add a capacity period first) opens nothing and says so in a note. The section is controlled by the hook (`selected`, `toggle`, `selectAll`,
-`selectNone`, `accept`, `discard`): a summary line ("3 moves · 1 newly scheduled · 2 stay · 1 could not be placed"), a RED "N links would be violated" badge for
-links violated AFTER and not before (a gray "N links stay violated" for those violated both times - `linkTotals`), the table (`teams.proposal.tableAria`; a
-header "Accept all" `Checkbox`, `indeterminate` while only some rows are ticked, a per-row `Checkbox` named "Accept {{name}}"; Milestone with the project as a
-link, Current, Proposed with its working days, Change = `changeSentence`, Links = `linksAtMove`: "would violate: Web > Checkout page must start on 2042-02-26 or
-later" (start or end by the link type, `requiredEdge`: FS/SS start, FF/SF end) in `classes.proposalViolation` red with a red "Conflict" badge, "resolves: link
-with ..." gray, nothing for a link that did not change), a "Could not be placed" row group with the reason in words (no capacity after {{date}}, the request's
-`asOf` like the page note / no room within the 520-week horizon, `PROPOSAL_HORIZON_WEEKS`; no checkbox) and the actions **Accept selected (N)** (primary;
-disabled at zero or while ANY write of the page runs) and **Discard** (disabled while the accept runs). Accept all / none are announced in the page's one polite
-region ("2 of 3 selected"); a per-row tick is a self-announcing checkbox. **What an accept came to** is a dismissible `role="note"` line that lasts until the
-next action (`ProposalNotes` under the timeline header, green; orange when something was skipped: "3 scheduled · 1 skipped: rescheduled in the meantime"), as is
-the whole-batch stale refusal ("the plan changed in the meantime - nothing was saved; propose again") and, v0.9 C4, the re-proposal after a `stale-scope`
-refusal (see below); the status region is the single announcer, so none is an `Alert` with its implicit `role="alert"`. A 403/404/400 of the accept is a
-`FormErrorAlert` INSIDE the open section above the actions (the preview stays open, the selection is kept) and takes the focus (the disabled Accept would
-otherwise drop it to the body); a propose's failure shows under the timeline header while no preview is open. There is no success toast on accept: the visible
-outcome note and the polite sentence carry it. The intro line says the link warnings and the proposed load follow the moves you tick (1.8, below). Focus: Discard takes it when the preview
-opens; Propose gets it back after Discard, an accept or a stale refusal, once no write is running (a disabled button cannot take it). The page is read-only
-while a proposal is requested or open (`hooks/useProposalLock.ts`). **The scope check (v0.9 C4):** the accept sends the proposal's `scopeHash`; on a
-`409 stale-scope` (`isStaleScope`; the team's plan changed since the proposal, nothing was written) the hook closes the preview, requests a fresh proposal at
-once (a fresh `asOf`), refreshes `["plan"]`, and the new preview keeps the ticks of the milestones that were ticked and still move (`keptTicks`: the old
-selection intersected with the new moves; a move new to the page starts unticked) with an orange dismissible `role="note"` `teams.proposal.rescoped`
-(`rescoped`); the focus goes back to Discard once the preview is open and the accept has settled (the refresh is not awaited, so `applying` ends at once; the
-page arms the focus when a preview opens or the rescoped note appears, and hands it over when `applying` is false). A fresh proposal with nothing to show leaves
-the usual note instead. The whole-batch `stale-revision` 409 keeps the "reloaded, propose again" note. Tests: `TeamProposal.test.tsx` (select all/some/none,
-names, badges, unplaced rows), `TeamDetails.proposal.test.tsx` (accept sends exactly the selected moves, outcome/skipped/stale/rescoped notes, Discard, focus),
-`useScheduleProposal.test.tsx`, `utils/scheduleProposal.test.ts`.
+- **Capacity dialog.** The `NumberInput`s use `clampBehavior="none"`: Mantine's default clamps `0` to the `min` of 1 on blur, which would silently turn an invalid WIP limit into a valid one; with
+  `none` the typed value reaches the validator and the inline message.
+- **The weekly load table** (`TeamWeeklyLoad.tsx`, behind a `TableDisclosure`) is the accessible surface of the decorative strip: load, capacity ("—" when none), peak WIP and the verdict in words
+  (orange "Overloaded · +X MD", orange "Over WIP limit", gray "OK" / "No capacity", plus the "Differs from Flow" badge).
+- A `source === "FLOW"` row gets a gray "Flow" badge titled with the sprint; the period editor says a saved edit makes the period hand-entered.
 
-**The ticked-subset check (1.8)** - the proposal's link verdicts (`dependencies`) and proposed load (`weeks`) describe EVERY move accepted, so they would lie
-once some moves are unticked. `hooks/useScheduleCheck.ts` (`{teamIds, revision, scopeHash, moves, selected, enabled}`; the cross-team page reuses it with the run's
-teams) asks the server (`checkSchedule`, `api/scheduleProposals.ts`: `POST /schedule-proposals/check {teamIds:[team], items}`, a computation) for the
-verdicts of exactly the ticked moves, and ONLY while some but not all are ticked: all ticked IS the proposal's own answer and none ticked changes nothing, so
-neither sends a request. The ticks are debounced 300 ms (`useDebouncedValue` over their JSON; the query is keyed `["plan", "schedule-check", sorted teamIds, revision,
-scopeHash, items]` by the DEBOUNCED ticks and runs only once they have caught up with the current ones, so an answer for an older selection is never shown for the current
-one). It returns `ScheduleCheckState {mode: all|some|none, byTeam, pending, failed}` and `overlayCheck(open, check, teamId)` (`utils/scheduleProposal.ts`, pure)
-turns the open proposal into what the page shows: all = the proposal as it is; none = the plan as it is: only the links already violated BEFORE remain (the gray "N links stay violated", no new warning) and no `weeks` (the strip keeps the CURRENT load, so
-`TeamProposalView.weeks` is optional); some = the check's `dependencies`/`weeks`/`weeksTruncated` for the team once they are in. While the check is pending
-(the debounce window and the request count; a check cancelled by a write's `cancelQueries(["plan"])` is asked again, never left "Checking…") or has failed the all-accepted verdicts stay and `ProposalTable` says so in one dimmed line under the summary
-(`teams.proposal.checking` / `checkFailed`; visible only, never a toast or an alert, no announcement - the status region already speaks on select all/none).
-So unticking a predecessor turns the ticked successor's Links cell and the summary badge red BEFORE the accept. `TeamDetails` hands the overlaid proposal to
-both `TeamProposal` and `TeamTimeline`; the accept still sends the selected moves exactly as before (the check is a query, `teamWriteKey` is untouched); closing the preview drops the check queries, so the refresh after an accept re-asks none.
-`ProposalNotes` takes the structural `ProposalFlow` (`utils/scheduleProposal.ts`), so a second hook fits it. Tests: `ProposalTable.test.tsx`,
-`useScheduleCheck.test.tsx`, `TeamDetails.proposal.test.tsx` ("the ticked-subset check"), `utils/scheduleProposal.test.ts` (`overlayCheck`).
+### Baseline overlay and Jira markers
 
-**The Jira markers (1.3).** The same view-fed pieces as the project page, from `GET /views/team/{id}` alone: the chip's count line (`teamMarks(view)`: the
-team's linked milestones, scheduled and tray, and their open flags), a **Flags** column on the timeline (while a scheduled milestone is linked; it replaces the
-old remembered "Jira" column and keeps its per-row key link), the tray rows' key link, icon and "Jira: start to end" (the key moved from the tray's own Jira
-column into the name cell), and the shadow bar `jira:<milestoneId>` with the "Jira dates" toggle after the baseline picker (a bar follows the baseline's shadow,
-the proposal bar and the current bar in one row). Since 1.16 a TRAY milestone that Jira dates gets a dimmed appended row `jira-unscheduled:<milestoneId>` (the
-project name, the estimate and an "Open project" menu; after the baseline's rows, before a preview's rows; or its bar on the baseline's own "unscheduled" row)
-and the page's range follows the tray's in-window Jira dates (`timeline.md` "Appended rows for the tray"). **Since 1.17** (`components/TeamTimelineRows.tsx`, the
-appended rows' pure builders, split out of `TeamTimeline.tsx`) those two row kinds' menu is "Operations for X (dates from Jira)" = "Schedule on Jira's dates", a divider
-and "Open project" while `team.can.schedule` holds, no proposal previews and Jira's two dates are in order; otherwise 1.16's "Open project" menu. The action is
-`lock.guarded` and writes the REAL dates through the page's one schedule write path; the focus goes to the milestone's own row afterwards (`useRowMenuFocus`). Tests: `TeamDetails.jira.test.tsx`, `TeamTimeline.test.tsx`.
+Both are the shared pieces, fed from the team view alone (`timeline.md` "The baseline overlay" and "The Jira markers" hold the rows, bars, columns and the toggle).
 
-- **Tests.** `TeamDetails.test.tsx` (the page against a fetch-mock server that applies the order and schedule PUTs; the wrapped `DndContext` hands it the bar
-  drop and the row drop), `teamViewUpdate.test.ts`, `capacityForm.test.ts`, `dependencyArrows.test.ts`, `api/teams.test.ts`, `roadmapOrder.test.ts`. The real
-  browser is `e2e/tests/team-view.spec.ts` and the team page scans in `accessibility.spec.ts`.
+- **Baseline.** The picker sits in the timeline's toolbar (after Today); the query key and the three write hooks (`useTeamSchedule`, `useTeamOrder`, `useScheduleProposal`) take the pick. The Movement
+  section (`scope="team"`, with a Project column) follows Idle gaps.
+- **Jira.** The chip's count line is `teamMarks(view)` (the team's linked milestones, scheduled and tray, and their open flags). The "Jira dates" toggle sits after the baseline picker. The Flags
+  column, the tray rows' key link and the dimmed appended rows `jira-unscheduled:<milestoneId>` are the shared pieces.
+  - The appended rows' menu (`TeamTimelineRows.tsx`, the pure builders; `timeline.md` "Appended rows for the tray") offers "Schedule on Jira's dates" only while `team.can.schedule` holds, no proposal
+    previews and Jira's two dates are in order; the action is `lock.guarded` and writes the REAL dates through the page's one schedule write path, and the focus goes to the milestone's own row
+    afterwards (`useRowMenuFocus`).
 
-### The team page: Flow (`components/TeamFlowSection.tsx`, v1.5.0)
+### The schedule proposal
 
-An h3 **Flow** after Capacity on `/teams/:id`, over its OWN read `GET /teams/{id}/flow` under `["flow","team",id]` (not a member of the team view; any signed-in
-user, re-read every `IDLE_REFRESH_MS`); the controls follow the panel's `can:{link, unlink, importCapacity}`, never the session's roles, and a viewer without
-them reads only who can link. Unlinked: "Not linked to a Flow team" + **Link to Flow team…** (`FlowTeamLinkDialog`: an ENABLED connection from the panel, then
-one of its UNLINKED Flow teams with the server's suggestion preselected; `linkFailure` in `utils/flowLinkFailure.tsx` is the connection page's too). Linked:
-facts (Flow team, connection, `SyncStatusBadge`, observed at), an orange "No longer in Flow" when `gone` (the link stays; Import is disabled, the roster reads
-"not available"), a note while the connection is disabled, **Import capacity…**, **Unlink** (an in-page `ConfirmDeleteModal`) and `FlowRosterPanel` (an h4
-Roster: current members with "since", a `TableDisclosure` "N former members" with from/to, observed at; names only, "Unknown account" is the server's). A link
-or unlink refreshes `refreshFlowLinks` (which re-reads the capacity deviations too); `importBlocked` (a schedule proposal is open, `useProposalLock`) disables
-Import and closes an open modal. The dialog's connections are the panel's own `connections[{id, name, enabled}]` (every active connection by name, for any
-login: the registry list is ADMIN only), offered only when `enabled` (one enabled is preselected; none says so in a note), so a team manager who is no
-administrator links on their own; a refused link (409/400) re-reads the Flow teams so a stale option goes.
+A third write path, `hooks/useScheduleProposal.ts` (the generated view of it: `timeline.md` "The proposal preview"). "Propose schedule" (timeline header, `team.can.schedule`) POSTs the viewer's local
+day as `asOf`. A proposal with something to show opens the **Proposed schedule section** (`components/TeamProposal.tsx`, h3, under the timeline before the Unscheduled tray; its summary line, table and
+unplaced rows are `components/ProposalTable.tsx`, a controlled table over the structural `ProposalContent` with no actions, which the cross-team page composes once per team); one that has nothing to
+show (nothing to propose / no capacity: add a capacity period first) opens nothing and says so in a note. The page is read-only while a proposal is requested or open (`hooks/useProposalLock.ts`).
 
-**Capacity vs Flow (1.6)** (`components/TeamFlowCapacity.tsx`, shared lines in `CapacityDeviationList.tsx`): once the team is linked the section also asks
-`GET /views/capacity-deviations?teamId=` (`hooks/useCapacityDeviations.ts`, under `["flow","deviations","view",filter]`, re-read every `IDLE_REFRESH_MS` like
-the panel; the SAME document and sentences as the Deviations page's section, no second computation) and adds a **Capacity vs Flow** fact row: an ORANGE badge
-"Differs from Flow for N sprints" while the plan has MORE than Flow for some OPEN sprint, gray when it only has less, a gray "No capacity in the plan for N
-sprints", both when both - the badges count the OPEN rows (1.9: the document asks `teamId`, which the server takes as `all`, so the acknowledged rows arrive with
-their state; the team's own item brings `can.acknowledge`), a dimmed "· N acknowledged" follows them when any is acknowledged, and with only acknowledged rows left
-the fact reads the dimmed "No open difference · N acknowledged" (never "In line with Flow": the figures still differ) - and green TEXT "In line with Flow" (the AA-tested `--mantine-color-green-light-color`; never a badge) when the team has no row AND its
-connection is enabled and CURRENT (`staleFlowConnection` on the panel's binding) - a disabled, failed, stale or never-mirrored connection reads the neutral
-dimmed "No difference in the data read so far" instead; each badge carries a visually hidden "Warning:"/"Info:" prefix; a loading line while the answer is on
-its way, an inline `ErrorAlert` below the facts when a read failed (also a re-read: the last answer stays under the alert). A Flow team that left the document
-(the panel's `gone`, or a `TEAM_GONE` row) adds nothing: the panel's own orange badge says it. Under the facts the team's lines (`CapacityDeviationList`:
-warnings first, the first five, the rest behind a `TableDisclosure` "Show N more", the sprints without capacity folded into ONE line with their own table
-disclosure), EVERY line carrying its `CapacityAckCell` (`CapacityDetails` passes `ack`: the section's `useCapacityAcknowledge`, keyed by the team's id, whose focus
-fallback is the section's h3; an orphaned note shows above the lines; "Capacity from Flow" above has the cell's and the hook's mechanics, so the manager
-acknowledges where they plan; the list opens with "Acknowledge all (N)", `CapacityAckAll`, "Capacity from Flow" above) and, for whoever `can.importCapacity` (and no proposal is open), the truthful remedy line "Import capacity… shows what an import would change.
-Hand-entered periods are left as they are, and a sprint where Flow has 0 must be ticked by hand." (it never promises the plan will match: a hand-entered period
-and a ZERO_CAPACITY sprint are not touched by default) The apply of the import (`onImported`), a link or unlink (`refreshFlowLinks`), a saved/deleted capacity
-period (`TeamCapacity`) and a public-holiday write all invalidate `["flow","deviations"]`, because each moves what the comparison reads; an acknowledge or its
-withdrawal re-reads `["flow","deviations"]` and `["plan"]` (`refreshCapacityAcknowledgements`). A gone Flow team (`TEAM_GONE`, or the panel's `gone`) has no
-sprint lines, no fact row and no import remedy, but its OWN row is listed (`CapacityDetails`) with its cell ("the team's own row", `sprintId` null, the DELETE
-carries no parameter): the open row counts in the header's flag, so the manager silences it where they plan. An acknowledged row's severity badge is dimmed gray
-(`SeverityBadge` `dimmed`; a stale acknowledgement keeps its colour), as is a fully acknowledged folded missing line. Tests: `TeamFlowSection.test.tsx` ("capacity against Flow"), `TeamFlowSection.ack.test.tsx` (acknowledging a sprint, and all the open ones, from the team page),
-`utils/capacityDeviations.test.ts`, `hooks/useCapacityDeviations.test.tsx`, `hooks/useCapacityAcknowledge.test.tsx`.
+- **The section** is controlled by the hook (`selected`, `toggle`, `selectAll`, `selectNone`, `accept`, `discard`).
+  - A summary line ("3 moves · 1 newly scheduled · 2 stay · 1 could not be placed"), a RED "N links would be violated" badge for links violated AFTER and not before (a gray "N links stay violated" for
+    those violated both times: `linkTotals`).
+  - The table (`teams.proposal.tableAria`): a header "Accept all" `Checkbox` (`indeterminate` while only some rows are ticked), a per-row `Checkbox` named "Accept {{name}}"; Milestone with the project
+    as a link, Current, Proposed with its working days, Change = `changeSentence`, Links = `linksAtMove`: "would violate: <link> must start on <date> or later" (start or end by the link type,
+    `requiredEdge`: FS/SS start, FF/SF end) in red with a red "Conflict" badge, "resolves: link with ..." gray, nothing for a link that did not change.
+  - A "Could not be placed" row group with the reason in words (no capacity after {{date}}, the request's `asOf` like the page note / no room within the 520-week horizon, `PROPOSAL_HORIZON_WEEKS`; no
+    checkbox).
+  - The actions **Accept selected (N)** (primary; disabled at zero or while ANY write of the page runs) and **Discard** (disabled while the accept runs). The intro line says the link warnings and the
+    proposed load follow the moves you tick.
+- **Announcements.** Accept all / none are announced in the page's one polite region ("2 of 3 selected"); a per-row tick is a self-announcing checkbox. **What an accept came to** is a dismissible
+  `role="note"` line that lasts until the next action (`ProposalNotes` under the timeline header, green; orange when something was skipped: "3 scheduled · 1 skipped: rescheduled in the meantime"), as
+  are the whole-batch stale refusal and the re-proposal after a `stale-scope` refusal. The status region is the single announcer, so none is an `Alert` with its implicit `role="alert"`. There is no
+  success toast on accept.
+- **Failures.** A 403/404/400 of the accept is a `FormErrorAlert` INSIDE the open section above the actions (the preview stays open, the selection is kept) and takes the focus (the disabled Accept
+  would otherwise drop it to the body); a propose's failure shows under the timeline header while no preview is open.
+- **Focus.** Discard takes it when the preview opens; Propose gets it back after Discard, an accept or a stale refusal, once no write is running (a disabled button cannot take it)
+  (`hooks/useProposalFocus.ts`).
 
-**`CapacityImportModal`** (`utils/capacityImport.ts` is its pure half): "Include closed sprints" (re-reads the plan), the preview table
-(`POST …/capacity-preview`, read once per opening: `gcTime: 0`, no refocus refetch, so ticks are never reset), a checkbox only on a CREATE / UPDATE row
-(`isImportable`), defaulting to the server's `ticked` (closed, `ZERO_CAPACITY` and `LONG_WINDOW` rows start unticked and may be ticked; `infoSentence` words
-each info (`FIXED_FIGURE` with the server's `days`), the long-window one with the row's own calendar days from `calendarDays`, since Flow's 60-day cap makes a
-sprint that long a likely Jira date mistake); UNCHANGED, `MANUAL_PERIOD` and SKIP rows have none and say why in words (`flow.import.reason/info.*`); the
-**removals** list is never preselected. **Import** (`POST …/capacity-import`) sends exactly `{from, includeClosed}` as the preview echoed them, the ticked rows
-with their `expected{action, effectiveFrom, mdPerWeek}` and the ticked removal ids (`applyRequest`: nothing is built from anything but the preview); the outcome
-is a polite line in neutral forms ("3 created · 1 updated · 1 removed · 1 skipped: changed in the meantime"; Polish "utworzono: 3 …", grammatical for every
-count), orange while something was skipped, and a fresh preview is read under it. The outcome sits in an always-mounted polite status region and takes the focus
-once that plan is read (the plan replaces the table the Import button sat in); a failed refresh of the page behind never hides it. An apply refreshes `["plan"]`
-(team capacity and weekly load are in the team view) and `["flow","deviations"]`. **Capacity table:** a `source === "FLOW"` row gets a gray "Flow" badge titled
-with the sprint; the period editor says a saved edit makes the period hand-entered. Tests:
-`TeamFlowSection|CapacityImportModal|FlowTeamLinkDialog|FlowRosterPanel|TeamCapacity.test.tsx`, `pages/TeamDetails.flow.test.tsx` (the other `TeamDetails.*`
-tests serve `READ_ONLY_PANEL`), `utils/capacityImport.test.ts`; fixtures in `test/flow.ts`. `pages/TeamDetails.tsx` is at 252 lines after the 2026-11-08 splits
-(`TeamPageHeader`, `TeamViewNotices`, `TeamResetConfirm`, `TeamFacts`, `TeamProposalNotes`, `TeamTimelineButtons`, `hooks/useProposalFocus.ts` (Discard/Propose focus hand-over), and the `TimelineTitle`/`UnscheduledTraySection` the project page shares).
+### The scope check and the ticked-subset check
 
-## People (`pages/People.tsx`, `pages/PersonDetails.tsx`)
+- **The scope check.** The accept sends the proposal's `scopeHash`; on a `409 stale-scope` (`isStaleScope`; the team's plan changed since the proposal, nothing was written) the hook closes the
+  preview, requests a fresh proposal at once (a fresh `asOf`), refreshes `["plan"]`, and the new preview keeps the ticks of the milestones that were ticked and still move (`keptTicks`: the old
+  selection intersected with the new moves; a move new to the page starts unticked) with an orange dismissible `role="note"` `teams.proposal.rescoped` (`rescoped`). The focus goes back to Discard once
+  the preview is open and the accept has settled (the refresh is not awaited, so `applying` ends at once; the page arms the focus when a preview opens or the rescoped note appears, and hands it over
+  when `applying` is false). A fresh proposal with nothing to show leaves the usual note instead. The whole-batch `stale-revision` 409 keeps the "reloaded, propose again" note.
+- **The ticked-subset check.** The proposal's link verdicts (`dependencies`) and proposed load (`weeks`) describe EVERY move accepted, so they would lie once some moves are unticked.
+  `hooks/useScheduleCheck.ts` (`{teamIds, revision, scopeHash, moves, selected, enabled}`; the cross-team page reuses it with the run's teams) asks the server (`checkSchedule`,
+  `api/scheduleProposals.ts`: `POST /schedule-proposals/check {teamIds:[team], items}`, a computation) for the verdicts of exactly the ticked moves, and ONLY while some but not all are ticked: all
+  ticked IS the proposal's own answer and none ticked changes nothing, so neither sends a request.
+  - The ticks are debounced 300 ms (`useDebouncedValue` over their JSON); the query is keyed `["plan", "schedule-check", sorted teamIds, revision, scopeHash, items]` by the DEBOUNCED ticks and runs
+    only once they have caught up with the current ones, so an answer for an older selection is never shown for the current one.
+  - It returns `ScheduleCheckState {mode: all|some|none, byTeam, pending, failed}` and `overlayCheck(open, check, teamId)` (`utils/scheduleProposal.ts`, pure) turns the open proposal into what the
+    page shows: all = the proposal as it is; none = the plan as it is (only the links already violated BEFORE remain, the gray "N links stay violated", no new warning, and no `weeks`: the strip keeps
+    the CURRENT load, so `TeamProposalView.weeks` is optional); some = the check's `dependencies`/`weeks`/`weeksTruncated` for the team once they are in.
+  - While the check is pending (the debounce window and the request count; a check cancelled by a write's `cancelQueries(["plan"])` is asked again, never left "Checking…") or has failed, the
+    all-accepted verdicts stay and `ProposalTable` says so in one dimmed line under the summary (`teams.proposal.checking` / `checkFailed`; visible only, never a toast or an alert, no announcement:
+    the status region already speaks on select all/none). So unticking a predecessor turns the ticked successor's Links cell and the summary badge red BEFORE the accept.
+  - `TeamDetails` hands the overlaid proposal to both `TeamProposal` and `TeamTimeline`; the accept still sends the selected moves exactly as before (the check is a query, `teamWriteKey` is
+    untouched); closing the preview drops the check queries, so the refresh after an accept re-asks none. `ProposalNotes` takes the structural `ProposalFlow` (`utils/scheduleProposal.ts`), so a second
+    hook fits it.
 
-The people directory (V10), a Teams clone under Administration after Teams, **visible to everyone** (reads are open, emails included): `useRegistryListControls` +
-`RegistryListTable` (Name link, Email, Login), ADMIN-only New/Edit/Delete through `components/PersonEditorModal.tsx` (name, optional email, optional Login —
-`components/UserSelect.tsx`, an ADMIN-only users search). A list row carries every field of the detail, so Edit takes the row as it stands (no detail fetch).
-`components/PersonSelect.tsx` is the owner/manager picker (`["people","picker",term]`, enabled for every session, options `name (email)` or `name`); it and
-`UserSelect` are thin wrappers over `components/SearchPicker.tsx` (debounced server-side search, the picked entry held by the caller). A 409 on save marks the
-email field, or the login field when the problem `type` is `person-login-taken` (`isPersonLoginTaken`, `api/people.ts`; an untyped 409, what an older server answers, reads as the email). The family is spelled out in `utils/peopleLinks.ts`; the team editor's manager
-is a person (`managerPersonId`). `PersonSelect` also takes `disabled` and `error` (the plan editors' Owner: read-only for a caller who may edit only another
-part of the modal, and the required-owner message).
+### The team page: Flow
 
-## Public holidays (`pages/PublicHolidays.tsx`, v0.7.0)
+Files: `components/TeamFlowSection.tsx`, `FlowTeamLinkDialog.tsx`, `FlowRosterPanel.tsx`; `utils/flowLinkFailure.tsx` (`linkFailure`, the connection page's too).
 
-`/public-holidays` is Flow's holiday page ported (its `ColumnTable` is a plain `Table` in a `ScrollRegion` here), a leaf of the Administration section after
-People (`IconCalendarOff`, palette "Public holidays" / PL "Święta państwowe") that **everyone sees** (reads are open, like Teams and People; the dictionary is
-global and read by every timeline). The page is a year `Select` (the data's years + this year + next), one table per year (date, weekday, name) and, for an
-ADMIN only, an add strip, a row delete behind `ConfirmDeleteModal` and the Polish preset button (`POST /public-holidays/apply-preset`). The dictionary is handed
-to `Timeline`'s `holidays` prop. Files: `api/calendar.ts` (`listPublicHolidays` unwraps `{items}`; `createPublicHoliday`, `deletePublicHoliday`,
-`applyHolidayPreset`; the types are the spec's `PublicHolidayResponse`/`HolidayPresetResponse`), `hooks/useHolidays.ts`, `utils/publicHolidays.ts` (Flow's
-helpers: `holidayYears`, `holidaysOfYear`, `weekdayName`, `localYear`, `yearOf`), `utils/calendarLinks.ts` (`publicHolidaysPath`),
-`locales/{en,pl}/calendar.json` (strings `calendar.*`).
+An h3 **Flow** after Capacity, over its OWN read `GET /teams/{id}/flow` under `["flow","team",id]` (not a member of the team view; any signed-in user, re-read every `IDLE_REFRESH_MS`). The controls
+follow the panel's `can:{link, unlink, importCapacity}`, never the session's roles, and a viewer without them reads only who can link.
 
-- **ONE cached query, two consumers.** The dictionary is `["calendar","holidays"]` (`HOLIDAYS_QUERY_KEY`, `staleTime` 1 min, so another admin's edit reaches a
-  mounted page soon). The page reads it with its own `useQuery` on that key; every timeline component (`ProjectTimeline`, `TeamTimeline`, `RoadmapTimeline`,
-  `ProgramsTimeline`) and `MilestoneScheduleModal` read it through `useHolidays()` = `{holidays, failed}`: `[]` while loading or on a failure (the holiday layer
-  is decoration and the schedule pre-check is only a pre-check; the server's views and 400 are the rule), `failed` true only when there is no copy at all, which
-  the timelines pass on as `holidaysFailed` so `Timeline` shows its muted "could not be loaded" line. A page test that does not serve
-  `GET /api/v1/public-holidays` therefore sees that line (the 404) and no holidays.
-- **A write refreshes `["calendar"]`, `["plan"]` and `["roadmap"]`** (`refreshQueriesAfterMutation`): the holiday write bumps the plan revision server-side and
-  every view's working-day figures changed. A mounted project view, the roadmap and the programs page (`["roadmap","programs"]`) all follow.
-- **The year picker** shows ONE year at a time, client-side (the endpoint is unpaged): the years in the data, the current year, the year after it (so the Polish
-  preset can be applied to the coming year on an empty list) and the viewed year. A successful add jumps the picker to the new row's year.
-- **The Polish preset** (ADMIN): the "Add Polish public holidays for {{year}}" button opens a `ConfirmActionModal` (non-destructive:
-  `confirmColor="astrolabe"`); `POST /public-holidays/apply-preset {preset: "POLISH", year}` for the VIEWED year; on success the fixed-vocabulary toast
-  `calendar.toast.presetAdded` and a `role="status"` line "Polish holidays of 2027: 12 added, 2 already present." under the picker (cleared when the year
-  changes or a holiday is added); a 400/403/other failure closes the dialog and shows the same inline `FormErrorAlert` as an add (`calendar.error.preset*`),
-  never a toast. A holiday on a weekend is stored and shown in the table; it changes no figure.
-- **Add / delete.** The add strip is a `<form>` (Enter submits; the button is disabled until the date is a real calendar date and the name is 1..100
-  characters); a 409 reads the fixed `calendar.duplicateDate`, a 400 `calendar.invalid`, a 403 `calendar.error.forbidden` — the server's `detail` is never
-  rendered. Delete is `useDeleteConfirm` + `ConfirmDeleteModal` with an interpolated row aria-label (`calendar.deleteAria`); a 404 on delete reads "This holiday
-  no longer exists".
-- **Tests.** `PublicHolidays.test.tsx` (Flow's, plus the preset), `utils/publicHolidays.test.ts`, `api/calendar.test.ts`; the wiring into the pages is one test
-  each in `ProjectView|TeamDetails|Roadmap|Programs.test.tsx`; `MilestoneScheduleModal`'s pre-check is `ProjectView.test.tsx` and `milestoneForm.test.ts`.
+- **Unlinked:** "Not linked to a Flow team" + **Link to Flow team…** (`FlowTeamLinkDialog`: an ENABLED connection from the panel, then one of its UNLINKED Flow teams with the server's suggestion
+  preselected). The dialog's connections are the panel's own `connections[{id, name, enabled}]` (every active connection by name, for any login: the registry list is ADMIN only), offered only when
+  `enabled` (one enabled is preselected; none says so in a note), so a team manager who is no administrator links on their own. A refused link (409/400) re-reads the Flow teams so a stale option goes.
+- **Linked:** facts (Flow team, connection, `SyncStatusBadge`, observed at), an orange "No longer in Flow" when `gone` (the link stays; Import is disabled, the roster reads "not available"), a note
+  while the connection is disabled, **Import capacity…**, **Unlink** (an in-page `ConfirmDeleteModal`) and `FlowRosterPanel` (an h4 Roster: current members with "since", a `TableDisclosure` "N former
+  members" with from/to, observed at; names only, "Unknown account" is the server's).
+- A link or unlink refreshes `refreshFlowLinks` (which re-reads the capacity deviations too); `importBlocked` (a schedule proposal is open, `useProposalLock`) disables Import and closes an open modal.
 
-## Users, feature flags and permissions (`pages/Users|CreateUser|EditUser|ChangePassword|FeatureFlags|UserFeatures|UserPermissions.tsx`)
+### Capacity against Flow
 
-Routes: `/users` (list, `/new`, `/:id/edit`, `/:id/features`, `/:id/permissions`; `utils/userLinks.ts` spells the family out) and ADMIN `/feature-flags`, all
-under ONE `RequireAdmin` route (UX only: the server's `requireAdmin` is the rule).
+`components/TeamFlowCapacity.tsx`, shared lines in `CapacityDeviationList.tsx`, `hooks/useCapacityDeviations.ts`. Once the team is linked the section also asks `GET /views/capacity-deviations?teamId=`
+(under `["flow","deviations","view",filter]`, re-read every `IDLE_REFRESH_MS`; the SAME document and sentences as the Deviations page's section, no second computation; the server takes `teamId` as
+`all`, so acknowledged rows arrive with their state and the team's own item brings `can.acknowledge`) and adds a **Capacity vs Flow** fact row.
 
-### User management (`pages/Users|CreateUser|EditUser|ChangePassword.tsx`)
+- **The badges count the OPEN rows.** An ORANGE "Differs from Flow for N sprints" while the plan has MORE than Flow for some OPEN sprint, gray when it only has less, a gray "No capacity in the plan
+  for N sprints", both when both. A dimmed "· N acknowledged" follows them when any is acknowledged; with only acknowledged rows left the fact reads the dimmed "No open difference · N acknowledged"
+  (never "In line with Flow": the figures still differ). Each badge carries a visually hidden "Warning:"/"Info:" prefix.
+- **"In line with Flow"** is green TEXT (the AA-tested `--mantine-color-green-light-color`; never a badge) when the team has no row AND its connection is enabled and CURRENT (`staleFlowConnection` on
+  the panel's binding); a disabled, failed, stale or never-mirrored connection reads the neutral dimmed "No difference in the data read so far" instead.
+- A loading line while the answer is on its way, an inline `ErrorAlert` below the facts when a read failed (the last answer stays under the alert). A Flow team that left the document (the panel's
+  `gone`, or a `TEAM_GONE` row) adds no fact row, no sprint lines and no import remedy: the panel's own orange badge says it.
+- **The lines** are `CapacityDeviationList` (shared with the Deviations page's "Capacity from Flow", which holds the sentences, the folded no-capacity line and the acknowledge mechanics): warnings
+  first, the first five, the rest behind a `TableDisclosure` "Show N more". EVERY line carries its `CapacityAckCell` (`CapacityDetails` passes `ack`: the section's `useCapacityAcknowledge`, keyed by
+  the team's id, whose focus fallback is the section's h3; an orphaned note shows above the lines), so the manager acknowledges where they plan; the list opens with "Acknowledge all (N)"
+  (`CapacityAckAll`, exported from `CapacityAckCell.tsx`). A gone Flow team's OWN row is listed with its cell (`sprintId` null, the DELETE carries no parameter): the open row counts in the header's
+  flag, so the manager silences it where they plan.
+- **The remedy line**, for whoever `can.importCapacity` (and no proposal is open): "Import capacity… shows what an import would change. Hand-entered periods are left as they are, and a sprint where
+  Flow has 0 must be ticked by hand." It never promises the plan will match: a hand-entered period and a ZERO_CAPACITY sprint are not touched by default.
+- **Invalidations.** The import's apply (`onImported`), a link or unlink (`refreshFlowLinks`), a saved/deleted capacity period and a public-holiday write all invalidate `["flow","deviations"]`; an
+  acknowledge or its withdrawal re-reads `["flow","deviations"]` and `["plan"]` (`refreshCapacityAcknowledgements`).
 
-Passwords are generated client-side (`utils/password.ts`) and revealed exactly once: the modal (`components/OneTimePasswordModal.tsx`) sets
-`closeOnClickOutside={false} closeOnEscape={false}`, renders `components/RevealablePassword.tsx` (masked by default, eye toggle, copy), and closing drops the
-plaintext from state for good — the server never returns it. The admin Reset-password action (`hooks/useResetPassword.ts`) reuses the same generate→PUT→reveal
-flow; the confirm is the shared `ConfirmActionModal` (its optional `error` slot carries the inline `FormErrorAlert`). `NavLeaf.adminOnly` gates the Users nav item (the Shell filters by `isAdmin()`); the management routes sit under ONE `<Route element={<RequireAdmin />}>`
-in `App.tsx` (`auth.tsx`, beside `RequireAuth` — a regular user is sent home), so no page redirects itself; their queries additionally stay `enabled: isAdmin()`
-so a redirected caller fires no request. UX only — the server's `requireAdmin` is the rule. The pages live under `/users` (`utils/userLinks.ts` is the one place
-the family is spelled out; Flow's `/flow-users` rename and its legacy `/users…` redirect do not exist here). The edit page tells the last-administrator 409 (`users.lastAdminError`) from the email-in-use one by the problem `type` `last-admin` (`isLastAdminConflict`, `api/users.ts`), never by the sentence.
+### The capacity import
 
-**Login and person in one step (unreleased, after 1.13.3).** The new-login form (`CreateUser.tsx` only, not the shared `UserFormFields`, so the edit page has none) has a `Switch`
-"Also create a linked person", ON by default (a page-local `useState`), posted as `alsoCreatePerson`; the server creates the person (the login's name and email, linked) in
-the same transaction, and the create refreshes `["users"]` and `["people"]`. A 409 of problem `type` `person-email-taken` (`isPersonEmailTaken`) gets its own message (`users.personAlreadyExists`),
-the plain 409 stays the email-in-use one; a refused person means no login. The Users row menu offers "Create a person" (`POST /people` with the login's name, email and
-`userId`, success toast `users.toast.personCreated`, a failure inline) only when the row's `personId` is null (`UserResponse.personId`: the id of the ACTIVE person linked to the login, read by the server with every list and detail
-read); a success refreshes `["people"]` and `["users"]`. The inline failure belongs to the view it happened in (a filter, sort or page change drops it) and is cleared when
-another row action starts. The person 409 is told from the user 409 by the problem `type` (`person-email-taken`, `person-login-taken`; every other 23505 stays `about:blank`), never by the sentence. e2e: the helper `createUserViaUi` turns the switch OFF unless asked, so a throwaway login leaves no person behind.
+`CapacityImportModal` (`utils/capacityImport.ts` is its pure half): "Include closed sprints" (re-reads the plan), the preview table (`POST …/capacity-preview`, read once per opening: `gcTime: 0`, no
+refocus refetch, so ticks are never reset).
 
-### Feature flags (`pages/FeatureFlags.tsx`, `pages/UserFeatures.tsx`)
+- A checkbox only on a CREATE / UPDATE row (`isImportable`), defaulting to the server's `ticked` (closed, `ZERO_CAPACITY` and `LONG_WINDOW` rows start unticked and may be ticked). `infoSentence` words
+  each info (`FIXED_FIGURE` with the server's `days`; the long-window one with the row's own `calendarDays`, since Flow's 60-day cap makes a sprint that long a likely Jira date mistake). UNCHANGED,
+  `MANUAL_PERIOD` and SKIP rows have no checkbox and say why in words (`flow.import.reason/info.*`). The **removals** list is never preselected.
+- **Import** (`POST …/capacity-import`) sends exactly `{from, includeClosed}` as the preview echoed them, the ticked rows with their `expected{action, effectiveFrom, mdPerWeek}` and the ticked removal
+  ids (`applyRequest`: nothing is built from anything but the preview).
+- The outcome is a polite line in neutral forms ("3 created · 1 updated · 1 removed · 1 skipped: changed in the meantime"; Polish "utworzono: 3 …", grammatical for every count), orange while something
+  was skipped, and a fresh preview is read under it. It sits in an always-mounted polite status region and takes the focus once that plan is read (the plan replaces the table the Import button sat
+  in); a failed refresh of the page behind never hides it. An apply refreshes `["plan"]` (team capacity and weekly load are in the team view) and `["flow","deviations"]`.
 
-Lettuce's per-user flag surfaces, ported with the MFA feature: `getDisabledFeatures()` (`api/session.ts`, reading the `astrolabe.auth.disabledFeatures` localStorage set;
-no area gates on it yet, MFA gates only the login flow server-side), the per-user editor at `/users/:id/features` (the Users table's
-Features button — a checkbox per `Feature`, wholesale- replace PUT), and the ADMIN per-feature screen at `/feature-flags` (`adminOnly` nav leaf; state filter +
-bulk enable/disable over every row matching the current filters behind a count-stating confirm — `hooks/useBulkFeatureUpdate.ts` loops the same per-user
-wholesale PUTs client-side via `ConfirmActionModal`). The page itself is only the query, the table and the single-row toggle; the rest sits in co-located
-pieces: `hooks/useFeatureFlagFilters.ts` (the persisted filters), `hooks/useFeatureFlagBulk.ts` (the bulk run wired to this screen),
-`components/FeatureFlagFilters|FeatureFlagBulk|FeatureFlagRow.tsx` and `utils/featureFlags.ts` (`isFeatureEnabled`/`withFeatureEnabled`, the one place a
-disabled set is rewritten). A second `Feature` value needs no restructuring: the feature `Select` already lists `FEATURES`. Both queries key under
-`["users", …]`. Mind the wholesale-replace semantics: a PUT whose disabled set omits `MFA` ENABLES it. A bulk run with nothing to change is neither success nor
-failure: it shows the inline gray `role="note"` Alert (`users.featureFlags.bulkNoChange`), never a toast.
+### Tests
 
-### Permissions (`pages/UserPermissions.tsx`)
+Pinned by: `TeamDetails.test.tsx` (the page against a fetch-mock server that applies the order and schedule PUTs; the wrapped `DndContext` hands it the bar drop and the row drop; "the menu button
+keeps focus" through a real Move) and its `TeamDetails.pin|proposal|baseline|jira|flow.test.tsx` siblings (the others serve `READ_ONLY_PANEL`); `Team*.test.tsx`,
+`ProposalTable|CapacityImportModal|FlowTeamLinkDialog|FlowRosterPanel.test.tsx`, the `useScheduleProposal|useScheduleCheck|useCapacityDeviations|useCapacityAcknowledge` hook tests, the `utils/` tests
+of the helpers named above; fixtures in `test/flow.ts`; the real browser is `e2e/tests/team-view.spec.ts` and `accessibility.spec.ts`.
 
-The ADMIN per-user permission editor at `/users/:id/permissions` (under the one `RequireAdmin` route; the Users row menu's Permissions item,
-`userPermissionsPath` in `utils/userLinks.ts`) — a `UserFeatures.tsx` clone with the opposite polarity: one `Switch` per `PERMISSIONS` entry (`api/users.ts`,
-derived from `PERMISSION_TEXT`, which `satisfies Record<Permission, …>` against the spec's `Permission` enum; checked = GRANTED, seeded from
-`UserResponse.permissions`), saved as the wholesale `PUT /users/{id}/permissions` (`updateUserPermissions`), then `["users"]` and `["user", id]` are invalidated
-and the page returns to `/users` with the `users.toast.permissionsSaved` toast. Labels and hints are `common.permission.*` / `common.permissionHint.*` (EN/PL).
-A permission is NOT in the session (`api/session.ts` stores roles and disabled features only): it is read server-side per request, so a change needs no re-login
-and the SPA never gates on it — a UI that needs "can this caller rank" reads the server's `can` flags (the planning views). A new spec `Permission` value is a
-compile error in `PERMISSION_TEXT` until it has its label/hint keys (then its two `common` entries). The wholesale PUT carries over any granted value the page
-has no switch for (a newer server), so a save can never silently revoke it.
 
-## Jira connections (`pages/JiraConnections.tsx`, `pages/JiraConnectionDetails.tsx`, v1.1.0)
+## People
 
-`/integrations/jira` (nav: Administration, **ADMIN only**, `IconPlugConnected`, palette "Jira"; both routes sit under `RequireAdmin` and their queries are
-`enabled: isAdmin()`) is the registry of the Jira Cloud sites Astrolabe OBSERVES (nothing is ever written to Jira), `GET /integrations/jira/connections` under
-`["jira","list",…]` through `api/jira.ts`: the Teams shape (`usePagedSort` + `RegistryListTable`, no name filter - the endpoint has none; columns name (the
-link, a gray "Disabled" badge), site (an external link, `rel="noopener noreferrer"`, its trailing icon `components/TrailingLinkIcon.tsx`, also the Jira key link's, Flow's and the Roadmap flag panel's), project keys, last test, **Status**, last run (`components/LastRunCell.tsx`, shared with Flow), kebab Open / Edit /
-Delete; the list's `refetchInterval` is `listRefetchInterval` in `utils/syncRuns.ts`, shared with Flow). **Status** is `components/SyncStatusBadge.tsx` over the connection's server-derived `status` (`SyncStatus`: nothing is stored; CURRENT green, FAILED
-red, STALE orange, NEVER_SYNCED / DISABLED gray, label `sync.status.<STATE>`) with a secondary line from `utils/syncStatus.ts`: the failure streak while there
-is one ("3 failures in a row · TOKEN_UNREADABLE", plural forms EN/PL), else "not polled: test the connection first" (`discoveredAt == null`), "manual only",
-"due now" or "next poll in 7 min" (minutes rounded UP, hours from 2 h); `now` is `hooks/useNow.ts`'s minute-ticking client clock (the telemetry section passes
-the server's `generatedAt`), a wording only: no decision rests on it. **Last run** is the connection's own `lastRun`
-(`{id, startedAt, finishedAt, outcome, errorCode, running}`, null before its first run; the SERVER reads it for the page's rows, scoped to the connection): an
-outcome badge and when it started, "—" for none. While any listed connection's `lastRun.running` is set the list is re-read at the same bounded poll as the run
-table (`hooks/useBoundedPoll.ts`), so its badge moves by itself. **Open pages follow the scheduler**: the list, the connection and its runs
-(`useSyncRuns(..., IDLE_REFRESH_MS)`) are also re-read every 30 s while the tab is visible (`utils/syncRuns.ts`; TanStack pauses it in the background), even
-after the fast poll's safety net stopped, so a scheduled run, or a run the server stopped calling running, reaches an open page; Refresh now's claim settling
-re-reads all three. `useNow(period, readAt)` floors the clock at the query's `dataUpdatedAt`, and a connection whose `nextPollAt` has passed reads "due now"
-alone (no clock time). `components/JiraConnectionEditorModal.tsx` creates and edits (rules in `utils/jiraForm.ts`, mirrored from `JiraConnection.kt`; the 409
-marks the name). **The token is write-only**: never pre-filled, a password field with `autoComplete="new-password"`; on edit the hint is "A token is stored.
-Leave blank to keep the current token" (from `hasApiToken`) and a blank field is OMITTED from the PUT (a typed one rotates it); never logged, shown or echoed.
-**The site is the connection's identity**: read-only on edit (a PUT with another one is a 409). **A PUT is a full replace**: `toJiraConnectionRequest` always
-sends `authScheme`, `enabled` and **`pollIntervalMinutes` (the number, or an explicit `null` for manual only - never omitted: an omitted member resets the
-server to 15; pinned in `jiraForm.test.ts` and the editor's rename round trip)**. The editor's **Polling** `Fieldset`: a `NumberInput` 5..1440 step 5 (default
-15, `clampBehavior="none"`: a 3 or 2000 is refused with the rule's sentence, never clamped on blur) and a "Manual only (no polling)" `Checkbox` that disables it
-and sends `null`; unticking brings the number back. The modal's "Test connection" needs the name too (the server's probe body requires it) and probes with the
-form's values (an ad-hoc call with the token in the body) unless editing with a blank token, which probes the STORED connection and refreshes `["jira"]`;
-**while the form's account, scheme or keys differ from the saved ones, a note says the stored probe tests the SAVED settings** (`probeSettingsDiffer`, the
-server's own last-test invalidation set). A saved edit that cleared the verdict says "Not tested since the connection was last changed" (`untestedKey`; the verdict cell of the facts table and of this list is `components/ConnectionTestBadge.tsx`, shared with Flow: `layout="fact"` date then badge, `layout="row"` badge then date), and the
-toast asks for a new test. A 400 on save shows the server's sentence under the fixed lead. **Delete** goes through `useDeleteConfirm` + `ConfirmDeleteModal`
-(never `window.confirm`); its body (`DeleteBody`) says the connection's links between plan items and Jira items are unlinked (the server does it in the same
-transaction), with the count of LIVE-node links from `GET /integrations/jira/bindings?connectionId=&pageSize=1` (`total`; that list hides dead-node bindings, so
-the sentences say "live plan items" and never claim there is nothing else; a count-less sentence while it loads or fails). A new connection lands on its page.
+Files: `pages/People.tsx`, `PersonDetails.tsx`; `components/PersonEditorModal.tsx`, `PersonSelect.tsx`, `UserSelect.tsx`, `SearchPicker.tsx`; `utils/peopleLinks.ts`; `api/people.ts`.
 
-The page is a thin adapter over the shared shell `components/ConnectionDetailsPage.tsx` (route-id parse keyed by `:id`, load triage, header with Edit, sections column, editor modal; it takes `kind`, the list path, the read, a `sections` render slot and the `Editor`; the Flow page is its twin). `/integrations/jira/:id` has h3 sections inside `Box maw={CONTENT_MAX_WIDTH}`, each with a component of its own so the page stays a composition (the Bindings
-section is the third, `components/JiraBindingsSection.tsx`, below): **Connection** (`components/JiraConnectionSection.tsx`: the facts table - `FactsTable` and the token, enabled and last-test rows (`TokenFact`, `EnabledFact`, `LastTestFact`) shared with Flow in `components/SyncFacts.tsx`, the token only as
-"stored / not stored" -, **Test connection** on the STORED token (the verdict is also said in a polite status region, `components/ConnectionTestStatus.tsx`, and
-an old result is cleared the moment a new attempt starts) with the result in `components/ConnectionTestResults.tsx` (Flow's, ported: one row per probe, a
-passing row GREEN, a failed required row RED, a failed optional one ORANGE, a row the server did not run (`SKIPPED`, after a failed `tenant_info`:
-`utils/connectionTestRows.ts` `isSkipped`) a gray "Skipped" that the status sentence does not count as a failure, the failure in words with its code kept
-visible and the scope the probe needs; **the note "a 401 on one probe while `myself` passes = a missing scope, not bad credentials"** shows exactly then;
-`recorded: false` says the result was dropped because an edit raced it) and refreshes `["jira"]` (the discovery, the mapping defaults and the verdict moved),
-**Refresh now**, and the runs table) and **Mapping** (`components/JiraMappingSection.tsx`: "Test the connection first" until `connection.discoveredAt` is set -
-no empty form, no discovery request -, then the discovery report, the editor and Peek).
-**Coverage** (`components/JiraCoverageSection.tsx`, 1.14, between Mapping and the bindings list): `GET …/{id}/coverage` (query key `["jira","coverage",id]`, so a binding change, a Test, a mapping save and a finished run all refresh it; a run is noticed by the Connection section's effect either as the live-to-idle edge or as the NEWEST run's id or `finishedAt` moving between two polls, so a short run that began and ended between two idle polls still re-reads the counts) as a real table named "Coverage per level" (column headers; the level word is the row header), one row per mapped level with the in-scope, linked and open-and-unlinked counts right-aligned, no colour (a count is not a verdict), and a dimmed "Counted as of the last successful synchronisation, … (UTC)" line from `readAt` (the last successful run's finish). `NOT_SYNCED` says "Not synced yet", `MAPPING_UNUSABLE` a gray note and `MAPPING_CHANGED` ("The mapping changed since the last synchronisation … Use Refresh now to count them") likewise, each instead of a table (never zeros); a failed read is the inline `ErrorAlert`. Tests: `JiraCoverageSection.test.tsx`, the outline in `JiraConnectionDetails.test.tsx`.
+The people directory, a Teams clone under Administration after Teams, **visible to everyone** (reads are open, emails included): `useRegistryListControls` + `RegistryListTable` (Name link, Email,
+Login), ADMIN-only New/Edit/Delete through `PersonEditorModal` (name, optional email, optional Login via `UserSelect`, an ADMIN-only users search). A list row carries every field of the detail, so
+Edit takes the row as it stands (no detail fetch). The family of paths is spelled out in `utils/peopleLinks.ts`; the team editor's manager is a person (`managerPersonId`).
 
-**Development stub (1.5.1):** `connection.stub` (derived by the server per response, never stored: the stub is configured AND the site's label starts with
-`stub-`) shows a gray "Development stub" badge (`components/JiraStubBadge.tsx`) after the site in the registry's site cell and in the connection facts, and
-`result.stub` shows a gray `role="note"` Alert under a Jira test result (`ConnectionTestResults`: `jira.test.stubNote`); the polite status sentence is
-unchanged. The editor's site hint stays free of the dev convention (production users must not read it).
+- **`PersonSelect`** is the owner/manager picker (`["people","picker",term]`, enabled for every session, options `name (email)` or `name`); it and `UserSelect` are thin wrappers over `SearchPicker`
+  (debounced server-side search, the picked entry held by the caller). It also takes `disabled` and `error` (the plan editors' Owner: read-only for a caller who may edit only another part of the
+  modal, and the required-owner message).
+- **A 409 on save** marks the email field, or the login field when the problem `type` is `person-login-taken` (`isPersonLoginTaken`, `api/people.ts`); an untyped 409 reads as the email.
 
-The section's facts also carry **Status** (the badge), **Last success** (the date and `ageText`), **Next poll** and **Polling** ("every 15 min" / "Manual
-only"). **Refresh now** is disabled while a run is running (the POLLED runs list's verdict, the connection's own `status.lastRun.running` only until the list
-arrives; whoever started the run, a person or the schedule), and when that run ends the connection and the registry are re-read so the facts follow. It is
-`POST /integrations/sync/runs {kind: "JIRA", connectionId}` (`api/sync.ts`): the 202 claims a run, the page re-reads the runs and `hooks/useSyncRuns.ts` POLLS
-`GET /integrations/sync/runs?kind=JIRA&connectionId=` (react-query `refetchInterval`, `RUN_POLL_MS` 3 s) **only while the SERVER says a run is running
-(`run.running`), and stops when it ends and when the page unmounts**. **The client never judges a run's age by its own clock**: `running` is the server's
-verdict (unfinished and younger than `sync.maxRunMinutes`; one rule, `SyncRunService.isRunning`, shared by the run list, the connection's `lastRun` and the
-Deviations view). The one client-side bound is a safety net: the poll stops `RUN_POLL_MAX_MS` (10 min) after the page first saw the newest running run, latched
-on that run's id (`useBoundedPoll`), so a NEW claim after the bound polls again. **A `409 run-in-progress` is a normal state** (`isRunInProgress`; now only a
-race, since the button waits for a running run): a plain-text note "already running" while the server still says a run is running, never a red alert or a toast.
-`components/SyncRunsTable.tsx` names the trigger (Manual / Scheduled) and reads the outcome honestly: SUCCEEDED (green) / FAILED (red) / ABANDONED (orange) from
-`outcome`, an unfinished row as "Running" (gray) or "Interrupted" (orange; "No result was recorded and nothing is running it now" - no claim about what happens
-next) by the server's `running`, the counters, and `errorCode` as `utils/syncRuns.ts` `errorCodeText` - a human EN/PL sentence with the code kept visible, for
-every code the server can write (Jira's fetch vocabulary, the probes' `PROJECT_NOT_VISIBLE`/`TOKEN_UNREADABLE`, the run's own
-`NOT_DISCOVERED`/`MAPPING_INVALID`/`MAPPING_UNREADABLE`/`CONNECTION_GONE`/`CONNECTION_DISABLED`/`RUN_DEADLINE`/`SHUTDOWN`/`INTERNAL`/`ABANDONED`; an unknown
-code reads as itself) - and `errorDetail` as clamped plain text.
+Pinned by: `People.test.tsx`, `PersonDetails.test.tsx`, `PersonSelect.test.tsx`; the real browser is `e2e/tests/people.spec.ts`.
 
-**The mapping editor** (`components/JiraMappingEditor.tsx`, pure model in `utils/jiraMappingForm.ts`): a `Fieldset` each for Program / Project / Milestone - a
-level `Select` over the DISCOVERY's levels labelled "Level 1 — Epic" (the type names), clearable for program and project (unset = null in the document),
-required for the milestone, and three field `Select`s: start and end offer only `date` fields, the estimate only `number` fields (`fieldOptions`), the
-discovery's default marked "(default)" in the option LIST and as a short "Default" note under the select - never in the closed value (a narrow column would cut
-it off); `utils/jiraMappingForm.ts` labels are name and id only. The form opens on the SAVED mapping, else on the `defaults`; turning a level on fills its
-fields from the defaults; "Use the defaults" restores them. Estimate unit POINTS / HOURS / DAYS + the man-days-per-unit factor (**hidden and not sent for DAYS** -
-the server ignores it - 0 < x <= 1000, two decimals), and the Team field (the site's `atlassian-team` field). **A saved mapping that no longer fits the site
-stays displayable and fixable**: the GET's `problems[]` are amber lines (one orange `role="note"` list), and a stored level or field the discovery no longer
-offers stays a flagged option ("Level 5 (not on this site)", "customfield_9 (not found on this site)", "(a number field, not valid here)") instead of being
-dropped. Client rules are the shape rules only (milestone required, levels strictly decreasing, the factor); everything that needs the discovery is the
-server's: a `400` shows the server's own sentence (it names the level or field) under a fixed lead, `409 jira-not-discovered` / `jira-token-unreadable` are told
-in words. **The discovery report** (`components/JiraDiscoveryReport.tsx`) is what the first real-site test reads: counts, the levels, one green line per
-assumption marker found (Target start / Target end with the `schema.custom` that identified them, Start date, Due date, story points, Team) and an AMBER line
-for each NOT found, plus a gray line for a legacy Epic/Parent Link field.
+## Public holidays
 
-**Peek** (`components/JiraPeek.tsx`): an issue-key field with the `ISSUE_KEY_PATTERN` check, `GET …/peek?key=`, the result as ONE table (the issue with
-`JiraKeyLink`, what the mapping resolves, the raw values); a result belongs to the mapping it was read under (`resetKey`: the saved mapping and the discovery),
-so a save or a new test hides it while the typed key stays; the raw values are arbitrary JSON and are rendered as TEXT NODES only (a string as is, anything else
-as clamped JSON). 400 / 404 / 409 / 429 / 502 show inline (the 400 with the server's sentence, the 502 with Jira's failure code put in words). The status table of Peek, of the bind dialog (`utils/jiraBind.ts` `bindFailure`) and of the import modal (`utils/jiraImportText.ts` `importFailure`) is ONE mapper, `utils/jiraFailure.ts` `jiraFailure(err, t, keys)` giving `{ message, detail? }` (each dialog passes its own key table; `detailFor` lists the statuses that carry the server's sentence, the 400 alone by default; `upstreamCode`, which lifts Jira's code out of "Jira did not answer (CODE)", lives there only); the problem-type branches (409 `already-bound` / mapping / discovery / token) and the import's apply and timeout preamble stay with each dialog.
-**`components/JiraKeyLink.tsx`** (Flow's, ported; C9 uses it too) takes the connection's `siteUrl`: an external link `{site}/browse/{KEY}`,
-`target="_blank" rel="noopener noreferrer"`, plain text when the site is not `https://`. **`components/JiraKeyWithPrevious.tsx`** (1.13) is the key cell of the connection page's bindings list (`observation.issueKey`) and of the Deviations Jira cell (`jira.previousKey`): the current key as the link and, only when the key the issue was last read under differs (a moved item), a muted "was OLD-1" / "wcześniej OLD-1" beside it, the pair a `role="group"` named "NEW-1, was OLD-1"; the timeline chips show the current key only. Strings: `jira.*` (`jira.link.was`, `jira.link.keyWas`) (the `errorCode.*` table is shared by the probe rows
-and the runs). Tests: `JiraConnections.test.tsx`, `JiraConnectionDetails.test.tsx`, `JiraConnectionEditorModal.test.tsx`, `ConnectionTestResults.test.tsx`,
-`ConnectionTestStatus.test.tsx`, `SyncRunsTable.test.tsx`, `JiraMappingEditor.test.tsx`, `JiraDiscoveryReport.test.tsx`, `JiraPeek.test.tsx`,
-`useSyncRuns.test.tsx` (fake timers, incl. a second claim after the bound), `SyncStatusBadge.test.tsx`, `useNow.test.tsx`,
-`utils/jiraForm|jiraMappingForm|jiraFailure|syncRuns|syncStatus|jiraLinks.test.ts`; shared fixtures in `test/jira.ts`.
+`/public-holidays` is a leaf of the Administration section after People (`IconCalendarOff`, palette "Public holidays" / PL "Święta państwowe") that **everyone sees** (reads are open, like Teams and
+People; the dictionary is global and read by every timeline). The page is a year `Select`, one table per year (date, weekday, name; a plain `Table` in a `ScrollRegion`) and, for an ADMIN only, an add
+strip, a row delete behind `ConfirmDeleteModal` and the Polish preset button (`POST /public-holidays/apply-preset`). The dictionary is handed to `Timeline`'s `holidays` prop.
 
-## Flow connections (`pages/FlowConnections.tsx`, `pages/FlowConnectionDetails.tsx`, v1.5.0)
+Files: `pages/PublicHolidays.tsx`; `api/calendar.ts` (`listPublicHolidays` unwraps `{items}`); `hooks/useHolidays.ts`; `utils/publicHolidays.ts`, `utils/calendarLinks.ts`;
+`locales/{en,pl}/calendar.json` (`calendar.*`).
 
-`/integrations/flow` (nav: Administration after Jira, **ADMIN only**, `IconActivity`, palette keywords `flow capacity roster`; both routes under `RequireAdmin`,
-queries `enabled: isAdmin()`) is the registry of the Flow instances Astrolabe READS team capacity and rosters from (nothing is written to Flow),
-`GET /integrations/flow/connections` under `["flow","list",…]` through `api/flow.ts`: the Jira registry's twin (`usePagedSort` + `RegistryListTable`; columns
-name, base URL, time zone, last test, **Status** (`SyncStatusBadge`, `ready` = `flowReady`: a passing test or a mirrored document, the server's sticky rule),
-last run, kebab; the test cell is the shared `ConnectionTestBadge`, the last-run cell `LastRunCell`, the external-link icon `TrailingLinkIcon`) with the same slow re-read (`IDLE_REFRESH_MS`) and bounded poll while a run runs (`listRefetchInterval`, one rule for both lists). `/integrations/flow/:id` is a thin adapter over the same shell (`components/ConnectionDetailsPage.tsx`, see the Jira section) and has two h3 sections: **Connection**
-(`components/FlowConnectionSection.tsx`: facts via the shared `SyncFacts` and `FactsTable` / `TokenFact` / `EnabledFact` / `LastTestFact`, Test connection on the STORED token, Refresh now =
-`POST /integrations/sync/runs {kind: "FLOW"}`, `SyncRunsTable kind="FLOW"`; a test writes NO mirror - the run does - so the Teams section follows a run's end,
-not a test) and **Teams** (`components/FlowTeamsSection.tsx`, below). The shared pieces are kind-aware, never forked: `ConnectionTestResults kind="FLOW"` words
-the probes (`flow.probe.*`), adds the document's size and the truncation note and has no Jira scope note; `errorCodeText(code, t, kind)` (`utils/syncRuns.ts`)
-has the Flow table (`flow.errorCode.*`, the revoked-token sentence tells to issue a new token in Flow) and falls back to the shared sentences;
-`useSyncRuns`/`syncRunsKey` cache Flow's runs under `["flow"]`, Jira's under `["jira"]`. The generic connector vocabulary lives in `sync.*` (`sync.status.*`, `sync.runs.*`,
-`sync.test.*`, `sync.details.status…`, `sync.errorCode.*`; `jira.test.scopeHint/scopeNote/stubNote/cloudId` stay Jira-only) and is shared as is; the Polling labels and rule live in `common.polling.*` (`components/PollingFields.tsx`,
-`utils/pollingForm.ts`, used by both editors).
+- **ONE cached query, two consumers.** The dictionary is `["calendar","holidays"]` (`HOLIDAYS_QUERY_KEY`, `staleTime` 1 min, so another admin's edit reaches a mounted page soon). The page reads it
+  with its own `useQuery` on that key; every timeline component (`ProjectTimeline`, `TeamTimeline`, `RoadmapTimeline`, `ProgramsTimeline`) and `MilestoneScheduleModal` read it through `useHolidays()`
+  = `{holidays, failed}`: `[]` while loading or on a failure (the holiday layer is decoration and the pre-check only a pre-check: the server's views and 400 are the rule), `failed` true only when
+  there is no copy at all, which the timelines pass on as `holidaysFailed` so `Timeline` shows its muted "could not be loaded" line (a page test that does not serve `GET /api/v1/public-holidays` sees
+  it).
+- **A write refreshes `["calendar"]`, `["plan"]` and `["roadmap"]`** (`refreshQueriesAfterMutation`): the holiday write bumps the plan revision server-side and every view's working-day figures
+  changed. A mounted project view, the roadmap and the programs page (`["roadmap","programs"]`) all follow.
+- **The year picker** shows ONE year at a time, client-side (the endpoint is unpaged): the years in the data, the current year, the year after it (so the Polish preset can be applied to the coming
+  year on an empty list) and the viewed year. A successful add jumps the picker to the new row's year.
+- **The Polish preset** (ADMIN): the "Add Polish public holidays for {{year}}" button opens a `ConfirmActionModal` (non-destructive: `confirmColor="astrolabe"`);
+  `POST /public-holidays/apply-preset {preset: "POLISH", year}` for the VIEWED year. On success the toast `calendar.toast.presetAdded` and a `role="status"` line "Polish holidays of 2027: 12 added, 2
+  already present." under the picker (cleared when the year changes or a holiday is added); a 400/403/other failure closes the dialog and shows the same inline `FormErrorAlert` as an add
+  (`calendar.error.preset*`), never a toast. A holiday on a weekend is stored and shown; it changes no figure.
+- **Add / delete.** The add strip is a `<form>` (Enter submits; the button is disabled until the date is a real calendar date and the name is 1..100 characters); a 409 reads the fixed
+  `calendar.duplicateDate`, a 400 `calendar.invalid`, a 403 `calendar.error.forbidden`: the server's `detail` is never rendered. Delete is `useDeleteConfirm` + `ConfirmDeleteModal` with an
+  interpolated row aria-label (`calendar.deleteAria`); a 404 on delete reads "This holiday no longer exists".
 
-`components/FlowConnectionEditorModal.tsx` (rules in `utils/flowForm.ts`, mirrored from `FlowConnection.kt`): **the base URL is the connection's identity**
-(read-only on edit) and is written canonically when the field is left and before every send (`normaliseBaseUrl`: lowercase, default port and trailing slash
-dropped; a path, query or credentials are NEVER cut, the form refuses them; whether the origin is one the OPERATOR listed is the server's 400, shown with its
-own sentence under the fix (two sentences since 1.5.1: `NOT_CANONICAL` "the origin alone, in lowercase…" and `NOT_LISTED` "not one of the Flow origins this
-server is configured to allow…"; a port is never the reason); the create form reads `GET /integrations/flow/origins` under `["flow","origins"]` (create only,
-ADMIN) and prints "Allowed on this server: …" after the hint (`allowedOriginsHint`; the plain hint while loading or when the read fails, a "no Flow origin is
-configured" note for an empty list); the **time zone** is a text field pre-filled `Europe/Warsaw` (Flow's metrics zone) checked by `canonicalTimeZone` (`utils/flowForm.ts`)
-(`Intl.supportedValuesOf("timeZone")` when the engine has it, the formatter plus a region's shape otherwise; a bare offset is refused); the **token is
-write-only** (`PasswordInput`, `autoComplete="new-password"`, shape `flow_int_` + 43 characters, a blank one omitted from the PUT and "A token is stored. Leave
-blank to keep…" from `hasApiToken`); **a PUT is a full replace**: `pollIntervalMinutes` (default **60**, or an explicit `null` for manual only) always travels.
-A new token or zone clears the server's verdict, so the toast asks for a new test (`clearsVerdict`); there is no Jira-style "saved settings" note: the stored
-probe (blank token) tests the SAVED token and zone (the zone feeds `sprintsSince`).
+Pinned by: `PublicHolidays.test.tsx`, `utils/publicHolidays.test.ts`, `api/calendar.test.ts`; the wiring into the pages is one test each in `ProjectView|TeamDetails|Roadmap|Programs.test.tsx`;
+`MilestoneScheduleModal`'s pre-check is `ProjectView.test.tsx` and `milestoneForm.test.ts`.
 
-**Teams section**: `GET /integrations/flow/teams?connectionId=` under `["flow","teams",id]` (unpaged, any signed-in user, re-read every `IDLE_REFRESH_MS` and
-when a run ends): the mirror's teams with membership and sprint counts, the linked Astrolabe team (a link to its page) with Unlink (an in-page
-`ConfirmDeleteModal`, never `window.confirm`; "capacity already imported stays"), or the server's UNIQUE suggestion with **Link** (`POST /team-bindings`),
-**Link all suggested** (`POST …/team-bindings/match`, ADMIN; the outcome is a polite status line "N linked, M without a unique match, K linked already"), and
-when the mirror was read; before the first run it reads "Refresh the connection first". The suggestion is the server's, never computed here. A disabled
-connection links nothing (a note; the server answers 400). A refused link shows a fixed lead and, for a 409 `already-bound` or a 400, the server's sentence, and
-re-reads the list. A link or unlink refreshes `["flow","teams"]` and `["flow","team"]` through `utils/flowRefresh.ts` `refreshFlowLinks` (**the team page's Flow
-panel of C11 keys on `["flow","team",id]` and gets the refresh for free**); nothing of the timeline views moves. Strings: `flow.*`. Tests:
-`FlowConnections.test.tsx`, `FlowConnectionDetails.test.tsx`, `FlowConnectionSection.test.tsx`, `FlowTeamsSection.test.tsx`,
-`FlowConnectionEditorModal.test.tsx`, `PollingFields.test.tsx`, `utils/flowForm|flowLinks|pollingForm.test.ts`; shared fixtures in `test/flow.ts`.
+## Users, feature flags and permissions
 
-## Changelog and app versioning (`pages/Changelog.tsx`, `src/changelog/`)
+Routes: `/users` (list, `/new`, `/:id/edit`, `/:id/features`, `/:id/permissions`; `utils/userLinks.ts` spells the family out) and ADMIN `/feature-flags`, all under ONE
+`<Route element={<RequireAdmin />}>` in `App.tsx` (`auth.tsx`, beside `RequireAuth`: a regular user is sent home). `NavLeaf.adminOnly` gates the Users nav item (the Shell filters by `isAdmin()`); the
+rest is `web/CLAUDE.md`'s admin-page rule.
 
-The user-facing changelog is a **build-time artifact** — no DB, no API, changes only with a deploy. `src/changelog/entries.ts` holds `ChangelogEntry` rows
-(`version`, `date` `YYYY-MM-DD`, `en`/`pl` **markdown** bodies), newest first; the app's only human-readable version is `APP_VERSION` in
-**`src/changelog/version.ts`** — its own tiny module so the shell's eager imports (VersionStamp, the what's-new dot) never pull the bilingual entries into the
-main bundle (the entries ride the lazy Changelog chunk only). A release = the new entry at the top of entries.ts + the bump of that one literal (the Gradle
-`1.0.0-SNAPSHOT` is unrelated); `src/changelog/entries.test.ts` pins `CHANGELOG[0].version === APP_VERSION`, so forgetting either half fails the suite. Dates
-stay descending (same-day releases are fine — newest stays on top), versions unique and both bodies non-empty. Bodies are *content*, so they live in the data
-file, not `locales/`; the PL body follows the Polish voice conventions (inclusive slash forms, active voice). Keep phrases that tests assert on in plain text
-runs: markdown formatting splits text nodes, and testing-library's `getByText` matches direct text nodes only. The release convention itself (both bodies by
-hand, descending dates, the tag and the GitHub release, which PRs bump the version) is `web/CLAUDE.md` and `app-releases.md`.
+### User management
 
-### Changelog rendering & UI wiring
+Files: `pages/Users.tsx`, `CreateUser.tsx`, `EditUser.tsx`, `ChangePassword.tsx`; `components/OneTimePasswordModal.tsx`, `RevealablePassword.tsx`; `hooks/useResetPassword.ts`; `utils/password.ts`,
+`userForm.ts`; `api/users.ts`.
 
-- `pages/Changelog.tsx` (`/changelog`, authenticated, lazy) renders the entries as a Mantine
-  `Timeline` with `MarkdownView` bodies in the viewer's language, and calls `markChangelogSeen()`
-  on mount. **Bodies are authored EN+PL only, by policy** — a new shipped UI language does NOT
-  add changelog fields; non-authored languages read the English body (`AUTHORED_LANGUAGES` in the
-  page). `components/MarkdownView.tsx` (Typography + react-markdown + remark-gfm/gemoji, all
-  lazy-chunk-only deps) is the one markdown renderer — reuse it for future markdown content.
-- `components/VersionStamp.tsx` shows `v<APP_VERSION> · <sha> · <time>`; its optional `to` prop
-  renders it as a router link — the navbar footer instance links to `/changelog` (no dot on it any
-  more), the Login/AuthCard instance deliberately stays plain (the route is behind auth). The
-  "Changelog" entry is an `ACCOUNT_NAV` leaf rendered by the `UserMenu` and the command palette,
-  not a sidebar item.
-- The **"what's new" dot** is a red Mantine `Indicator` around the header `UserMenu` trigger (it
-  carries the `title="What's new"` e2e locates; the Changelog menu item shows a text badge
-  instead of a second title, which would trip strict-mode locators while the menu is open), shown
-  while localStorage `astrolabe.changelog` (`{seenVersion}`) differs from `APP_VERSION`. It's driven
-  by `hooks/useChangelogSeen.ts` via `useSyncExternalStore` over a module-level listener set — do
-  **not** replace that with a plain localStorage read in state: the shell renders before the
-  page's mark-seen effect, so the dot would only clear on the next navigation. The seen-state is
-  device-level (survives logout, like `astrolabe.lang`) and hand-rolls its guarded read/write, not
-  `useStoredState` (that hook owns the `astrolabe.viewSettings.*` namespace).
-- Tests: `pages/Changelog.test.tsx`, `changelog/entries.test.ts`, the dot/nav cases in
-  `App.test.tsx`, the link/prefix cases in `components/VersionStamp.test.tsx`.
+- **Passwords** are generated client-side (`utils/password.ts`) and revealed exactly once: `OneTimePasswordModal` (not dismissable by click-outside or Escape) renders `RevealablePassword` (masked by
+  default, eye toggle, copy), and closing drops the plaintext from state for good: the server never returns it. The admin Reset-password action (`useResetPassword`) reuses the same generate→PUT→reveal
+  flow; the confirm is the shared `ConfirmActionModal` (its optional `error` slot carries the inline `FormErrorAlert`).
+- **The edit page** tells the last-administrator 409 (`users.lastAdminError`) from the email-in-use one by the problem `type` `last-admin` (`isLastAdminConflict`, `api/users.ts`), never by the
+  sentence.
+- **Login and person in one step.** The new-login form (`CreateUser.tsx` only, not the shared `UserFormFields`, so the edit page has none) has a `Switch` "Also create a linked person", ON by default
+  (a page-local `useState`), posted as `alsoCreatePerson`; the server creates the person (the login's name and email, linked) in the same transaction, and the create refreshes `["users"]` and
+  `["people"]`. A refused person means no login.
+  - A 409 of problem `type` `person-email-taken` (`isPersonEmailTaken`) gets its own message (`users.personAlreadyExists`); the plain 409 stays the email-in-use one. Every other 23505 stays
+    `about:blank`; the 409s are told apart by the problem `type` (`person-email-taken`, `person-login-taken`), never by the sentence.
+  - The Users row menu offers "Create a person" (`POST /people` with the login's name, email and `userId`, success toast `users.toast.personCreated`, a failure inline) only when the row's `personId`
+    is null (`UserResponse.personId`: the id of the ACTIVE person linked to the login); a success refreshes `["people"]` and `["users"]`. The inline failure belongs to the view it happened in (a
+    filter, sort or page change drops it) and is cleared when another row action starts.
+  - e2e: the helper `createUserViaUi` turns the switch OFF unless asked, so a throwaway login leaves no person behind.
+
+### Feature flags
+
+Files: `pages/FeatureFlags.tsx`, `UserFeatures.tsx`; `hooks/useFeatureFlagFilters.ts` (the persisted filters), `useFeatureFlagBulk.ts` (the bulk run wired to this screen), `useBulkFeatureUpdate.ts`;
+`components/FeatureFlagFilters.tsx`, `FeatureFlagBulk.tsx`, `FeatureFlagRow.tsx`; `utils/featureFlags.ts` (`isFeatureEnabled`/`withFeatureEnabled`, the one place a disabled set is rewritten).
+
+`getDisabledFeatures()` (`api/session.ts`, reading the `astrolabe.auth.disabledFeatures` localStorage set; no area gates on it yet, MFA gates only the login flow server-side). The per-user editor is
+at `/users/:id/features` (the Users table's Features button: a checkbox per `Feature`, wholesale-replace PUT); the ADMIN per-feature screen at `/feature-flags` (`adminOnly` nav leaf) has a state
+filter and bulk enable/disable over every row matching the current filters behind a count-stating confirm (`useBulkFeatureUpdate` loops the same per-user wholesale PUTs client-side via
+`ConfirmActionModal`). The page itself is only the query, the table and the single-row toggle. A second `Feature` value needs no restructuring: the feature `Select` already lists `FEATURES`. Both
+queries key under `["users", …]`.
+
+- **Mind the wholesale-replace semantics:** a PUT whose disabled set omits `MFA` ENABLES it.
+- A bulk run with nothing to change is neither success nor failure: it shows the inline gray `role="note"` Alert (`users.featureFlags.bulkNoChange`), never a toast.
+
+### Permissions
+
+`pages/UserPermissions.tsx`: the ADMIN per-user permission editor at `/users/:id/permissions` (the Users row menu's Permissions item, `userPermissionsPath` in `utils/userLinks.ts`), a
+`UserFeatures.tsx` clone with the opposite polarity: one `Switch` per `PERMISSIONS` entry (`api/users.ts`, derived from `PERMISSION_TEXT`, which `satisfies Record<Permission, …>` against the spec's
+`Permission` enum; checked = GRANTED, seeded from `UserResponse.permissions`). It saves the wholesale `PUT /users/{id}/permissions` (`updateUserPermissions`), then invalidates `["users"]` and
+`["user", id]` and returns to `/users` with the `users.toast.permissionsSaved` toast. Labels and hints are `common.permission.*` / `common.permissionHint.*` (EN/PL).
+
+- A permission is NOT in the session (`api/session.ts` stores roles and disabled features only): it is read server-side per request, so a change needs no re-login and the SPA never gates on it; a UI
+  that needs "can this caller rank" reads the server's `can` flags (the planning views).
+- A new spec `Permission` value is a compile error in `PERMISSION_TEXT` until it has its label/hint keys (then its two `common` entries).
+- The wholesale PUT carries over any granted value the page has no switch for (a newer server), so a save can never silently revoke it.
+
+Pinned by: `Users|CreateUser|EditUser|FeatureFlags|UserFeatures|UserPermissions.test.tsx`, `api/users.test.ts`; the real browser is `e2e/tests/users.spec.ts`.
+
+## Jira connections
+
+Files: `pages/JiraConnections.tsx`, `JiraConnectionDetails.tsx`; `api/jira.ts`, `api/sync.ts`; `components/Jira*.tsx` (the editor modal, the Connection, Mapping, Coverage and Bindings sections, the
+mapping editor, discovery report, Peek, key links, stub badge) and the pieces Flow shares (`ConnectionDetailsPage`, `SyncStatusBadge`, `LastRunCell`, `SyncFacts`, `ConnectionTest*`, `SyncRunsTable`,
+`TrailingLinkIcon`, `PollingFields`); `hooks/useSyncRuns.ts`, `useBoundedPoll.ts`, `useNow.ts`; `utils/jiraForm.ts`, `jiraMappingForm.ts`, `jiraFailure.ts`, `syncRuns.ts`, `syncStatus.ts`,
+`connectionTestRows.ts`, `pollingForm.ts`.
+
+`/integrations/jira` (nav: Administration, **ADMIN only**, `IconPlugConnected`, palette "Jira"; both routes sit under `RequireAdmin` and their queries are `enabled: isAdmin()`) is the registry of the
+Jira Cloud sites Astrolabe OBSERVES (nothing is ever written to Jira). `/integrations/jira/:id` is a thin adapter over the shared shell `ConnectionDetailsPage` (route-id parse keyed by `:id`, load
+triage, header with Edit, sections column, editor modal; it takes `kind`, the list path, the read, a `sections` render slot and the `Editor`; the Flow page is its twin).
+
+### The registry
+
+`GET /integrations/jira/connections` under `["jira","list",…]`: the Teams shape (`usePagedSort` + `RegistryListTable`, no name filter: the endpoint has none).
+
+- **Columns:** name (the link, a gray "Disabled" badge), site (an external link, `rel="noopener noreferrer"`, its trailing icon `TrailingLinkIcon`, also the Jira key link's, Flow's and the Roadmap
+  flag panel's), project keys, last test, **Status**, last run, kebab Open / Edit / Delete.
+- **Status** is `SyncStatusBadge` over the connection's server-derived `status` (`SyncStatus`: nothing is stored; CURRENT green, FAILED red, STALE orange, NEVER_SYNCED / DISABLED gray, label
+  `sync.status.<STATE>`) with a secondary line from `utils/syncStatus.ts`: the failure streak while there is one ("3 failures in a row · TOKEN_UNREADABLE", plural forms EN/PL), else "not polled: test
+  the connection first" (`discoveredAt == null`), "manual only", "due now" or "next poll in 7 min" (minutes rounded UP, hours from 2 h). `now` is `hooks/useNow.ts`'s minute-ticking client clock (the
+  telemetry section passes the server's `generatedAt`), a wording only: no decision rests on it. `useNow(period, readAt)` floors the clock at the query's `dataUpdatedAt`, and a connection whose
+  `nextPollAt` has passed reads "due now" alone (no clock time).
+- **Last run** (`LastRunCell`, shared with Flow) is the connection's own `lastRun` (`{id, startedAt, finishedAt, outcome, errorCode, running}`, null before its first run; the SERVER reads it for the
+  page's rows, scoped to the connection): an outcome badge and when it started, "—" for none.
+- **Re-reads.** The list's `refetchInterval` is `listRefetchInterval` (`utils/syncRuns.ts`, shared with Flow). While any listed connection's `lastRun.running` is set the list is re-read at the same
+  bounded poll as the run table (`useBoundedPoll`). **Open pages follow the scheduler:** the list, the connection and its runs (`useSyncRuns(..., IDLE_REFRESH_MS)`) are also re-read every 30 s while
+  the tab is visible, even after the fast poll's safety net stopped, so a scheduled run, or a run the server stopped calling running, reaches an open page; Refresh now's claim settling re-reads all
+  three.
+- **Delete** goes through `useDeleteConfirm` + `ConfirmDeleteModal` (never `window.confirm`); its body (`DeleteBody`) says the connection's links between plan items and Jira items are unlinked (the
+  server does it in the same transaction), with the count of LIVE-node links from `GET /integrations/jira/bindings?connectionId=&pageSize=1` (`total`; that list hides dead-node bindings, so the
+  sentences say "live plan items" and never claim there is nothing else; a count-less sentence while it loads or fails). A new connection lands on its page.
+
+### The editor
+
+`JiraConnectionEditorModal` creates and edits (rules in `utils/jiraForm.ts`, mirrored from `JiraConnection.kt`; the 409 marks the name). A 400 on save shows the server's sentence under the fixed lead.
+
+- **Write-only token, read-only site, full-replace PUT** (`web/CLAUDE.md`'s integration-page rules): the token field is a password field with `autoComplete="new-password"`, on edit the hint is "A
+  token is stored. Leave blank to keep the current token" (from `hasApiToken`) and a blank field is OMITTED from the PUT (a typed one rotates it); a PUT with another site is a 409.
+  `toJiraConnectionRequest` always sends `authScheme`, `enabled` and **`pollIntervalMinutes` (the number, or an explicit `null` for manual
+  only: never omitted, an omitted member resets the server to 15; pinned in `jiraForm.test.ts` and the editor's rename round trip)**.
+- **Polling** `Fieldset` (`PollingFields`, `utils/pollingForm.ts`, both editors'): a `NumberInput` 5..1440 step 5 (default 15, `clampBehavior="none"`: a 3 or 2000 is refused with the rule's sentence,
+  never clamped on blur) and a "Manual only (no polling)" `Checkbox` that disables it and sends `null`; unticking brings the number back.
+- **"Test connection"** in the modal needs the name too (the server's probe body requires it) and probes with the form's values (an ad-hoc call with the token in the body) unless editing with a blank
+  token, which probes the STORED connection and refreshes `["jira"]`. While the form's account, scheme or keys differ from the saved ones, a note says the stored probe tests the SAVED settings
+  (`probeSettingsDiffer`, the server's own last-test invalidation set).
+- A saved edit that cleared the verdict says "Not tested since the connection was last changed" (`untestedKey`; the verdict cell of the facts table and of the list is `ConnectionTestBadge`, shared
+  with Flow: `layout="fact"` date then badge, `layout="row"` badge then date), and the toast asks for a new test.
+
+### The connection page
+
+`/integrations/jira/:id` has h3 sections inside `Box maw={CONTENT_MAX_WIDTH}`, each a component of its own so the page stays a composition: **Connection**, **Mapping**, **Coverage** and the bindings
+list (`JiraBindingsSection`: "The bindings list" under "Deviations, bindings and the Jira chips").
+
+- **Connection** (`JiraConnectionSection`): the facts table (the token only as "stored / not stored"; **Status** (the badge), **Last success** (the date and `ageText`), **Next poll** and **Polling**
+  ("every 15 min" / "Manual only")), **Test connection** on the STORED token, **Refresh now**, and the runs table.
+  - The verdict is also said in a polite status region (`ConnectionTestStatus`), and an old result is cleared the moment a new attempt starts. The result is `ConnectionTestResults` (Flow's, ported):
+    one row per probe, a passing row GREEN, a failed required row RED, a failed optional one ORANGE, a row the server did not run (`SKIPPED`, after a failed `tenant_info`:
+    `utils/connectionTestRows.ts` `isSkipped`) a gray "Skipped" that the status sentence does not count as a failure, the failure in words with its code kept visible and the scope the probe needs.
+  - **The note "a 401 on one probe while `myself` passes = a missing scope, not bad credentials"** shows exactly then; `recorded: false` says the result was dropped because an edit raced it. A test
+    refreshes `["jira"]` (the discovery, the mapping defaults and the verdict moved).
+  - **Development stub:** `connection.stub` (derived by the server per response, never stored: the stub is configured AND the site's label starts with `stub-`) shows a gray "Development stub" badge
+    (`JiraStubBadge`) after the site in the registry's site cell and in the connection facts, and `result.stub` shows a gray `role="note"` Alert under a Jira test result (`jira.test.stubNote`); the
+    polite status sentence is unchanged. The editor's site hint stays free of the dev convention (production users must not read it).
+- **Mapping** (`JiraMappingSection`): "Test the connection first" until `connection.discoveredAt` is set (no empty form, no discovery request), then the discovery report, the editor and Peek.
+
+### Runs and Refresh now
+
+**Refresh now** is `POST /integrations/sync/runs {kind: "JIRA", connectionId}` (`api/sync.ts`): the 202 claims a run and `useSyncRuns` POLLS `GET /integrations/sync/runs?kind=JIRA&connectionId=`
+(`refetchInterval`, `RUN_POLL_MS` 3 s) **only while the SERVER says a run is running (`run.running`), and stops when it ends and when the page unmounts.** The button is disabled while a run is running
+(the POLLED runs list's verdict, the connection's own `status.lastRun.running` only until the list arrives; whoever started it), and when that run ends the connection and the registry are re-read.
+
+- **`running` is the server's verdict** (unfinished and younger than `sync.maxRunMinutes`; one rule, `SyncRunService.isRunning`, shared by the run list, the connection's `lastRun` and the Deviations
+  view); the client never judges a run's age by its own clock. The one client-side bound is a safety net: the poll stops `RUN_POLL_MAX_MS` (10 min) after the page first saw the newest running run,
+  latched on that run's id (`useBoundedPoll`), so a NEW claim after the bound polls again.
+- **A `409 run-in-progress` is a normal state** (`isRunInProgress`; now only a race, since the button waits for a running run): a plain-text note "already running" while the server still says a run is
+  running, never a red alert or a toast.
+- **`SyncRunsTable`** names the trigger (Manual / Scheduled) and reads the outcome honestly: SUCCEEDED (green) / FAILED (red) / ABANDONED (orange) from `outcome`, an unfinished row as "Running" (gray)
+  or "Interrupted" (orange; "No result was recorded and nothing is running it now": no claim about what happens next) by the server's `running`, the counters, `errorDetail` as clamped plain text, and
+  `errorCode` as `errorCodeText` (`utils/syncRuns.ts`): a human EN/PL sentence with the code kept visible.
+- **The failure-code sentences** are typed over the spec's `SyncFailureCode`: `ERROR_CODE_KEYS` (`utils/syncRuns.ts`) is a `Record` over the declared list, so a code added to or renamed in the spec
+  fails `tsc` until its sentence key is added. `SKIPPED` points at `sync.test.skippedDetail` (a skipped probe row is worded by the test table itself) and `TIME_ZONE_INVALID` at
+  `flow.errorCode.TIME_ZONE_INVALID`. `FLOW_ERROR_CODE_KEYS` is a `Partial` override over the same codes; a code it does not word reads as the shared sentence. `errorCodeText` takes a `string`, and a
+  code the list does not know reads as itself. The `errorCode.*` table is shared by the probe rows and the runs.
+
+### The mapping editor and the discovery report
+
+`JiraMappingEditor` (pure model in `utils/jiraMappingForm.ts`): a `Fieldset` each for Program / Project / Milestone.
+
+- A level `Select` over the DISCOVERY's levels labelled "Level 1 — Epic" (the type names), clearable for program and project (unset = null in the document), required for the milestone, and three field
+  `Select`s: start and end offer only `date` fields, the estimate only `number` fields (`fieldOptions`). The discovery's default is marked "(default)" in the option LIST and as a short "Default" note
+  under the select, never in the closed value (a narrow column would cut it off); labels are name and id only.
+- The form opens on the SAVED mapping, else on the `defaults`; turning a level on fills its fields from the defaults; "Use the defaults" restores them. Estimate unit POINTS / HOURS / DAYS + the
+  man-days-per-unit factor (**hidden and not sent for DAYS**: the server ignores it; 0 < x <= 1000, two decimals), and the Team field (the site's `atlassian-team` field).
+- **A saved mapping that no longer fits the site stays displayable and fixable:** the GET's `problems[]` are amber lines (one orange `role="note"` list), and a stored level or field the discovery no
+  longer offers stays a flagged option ("Level 5 (not on this site)", "customfield_9 (not found on this site)", "(a number field, not valid here)") instead of being dropped.
+- Client rules are the shape rules only (milestone required, levels strictly decreasing, the factor); everything that needs the discovery is the server's: a `400` shows the server's own sentence (it
+  names the level or field) under a fixed lead, `409 jira-not-discovered` / `jira-token-unreadable` are told in words.
+- **The discovery report** (`JiraDiscoveryReport`) is what the first real-site test reads: counts, the levels, one green line per assumption marker found (Target start / Target end with the
+  `schema.custom` that identified them, Start date, Due date, story points, Team) and an AMBER line for each NOT found, plus a gray line for a legacy Epic/Parent Link field.
+
+### Peek and the Jira key links
+
+- **Peek** (`JiraPeek`): an issue-key field with the `ISSUE_KEY_PATTERN` check, `GET …/peek?key=`, the result as ONE table (the issue with `JiraKeyLink`, what the mapping resolves, the raw values). A
+  result belongs to the mapping it was read under (`resetKey`: the saved mapping and the discovery), so a save or a new test hides it while the typed key stays. The raw values are arbitrary JSON and
+  are rendered as TEXT NODES only (a string as is, anything else as clamped JSON). 400 / 404 / 409 / 429 / 502 show inline.
+- **One failure mapper:** the status table of Peek, of the bind dialog (`utils/jiraBind.ts` `bindFailure`) and of the import modal (`utils/jiraImportText.ts` `importFailure`) is `utils/jiraFailure.ts`
+  `jiraFailure(err, t, keys)` giving `{ message, detail? }` (each dialog passes its own key table; `detailFor` lists the statuses that carry the server's sentence, the 400 alone by default;
+  `upstreamCode` lives there only). The problem-type branches (409 `already-bound` / mapping / discovery / token) and the import's apply and timeout preamble stay with each dialog.
+- **`JiraKeyLink`** (Flow's, ported) takes the connection's `siteUrl`: an external link `{site}/browse/{KEY}`, `target="_blank" rel="noopener noreferrer"`, plain text when the site is not `https://`.
+- **`JiraKeyWithPrevious`** is the key cell of the connection page's bindings list (`observation.issueKey`) and of the Deviations Jira cell (`jira.previousKey`): the current key as the link and, only
+  when the key the issue was last read under differs (a moved item), a muted "was OLD-1" / "wcześniej OLD-1" beside it, the pair a `role="group"` named "NEW-1, was OLD-1" (`jira.link.was`,
+  `jira.link.keyWas`); the timeline chips show the current key only.
+
+### Coverage
+
+`JiraCoverageSection`, between Mapping and the bindings list: `GET …/{id}/coverage` (query key `["jira","coverage",id]`, so a binding change, a Test, a mapping save and a finished run all refresh it;
+the Connection section's effect notices a run either as the live-to-idle edge or as the NEWEST run's id or `finishedAt` moving between two polls, so a short run between two idle polls still re-reads
+the counts) as a real table named "Coverage per level" (column headers; the level word is the row header): one row per mapped level with the in-scope, linked and open-and-unlinked counts
+right-aligned, no colour (a count is not a verdict), and a dimmed "Counted as of the last successful synchronisation, … (UTC)" line from `readAt` (the last successful run's finish). `NOT_SYNCED` says
+"Not synced yet", `MAPPING_UNUSABLE` a gray note and `MAPPING_CHANGED` ("The mapping changed since the last synchronisation … Use Refresh now to count them") likewise, each instead of a table (never
+zeros); a failed read is the inline `ErrorAlert`.
+
+Pinned by: `Jira*.test.tsx` (the pages, the editor, the mapping editor, the report, Peek, Coverage), `Connection*.test.tsx`, `SyncRunsTable.test.tsx`, `SyncStatusBadge.test.tsx`,
+`useSyncRuns.test.tsx` (fake timers, incl. a second claim after the bound), `useNow.test.tsx`, `utils/jiraForm|jiraMappingForm|jiraFailure|syncRuns|syncStatus|jiraLinks.test.ts`; shared fixtures in
+`test/jira.ts`.
+
+## Flow connections
+
+Files: `pages/FlowConnections.tsx`, `FlowConnectionDetails.tsx`; `api/flow.ts`; `components/FlowConnectionEditorModal.tsx`, `FlowConnectionSection.tsx`, `FlowTeamsSection.tsx`; `utils/flowForm.ts`,
+`flowLinks.ts`, `flowRefresh.ts`; the shared pieces are listed under "Jira connections".
+
+`/integrations/flow` (nav: Administration after Jira, **ADMIN only**, `IconActivity`, palette keywords `flow capacity roster`; both routes under `RequireAdmin`, queries `enabled: isAdmin()`) is the
+registry of the Flow instances Astrolabe READS team capacity and rosters from (nothing is written to Flow), `GET /integrations/flow/connections` under `["flow","list",…]`: the Jira registry's twin
+(`usePagedSort` + `RegistryListTable`).
+
+- **Columns:** name, base URL, time zone, last test (`ConnectionTestBadge`), **Status** (`SyncStatusBadge`, `ready` = `flowReady`: a passing test or a mirrored document, the server's sticky rule),
+  last run (`LastRunCell`), kebab. The same slow re-read (`IDLE_REFRESH_MS`) and bounded poll while a run runs (`listRefetchInterval`, one rule for both lists).
+- `/integrations/flow/:id` is a thin adapter over the same shell (`ConnectionDetailsPage`, see "Jira connections") with two h3 sections: **Connection** (`FlowConnectionSection`: facts via the shared
+  `SyncFacts`, Test connection on the STORED token, Refresh now = `POST /integrations/sync/runs {kind: "FLOW"}`, `SyncRunsTable kind="FLOW"`) and **Teams** (`FlowTeamsSection`, below). A test writes
+  NO mirror (the run does), so the Teams section follows a run's end, not a test.
+- **The shared pieces are kind-aware, never forked:** `ConnectionTestResults kind="FLOW"` words the probes (`flow.probe.*`), adds the document's size and the truncation note and has no Jira scope
+  note; `errorCodeText(code, t, kind)` (`utils/syncRuns.ts`) has the Flow table (`flow.errorCode.*`, the revoked-token sentence tells to issue a new token in Flow) and falls back to the shared
+  sentences; `useSyncRuns`/`syncRunsKey` cache Flow's runs under `["flow"]`, Jira's under `["jira"]`.
+- **Strings.** The generic connector vocabulary lives in `sync.*` (`web/CLAUDE.md`'s i18n rules); `jira.test.scopeHint/scopeNote/stubNote/cloudId` stay Jira-only, and the Polling labels and rule live
+  in `common.polling.*` (`PollingFields`, `utils/pollingForm.ts`, used by both editors).
+
+### The editor
+
+`FlowConnectionEditorModal` (rules in `utils/flowForm.ts`, mirrored from `FlowConnection.kt`):
+
+- **The base URL is the connection's identity** (read-only on edit) and is written canonically when the field is left and before every send (`normaliseBaseUrl`: lowercase, default port and trailing
+  slash dropped; a path, query or credentials are NEVER cut, the form refuses them). Whether the origin is one the OPERATOR listed is the server's 400, shown with its own sentence under the fix
+  (`NOT_CANONICAL` "the origin alone, in lowercase…" and `NOT_LISTED` "not one of the Flow origins this server is configured to allow…"; a port is never the reason). The create form reads
+  `GET /integrations/flow/origins` under `["flow","origins"]` (create only, ADMIN) and prints "Allowed on this server: …" after the hint (`allowedOriginsHint`; the plain hint while loading or when the
+  read fails, a "no Flow origin is configured" note for an empty list).
+- **The time zone** is a text field pre-filled `Europe/Warsaw` (Flow's metrics zone) checked by `canonicalTimeZone` (`utils/flowForm.ts`): `Intl.supportedValuesOf("timeZone")` when the engine has it,
+  the formatter plus a region's shape otherwise; a bare offset is refused.
+- **Token and PUT** follow the Jira editor's rules (write-only: `PasswordInput`, `autoComplete="new-password"`, shape `flow_int_` + 43 characters, a blank one omitted from the PUT; full replace:
+  `pollIntervalMinutes`, default **60** or an explicit `null` for manual only, always travels).
+- A new token or zone clears the server's verdict, so the toast asks for a new test (`clearsVerdict`). There is no Jira-style "saved settings" note: the stored probe (blank token) tests the SAVED
+  token and zone (the zone feeds the sprint read).
+
+### Teams section
+
+`GET /integrations/flow/teams?connectionId=` under `["flow","teams",id]` (unpaged, any signed-in user, re-read every `IDLE_REFRESH_MS` and when a run ends): the mirror's teams with membership and
+sprint counts, the linked Astrolabe team (a link to its page) with Unlink (an in-page `ConfirmDeleteModal`, never `window.confirm`; "capacity already imported stays"), or the server's UNIQUE
+suggestion with **Link** (`POST /team-bindings`), **Link all suggested** (`POST …/team-bindings/match`, ADMIN; the outcome is a polite status line "N linked, M without a unique match, K linked
+already"), and when the mirror was read; before the first run it reads "Refresh the connection first". The suggestion is the server's, never computed here. A disabled connection links nothing (a note;
+the server answers 400).
+
+- A refused link shows a fixed lead and, for a 409 `already-bound` or a 400, the server's sentence, and re-reads the list.
+- A link or unlink refreshes `["flow","teams"]` and `["flow","team"]` through `utils/flowRefresh.ts` `refreshFlowLinks` (**the team page's Flow panel keys on `["flow","team",id]` and gets the refresh
+  for free**); nothing of the timeline views moves.
+
+Pinned by: `Flow*.test.tsx` (the pages, the sections, the editor), `PollingFields.test.tsx`, `utils/flowForm|flowLinks|pollingForm.test.ts`; shared fixtures in `test/flow.ts`.
+
+## Changelog and app versioning
+
+Files: `pages/Changelog.tsx`, `changelog/entries.ts`, `changelog/version.ts`, `components/MarkdownView.tsx`, `VersionStamp.tsx`, `hooks/useChangelogSeen.ts`.
+
+The user-facing changelog is a **build-time artifact** (no DB, no API; it changes only with a deploy). `entries.ts` holds `ChangelogEntry` rows (`version`, `date` `YYYY-MM-DD`, `en`/`pl` **markdown**
+bodies), newest first. The app's only human-readable version is `APP_VERSION` in **`changelog/version.ts`**, its own tiny module so the shell's eager imports (VersionStamp, the what's-new dot) never
+pull the bilingual entries into the main bundle (the entries ride the lazy Changelog chunk only).
+
+- **A release** = the new entry at the top of `entries.ts` + the bump of that one literal (the Gradle `1.0.0-SNAPSHOT` is unrelated); `entries.test.ts` pins `CHANGELOG[0].version === APP_VERSION`.
+  Dates stay descending (same-day releases are fine: newest stays on top), versions unique and both bodies non-empty.
+- Bodies are *content*, so they live in the data file, not `locales/`. Keep phrases that tests assert on in plain text runs: markdown formatting splits text nodes, and testing-library's `getByText`
+  matches direct text nodes only. The release convention itself (the tag, the GitHub release, which PRs bump the version) is `web/CLAUDE.md` and `app-releases.md`.
+
+### Rendering and UI wiring
+
+- `pages/Changelog.tsx` (`/changelog`, authenticated, lazy) renders the entries as a Mantine `Timeline` with `MarkdownView` bodies in the viewer's language and calls `markChangelogSeen()` on mount.
+  **Bodies are authored EN+PL only, by policy:** a new shipped UI language does NOT add changelog fields; non-authored languages read the English body (`AUTHORED_LANGUAGES` in the page).
+  `MarkdownView` (Typography + react-markdown + remark-gfm/gemoji, all lazy-chunk-only deps) is the one markdown renderer: reuse it for future markdown content.
+- `VersionStamp` shows `v<APP_VERSION> · <sha> · <time>`; its optional `to` prop renders it as a router link: the navbar footer instance links to `/changelog`, the Login/AuthCard instance deliberately
+  stays plain (the route is behind auth). The "Changelog" entry is an `ACCOUNT_NAV` leaf (the `UserMenu` and the palette), not a sidebar item.
+- The **"what's new" dot** is a red Mantine `Indicator` around the header `UserMenu` trigger (it carries the `title="What's new"` e2e locates; the Changelog menu item shows a text badge instead of a
+  second title, which would trip strict-mode locators while the menu is open), shown while localStorage `astrolabe.changelog` (`{seenVersion}`) differs from `APP_VERSION`. It is driven by
+  `useChangelogSeen` via `useSyncExternalStore` over a module-level listener set: do **not** replace that with a plain localStorage read in state (the shell renders before the page's mark-seen effect,
+  so the dot would only clear on the next navigation). The seen-state is device-level (survives logout, like `astrolabe.lang`) and hand-rolls its guarded read/write, not `useStoredState` (that hook
+  owns the `astrolabe.viewSettings.*` namespace).
+
+Pinned by: `pages/Changelog.test.tsx`, `changelog/entries.test.ts`, the dot/nav cases in `App.test.tsx`, the link/prefix cases in `components/VersionStamp.test.tsx`.
 
 ### The Jira and Flow release-note caveat
 
-**Binding for later Jira work:** until a real site has been tested (`jira-sync.md` "First real-site walk-through"), every changelog entry and release note that
-touches the Jira pages carries the line "Proven against a built-in Jira stub; not yet tested against a real Jira site." (PL: "Sprawdzone na wbudowanej atrapie
-Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira."); nothing on these pages promises polling or Flow before it ships. The import (1.2) is shipped and
-carries the same caveat; its release note and its pages say that a name renamed in Jira previews as a new item, that an existing plan item is never overwritten
-and that dates are copied only where the caller manages the team, and must not claim more (an owner's entry points only on the Plan page's work-stream menu (1.10) and, from 1.14, a linked program's menu and a linked project's page, from 1.15 also a linked project's Plan row and the connection page's program and project rows, a new project's target window only from Jira's two dates, no matching of renamed
-items). **Flow (1.5, 1.6):** until a real Flow has been compared (`flow-sync.md` "First real-Flow walk-through" and its ledger), every changelog entry and
-release note that touches the Flow pages or the capacity deviation carries the same kind of line - "Proven against the built-in Flow stub; not yet compared with
-a real Flow." (PL: "Sprawdzone na wbudowanej atrapie Flow; jeszcze nie porównane z prawdziwym Flow.") - and the Deviations section and the team page's line
-promise nothing a stub cannot prove.
+`web/CLAUDE.md` "Changelog & app versioning" binds the English wording (which entries carry the stub caveat); the Polish lines and what the import's note may claim are here.
 
-## The telemetry panel (`components/Telemetry*.tsx`)
+- **Jira** (until `jira-sync.md` "First real-site walk-through" is done): the line of `web/CLAUDE.md`, in Polish "Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej
+  witrynie Jira."
+- **The import** carries the same caveat; its release note and its pages say that a name renamed in Jira previews as a new item, that an existing plan item is never overwritten and that dates are
+  copied only where the caller manages the team, and must not claim more. An owner's entry points are the Plan page's work-stream menu, a linked program's menu, a linked project's page and Plan row,
+  and the connection page's program and project rows; a new project's target window comes only from Jira's two dates; renamed items are not matched.
+- **Flow** (until `flow-sync.md` "First real-Flow walk-through" and its ledger are done): the line of `web/CLAUDE.md`, in Polish "Sprawdzone na wbudowanej atrapie Flow; jeszcze nie porównane z
+  prawdziwym Flow."; the Deviations section and the team page's line promise nothing a stub cannot prove.
 
-The ADMIN telemetry panel (`components/Telemetry*.tsx`, the shell's right-hand aside: memory, storage, **sync**, requests, JVM) is the only chart surface in
-0.1.0. **Sync** (`TelemetrySyncSection.tsx`, Flow's trimmed; the `sync` block of `GET /telemetry/current`, no history/trend) is whether this process runs the
-scheduler and, per connection, the state badge, the last success's age (against the server's `generatedAt`), the failure streak with the newest run's code, the
-next poll and the interval; it shares `SyncStatusBadge` / `utils/syncStatus.ts` with the Jira pages.
+## The telemetry panel
 
-- **Telemetry panel** (`components/Telemetry*.tsx`, `hooks/useTelemetryPanel.ts`, `utils/telemetry*.ts`): the memory, storage, requests and jvm groups only
-  (`GET /api/v1/telemetry/history?group=`), and one process role, `app` (`utils/telemetryRole.ts`). The sync and derive sections of Flow are gone.
-- **`components/TableDisclosure.tsx`** (Flow's `DailyTableDisclosure`) is the collapsible accessible-table twin of a chart; use it for every chart that carries data a screen-reader user needs.
+Files: `components/Telemetry*.tsx`, `hooks/useTelemetryPanel.ts`, `utils/telemetry*.ts`.
 
-## Internationalization (i18n)
+The ADMIN telemetry panel (the shell's right-hand aside: memory, storage, **sync**, requests, JVM; `GET /api/v1/telemetry/history?group=` for the charts and one process role, `app`:
+`utils/telemetryRole.ts`) is the only chart surface.
 
-The rules: `web/CLAUDE.md` "Internationalization".
+- **Sync** (`TelemetrySyncSection`; the `sync` block of `GET /telemetry/current`, no history/trend) is whether this process runs the scheduler and, per connection, the state badge, the last success's
+  age (against the server's `generatedAt`), the failure streak with the newest run's code, the next poll and the interval; it shares `SyncStatusBadge` / `utils/syncStatus.ts` with the Jira pages.
+- **`components/TableDisclosure.tsx`** is the collapsible accessible-table twin of a chart; use it for every chart that carries data a screen-reader user needs.
 
-The SPA is **N-language by architecture** via react-i18next (`src/i18n.ts`); the shipped bundles are English (THE default and fallback everywhere) and Polish.
-All user-facing strings go through `const { t } = useTranslation()` / `<Trans>` — **no hardcoded UI text**. Conventions:
+## Internationalization
 
-- **Resources** live in `src/locales/{en,pl}/<area>.json`, one file per area (`appShell`, `auth`, `baselines`, `calendar`, `changelog`, `common`, `deviations`,
-  `flow`, `home`, `jira`, `people`, `plan`, `programs`, `project`, `roadmap`, `sync`, `teams`, `telemetry`, `timeline`, `users`); `i18n.ts` merges them into a single
-  `translation` namespace, so keys read `area.key` (e.g. `t("auth.signIn")`). Only EN is statically imported — its typed `en` tree is the key canon AND the
-  runtime fallback; every other language is auto-discovered from `locales/<lang>/` via `import.meta.glob`. Bundles are eager on purpose; move non-EN to lazy
-  loading when a 3rd language ships or a bundle grows large.
-- **Keys are typed**: `src/i18next.d.ts` augments i18next's `CustomTypeOptions` with `typeof en` from `i18n.ts` (the `@public`-tagged export — knip can't trace
-  the d.ts consumer), so every `t()` call and `i18nKey` is compile-checked against the EN tree — a typo or removed key fails `tsc`/`npm run build`. Fields
-  holding a key are typed `ParseKeys` (from `i18next`), never `string` (the `NavLeaf` `label` pattern in `utils/navigation.ts`); functions taking a translator
-  take `TFunction`, never a hand-written `(key: string) => string`.
-- **`common.*` is the shared source**: actions, field labels, shared vocabulary (`common.dateFormatHint` is the date-input placeholder: `YYYY-MM-DD` in EN,
-  `RRRR-MM-DD` in PL). Reuse it instead of duplicating; build Mantine `Select` option labels from `t()` at render so they translate.
-- **Keep key parity vs EN for every shipped language** — a shipped bundle is all-or-nothing: every English key must exist in each `locales/<lang>/`
-  (language-specific plural variants are expected), enforced by `locales/parity.test.ts` (auto-discovers language folders; also pins folders ==
-  `SUPPORTED_LANGUAGES`). Use i18next interpolation (`{{name}}`) and plural keys rather than string concatenation.
-- **Polish voice convention** (inherited from Lettuce): inclusive slash forms, active/direct voice, same tense and meaning as the English; spell out irregular
-  feminines in full. No impersonal/passive dodges.
-- **Tests render English**: `src/test/setup.ts` imports `../i18n` and forces `en`, so text-based assertions match the EN resources.
+The rules (resources, typed keys, `common.*`, parity, Polish voice, English in tests): `web/CLAUDE.md` "Internationalization". The mechanics:
+
+- **Resources.** `src/locales/{en,pl}/<area>.json`, one file per area (`common` is the shared one), merged by `i18n.ts` into one `translation` namespace. Only EN is statically imported; every other
+  language is auto-discovered from `locales/<lang>/` via `import.meta.glob`. Bundles are eager on purpose; move non-EN to lazy loading when a 3rd language ships or a bundle grows large.
+- **Keys are typed:** `src/i18next.d.ts` augments i18next's `CustomTypeOptions` with `typeof en` from `i18n.ts` (the `@public`-tagged export: knip can't trace the d.ts consumer), so every `t()` call
+  and `i18nKey` is compile-checked against the EN tree: a typo or removed key fails `tsc`/`npm run build`. The `NavLeaf` `label` in `utils/navigation.ts` is the `ParseKeys` pattern.
+- **`common.*`** includes `common.dateFormatHint`, the date-input placeholder: `YYYY-MM-DD` in EN, `RRRR-MM-DD` in PL.
+- **Parity.** `locales/parity.test.ts` auto-discovers language folders, requires every English key in each (language-specific plural variants are expected) and pins folders == `SUPPORTED_LANGUAGES`.
 
 ### Adding a language
 
-- **Adding a language** = a complete `locales/<lang>/` folder (every area file, parity-gated) +
-  one code in `SUPPORTED_LANGUAGES` (`i18n.ts`) + one `NATIVE_LANGUAGE_NAMES` line — the Record
-  type and the parity test each fail loudly on a missed step. Server-side, the `LocalizedText(en, pl)`
-  constructor arity is the parity gate for email texts (a new language means a new parameter —
-  every email text becomes a compile error until translated), and `users/Languages.kt` mirrors
-  `SUPPORTED_LANGUAGES`.
+A complete `locales/<lang>/` folder (every area file, parity-gated) + one code in `SUPPORTED_LANGUAGES` (`i18n.ts`) + one `NATIVE_LANGUAGE_NAMES` line: the Record type and the parity test each fail
+loudly on a missed step. Server-side, the `LocalizedText(en, pl)` constructor arity is the parity gate for email texts (a new language means a new parameter: every email text becomes a compile error
+until translated), and `users/Languages.kt` mirrors `SUPPORTED_LANGUAGES`.
 
 ### The language switcher and the synced user language
 
-- The language switcher is the Language section of `components/UserMenu.tsx` (the header account
-  menu) — `Menu.Item`s of NATIVE language names (`NATIVE_LANGUAGE_NAMES`, deliberate constants:
-  readable before switching, and `Intl.DisplayNames` yields lowercase forms); choice persists in
-  `localStorage` (`astrolabe.lang`) and updates `<html lang>` (the `languageChanged` hook in
-  `i18n.ts`). **The user language is ONE synced property (V1's `language` column)**: the switcher
-  also fire-and-forget saves it server-side (`setUserLanguage` — it drives every email sent to the
-  user), and `persistSession` applies the login/refresh response's `language` to the UI — signing
-  in restores the user's language on any device, and an admin change propagates at the ≤15-min
-  silent refresh. Emails render in the RECIPIENT'S stored language (`LocalizedText(en, pl)` in
-  `infra/mail/`, EN fallback).
+The switcher is the Language section of `components/UserMenu.tsx` (the header account menu): `Menu.Item`s of NATIVE language names (`NATIVE_LANGUAGE_NAMES`, deliberate constants: readable before
+switching, and `Intl.DisplayNames` yields lowercase forms). The choice persists in `localStorage` (`astrolabe.lang`) and updates `<html lang>` (`languageChanged` in `i18n.ts`).
 
-## Theming (tokens, tuple, overlays, logo)
+- **The user language is ONE synced property** (V1's `language` column): the switcher also fire-and-forget saves it server-side (`setUserLanguage`; it drives every email sent to the user), and
+  `persistSession` applies the login/refresh response's `language` to the UI: signing in restores it on any device, and an admin change propagates at the ≤15-min silent refresh. Emails render in the
+  RECIPIENT'S stored language (`LocalizedText(en, pl)` in `infra/mail/`, EN fallback).
 
-The rules: `web/CLAUDE.md` "Theming".
 
-**The design language is theme-owned** (Lettuce's "clean enterprise SaaS" posture) — `src/theme.ts` + `src/themeVariables.ts` + `src/theme.module.css` are the
-single source, and `src/theme.test.ts` guards every contrast ratio:
+## Theming
 
-- The brand is the 10-stop **`astrolabe` cyan tuple** (`#e3fafc … #0b7285 #095c6b`: Mantine's cyan shifted one step deeper) with
-  `primaryShade: { light: 8, dark: 9 }` — Mantine's own shade 7/8 pair falls short of 4.5:1 for white text on this hue, so the primary shades sit one step
-  deeper than a stock Mantine cyan (white on shade 8 is 5.6:1, on shade 9 7.6:1, pinned in `theme.test.ts`) — and `autoContrast: true`. **Restrained** — in UI
-  chrome and status badges (chart series colours are `utils/chartColors.ts`'s): cyan marks only primary CTAs, the active nav item (a light tint + a 3px accent
-  bar) and focus — it is the interactive accent and nothing else (see the colour vocabulary). Everything else is neutral BY THEME DEFAULT — `Anchor` is
-  text-coloured with a hover underline, `Chip` is `variant="light"`, `Badge` is `variant="light"`, `ActionIcon` is `variant="subtle" color="gray"` (destructive
-  ones pass `color="red"`), `Menu` is bottom-end in a portal, tables are `verticalSpacing="xs"` (≈40px rows). Pages never pass those props back. GREEN is the
-  SUCCESS colour, red the BLOCKING one, orange the warning one (soft findings, waived); the ADMIN role badge is `variant="outline" color="gray"`. **Never use
-  teal for success** — its tints are near-identical to the cyan brand's; `theme.test.ts` pins the CIEDE2000 distance between the brand and success tints (≥ 10)
-  and fills (≥ 20).
-- `theme.module.css` is scheme-aware **via `light-dark()`** throughout (tables card-framed on a quiet tinted canvas, white header/navbar surfaces, hairline
-  borders) — new surface styling follows that pattern, not `[data-mantine-color-scheme]` selectors. Every `Table` inherits the card frame + hoverable rows +
-  neutral compact header from the theme's `Table.extend` — don't add per-table frames. **The hover tint is theme-owned and AA-tested too** (`tableHover` in
-  `themeVariables.ts`, applied by `table.table` in `theme.module.css` as `--table-hover-color`; light gray-1 `#f1f3f5`, dark dark-6 `#2e2e2e`, because Mantine's
-  own dark-5 left dimmed text at 4.44:1): `theme.test.ts` pins that every table ink clears 4.5:1 on it in both schemes and that it stays ≥ 1.1:1 against the
-  row. Never pass `highlightOnHover` (or a hover colour) to a single `Table` — change the token, and the test says whether it still holds; the e2e axe scan of
-  hovered rows is in `accessibility.spec.ts`.
-- Soft diffuse `shadows` scale; tightened heading sizes (pages title themselves with `order={2}`).
-- Inter is bundled (`@fontsource-variable/inter`, imported in `main.tsx`) so it loads same-origin and satisfies the CSP `font-src 'self'`; the system stack is the fallback.
-- **Overlay accessibility rules (pinned by the e2e axe sweep over dialogs):** every `Modal` and `Drawer` passes
-  `closeButtonProps={{ "aria-label": t("common.action.close") }}` — Mantine's close X has no default name — or hides the X with `withCloseButton={false}` when a
-  footer button is the one deliberate exit (`OneTimePasswordModal`). An OPEN row menu is scanned too (the `accessibility` spec opens the Teams, Baselines and
-  roadmap menus, light and dark): its dropdown is white / dark-6, and `theme.test.ts` pins the destructive ink and tint on those surfaces.
-- **A scroller that can overflow is a focusable, labelled region.** A table wider than its box or capped by `maxHeight` goes in `components/ScrollRegion.tsx`
-  (native scroller, `tabIndex={0}`, `role="region"`, the table's own i18n name as `aria-label`, the `tableScroll` focus ring) — never a bare
-  `Table.ScrollContainer`; axe's `scrollable-region-focusable` fails any that overflows without it.
-- **An option list is a scroller too — and the LISTBOX is the scroller.** The theme gives every `Select`/`MultiSelect`/`Autocomplete`/`TagsInput`
-  `withScrollArea: false` and `classNames.options` (`theme.module.css` `.comboboxOptions`:
-  `max-height: calc(13.75rem * var(--mantine-scale)); overflow-y: auto`). Mantine's default inner `ScrollArea` viewport is a plain scroller inside the
-  `role="listbox"`: axe's `scrollable-region-focusable` flags it once ~100 options overflow, and a tab stop on it puts a focusable non-option in the listbox
-  (`aria-required-children`, the reverted v0.6 C4 attempt). axe exempts exactly the element that IS a combobox popup (the listbox the input's `aria-controls`
-  names), so the listbox scrolls itself; the input keeps DOM focus and `aria-activedescendant` scrolls the active option into view.
-  `maxDropdownHeight`/`scrollAreaProps`/`floatingHeight` therefore no longer apply (the cap is the CSS). Pinned by the overflow + keyboard + axe test in
-  `e2e/tests/dependencies.spec.ts` (the `accessibility.spec.ts` scans of the open lists overflow only on a full stack).
+The rules (restrained cyan, neutral defaults, success green, overlay close names, `ScrollRegion`, the listbox as scroller): `web/CLAUDE.md` "Theming". The numbers and mechanics: `src/theme.ts` +
+`src/themeVariables.ts` + `src/theme.module.css` are the single source and `src/theme.test.ts` guards every contrast ratio.
+
+- **The brand** is the 10-stop **`astrolabe` cyan tuple** (`#e3fafc … #0b7285 #095c6b`: Mantine's cyan shifted one step deeper) with `primaryShade: { light: 8, dark: 9 }`: Mantine's own shade 7/8 pair
+  falls short of 4.5:1 for white text on this hue (white on shade 8 is 5.6:1, on shade 9 7.6:1, pinned in `theme.test.ts`), and `autoContrast: true`.
+  - Cyan marks only primary CTAs, the active nav item (a light tint + a 3px accent bar) and focus (chart series colours are `utils/chartColors.ts`'s); everything else is neutral by theme default
+    (tables `verticalSpacing="xs"`, ≈40px rows), and pages never pass those props back.
+  - GREEN is the SUCCESS colour, red the BLOCKING one, orange the warning one (soft findings, waived); the ADMIN role badge is `variant="outline" color="gray"`. **Never use teal for success:** its
+    tints are near-identical to the cyan brand's; `theme.test.ts` pins the CIEDE2000 distance between the brand and success tints (≥ 10) and fills (≥ 20).
+- **Surfaces.** `theme.module.css` is scheme-aware via `light-dark()` throughout. Every `Table` inherits the card frame, hoverable rows and neutral compact header from the theme's `Table.extend`.
+  **The hover tint is theme-owned and AA-tested too** (`tableHover` in `themeVariables.ts`, applied by `table.table` in `theme.module.css` as `--table-hover-color`; light gray-1 `#f1f3f5`, dark dark-6
+  `#2e2e2e`, because Mantine's own dark-5 left dimmed text at 4.44:1): `theme.test.ts` pins that every table ink clears 4.5:1 on it in both schemes and that it stays ≥ 1.1:1 against the row. The e2e
+  axe scan of hovered rows is in `accessibility.spec.ts`.
+- A soft diffuse `shadows` scale and tightened heading sizes; Inter is bundled (`@fontsource-variable/inter`, imported in `main.tsx`): same-origin for the CSP `font-src 'self'`, the system stack the
+  fallback.
+- **Overlay accessibility** (pinned by the e2e axe sweep over dialogs): `OneTimePasswordModal` is the one dialog with `withCloseButton={false}`. An OPEN row menu is scanned too (the `accessibility`
+  spec opens the Teams, Baselines and roadmap menus, light and dark): its dropdown is white / dark-6, and `theme.test.ts` pins the destructive ink and tint on those surfaces.
+- **`ScrollRegion`** (`components/ScrollRegion.tsx`): a native scroller, `tabIndex={0}`, `role="region"`, the table's own i18n name as `aria-label`, the `tableScroll` focus ring; axe's
+  `scrollable-region-focusable` fails any overflowing table without it.
+- **An option list is a scroller too, and the LISTBOX is the scroller.** The theme gives every `Select`/`MultiSelect`/`Autocomplete`/`TagsInput` `withScrollArea: false` and `classNames.options`
+  (`theme.module.css` `.comboboxOptions`: `max-height: calc(13.75rem * var(--mantine-scale)); overflow-y: auto`). Mantine's default inner `ScrollArea` viewport is a plain scroller inside the
+  `role="listbox"`: axe's `scrollable-region-focusable` flags it once ~100 options overflow, and a tab stop on it puts a focusable non-option in the listbox (`aria-required-children`). axe exempts
+  exactly the element that IS a combobox popup, so the listbox scrolls itself; the input keeps DOM focus and `aria-activedescendant` scrolls the active option into view. Pinned by the overflow +
+  keyboard + axe test in `e2e/tests/dependencies.spec.ts`.
 
 ### Colour tokens
 
-- **Colour tokens are AA-tested** (`themeVariables.ts`, ported from Lettuce): `LIGHT_TOKENS`/
-  `DARK_TOKENS` (text, dimmed, canvas, border, table hover, error inks) and
-  `LIGHT_VARIANT_INKS` (the per-hue ink over a `variant="light"` surface — Mantine's stock light-
-  scheme ink fails 4.5:1 for several hues) go in through `cssVariablesResolver` in `main.tsx`.
-  Never hand a shade-suffixed colour (`"orange.8"`) to a light Badge/Alert — the tint comes from
-  the hue, the ink from this map. **`--astrolabe-accent-ink`** is the brand hue where it must be
-  PERCEIVED against the canvas (the nav marker, the anchor hover underline, focus): the light
-  primary (deep cyan `#0b7285`) in light mode, the 4-shade (`#3bc9db`) in dark mode. The light-variant ink for the brand hue is `#095c6b`. Success is GREEN (ink
-  `#236b34`; cyan and teal tints are indistinguishable, pinned by a CIEDE2000 distance test in `theme.test.ts`); red = blocking/violation, orange =
-  warning/overload/drift — the full vocabulary is `web/CLAUDE.md`. `utils/chartColors.ts` exports `CATEGORY_PALETTE` only (`astrolabe.6`, `violet.5`, `pink.6`,
-  `indigo.5`, `gray.6` — categorical series, never semantic status colours). `index.css` repeats the two canvas hexes for
-  the first paint (`public/color-scheme.js` stamps the scheme on `<html>` before the bundle
-  loads); the theme test pins them equal to the tokens.
+- **Colour tokens are AA-tested** (`themeVariables.ts`, ported from Lettuce): `LIGHT_TOKENS`/`DARK_TOKENS` (text, dimmed, canvas, border, table hover, error inks) and `LIGHT_VARIANT_INKS` (the per-hue
+  ink over a `variant="light"` surface: Mantine's stock light-scheme ink fails 4.5:1 for several hues) go in through `cssVariablesResolver` in `main.tsx`. Never hand a shade-suffixed colour
+  (`"orange.8"`) to a light Badge/Alert: the tint comes from the hue, the ink from this map.
+- **`--astrolabe-accent-ink`** is the brand hue where it must be PERCEIVED against the canvas (the nav marker, the anchor hover underline, focus): the light primary (deep cyan `#0b7285`) in light
+  mode, the 4-shade (`#3bc9db`) in dark mode. The light-variant ink for the brand hue is `#095c6b`.
+- Success GREEN has the ink `#236b34`; the colour vocabulary is `web/CLAUDE.md`'s.
+- `utils/chartColors.ts` exports `CATEGORY_PALETTE` only (`astrolabe.6`, `violet.5`, `pink.6`, `indigo.5`, `gray.6`: categorical series, never semantic status colours).
+- `index.css` repeats the two canvas hexes for the first paint (`public/color-scheme.js` stamps the scheme on `<html>` before the bundle loads); the theme test pins them equal to the tokens.
 
 ### The logo
 
-- The logo SVGs (`public/logo-{light,dark}.svg` + `favicon.svg`; rendered by `components/BrandLogo.tsx`) are the brand mark: a stylised **astrolabe** on a 48×48 grid — a disc, a
-  limb ring with 24 ticks and 4 major ticks, an off-centre rete ring with three star pointers, an alidade rule with sight vanes and a pivot. The favicon is simplified (disc, ring,
-  alidade, pivot) so it survives 16 px; check both in both colour schemes. The geometry is computed (ticks on a circle) — change it in a vector editor or regenerate it, not by hand-editing path data.
-  Restyle rule: keep aria-labels, roles, and real semantic elements stable — e2e and unit tests locate by role/name. (Flow's "Rolling" logo is gone.)
+The logo SVGs (`public/logo-{light,dark}.svg` + `public/favicon.svg`; rendered by `components/BrandLogo.tsx`) are the brand mark: a stylised **astrolabe** on a 48×48 grid (disc, limb ring with ticks,
+off-centre rete ring, alidade, pivot). The favicon is simplified so it survives 16 px; check both in both colour schemes. The geometry is computed (ticks on a circle): change it in a vector editor or
+regenerate it, not by hand-editing path data. Restyle rule: keep aria-labels, roles and real semantic elements stable, since e2e and unit tests locate by role/name.
 
-## Not yet ported (port, don't reinvent)
+## Not yet ported
 
-When a feature needs one of these, port the sibling's `web/` implementation and its
-`web/CLAUDE.md` section wholesale:
+When a feature needs one of these, port the sibling's `web/` implementation and its `web/CLAUDE.md` section wholesale:
 
-- **Lettuce's** `safeBackParam` open-redirect guard for any future `?back=` param,
-  `StatusPill`/`MetaStrip`/`FormFooter`/`ListToolbar` (`lettuce/web/src/components/`), and
-  `useDiscardGuard` + `DiscardGuard` for dirty-form navigation (its in-app half is the data router's `useBlocker`, which
-  the plain `BrowserRouter` does not have; only the `beforeunload` half, `hooks/useBeforeUnloadGuard.ts`, was ported in Flow — port it again with the first dirty-form page, e.g. the capacity editor).
-- **Covenant's catalog surface** (`covenant/web/src/`) — the filter-set/facets pattern
-  (`hooks/useContractFilterState.ts` + `components/ContractFilterControls.tsx`), the CodeMirror
-  document editor, Save-anyway, and the reader/render-model views — port these only once the planning
-  model needs a document- or finding-shaped list; today's Teams/Users lists are the
-  `useRegistryListControls`/`Users.tsx` templates above, which is as far as the foundation goes.
+- **Lettuce's** `safeBackParam` open-redirect guard for any future `?back=` param, `StatusPill`/`MetaStrip`/`FormFooter`/`ListToolbar` (`lettuce/web/src/components/`), and `useDiscardGuard` +
+  `DiscardGuard` for dirty-form navigation (its in-app half is the data router's `useBlocker`, which the plain `BrowserRouter` does not have; port it, with the `beforeunload` half
+  `hooks/useBeforeUnloadGuard.ts`, with the first dirty-form page, e.g. the capacity editor).
+- **Covenant's catalog surface** (`covenant/web/src/`): the filter-set/facets pattern (`hooks/useContractFilterState.ts` + `components/ContractFilterControls.tsx`), the CodeMirror document editor,
+  Save-anyway, and the reader/render-model views; port these only once the planning model needs a document- or finding-shaped list (today's Teams/Users lists are the
+  `useRegistryListControls`/`Users.tsx` templates).
 
 ## Storage keys, Web Locks and shared reference
 
-- **localStorage:** `astrolabe.auth.*` (session), `astrolabe.viewSettings.*` (`useStoredState`), `astrolabe.lang`, `astrolabe.changelog`. **sessionStorage:**
-  `astrolabe.chunkReloadedAt` (the one-shot reload after a failed lazy chunk, `main.tsx`). **Web Lock:** `astrolabe.auth.refresh`. **CSS variables:**
-  `--astrolabe-*`. None of Flow's `flow.*` keys exist; there are no legacy redirects.
-- **The Roadmap's seven filter keys** (`roadmap.filter.workStream|team|owner|flagged|severity|unranked`, `planning.programPick`, under `astrolabe.viewSettings.`) are its MEMORY since 1.19,
-  not its state: the address holds the state and only the user's own change writes them (this doc, "Roadmap", "The URL holds the filters"); the Programs page
-  reads and writes `planning.programPick` alone on the same terms since 1.21 (its pick is in its address).
-- **Timeline view settings** (`astrolabe.viewSettings.timeline.*`, shared by the pages that show them, each a `useStoredState` with its own validator): `zoom`
-  (project, team), `planZoom` (roadmap, programs), `criticalPath` (project and team, default false; `hooks/useCriticalPathPick.ts`), `baseline` (all four, an id or none), **`jiraBars`** (1.3, all four
-  pages; a boolean, **default true**: the "Jira dates" toggle of the Jira shadow bar, `hooks/useJiraBarsPick.ts`; a stored non-boolean reads as the default).
-  The team page's `teams.jiraColumn.<id>` (1.1/1.2: the remembered answer of whether the Jira column exists) is gone in 1.3 - the view's own `jira` blocks say
-  whether a row is linked, so the Flags column needs no stored guess; a value an old browser still holds is never read or cleaned.
+- **localStorage:** `astrolabe.auth.*` (session), `astrolabe.viewSettings.*` (`useStoredState`), `astrolabe.lang`, `astrolabe.changelog`. **sessionStorage:** `astrolabe.chunkReloadedAt` (the one-shot
+  reload after a failed lazy chunk, `main.tsx`). **Web Lock:** `astrolabe.auth.refresh`. **CSS variables:** `--astrolabe-*`.
+- **View settings** (`astrolabe.viewSettings.<key>`, each a `useStoredState` with its own validator): `appShell.navCollapsed`, `home.mine.ownOnly`, `telemetry.panelOpen|range|sections`, the list
+  pages' `…filter.*` and `…filtersOpen`, and the timeline and planning keys below.
+- **The Roadmap's six filter keys** (`roadmap.filter.workStream|team|owner|flagged|severity|unranked`) and `planning.programPick` are MEMORY, not state: the address holds the state and only the user's
+  own change writes them ("The URL holds the filters" under "Roadmap"); the Programs page reads and writes `planning.programPick` alone on the same terms.
+- **Timeline view settings** (`timeline.*`, shared by the pages that show them): `zoom` (project, team), `planZoom` (roadmap, programs), `criticalPath` (project and team, default false;
+  `hooks/useCriticalPathPick.ts`), `baseline` (all four, an id or none; `hooks/useBaselinePick.ts`), and **`jiraBars`** (all four pages; a boolean, **default true**: the "Jira dates" toggle of the
+  Jira shadow bar, `hooks/useJiraBarsPick.ts`; a stored non-boolean reads as the default).
 - The Polish user-facing noun for Users is "Użytkownicy/czki" (EN "Users").

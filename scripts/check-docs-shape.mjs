@@ -45,7 +45,6 @@ const NOT_YET = [
   ".claude/docs/build-times.md",
   ".claude/docs/flow-sync.md",
   ".claude/docs/jira-sync.md",
-  ".claude/docs/web-internals.md",
 ];
 
 // ---- What is read ------------------------------------------------------------------------------------------------------

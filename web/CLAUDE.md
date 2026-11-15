@@ -70,7 +70,7 @@ a non-home page. Mechanics: web-internals "Transport and session layer".
 ## Error handling
 
 - **Two boundaries only**: `RouteErrorBoundary` wraps the `<Outlet />` (keyed by pathname) and a plain `ErrorBoundary` sits in `main.tsx`; a render crash must
-  never white-screen the app, and no per-page boundaries. `pages/NotFound.tsx` is the LAST `path="*"` child.
+  never white-screen the app, and no per-page boundaries (the telemetry panel's aside carries the one deliberate third: web-internals "Error boundaries, chunk reload and toasts"). `pages/NotFound.tsx` is the LAST `path="*"` child.
 - **Chunk-load recovery** (`vite:preloadError` in `main.tsx`) reloads once per minute at most (`astrolabe.chunkReloadedAt`) so a genuinely missing chunk reaches the ErrorBoundary instead of looping.
 - **Deploy check**: the shell and the three public pages (`AuthCard`) re-read `index.html`'s `astrolabe-build` meta on mount, on focus and every 5 minutes and shows the Reload notice (`UpdateBanner`) when it differs from the bundle's commit; never an automatic reload, never a toast.
 - **Query retry**: `shouldRetryQuery` (`api/http.ts`) NEVER retries a 4xx, a malformed answer or a `database-timeout` `500`, and retries transient failures at most twice.
