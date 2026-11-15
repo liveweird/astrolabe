@@ -1,5 +1,6 @@
 package ch.nokillswit.auth
 
+import ch.nokillswit.infra.validation.canonicalEmail
 import java.security.MessageDigest
 import java.util.TreeMap
 
@@ -142,8 +143,8 @@ class LoginThrottle(
 
 }
 
-/** Fixed-size, non-reversible key so an arbitrarily long submitted identity is never retained. */
+/** Fixed-size, non-reversible key so an arbitrarily long submitted identity is never retained; folds through [canonicalEmail]. */
 internal fun loginIdentityKey(email: String): String {
-    val canonical = email.trim().lowercase().toByteArray(Charsets.UTF_8)
+    val canonical = canonicalEmail(email).toByteArray(Charsets.UTF_8)
     return MessageDigest.getInstance("SHA-256").digest(canonical).joinToString("") { "%02x".format(it) }
 }

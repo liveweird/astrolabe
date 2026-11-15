@@ -1,5 +1,6 @@
 package ch.nokillswit.auth
 
+import ch.nokillswit.infra.validation.canonicalEmail
 import java.util.TreeMap
 
 /**
@@ -29,7 +30,7 @@ class PasswordResetThrottle(
     private val expiryIndex = TreeMap<Long, MutableSet<String>>()
     private val lock = Any()
 
-    private fun key(email: String) = email.trim().lowercase()
+    private fun key(email: String) = canonicalEmail(email)
 
     /** Atomically claims a slot without evicting another identity's fresh cooldown. */
     fun tryAcquire(email: String): AcquireResult = synchronized(lock) {
