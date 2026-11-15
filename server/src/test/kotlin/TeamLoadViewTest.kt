@@ -7,6 +7,7 @@ import ch.nokillswit.planning.TeamLoadRow
 import ch.nokillswit.planning.TeamLoadView
 import ch.nokillswit.planning.TeamLoadViewService
 import ch.nokillswit.planning.TeamView
+import ch.nokillswit.planning.mondayOf
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
@@ -21,6 +22,11 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import java.time.DayOfWeek
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -53,6 +59,24 @@ class TeamLoadViewTest {
     private suspend fun uncapped(): TeamLoadView =
         TeamLoadViewService(sharedDatabaseForTests(), maxRows = Int.MAX_VALUE, maxWarningWeeks = Int.MAX_VALUE).view()
 
+    /** The document read on a pinned clock (an ISO instant), with the given budget and no row cap. */
+    private suspend fun uncappedAt(instant: String, maxWarningWeeks: Int = Int.MAX_VALUE): TeamLoadView = TeamLoadViewService(
+        sharedDatabaseForTests(),
+        maxRows = Int.MAX_VALUE,
+        maxWarningWeeks = maxWarningWeeks,
+        clock = { Instant.parse(instant).toEpochMilli() },
+    ).view()
+
+    /** Where a week stands in the budget's order: from the current week on (nearest first), then earlier (latest first), then the row. */
+    private data class Rank(val group: Int, val day: Long, val row: Int) : Comparable<Rank> {
+        override fun compareTo(other: Rank) = compareValuesBy(this, other, Rank::group, Rank::day, Rank::row)
+    }
+
+    private fun rank(weekStart: String, currentWeek: String, row: Int): Rank {
+        val day = LocalDate.parse(weekStart).toEpochDay()
+        return if (weekStart >= currentWeek) Rank(0, day, row) else Rank(1, -day, row)
+    }
+
     /** The seeded teams: a (overloaded, over WIP), b (overloaded), c (neither), d (work, no capacity), e (empty). */
     private class Seeded(val w: PlanWorld, val manager: UInt, val teams: List<UInt>)
 
@@ -81,10 +105,18 @@ class TeamLoadViewTest {
         testApplication {
             val s = seeded("tl1", world("tl1"))
             assertEquals(HttpStatusCode.Unauthorized, jsonClient().get(path).status)
+            val before = LocalDate.now(ZoneOffset.UTC)
             val response = s.w.stranger.client.get("$path?personId=${s.w.stranger.personId}&foo=bar")
             assertEquals(HttpStatusCode.OK, response.status)
             val root = Json.parseToJsonElement(response.bodyAsText()).jsonObject
-            assertEquals(setOf("revision", "totals", "teams", "truncated", "warningWeeksTruncated"), root.keys, "no can")
+            assertEquals(
+                setOf("revision", "currentWeekStart", "totals", "teams", "truncated", "warningWeeksTruncated"), root.keys, "no can",
+            )
+            val currentWeek = LocalDate.parse(root.getValue("currentWeekStart").jsonPrimitive.content)
+            val after = LocalDate.now(ZoneOffset.UTC)
+            assertEquals(DayOfWeek.MONDAY, currentWeek.dayOfWeek, "the week's Monday")
+            assertTrue(!currentWeek.isBefore(mondayOf(before)), "not before the week of the request's start: $currentWeek")
+            assertTrue(!currentWeek.isAfter(mondayOf(after)), "not after the week of the response: $currentWeek")
             assertEquals(setOf("teams", "overloadedTeams", "wipExceededTeams"), root.getValue("totals").jsonObject.keys)
             val row = root.getValue("teams").jsonArray.first().jsonObject
             assertEquals(
@@ -160,8 +192,9 @@ class TeamLoadViewTest {
     fun `the document is identical for every caller`() = testApplication {
         val s = seeded("tl3", world("tl3"))
         val w = s.w
-        val bodies = listOf(w.admin, w.streamOwner, w.programOwner, w.projectOwner, w.stranger, w.personless, w.editor)
-            .map { it.client.get(path).bodyAsText() }
+        val callers = listOf(w.admin, w.streamOwner, w.programOwner, w.projectOwner, w.stranger, w.personless, w.editor)
+        // The body embeds the server's current week, which may roll over (Monday 00:00 UTC) between two reads: compare it normalised.
+        val bodies = callers.map { Json.decodeFromString<TeamLoadView>(it.client.get(path).bodyAsText()).copy(currentWeekStart = "") }
         assertEquals(1, bodies.toSet().size, "no role, person or grant reaches a figure")
     }
 
@@ -239,28 +272,57 @@ class TeamLoadViewTest {
         }
 
     @Test
-    fun `a budget of one week lists one week in all and says so, with the counts and totals of the uncapped document`() = testApplication {
+    fun `the document names the server's current week, the Monday of its UTC date, and the clock moves nothing else`() = testApplication {
+        usePostgresTestcontainer()
+        val cases = mapOf(
+            "2044-09-07T10:00:00Z" to "2044-09-05", // a Wednesday
+            "2044-09-05T00:00:00Z" to "2044-09-05", // the Monday's first millisecond
+            "2044-09-11T23:59:59.999Z" to "2044-09-05", // the Sunday's last
+            "2044-09-12T00:00:00Z" to "2044-09-12", // the next Monday begins
+        )
+        for ((instant, monday) in cases) assertEquals(monday, uncappedAt(instant).currentWeekStart, instant)
+        // The clock decides only what a FULL budget keeps: the unbudgeted lists are the same on any pinned day.
+        val early = uncappedAt("2020-01-01T00:00:00Z")
+        val late = uncappedAt("2090-01-01T00:00:00Z")
+        assertEquals(early.copy(currentWeekStart = late.currentWeekStart), late)
+    }
+
+    @Test
+    fun `a budget of one week lists the week the rule keeps, with the counts and totals of the uncapped document`() = testApplication {
         val s = seeded("tl7", world("tl7"))
         val whole = uncapped()
         assertFalse(whole.warningWeeksTruncated)
         val listedInWhole = whole.teams.sumOf { it.warningWeeks.size }
         assertTrue(listedInWhole >= 2, "non-vacuous: the seeded teams a and b list one week each")
-        val cut = TeamLoadViewService(sharedDatabaseForTests(), maxRows = Int.MAX_VALUE, maxWarningWeeks = 1).view()
-        assertEquals(1, cut.teams.sumOf { it.warningWeeks.size })
-        assertTrue(cut.warningWeeksTruncated)
-        assertEquals(whole.totals, cut.totals)
-        assertEquals(
-            whole.teams.map { listOf(it.id, it.overloadedWeeks, it.wipExceededWeeks, it.weeksWithoutCapacity) },
-            cut.teams.map { listOf(it.id, it.overloadedWeeks, it.wipExceededWeeks, it.weeksWithoutCapacity) },
-        )
-        // The one week listed is the first week of the first row that has one.
-        val first = whole.teams.first { it.warningWeeks.isNotEmpty() }.warningWeeks.first()
-        assertEquals(first, cut.teams.flatMap { it.warningWeeks }.single())
+        // Seeded weeks lie in 2044-09-05; a pinned clock puts them ON the current week, then after it (they become "earlier").
+        for (instant in listOf("2044-09-07T10:00:00Z", "2044-11-02T10:00:00Z")) {
+            val unbudgeted = uncappedAt(instant)
+            val cut = uncappedAt(instant, maxWarningWeeks = 1)
+            assertEquals(1, cut.teams.sumOf { it.warningWeeks.size }, instant)
+            assertTrue(cut.warningWeeksTruncated)
+            assertEquals(unbudgeted.totals, cut.totals)
+            assertEquals(
+                unbudgeted.teams.map { listOf(it.id, it.overloadedWeeks, it.wipExceededWeeks, it.weeksWithoutCapacity) },
+                cut.teams.map { listOf(it.id, it.overloadedWeeks, it.wipExceededWeeks, it.weeksWithoutCapacity) },
+            )
+            // The one week kept is the best of every candidate in the shared database, by the rule's order.
+            val current = cut.currentWeekStart
+            val best = unbudgeted.teams.withIndex()
+                .flatMap { (index, row) -> row.warningWeeks.map { rank(it.weekStart, current, index) to (row.id to it) } }
+                .minBy { it.first }.second
+            val kept = cut.teams.single { it.warningWeeks.isNotEmpty() }
+            assertEquals(best, kept.id to kept.warningWeeks.single(), instant)
+        }
+        // With the clock ON the seeded week, the kept week is that week, in the first row that has it (the tie goes to the earlier row).
+        val onIt = uncappedAt("2044-09-05T00:00:00Z", maxWarningWeeks = 1)
+        val keptRow = onIt.teams.single { it.warningWeeks.isNotEmpty() }
+        assertEquals("2044-09-05", keptRow.warningWeeks.single().weekStart)
+        assertEquals(whole.teams.first { row -> row.warningWeeks.any { it.weekStart == "2044-09-05" } }.id, keptRow.id)
         assertTrue(s.teams.all { id -> whole.teams.any { it.id == id } })
     }
 
     @Test
-    fun `the endpoint lists at most 2000 weeks, the first ones of the uncapped order, and says it cut`() = testApplication {
+    fun `the endpoint lists at most 2000 weeks, the best ones by date, and says it cut`() = testApplication {
         val w = world("tl8")
         val project = TestPlan.project(w.programId, w.projectOwner.personId!!)
         val prefix = "!!${planName("tl8")}"
@@ -281,11 +343,22 @@ class TeamLoadViewTest {
             assertEquals(MAX_TEAM_LOAD_WARNING_WEEKS, http.teams.sumOf { it.warningWeeks.size }, "exactly the budget")
             assertTrue(http.warningWeeksTruncated)
             assertFalse(whole.warningWeeksTruncated)
-            val expected = whole.teams.take(MAX_TEAM_LOAD_ROWS).flatMap { row -> row.warningWeeks.map { row.id to it } }
-                .take(MAX_TEAM_LOAD_WARNING_WEEKS)
-            val listed = http.teams.flatMap { row -> row.warningWeeks.map { row.id to it } }
-            assertEquals(expected, listed, "the first 2,000 weeks in row order")
             assertEquals(whole.totals, http.totals)
+            // Properties of the rule (other classes' weeks compete for the budget by date, so no list is compared): a listed week is
+            // one of its row's own, and nothing left out ranks before anything listed.
+            val wholeById = whole.teams.associateBy { it.id }
+            val listed = mutableListOf<Rank>()
+            val leftOut = mutableListOf<Rank>()
+            http.teams.forEachIndexed { index, row ->
+                val own = wholeById.getValue(row.id)
+                assertTrue(own.warningWeeks.containsAll(row.warningWeeks), "row ${row.id} lists only its own weeks")
+                assertEquals(row.warningWeeks.sortedBy { it.weekStart }, row.warningWeeks, "oldest first inside a row")
+                for (week in own.warningWeeks) {
+                    (if (week in row.warningWeeks) listed else leftOut) += rank(week.weekStart, http.currentWeekStart, index)
+                }
+            }
+            assertTrue(leftOut.isNotEmpty() && listed.size == MAX_TEAM_LOAD_WARNING_WEEKS)
+            assertTrue(listed.max() < leftOut.min(), "every listed week ranks before every left out: ${listed.max()} vs ${leftOut.min()}")
         } finally {
             withContext(NonCancellable) {
                 val ids = teams.joinToString(",")

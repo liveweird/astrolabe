@@ -1,5 +1,7 @@
 package ch.nokillswit.planning
 
+import java.time.LocalDate
+
 /** An ACTIVE team as the team-load view sees it; [managerName] is null without an ACTIVE manager person. */
 data class TeamLoadTeam(val id: UInt, val name: String, val managerName: String?)
 
@@ -10,9 +12,9 @@ data class TeamMilestoneCount(val total: Int, val unscheduled: Int)
 data class TeamWarningCounts(val overloadedTeams: Int, val wipExceededTeams: Int)
 
 /**
- * The team-load view as pure functions (no I/O, no clock; the [HomeKernels] idiom). Nothing is invented here: every figure counts the
- * team page's own [WeekLoad] flags, and [totals] is the ONE expression behind both this view's `totals` and Home's `plan` block, so
- * the two can never disagree. A team absent from the weeks map has no scheduled work and reads zeros.
+ * The team-load view as pure functions (no I/O, no clock - the current week is a parameter; the [HomeKernels] idiom). Nothing is
+ * invented here: every figure counts the team page's own [WeekLoad] flags, and [totals] is the ONE expression behind both this view's
+ * `totals` and Home's `plan` block, so the two can never disagree. A team absent from the weeks map has no scheduled work and reads zeros.
  */
 object TeamLoadKernels {
     /**
@@ -28,10 +30,10 @@ object TeamLoadKernels {
      * The document over [teams] (every ACTIVE team): rows by lowercase name then id, cut at [maxRows] ([TeamLoadView.truncated] says
      * it was), each with the [counts] of its milestones and the three week counts of its [teamWeeks] entry. A week with a null
      * capacity is counted as "without capacity" and never as overloaded ([WeekLoad.overloaded] is false for it). [TeamLoadTotals]
-     * count every team, whatever [maxRows] cuts. Each row also lists its warning weeks (overloaded or over the WIP limit, in the
-     * loader's order: oldest first); [maxWarningWeeks] is the budget for the WHOLE document, handed out in row order - the row where
-     * it runs out lists the first weeks that fit, later rows none - and [TeamLoadView.warningWeeksTruncated] is true when any listed
-     * row left a week out. A team past [maxRows] is not a row and uses no budget; the counts never change with the cut.
+     * count every team, whatever [maxRows] cuts. Each row also lists its warning weeks (overloaded or over the WIP limit, oldest
+     * first); [maxWarningWeeks] is the budget for the WHOLE document, handed out by date ([handOutWarningWeeks], with [currentWeek],
+     * the Monday of the server's current week, as the pivot) and [TeamLoadView.warningWeeksTruncated] is true when any listed row
+     * left a week out. A team past [maxRows] is not a row and uses no budget; the counts never change with the cut.
      */
     fun view(
         revision: Long,
@@ -40,26 +42,40 @@ object TeamLoadKernels {
         teamWeeks: Map<UInt, List<WeekLoad>>,
         maxRows: Int,
         maxWarningWeeks: Int,
+        currentWeek: LocalDate,
     ): TeamLoadView {
         val ordered = teams.sortedWith(compareBy({ it.name.lowercase() }, { it.id }))
         val warnings = totals(teamWeeks)
-        var budget = maxWarningWeeks
-        var cut = false
-        val rows = ordered.take(maxRows).map { team ->
-            val weeks = teamWeeks[team.id].orEmpty()
-            val warning = weeks.filter { it.overloaded || it.wipExceeded }
-            val listed = warning.take(budget.coerceAtLeast(0))
-            budget -= listed.size
-            if (listed.size < warning.size) cut = true
-            row(team, counts[team.id] ?: EMPTY, weeks, listed)
-        }
+        val listedTeams = ordered.take(maxRows)
+        val weeksOf = listedTeams.map { teamWeeks[it.id].orEmpty() }
+        val warningOf = weeksOf.map { weeks -> weeks.filter { it.overloaded || it.wipExceeded } }
+        val kept = handOutWarningWeeks(warningOf, maxWarningWeeks, currentWeek)
+        val rows = listedTeams.mapIndexed { index, team -> row(team, counts[team.id] ?: EMPTY, weeksOf[index], kept[index]) }
         return TeamLoadView(
             revision = revision,
+            currentWeekStart = currentWeek.toString(),
             totals = TeamLoadTotals(teams.size, warnings.overloadedTeams, warnings.wipExceededTeams),
             teams = rows,
             truncated = ordered.size > maxRows,
-            warningWeeksTruncated = cut,
+            warningWeeksTruncated = kept.sumOf { it.size } < warningOf.sumOf { it.size },
         )
+    }
+
+    /**
+     * The budget's hand-out: every week of every row in [warningByRow] is a candidate; the [budget] best are kept, the best being the
+     * weeks on or after [currentWeek] (the nearest first), then the earlier ones (the latest first), a tie on the date going to the
+     * earlier row. The result is parallel to [warningByRow], each row's kept weeks in their original (oldest first) order. A budget
+     * at or below zero keeps nothing.
+     */
+    fun handOutWarningWeeks(warningByRow: List<List<WeekLoad>>, budget: Int, currentWeek: LocalDate): List<List<WeekLoad>> {
+        val candidates = warningByRow.flatMapIndexed { row, weeks -> weeks.map { row to it } }
+        val order = compareBy<Pair<Int, WeekLoad>> { (_, week) -> week.weekStart < currentWeek }
+            .thenComparator { (_, a), (_, b) ->
+                if (a.weekStart < currentWeek) b.weekStart.compareTo(a.weekStart) else a.weekStart.compareTo(b.weekStart)
+            }
+            .thenBy { it.first }
+        val kept = candidates.sortedWith(order).take(budget.coerceAtLeast(0)).toHashSet()
+        return warningByRow.mapIndexed { row, weeks -> weeks.filter { (row to it) in kept } }
     }
 
     private fun row(team: TeamLoadTeam, count: TeamMilestoneCount, weeks: List<WeekLoad>, listed: List<WeekLoad>) = TeamLoadRow(

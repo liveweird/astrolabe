@@ -1227,8 +1227,11 @@ export interface paths {
          *     its load with no capacity period in force (such a week is never flagged overloaded). Each row also lists its `warningWeeks`:
          *     the weeks the team page flags overloaded or over the WIP limit, oldest first, each exactly the team page's `weeks[]` item
          *     (`WeekLoad`, never with `flowCapacity`: this view reads no external source); at most 2,000 weeks are listed in the whole
-         *     document, handed out in row order, and `warningWeeksTruncated` says a week was left out (the counts and `totals` are never
-         *     cut; a team past the 200-row cut uses none of the budget). A week without capacity is not listed, only counted. These weeks
+         *     document, and `warningWeeksTruncated` says a week was left out (the counts and `totals` are never cut; a team past the
+         *     200-row cut uses none of the budget). The budget goes to the weeks from `currentWeekStart` on first, the nearest first
+         *     whatever the team's place in the order, then to the earlier ones, the latest first (a tie on the date goes to the earlier
+         *     row); each row lists the weeks it kept oldest first. `currentWeekStart` is the Monday of the server's current week (UTC),
+         *     the same for every caller and never the caller's clock. A week without capacity is not listed, only counted. These weeks
          *     are the team page's own and open to every authenticated user already, so the list discloses nothing new.
          *     `totals.overloadedTeams` and
          *     `totals.wipExceededTeams` are `plan.overloadedTeams` and `plan.wipExceededTeams` of `GET /views/home`. `managerName` is null
@@ -5688,19 +5691,24 @@ export interface components {
             /** @description The team view's `team.flags` - at most one `FLOW_CAPACITY` flag. */
             flags: components["schemas"]["PlanFlag"][];
         };
-        /** @description The Team load page's document (1.19.0): every team's milestones and flagged weeks (1.21.0: and the flagged weeks themselves). Every figure is one the team page shows, so the list never disagrees with the page it links to or with Home. */
+        /** @description The Team load page's document (1.19.0): every team's milestones and flagged weeks (1.21.0: and the flagged weeks themselves; 1.22.0: the current week, and the weeks' budget handed out by date). Every figure is one the team page shows, so the list never disagrees with the page it links to or with Home. */
         TeamLoadView: {
             /**
              * Format: int64
              * @description The PLAN revision, read before the rows. Informational - the page sends nothing back.
              */
             revision: number;
+            /**
+             * Format: date
+             * @description The Monday of the server's current week (UTC), the same for every caller: the week from which the 2,000-week budget of the rows' `warningWeeks` is handed out first. A page that hides the earlier weeks cuts at this date, never at its own clock.
+             */
+            currentWeekStart: string;
             totals: components["schemas"]["TeamLoadTotals"];
             /** @description The active teams by name (case-insensitive, then id), at most 200. */
             teams: components["schemas"]["TeamLoadRow"][];
             /** @description True when `teams` was cut at 200 rows. */
             truncated: boolean;
-            /** @description True when a listed row left a warning week out because the document lists at most 2,000 weeks in all (handed out in row order). The three week counts of a row and `totals` never change with the cut. */
+            /** @description True when a listed row left a warning week out because the document lists at most 2,000 weeks in all (the weeks from `currentWeekStart` on first, the nearest first, then the earlier ones, the latest first). The three week counts of a row and `totals` never change with the cut. */
             warningWeeksTruncated: boolean;
         };
         /** @description The figures over EVERY active team, whatever the rows cut. */
@@ -5753,7 +5761,7 @@ export interface components {
              * @description The weeks of the team's load with no capacity period in force (never flagged overloaded).
              */
             weeksWithoutCapacity: number;
-            /** @description The weeks of the team's load that are overloaded or over the WIP limit, oldest first, each the team page's own week (never with `flowCapacity`). While nothing is cut, `overloadedWeeks` is the number of listed weeks with `overloaded` and `wipExceededWeeks` the number with `wipExceeded`; the document lists at most 2,000 weeks in all (`warningWeeksTruncated`), so a later row may list none or only its first weeks. */
+            /** @description The weeks of the team's load that are overloaded or over the WIP limit, oldest first, each the team page's own week (never with `flowCapacity`). While nothing is cut, `overloadedWeeks` is the number of listed weeks with `overloaded` and `wipExceededWeeks` the number with `wipExceeded`; the document lists at most 2,000 weeks in all (`warningWeeksTruncated`), handed out by date (see `currentWeekStart`), so a row may list none or only some of its weeks. */
             warningWeeks: components["schemas"]["WeekLoad"][];
         };
         /** @description The Dependencies page's document (1.20.0; the ends' names stated once since 1.21.0): every dependency of the plan. A row names its ends by kind and id and carries the project view's own type, lag and check, so the list never disagrees with the page it links to; `totals.violated` is Home's `plan.conflicts`. `projects`, `teams` and `milestones` hold exactly what the listed rows name. The document is the same for every caller except each row's `can` (1.22.0). */

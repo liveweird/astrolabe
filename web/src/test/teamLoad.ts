@@ -24,6 +24,8 @@ export function teamLoadRow(over: Partial<Row> = {}): Row {
 export function teamLoadView(teams: Row[], over: Partial<View> = {}): View {
   return {
     revision: 1,
+    // A Monday before every fixture week, so the page's default (weeks from this week on) hides none of them.
+    currentWeekStart: "2027-01-04",
     totals: {
       teams: teams.length,
       overloadedTeams: teams.filter((row) => row.overloadedWeeks > 0).length,

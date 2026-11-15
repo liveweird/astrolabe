@@ -5,7 +5,10 @@ import kotlinx.serialization.Serializable
 /** The most rows [TeamLoadView.teams] holds (the plan has about 15 teams, so nothing is cut in practice). */
 const val MAX_TEAM_LOAD_ROWS = 200
 
-/** The most warning weeks the whole document lists across its rows (handed out in row order; [TeamLoadView.warningWeeksTruncated]). */
+/**
+ * The most warning weeks the whole document lists across its rows (handed out by date, the weeks from
+ * [TeamLoadView.currentWeekStart] on first; [TeamLoadView.warningWeeksTruncated]).
+ */
 const val MAX_TEAM_LOAD_WARNING_WEEKS = 2_000
 
 /**
@@ -15,11 +18,14 @@ const val MAX_TEAM_LOAD_WARNING_WEEKS = 2_000
  * the view offers no write, so there is no `can`). The document is the same for every caller. [truncated] says [teams] was cut at
  * [MAX_TEAM_LOAD_ROWS]; [totals] always count every team. Each row lists its warning weeks (1.21.0), at most
  * [MAX_TEAM_LOAD_WARNING_WEEKS] in all; [warningWeeksTruncated] says a week was left out (counts and [totals] never change with it).
- * No defaults: the response encoder writes every member.
+ * [currentWeekStart] (1.22.0) is the Monday of the SERVER's current week in UTC (never the caller's clock): the budget goes to the
+ * weeks on or after it first, the nearest first, whatever the team's place, then to the earlier ones, the latest first
+ * ([TeamLoadKernels.view]). No defaults: the response encoder writes every member.
  */
 @Serializable
 data class TeamLoadView(
     val revision: Long,
+    val currentWeekStart: String,
     val totals: TeamLoadTotals,
     val teams: List<TeamLoadRow>,
     val truncated: Boolean,
@@ -40,7 +46,7 @@ data class TeamLoadTotals(val teams: Int, val overloadedTeams: Int, val wipExcee
  * and [wipExceededWeeks] are the team page's two orange badges, [weeksWithoutCapacity] the weeks of its load with no capacity period
  * in force (never flagged overloaded, so a team with work and no capacity would otherwise look fine). [warningWeeks] are the weeks
  * behind the first two counts - the team page's own overloaded or over-WIP weeks, oldest first (the team view's [WeekLoadView], never
- * with a Flow flag), as many as the document's budget left this row.
+ * with a Flow flag), as many as the document's budget kept of this row.
  */
 @Serializable
 data class TeamLoadRow(
