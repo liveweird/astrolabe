@@ -10,6 +10,7 @@ import ch.nokillswit.planning.HomeView
 import ch.nokillswit.planning.HomeViewService
 import ch.nokillswit.planning.HomeViewServiceKey
 import ch.nokillswit.planning.PlanFlag
+import ch.nokillswit.planning.PlanView
 import ch.nokillswit.planning.ProgramsView
 import ch.nokillswit.planning.ProjectView
 import ch.nokillswit.planning.RoadmapProject
@@ -115,9 +116,12 @@ class HomeViewTest {
             assertEquals(o.owner.personId.toString(), me.getValue("personId").toString())
             fun row(list: String): JsonObject = me.getValue(list).jsonArray.single().jsonObject
             assertEquals(setOf("id", "name", "endDate", "programs", "projects", "flags"), row("workStreams").keys)
-            assertEquals(setOf("id", "name", "workStreamName", "projects", "flags"), row("programs").keys)
+            assertEquals(setOf("id", "name", "workStreamName", "ownerName", "direct", "projects", "flags"), row("programs").keys)
             assertEquals(
-                setOf("id", "name", "programName", "rankPosition", "milestones", "unscheduledMilestones", "flags", "conflicts"),
+                setOf(
+                    "id", "name", "programName", "ownerName", "direct", "rankPosition", "milestones", "unscheduledMilestones", "flags",
+                    "conflicts",
+                ),
                 row("projects").keys,
             )
             assertEquals(
@@ -174,20 +178,32 @@ class HomeViewTest {
         }
 
     @Test
-    fun `me is the caller's own person's direct items for every kind of login, an administrator's person included`() = testApplication {
+    fun `me lists what the owner chain lets the person manage, with the owner of each row and whether it is their own`() = testApplication {
         usePostgresTestcontainer()
         val w = planWorld("hv3", teams = true)
         val t = w.requireTeams()
+        suspend fun ownerName(caller: PlanCaller) = TestPeople.rawRows().single { it.id == caller.personId }.name
+        // The stream's owner: the stream, the program under it (not theirs) and the project under that (not theirs either).
         val streamOwner = checkNotNull(w.streamOwner.client.home().me)
         assertEquals(listOf(w.streamId), streamOwner.workStreams.map { it.id })
-        assertEquals(listOf(emptyList(), emptyList(), emptyList()), listOf(streamOwner.programs, streamOwner.projects, streamOwner.teams))
-        assertEquals(listOf(1, 1), streamOwner.workStreams.single().let { listOf(it.programs, it.projects) }, "its roll-up, not its rows")
+        assertEquals(listOf(w.programId), streamOwner.programs.map { it.id })
+        assertEquals(listOf(w.projectId), streamOwner.projects.map { it.id })
+        assertEquals(emptyList(), streamOwner.teams)
+        assertEquals(listOf(1, 1), streamOwner.workStreams.single().let { listOf(it.programs, it.projects) }, "its roll-up, as before")
+        assertEquals(listOf(ownerName(w.programOwner), false), streamOwner.programs.single().let { listOf(it.ownerName, it.direct) })
+        assertEquals(listOf(ownerName(w.projectOwner), false), streamOwner.projects.single().let { listOf(it.ownerName, it.direct) })
+        // The program's owner: the program and its project, no work stream.
         val programOwner = checkNotNull(w.programOwner.client.home().me)
         assertEquals(listOf(w.programId), programOwner.programs.map { it.id })
-        assertEquals(emptyList(), programOwner.workStreams + programOwner.projects + programOwner.teams)
+        assertEquals(listOf(w.projectId), programOwner.projects.map { it.id })
+        assertEquals(emptyList(), programOwner.workStreams + programOwner.teams)
+        assertEquals(listOf(ownerName(w.programOwner), true), programOwner.programs.single().let { listOf(it.ownerName, it.direct) })
+        assertFalse(programOwner.projects.single().direct)
+        // The project's owner: that project alone, and it is theirs.
         val projectOwner = checkNotNull(w.projectOwner.client.home().me)
         assertEquals(listOf(w.projectId), projectOwner.projects.map { it.id })
         assertEquals(emptyList(), projectOwner.workStreams + projectOwner.programs + projectOwner.teams)
+        assertEquals(listOf(ownerName(w.projectOwner), true), projectOwner.projects.single().let { listOf(it.ownerName, it.direct) })
         assertEquals(listOf(t.teamId), checkNotNull(t.manager.client.home().me).teams.map { it.id })
         assertEquals(listOf(t.otherTeamId), checkNotNull(t.otherManager.client.home().me).teams.map { it.id })
         val stranger = checkNotNull(w.stranger.client.home().me)
@@ -198,14 +214,58 @@ class HomeViewTest {
         assertNull(w.personless.client.home().me, "a login without a person")
         assertNull(w.admin.client.home().me, "an administrator without a person is not 'everyone'")
 
-        // An ADMINISTRATOR with a person is looked up like anyone: the project and the team that person owns and manages.
+        // An ADMINISTRATOR with a person is looked up like anyone, and gets that person's chain, never everything: a project of their
+        // own, and a program of their own with another person's project under it.
         val admin = planCaller("hv3-adp", UserRole.ADMIN)
         val project = TestPlan.project(w.programId, admin.personId!!)
         val team = TestTeams.seed(planName("hv3-adteam"), admin.personId)
+        val adminProgram = TestPlan.program(w.streamId, admin.personId)
+        val underAdminProgram = TestPlan.project(adminProgram, w.stranger.personId!!)
         val me = checkNotNull(admin.client.home().me)
-        assertEquals(listOf(project), me.projects.map { it.id })
+        assertEquals(setOf(project, underAdminProgram), me.projects.map { it.id }.toSet())
+        assertEquals(mapOf(project to true, underAdminProgram to false), me.projects.associate { it.id to it.direct })
+        assertEquals(listOf(adminProgram), me.programs.map { it.id })
         assertEquals(listOf(team), me.teams.map { it.id })
-        assertEquals(emptyList(), me.workStreams + me.programs)
+        assertEquals(emptyList(), me.workStreams)
+        assertTrue(w.projectId !in me.projects.map { it.id }, "the project under the world's program is not the administrator's")
+    }
+
+    @Test
+    fun `me lists exactly the projects and programs the owner chain guard lets the caller edit`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("hv3g")
+        val other = planWorld("hv3h")
+        val second = secondProject(w, "hv3g")
+        // A second program in the world's work stream, owned by a new person, with a project owned by the stranger.
+        val programCaller = planCaller("hv3g-pg")
+        val secondProgram = TestPlan.program(w.streamId, programCaller.personId!!)
+        val underSecond = TestPlan.project(secondProgram, w.stranger.personId!!)
+        val projects = listOf(w.projectId, second.projectId, underSecond, other.projectId)
+        val programs = listOf(w.programId, secondProgram, other.programId)
+        val roadmap = w.admin.client.roadmap().rows().associateBy { it.id }
+        val callers = listOf(
+            w.streamOwner, w.programOwner, w.projectOwner, w.stranger, w.editor, second.owner, programCaller, other.streamOwner,
+            other.projectOwner,
+        )
+        for (caller in callers) {
+            val me = checkNotNull(caller.client.home().me)
+            // The caller's own (non-administrator) project view, one project at a time: the list is exactly the projects it lets them edit.
+            val editable = projects.filter { caller.client.project(it).project.can.edit }.toSet()
+            assertEquals(editable, me.projects.map { it.id }.toSet(), "projects of person ${caller.personId}")
+            assertEquals(me.projects.size, editable.size, "each project once")
+            for (row in me.projects) {
+                assertEquals(roadmap.getValue(row.id).ownerPersonId == caller.personId, row.direct, "direct, project ${row.id}")
+                assertEquals(roadmap.getValue(row.id).ownerName, row.ownerName)
+            }
+            // The same for the programs, from the plan view's own `can.edit` for this caller.
+            val plan = caller.client.get("/api/v1/views/plan").body<PlanView>()
+            val canEditProgram = plan.workStreams.flatMap { it.programs }.associate { it.id to it.can.edit }
+            assertEquals(programs.filter { canEditProgram.getValue(it) }.toSet(), me.programs.map { it.id }.toSet(), "programs")
+        }
+        assertEquals(3, checkNotNull(w.streamOwner.client.home().me).projects.size, "non-vacuous: the stream owner manages three of four")
+        assertTrue(w.stranger.client.project(underSecond).project.can.edit, "non-vacuous: the stranger owns one project of the world")
+        // The administrator without a person gets no list at all, whatever the project views say about the role.
+        assertNull(w.admin.client.home().me)
     }
 
     @Test
@@ -377,6 +437,18 @@ class HomeViewTest {
         assertEquals(listOf(keep), me.projects.map { it.id })
         assertEquals(emptyList(), me.teams)
         assertEquals(1, before.projects - w.stranger.client.home().plan.projects)
+
+        // A deleted project and a deleted program leave the lists of the person who held them only through the chain.
+        val holder = planCaller("hv9-hold")
+        val heldProgram = TestPlan.program(w.streamId, holder.personId!!)
+        val inherited = TestPlan.project(heldProgram, owner.personId)
+        val held = checkNotNull(holder.client.home().me)
+        assertEquals(listOf(heldProgram), held.programs.map { it.id })
+        assertEquals(listOf(inherited), held.projects.map { it.id })
+        assertEquals(HttpStatusCode.NoContent, w.admin.client.delete("/api/v1/projects/$inherited").status)
+        assertEquals(emptyList(), checkNotNull(holder.client.home().me).projects)
+        assertEquals(HttpStatusCode.NoContent, w.admin.client.delete("/api/v1/programs/$heldProgram").status)
+        assertEquals(emptyList(), checkNotNull(holder.client.home().me).programs)
     }
 
     @Test

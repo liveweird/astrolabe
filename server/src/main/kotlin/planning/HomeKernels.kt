@@ -5,8 +5,8 @@ import java.time.LocalDate
 /** An ACTIVE work stream as Home sees it. */
 data class HomeStreamFact(val id: UInt, val name: String, val ownerPersonId: UInt, val endDate: LocalDate?)
 
-/** An ACTIVE program as Home sees it. */
-data class HomeProgramFact(val id: UInt, val workStreamId: UInt, val name: String, val ownerPersonId: UInt)
+/** An ACTIVE program as Home sees it; [ownerName] is its owner's (read with no `active()` filter: the `ownerNames` reasoning). */
+data class HomeProgramFact(val id: UInt, val workStreamId: UInt, val name: String, val ownerPersonId: UInt, val ownerName: String)
 
 /** An ACTIVE team the caller manages, with the team view's `team.flags` (the Flow capacity roll-up; empty without a Flow source). */
 data class HomeTeamFact(val id: UInt, val name: String, val flags: List<PlanFlag>)
@@ -61,11 +61,14 @@ object HomeKernels {
     }
 
     /**
-     * The caller's own items: [personId]'s DIRECT ownership (a row is theirs when its `ownerPersonId` is [personId]; no inheritance
-     * from the work stream or program above) plus the [teams] they manage. Orders: work streams open before closed then by lowercase
-     * name then id; programs and teams by lowercase name then id; projects ranked first in rank order, then by lowercase name then id.
-     * Each list is cut at [maxRows] and [HomeMe.truncated] says one was. A program whose work stream is not listed is dropped (as the
-     * Programs tree does).
+     * The caller's items: everything [personId] may manage through the owner chain (what `PlanPermissions.canManage` answers for a
+     * non-administrator; an administrator's own "Yours" is still the person's, never everything) plus the [teams] they manage. A work
+     * stream is theirs when they own it; a program when it sits in a listed work stream and they own it or its work stream; a project
+     * when they own it or it sits in one of those programs. Each program and project row carries its owner's name and `direct` (its
+     * `ownerPersonId` is [personId]); a work stream has nothing above it, so its row is always direct. Orders: work streams open before
+     * closed then by lowercase name then id; programs and teams by lowercase name then id; projects ranked first in rank order, then
+     * by lowercase name then id. Each list is cut at [maxRows] and [HomeMe.truncated] says one was. A program whose work stream is not
+     * listed is dropped (as the Programs tree does), with the projects it would have passed down.
      */
     fun mine(
         personId: UInt,
@@ -79,7 +82,9 @@ object HomeKernels {
         val projectsOfProgram = facts.projects.groupBy { it.programId }
         val programsOfStream = programs.groupBy { it.workStreamId }
         val streamName = streams.associate { it.id to it.name }
-        val streamRows = streams.filter { it.ownerPersonId == personId }
+        val ownedStreams = streams.filter { it.ownerPersonId == personId }
+        val ownedStreamIds = ownedStreams.map { it.id }.toSet()
+        val streamRows = ownedStreams
             .sortedWith(compareBy({ it.endDate != null }, { it.name.lowercase() }, { it.id }))
             .map { stream ->
                 val owned = programsOfStream[stream.id].orEmpty()
@@ -89,22 +94,27 @@ object HomeKernels {
                     RoadmapKernels.flagCounts(projects.flatMap { it.flags }),
                 )
             }
-        val programRows = programs.filter { it.ownerPersonId == personId && it.workStreamId in streamName }
+        val mineOfPrograms = programs.filter {
+            it.workStreamId in streamName && (it.ownerPersonId == personId || it.workStreamId in ownedStreamIds)
+        }
+        val programRows = mineOfPrograms
             .sortedWith(compareBy({ it.name.lowercase() }, { it.id }))
             .map { program ->
                 val projects = projectsOfProgram[program.id].orEmpty()
                 HomeProgram(
-                    program.id, program.name, streamName.getValue(program.workStreamId), projects.size,
-                    RoadmapKernels.flagCounts(projects.flatMap { it.flags }),
+                    program.id, program.name, streamName.getValue(program.workStreamId), program.ownerName,
+                    program.ownerPersonId == personId, projects.size, RoadmapKernels.flagCounts(projects.flatMap { it.flags }),
                 )
             }
+        val inheritedFrom = mineOfPrograms.map { it.id }.toSet()
         val projectConflicts = projectConflicts(facts.checkedLinks)
-        val projectRows = facts.projects.filter { it.ownerPersonId == personId }
+        val projectRows = facts.projects.filter { it.ownerPersonId == personId || it.programId in inheritedFrom }
             .sortedWith(compareBy({ it.rankPosition == null }, { it.rankPosition ?: 0 }, { it.name.lowercase() }, { it.id }))
             .map { project ->
                 val own = facts.milestones.filter { it.projectId == project.id }
                 HomeProject(
-                    project.id, project.name, project.programName, project.rankPosition, own.size, own.count { it.span == null },
+                    project.id, project.name, project.programName, project.ownerName, project.ownerPersonId == personId,
+                    project.rankPosition, own.size, own.count { it.span == null },
                     RoadmapKernels.flagCounts(project.flags), projectConflicts[project.id] ?: 0,
                 )
             }

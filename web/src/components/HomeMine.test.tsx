@@ -12,6 +12,8 @@ const PROJECT: HomeMe["projects"][number] = {
   id: 7,
   name: "Ledger",
   programName: "Core",
+  ownerName: "Alex Example",
+  direct: true,
   rankPosition: 3,
   milestones: 10,
   unscheduledMilestones: 2,
@@ -30,7 +32,7 @@ const TEAM: HomeMe["teams"][number] = {
   flags: [{ kind: "FLOW_CAPACITY", severity: "WARNING", count: 2 }],
 };
 const STREAM: HomeMe["workStreams"][number] = { id: 1, name: "Platform", endDate: null, programs: 4, projects: 20, flags: { warnings: 42, infos: 0 } };
-const PROGRAM: HomeMe["programs"][number] = { id: 3, name: "Core", workStreamName: "Platform", projects: 5, flags: { warnings: 0, infos: 3 } };
+const PROGRAM: HomeMe["programs"][number] = { id: 3, name: "Core", workStreamName: "Platform", ownerName: "Alex Example", direct: true, projects: 5, flags: { warnings: 0, infos: 3 } };
 
 const viewWith = (me: HomeMe | null, over: Partial<HomeView> = {}) => homeView({ me, ...over });
 const renderMine = (view: HomeView | undefined, flowStale = false) => renderWithProviders(<HomeMine view={view} flowStale={flowStale} />);

@@ -235,6 +235,8 @@ class HomeViewSizeTest {
             assertEquals(100, me.projects.size)
             assertEquals(15, me.teams.size)
             assertFalse(me.truncated, "nothing is cut at the sample's density")
+            val rowsDirect = me.programs.map { it.direct } + me.projects.map { it.direct }
+            assertTrue(rowsDirect.all { it }, "the one owner of all 125 nodes owns every row directly")
             assertEquals(1, assertNotNull(m.document.me).teams.size)
             assertEquals(0, assertNotNull(n.document.me).let { it.workStreams.size + it.programs.size + it.projects.size + it.teams.size })
             assertNull(p.document.me, "a login without a person has no 'me'")
@@ -422,7 +424,10 @@ class HomeViewSizeTest {
         const val TEAM_LOAD_STATEMENTS = 6
         const val RUNS = 5
 
-        /** The plan's gate (calculated about 25 KB, plan 1.6). */
+        /**
+         * The plan's gate (calculated about 25 KB, plan 1.6): measured 25,293 B before 1.23 and 31,533 B after (each of the 120 program
+         * and project rows gained `ownerName` and `direct`, about 52 B a row; the one owner of all 125 nodes already listed them all).
+         */
         const val MAX_BYTES = 40_000
 
         /**

@@ -39,7 +39,8 @@ data class HomePlan(
 )
 
 /**
- * What the caller's linked person owns DIRECTLY (a work stream's owner does not get the projects below it) and the teams that person
+ * What the caller's linked person manages through the owner chain (1.23: the work streams they own, the programs and projects they own
+ * or that sit under a work stream or program they own; each program and project row says whose it is) and the teams that person
  * manages, each list capped at [MAX_HOME_ROWS] in its order; [truncated] says a list was cut.
  */
 @Serializable
@@ -57,19 +58,33 @@ data class HomeMe(
 @Serializable
 data class HomeWorkStream(val id: UInt, val name: String, val endDate: String?, val programs: Int, val projects: Int, val flags: FlagCounts)
 
-/** A program's row on the Programs page: its [projects] and their rolled-up [flags]. */
+/**
+ * A program's row on the Programs page: its [projects] and their rolled-up [flags]. [ownerName] is the program's owner and [direct]
+ * says the caller's person is that owner (false: the row is listed because the person owns its work stream).
+ */
 @Serializable
-data class HomeProgram(val id: UInt, val name: String, val workStreamName: String, val projects: Int, val flags: FlagCounts)
+data class HomeProgram(
+    val id: UInt,
+    val name: String,
+    val workStreamName: String,
+    val ownerName: String,
+    val direct: Boolean,
+    val projects: Int,
+    val flags: FlagCounts,
+)
 
 /**
  * A project's Roadmap row ([flags] are the warnings and infos the Roadmap counts, Jira's included; [rankPosition] is null while
- * unranked) with the project page's milestone figures and its red conflicts badge.
+ * unranked) with the project page's milestone figures and its red conflicts badge. [ownerName] is the project's owner and [direct]
+ * says the caller's person is that owner (false: the row is listed because the person owns its program or work stream).
  */
 @Serializable
 data class HomeProject(
     val id: UInt,
     val name: String,
     val programName: String,
+    val ownerName: String,
+    val direct: Boolean,
     val rankPosition: Int?,
     val milestones: Int,
     val unscheduledMilestones: Int,

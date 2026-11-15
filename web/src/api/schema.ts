@@ -1196,8 +1196,10 @@ export interface paths {
          *     of `GET /views/programs`, the ranked and unranked projects, the warnings and infos of `GET /views/roadmap`, the milestones the
          *     project and team pages count, the violated dependencies (every link once, a link inside one project included) and how many
          *     teams have a week the team page flags overloaded or over its WIP limit. `me` is the caller's OWN: what the ACTIVE person that
-         *     the caller's login is linked to owns directly (a work stream's owner gets the stream, not the projects below it) and the
-         *     teams that person manages, looked up for an administrator too; `null` when the login has no active linked person. Each list of
+         *     the caller's login is linked to may manage through the owner chain (1.23: the work streams they own, the programs and projects
+         *     they own or that sit under a work stream or program they own; a program's and a project's row names its owner and says whether
+         *     it is the person's own, `direct`) and the teams that person manages, looked up for an administrator too (an administrator's own
+         *     list is still the person's, never everything); `null` when the login has no active linked person. Each list of
          *     `me` holds at most 100 rows in the order of the Plan and Programs pages (`truncated` says one was cut). A row's figures are the
          *     page's own (the project's Roadmap flags, which since 1.23 include the Flow capacity flag, the team page's header figures); nothing here is new to a login. `revision` is the plan
          *     revision read before the rows (informational: Home offers no write, so there is no `can`).
@@ -5601,7 +5603,7 @@ export interface components {
              */
             wipExceededTeams: number;
         };
-        /** @description What the caller's linked person owns DIRECTLY (a work stream's owner does not get the projects below it) and the teams that person manages, each list holding at most 100 rows. */
+        /** @description What the caller's linked person may manage through the owner chain (1.23) and the teams that person manages, each list holding at most 100 rows: the work streams they own; the programs they own or that sit in a work stream they own; the projects they own or that sit in one of those programs (each of the last two says whose it is and whether it is the person's own, `direct`). */
         HomeMe: {
             /** Format: int32 */
             personId: number;
@@ -5644,6 +5646,10 @@ export interface components {
             id: number;
             name: string;
             workStreamName: string;
+            /** @description The program's owner (a person's name). */
+            ownerName: string;
+            /** @description True when the caller's person is the program's owner; false when the row is listed because that person owns its work stream. */
+            direct: boolean;
             /** Format: int32 */
             projects: number;
             /** @description The flags of its projects, rolled up. */
@@ -5655,6 +5661,10 @@ export interface components {
             id: number;
             name: string;
             programName: string;
+            /** @description The project's owner (a person's name). */
+            ownerName: string;
+            /** @description True when the caller's person is the project's owner; false when the row is listed because that person owns its program or work stream. */
+            direct: boolean;
             /**
              * Format: int32
              * @description The position in the global rank; null = unranked.

@@ -55,7 +55,8 @@ class HomeKernelsTest {
     ) =
         RoadmapProject(
             id = id, name = name, programId = programId, programName = "program$programId", workStreamId = 1u, workStreamName = "stream",
-            ownerPersonId = owner, ownerName = "owner", targetStart = null, targetEnd = null, rankPosition = rank, teamIds = emptyList(),
+            ownerPersonId = owner, ownerName = "owner$owner", targetStart = null, targetEnd = null, rankPosition = rank,
+            teamIds = emptyList(),
             span = null, drift = null, flags = flags, can = RoadmapProjectCan(editTargetWindow = false),
         )
 
@@ -74,7 +75,8 @@ class HomeKernelsTest {
 
     private val streams = listOf(HomeStreamFact(1u, "Beta", me, null), HomeStreamFact(2u, "alpha-closed", me, day("2026-06-30")))
     private val programs = listOf(
-        HomeProgramFact(11u, 1u, "Zeta", me), HomeProgramFact(12u, 1u, "Alpha", other), HomeProgramFact(13u, 2u, "Empty", me),
+        HomeProgramFact(11u, 1u, "Zeta", me, "owner$me"), HomeProgramFact(12u, 1u, "Alpha", other, "owner$other"),
+        HomeProgramFact(13u, 2u, "Empty", me, "owner$me"),
     )
     private val projects = listOf(
         project(21u, 11u, me, 2, listOf(flag(FlagSeverity.WARNING), flag(FlagSeverity.INFO))),
@@ -142,7 +144,7 @@ class HomeKernelsTest {
 
     @Test
     fun `plan drops a program whose work stream is not listed from its count`() {
-        val plan = HomeKernels.plan(streams, programs + HomeProgramFact(14u, 99u, "Orphan", me), facts)
+        val plan = HomeKernels.plan(streams, programs + HomeProgramFact(14u, 99u, "Orphan", me, "owner$me"), facts)
         assertEquals(3, plan.programs)
     }
 
@@ -154,44 +156,76 @@ class HomeKernelsTest {
     }
 
     @Test
-    fun `ownership is direct - the stream owner gets the stream and its roll-up, not the projects of others`() {
+    fun `a work stream's owner gets the stream, every program under it and every project under them, direct only where it is theirs`() {
         val rows = mine()
         assertEquals(listOf(1u, 2u), rows.workStreams.map { it.id }, "open before closed although 'alpha-closed' sorts first by name")
-        assertEquals(listOf(13u, 11u), rows.programs.map { it.id }, "program 12 is person 8's; by lowercase name: Empty, Zeta")
-        assertEquals(listOf(21u, 23u, 24u), rows.projects.map { it.id }, "project 22 is person 8's")
+        assertEquals(listOf(12u, 13u, 11u), rows.programs.map { it.id }, "program 12 is person 8's, in person 7's stream; by name")
+        assertEquals(listOf(22u, 21u, 23u, 24u), rows.projects.map { it.id }, "ranked 1, 2, 3, then the unranked; project 22 is person 8's")
+        assertEquals(listOf(false, true, true), rows.programs.map { it.direct })
+        assertEquals(listOf("owner$other", "owner$me", "owner$me"), rows.programs.map { it.ownerName })
+        assertEquals(listOf(false, true, true, true), rows.projects.map { it.direct })
+        assertEquals(listOf("owner$other", "owner$me", "owner$me", "owner$me"), rows.projects.map { it.ownerName })
         val streamOne = rows.workStreams.first()
         assertEquals(2, streamOne.programs)
-        assertEquals(4, streamOne.projects, "the stream's roll-up counts every project below it, owned or not")
+        assertEquals(4, streamOne.projects, "the stream's roll-up counts every project below it, owned or not (unchanged)")
         assertEquals(FlagCounts(2, 2), streamOne.flags)
         assertEquals("2026-06-30", rows.workStreams.last().endDate)
         assertEquals(null, streamOne.endDate)
     }
 
     @Test
-    fun `a person owning one program gets its roll-up and nothing else, an empty program reads zero`() {
+    fun `a program's owner gets the program and its projects, not the work stream or its other programs`() {
         val rows = mine(personId = other)
         assertEquals(emptyList(), rows.workStreams)
-        assertEquals(listOf(12u), rows.programs.map { it.id })
-        assertEquals(listOf(22u), rows.projects.map { it.id })
+        assertEquals(listOf(12u), rows.programs.map { it.id }, "program 11 is in the same stream but not theirs")
+        assertEquals(listOf(22u, 23u, 24u), rows.projects.map { it.id }, "project 22 is theirs; 23 and 24 sit under their program")
+        assertEquals(listOf(true, false, false), rows.projects.map { it.direct })
         val program = rows.programs.single()
+        assertTrue(program.direct)
+        assertEquals("owner$other", program.ownerName)
         assertEquals(RoadmapKernels.flagCounts(projects.filter { it.programId == 12u }.flatMap { it.flags }), program.flags)
         assertEquals(2, program.projects)
         assertEquals("Beta", program.workStreamName)
-        val empty = mine().programs.first()
+        val empty = mine().programs.single { it.id == 13u }
         assertEquals(Triple("Empty", 0, FlagCounts(0, 0)), Triple(empty.name, empty.projects, empty.flags))
     }
 
     @Test
-    fun `a program whose work stream is not listed is not the person's row`() {
-        val rows = HomeKernels.mine(me, "Alex", streams.take(1), programs, facts, emptyList(), 100)
-        assertEquals(listOf(11u), rows.programs.map { it.id }, "program 13 sits in the unlisted stream 2")
+    fun `a project's owner gets that project and nothing above or beside it`() {
+        val third = 9u
+        val withThird = facts.copy(projects = projects + project(25u, 13u, third, null))
+        val rows = mine(personId = third, of = withThird)
+        assertEquals(emptyList(), rows.workStreams + rows.programs, "program 13 is person 7's; its project is person 9's alone")
+        assertEquals(listOf(25u), rows.projects.map { it.id })
+        assertTrue(rows.projects.single().direct)
+        assertEquals("owner$third", rows.projects.single().ownerName)
+    }
+
+    @Test
+    fun `a person on two levels of one chain gets each row once, direct where it is theirs`() {
+        val rows = mine(personId = me)
+        assertEquals(rows.projects.map { it.id }.distinct(), rows.projects.map { it.id })
+        assertEquals(rows.programs.map { it.id }.distinct(), rows.programs.map { it.id })
+        val twoLevels = facts.copy(projects = projects + project(26u, 12u, me, null))
+        val also = mine(personId = me, of = twoLevels).projects
+        assertEquals(1, also.count { it.id == 26u }, "owned directly AND under their stream")
+        assertTrue(also.single { it.id == 26u }.direct)
+        assertFalse(also.single { it.id == 22u }.direct, "inherited only")
+    }
+
+    @Test
+    fun `a program whose work stream is not listed is dropped with the projects it would pass down`() {
+        val underOtherStream = facts.copy(projects = projects + project(27u, 13u, 9u, null))
+        assertTrue(27u in mine(of = underOtherStream).projects.map { it.id }, "listed: program 13 is in stream 2, which person 7 owns")
+        val rows = HomeKernels.mine(me, "Alex", streams.take(1), programs, underOtherStream, emptyList(), 100)
+        assertEquals(listOf(12u, 11u), rows.programs.map { it.id }, "program 13 sits in the unlisted stream 2")
+        assertFalse(27u in rows.projects.map { it.id }, "nor does its project reach the person through it")
     }
 
     @Test
     fun `a project row carries the roadmap row's flags, its rank, its milestones and the links with an end in it`() {
         val rows = mine().projects
-        val first = rows.first()
-        assertEquals(21u, first.id)
+        val first = rows.single { it.id == 21u }
         assertEquals(2, first.rankPosition)
         assertEquals("program11", first.programName)
         assertEquals(2, first.milestones)
@@ -204,7 +238,8 @@ class HomeKernelsTest {
         assertEquals(1, unranked.unscheduledMilestones)
         assertEquals(0, unranked.conflicts, "an unscheduled link is no conflict")
         assertEquals(FlagCounts(0, 1), unranked.flags)
-        assertEquals(1, mine(personId = other).projects.single().conflicts, "project 22 is the successor end of the one cross link")
+        val ofOther = mine(personId = other).projects.first { it.id == 22u }
+        assertEquals(1, ofOther.conflicts, "project 22 is the successor end of the one cross link")
     }
 
     @Test
@@ -222,7 +257,9 @@ class HomeKernelsTest {
         val tied = listOf(
             HomeStreamFact(4u, "ALPHA", me, null), HomeStreamFact(3u, "alpha", me, null), HomeStreamFact(2u, "Bravo", me, null),
         )
-        val tiedPrograms = listOf(HomeProgramFact(15u, 4u, "x", me), HomeProgramFact(14u, 4u, "X", me), HomeProgramFact(16u, 4u, "a", me))
+        val tiedPrograms = listOf(
+            HomeProgramFact(15u, 4u, "x", me, "m"), HomeProgramFact(14u, 4u, "X", me, "m"), HomeProgramFact(16u, 4u, "a", me, "m"),
+        )
         val rows = HomeKernels.mine(me, "Alex", tied, tiedPrograms, facts, emptyList(), 100)
         assertEquals(listOf(3u, 4u, 2u), rows.workStreams.map { it.id })
         assertEquals(listOf(16u, 14u, 15u), rows.programs.map { it.id })
@@ -280,11 +317,11 @@ class HomeKernelsTest {
         val cut = mine(teams = teams, maxRows = 1)
         assertTrue(cut.truncated)
         assertEquals(listOf(1u), cut.workStreams.map { it.id })
-        assertEquals(listOf(13u), cut.programs.map { it.id })
-        assertEquals(listOf(21u), cut.projects.map { it.id })
+        assertEquals(listOf(12u), cut.programs.map { it.id })
+        assertEquals(listOf(22u), cut.projects.map { it.id })
         assertEquals(listOf(6u), cut.teams.map { it.id })
-        assertTrue(mine(teams = teams, maxRows = 2).truncated, "three projects exceed two")
-        assertFalse(mine(teams = teams, maxRows = 3).truncated, "no list exceeds three")
+        assertTrue(mine(teams = teams, maxRows = 3).truncated, "four projects exceed three")
+        assertFalse(mine(teams = teams, maxRows = 4).truncated, "no list exceeds four")
     }
 
     @Test
