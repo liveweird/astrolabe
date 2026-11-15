@@ -592,7 +592,7 @@ The roadmap rank's shape, per team: one row per LISTED milestone, **positions de
 
 ### The public holidays (V19)
 
-`public_holidays` is Flow's registry, ported, with a real `DATE` (the `localDate` column) instead of Flow's `VARCHAR(10)` and **no seed**: the `POLISH` preset endpoint is the path (`planning-model.md` "The calendar (V19)"). One global dictionary, unique per date (`uq_public_holidays_date`; a duplicate is `23505` to the central `409`, the plan lock rolled back with it). Every create, delete and preset application is one `withPlanWrite`; the preset selects the year's existing dates under the lock and inserts the rest with `insertRowsIgnoringConflicts` (one statement).
+`public_holidays` is Flow's registry, ported, with a real `DATE` (the `localDate` column) instead of Flow's `VARCHAR(10)` and **no seed**: the `POLISH` preset endpoint is the path (`planning-model.md` "The calendar"). One global dictionary, unique per date (`uq_public_holidays_date`; a duplicate is `23505` to the central `409`, the plan lock rolled back with it). Every create, delete and preset application is one `withPlanWrite`; the preset selects the year's existing dates under the lock and inserts the rest with `insertRowsIgnoringConflicts` (one statement).
 
 ### The baselines (V20)
 

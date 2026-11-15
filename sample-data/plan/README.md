@@ -92,7 +92,7 @@ node scripts/sample-plan/load.mjs --base-url http://localhost:8086 [--anchor 202
 ## Try the proposal (v0.8)
 
 Sign in as a team's manager (`--logins`) or as the ADMIN, open `/teams/:id` and press **Propose schedule** (the page sends today as `asOf`; the figures below are for `asOf` = the loader's anchor Monday, measured by
-`POST /teams/{id}/schedule-proposal`, NON-BINDING, re-measure rather than quote: `planning-model.md` "The auto-proposal (v0.8.0)" has the whole per-team table, `timeline.md` "Measured figures" the timings).
+`POST /teams/{id}/schedule-proposal`, NON-BINDING, re-measure rather than quote: `planning-model.md` "The auto-proposal" has the whole per-team table, `timeline.md` "Measured figures" the timings).
 
 - **Platform** (the largest team, 301 milestones, virtual path): about 275 moves, 33 of them newly scheduled (the tray empties), so the preview is a long table; the load strip drops from 11 overloaded and 21 over-WIP weeks to
   1 and 2; the page shows a red "links would be violated" badge (28 links that held now break, 13 broken ones resolve): the Q2a rule, the order is yours, so move a milestone up and propose again. Response ~170 KB.
