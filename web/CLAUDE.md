@@ -25,7 +25,7 @@ Read the page's section before changing the page; a new how-it-works paragraph g
 - **Flat directories**: `pages/`, `components/`, `hooks/`, `utils/`, `api/`, `changelog/`, `locales/{en,pl}/`, `test/` — no deeper nesting, no per-feature
   folders. **Default exports for components/pages**, named exports for everything else; **no path aliases**.
 - **Co-located tests**: `Foo.test.tsx` beside `Foo.tsx`; scaffolding in `src/test/` (`setup.ts` forces `en`, `render.tsx` the provider wrapper, `http.ts` the
-  fetch stubs, `headings.ts`). Every `MantineProvider` in a test (`render.tsx` included) must pass `env="test"`, or Select/Popover interaction silently fails
+  fetch stubs and `routeFetch({ "GET /api/v1/x/:id": body | Response | fn })` — an unlisted call fails the test —, `planView.ts`/`roadmapView.ts` the view builders, `headings.ts`). Every `MantineProvider` in a test (`render.tsx` included) must pass `env="test"`, or Select/Popover interaction silently fails
   under happy-dom.
 - **CSS modules only where the theme can't express it**: styling belongs in `src/theme.ts` (Mantine `createTheme` — component `extend`s, defaultProps) with
   `src/theme.module.css` for the class-level parts; a per-component `*.module.css` is the exception, not the pattern.

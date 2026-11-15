@@ -3,8 +3,10 @@ import { screen, waitFor } from "@testing-library/react";
 import App from "../App";
 import appSource from "../App.tsx?raw";
 import { headingOutline } from "../test/headings";
-import { jsonResponse } from "../test/http";
+import { jsonResponse, routeFetch } from "../test/http";
+import { planView } from "../test/planView";
 import { renderWithProviders } from "../test/render";
+import { roadmapView } from "../test/roadmapView";
 
 // The heading-outline guard for EVERY page the router registers (web/CLAUDE.md "One heading outline
 // everywhere"): the PageHeader title is the h2, sections h3, inner blocks h4. Rendered through the
@@ -24,30 +26,27 @@ const ROUTE_PATTERNS = [...appSource.matchAll(/<Route\s+(?:index|path="([^"]+)")
 const SIGNED_OUT = new Set(["/login", "/reset-password", "/reset-password/confirm"]);
 
 function emptyApi() {
-  return vi.fn((input: RequestInfo | URL) => {
-    const url = String(input);
-    if (url === "/api/v1/views/plan") {
-      return Promise.resolve(jsonResponse(200, { revision: 0, can: { createWorkStream: true }, workStreams: [] }));
-    }
-    if (url === "/api/v1/views/roadmap") {
-      return Promise.resolve(jsonResponse(200, { revision: 0, can: { editRank: true }, ranked: [], unranked: [] }));
-    }
-    if (url === "/api/v1/views/programs") {
-      return Promise.resolve(jsonResponse(200, { revision: 0, teams: [], links: [], workStreams: [] }));
-    }
-    if (url === "/api/v1/baselines") {
-      return Promise.resolve(jsonResponse(200, { items: [], can: { manage: true } }));
-    }
-    if (url === "/api/v1/views/team-load") {
-      return Promise.resolve(jsonResponse(200, { revision: 0, currentWeekStart: "2027-01-04", totals: { teams: 0, overloadedTeams: 0, wipExceededTeams: 0 }, teams: [], truncated: false, warningWeeksTruncated: false }));
-    }
-    if (url === "/api/v1/views/dependencies") {
-      return Promise.resolve(jsonResponse(200, { revision: 0, totals: { links: 0, violated: 0, unscheduled: 0 }, projects: [], teams: [], milestones: [], dependencies: [], truncated: false }));
-    }
-    if (/\/api\/v1\/(users|teams|people|milestones)(\?|$)/.test(url)) {
-      return Promise.resolve(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 }));
-    }
-    return Promise.resolve(jsonResponse(404, { title: "Not found", status: 404 }));
+  const notFound = () => jsonResponse(404, { title: "Not found", status: 404 });
+  const emptyPage = { items: [], page: 1, pageSize: 20, total: 0 };
+  return routeFetch({
+    "GET /api/v1/views/plan": planView({ revision: 0 }),
+    "GET /api/v1/views/roadmap": roadmapView({ revision: 0 }),
+    "GET /api/v1/views/programs": { revision: 0, teams: [], links: [], workStreams: [] },
+    "GET /api/v1/baselines": { items: [], can: { manage: true } },
+    "GET /api/v1/views/team-load": { revision: 0, currentWeekStart: "2027-01-04", totals: { teams: 0, overloadedTeams: 0, wipExceededTeams: 0 }, teams: [], truncated: false, warningWeeksTruncated: false },
+    "GET /api/v1/views/dependencies": { revision: 0, totals: { links: 0, violated: 0, unscheduled: 0 }, projects: [], teams: [], milestones: [], dependencies: [], truncated: false },
+    "GET /api/v1/users": emptyPage,
+    "GET /api/v1/teams": emptyPage,
+    "GET /api/v1/people": emptyPage,
+    "GET /api/v1/milestones": emptyPage,
+    // Everything else a page asks for is not found (the shell's session read, the deploy check, the detail and integration pages).
+    "GET /api/v1/users/:id": notFound,
+    "GET /api/v1/people/:id": notFound,
+    "GET /api/v1/public-holidays": notFound,
+    "GET /api/v1/schedule-proposals/teams": notFound,
+    "GET /api/v1/integrations/*": notFound,
+    "GET /api/v1/views/*": notFound,
+    "GET /index.html": notFound,
   });
 }
 

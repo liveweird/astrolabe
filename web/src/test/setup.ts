@@ -10,6 +10,8 @@ import { DEFAULT_THEME } from "@mantine/core";
 // touched), so the reset costs a re-transform of `src/`, not a re-import of Mantine.
 vi.resetModules();
 const { default: i18n } = await import("../i18n");
+// Imported here (after the reset) so this is the instance the test files get: the `routeFetch` registry of unrouted calls is module state.
+const { assertNoUnroutedCalls } = await import("./http");
 
 // With the module registry cleared per file, whichever test of a (shuffled) file touches a lazy chunk first
 // pays the cold transform + import of it — over a second when CPU is contended (a parallel run, CI), which is
@@ -100,6 +102,7 @@ afterEach(() => {
   localStorage.clear();
   // `useDocumentTitle` never restores on unmount and `isolate: false` shares one document across files.
   document.title = "";
+  assertNoUnroutedCalls();
 });
 
 // happy-dom ships an IntersectionObserver that never reports anything (no layout), which would leave `NearViewport` charts

@@ -1,31 +1,24 @@
 import { afterEach, describe, expect, test } from "vitest";
 import i18n from "../i18n";
 import type { RoadmapLink, RoadmapProject } from "../api/roadmap";
+import { roadmapProject } from "../test/roadmapView";
 import type { JiraWindow } from "./jiraBars";
 import { planArrows, projectOfWindowBar, projectTrack, windowBarId } from "./planTrack";
 
 const t = i18n.t;
 
-const project = (over: Partial<RoadmapProject> = {}): RoadmapProject => ({
-  jira: null,
-  id: 7,
-  name: "Invoices",
-  programId: 10,
-  programName: "Billing",
-  workStreamId: 1,
-  workStreamName: "Platform",
-  ownerPersonId: 5,
-  ownerName: "Ola",
-  targetStart: "2026-02-02",
-  targetEnd: "2026-03-31",
-  rankPosition: null,
-  teamIds: [],
-  span: { start: "2026-03-02", end: "2026-04-10" },
-  drift: { startDays: 28, endDays: 10 },
-  flags: [],
-  can: { editTargetWindow: true },
-  ...over,
-});
+const project = (over: Partial<RoadmapProject> = {}): RoadmapProject =>
+  roadmapProject({
+    id: 7,
+    name: "Invoices",
+    ownerName: "Ola",
+    targetStart: "2026-02-02",
+    targetEnd: "2026-03-31",
+    span: { start: "2026-03-02", end: "2026-04-10" },
+    drift: { startDays: 28, endDays: 10 },
+    can: { editTargetWindow: true },
+    ...over,
+  });
 
 const none = new Map<number, number>();
 

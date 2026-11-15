@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { PlanFlag, RemovedProject, RoadmapLink, RoadmapProject, RoadmapView } from "../api/roadmap";
+import { roadmapProject, roadmapView } from "../test/roadmapView";
 import { jiraWindow } from "./jiraBars";
 import {
   activeFilterCount,
@@ -32,49 +33,27 @@ const NONE: RoadmapFilters = { workStreamId: null, teamId: null, ownerPersonId: 
 
 const flag = (kind: PlanFlag["kind"], severity: PlanFlag["severity"], over: Partial<PlanFlag> = {}): PlanFlag => ({ kind, severity, days: 3, ...over });
 
-const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): RoadmapProject => ({
-  jira: null,
-  id,
-  name,
-  programId: 10,
-  programName: "Billing",
-  workStreamId: 1,
-  workStreamName: "Platform",
-  ownerPersonId: 5,
-  ownerName: "Ola Owner",
-  targetStart: null,
-  targetEnd: null,
-  rankPosition: null,
-  teamIds: [],
-  span: null,
-  drift: null,
-  flags: [],
-  can: { editTargetWindow: false },
-  ...over,
-});
+const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): RoadmapProject => roadmapProject({ id, name, ...over });
 
 const A = project(1, "Alpha", { teamIds: [7], flags: [flag("DRIFT_END_EARLY", "INFO"), flag("DRIFT_END_LATE", "WARNING")] });
 const B = project(2, "Beta", { programId: 11, programName: "Compliance", workStreamId: 2, workStreamName: "Ops", ownerPersonId: 6, ownerName: "Tania Tax", teamIds: [7, 8] });
 const C = project(3, "Gamma", { flags: [flag("RANK_INVERSION", "WARNING", { teamId: 7, otherProjectId: 1 })] });
 const D = project(4, "Delta", { programId: 11, programName: "Compliance", workStreamId: 2, workStreamName: "Ops", ownerPersonId: 6, ownerName: "Tania Tax" });
 
-const view = (over: Partial<RoadmapView> = {}): RoadmapView => ({
-  jiraSites: [],
-  revision: 1,
-  can: { editRank: true },
-  teams: [
-    { id: 7, name: "Payments" },
-    { id: 8, name: "Web" },
-  ],
-  links: [],
-  ranked: [
-    { position: 1, project: A },
-    { position: 2, project: B },
-    { position: 4, project: C },
-  ],
-  unranked: [D],
-  ...over,
-});
+const view = (over: Partial<RoadmapView> = {}): RoadmapView =>
+  roadmapView({
+    teams: [
+      { id: 7, name: "Payments" },
+      { id: 8, name: "Web" },
+    ],
+    ranked: [
+      { position: 1, project: A },
+      { position: 2, project: B },
+      { position: 4, project: C },
+    ],
+    unranked: [D],
+    ...over,
+  });
 
 describe("visibleProjects", () => {
   test("no filter and no pick keeps every row and the server's positions (a gap stays a gap)", () => {

@@ -5,13 +5,13 @@ import { notifications } from "@mantine/notifications";
 import { Route, Routes } from "react-router-dom";
 import { consumeSignedOut, pendingSignedOut } from "../auth";
 import ChangePassword from "./ChangePassword";
-import { jsonResponse } from "../test/http";
+import { jsonResponse, routeFetch } from "../test/http";
 import { renderWithProviders } from "../test/render";
 
 const TOKEN_KEY = "astrolabe.auth.token";
 const USER_ID_KEY = "astrolabe.auth.userId";
 
-type FetchMock = ReturnType<typeof vi.fn>;
+type FetchMock = ReturnType<typeof routeFetch>;
 
 async function fill(user: ReturnType<typeof userEvent.setup>, current: string, next: string, confirm = next) {
   await user.type(screen.getByLabelText(/^current password( \*)?$/i), current);
@@ -23,9 +23,14 @@ async function fill(user: ReturnType<typeof userEvent.setup>, current: string, n
 describe("ChangePassword page", () => {
   let mockFetch: FetchMock;
 
-  beforeEach(() => {
-    mockFetch = vi.fn();
+  // Installs the routes of one test; a call no route names fails the test (the validation test names none).
+  function stub(table: Parameters<typeof routeFetch>[0]) {
+    mockFetch = routeFetch(table);
     vi.stubGlobal("fetch", mockFetch);
+  }
+
+  beforeEach(() => {
+    stub({});
     localStorage.setItem(TOKEN_KEY, "fake-token");
     localStorage.setItem(USER_ID_KEY, "5");
   });
@@ -47,13 +52,7 @@ describe("ChangePassword page", () => {
 
   test("PUTs to the caller's own password endpoint, toasts and signs this device out", async () => {
     const toast = vi.spyOn(notifications, "show").mockReturnValue("id");
-    mockFetch.mockImplementation((url: string, init?: RequestInit) =>
-      Promise.resolve(
-        (init?.method ?? "GET") === "PUT" && url === "/api/v1/users/5/password"
-          ? new Response(null, { status: 204 })
-          : jsonResponse(404, {}),
-      ),
-    );
+    stub({ "PUT /api/v1/users/5/password": new Response(null, { status: 204 }) });
     const user = userEvent.setup();
     renderPage();
 
@@ -104,9 +103,7 @@ describe("ChangePassword page", () => {
   });
 
   test("a 403 reads as wrong current password", async () => {
-    mockFetch.mockImplementation(() =>
-      Promise.resolve(jsonResponse(403, { title: "Forbidden", status: 403 })),
-    );
+    stub({ "PUT /api/v1/users/5/password": jsonResponse(403, { title: "Forbidden", status: 403 }) });
     const user = userEvent.setup();
     renderPage();
 
@@ -118,16 +115,14 @@ describe("ChangePassword page", () => {
   });
 
   test("the lock's 429 (its own problem type) reads as the temporary lock, not as a wrong password", async () => {
-    mockFetch.mockImplementation(() =>
-      Promise.resolve(
-        jsonResponse(429, {
-          type: "urn:astrolabe:problem:password-change-locked",
-          title: "Too Many Requests",
-          status: 429,
-          detail: "Too many wrong current passwords — try again later",
-        }),
-      ),
-    );
+    stub({
+      "PUT /api/v1/users/5/password": jsonResponse(429, {
+        type: "urn:astrolabe:problem:password-change-locked",
+        title: "Too Many Requests",
+        status: 429,
+        detail: "Too many wrong current passwords — try again later",
+      }),
+    });
     const user = userEvent.setup();
     renderPage();
 
@@ -139,16 +134,14 @@ describe("ChangePassword page", () => {
   });
 
   test("the rate bucket's 429 (type about:blank) says to wait a minute, not that the password is locked", async () => {
-    mockFetch.mockImplementation(() =>
-      Promise.resolve(
-        jsonResponse(429, {
-          type: "about:blank",
-          title: "Too Many Requests",
-          status: 429,
-          detail: "Rate limit exceeded — retry later",
-        }),
-      ),
-    );
+    stub({
+      "PUT /api/v1/users/5/password": jsonResponse(429, {
+        type: "about:blank",
+        title: "Too Many Requests",
+        status: 429,
+        detail: "Rate limit exceeded — retry later",
+      }),
+    });
     const user = userEvent.setup();
     renderPage();
 

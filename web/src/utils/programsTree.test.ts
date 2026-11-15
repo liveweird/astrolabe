@@ -1,30 +1,12 @@
 import { describe, expect, test } from "vitest";
 import type { ProgramsProgram, ProgramsView, ProgramsWorkStream } from "../api/programs";
 import type { RoadmapProject } from "../api/roadmap";
+import { roadmapProject } from "../test/roadmapView";
 import { jiraWindow } from "./jiraBars";
 import type { RemovedProjectRow } from "./baselineOverlay";
 import { allOpen, arrowAnchors, defaultOpen, programChoices, toggled, treeDates, treeFacts, treeRows } from "./programsTree";
 
-const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): RoadmapProject => ({
-  jira: null,
-  id,
-  name,
-  programId: 0,
-  programName: "",
-  workStreamId: 0,
-  workStreamName: "",
-  ownerPersonId: 1,
-  ownerName: "Ola",
-  targetStart: null,
-  targetEnd: null,
-  rankPosition: null,
-  teamIds: [],
-  span: null,
-  drift: null,
-  flags: [],
-  can: { editTargetWindow: false },
-  ...over,
-});
+const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): RoadmapProject => roadmapProject({ id, name, ...over });
 
 const program = (id: number, name: string, projects: RoadmapProject[], over: Partial<ProgramsProgram> = {}): ProgramsProgram => ({
   id,

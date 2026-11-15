@@ -109,6 +109,7 @@ skips a level going down. A page whose real title needs loaded data passes a sta
   `.git`. `src/components/VersionStamp.tsx` renders `v<APP_VERSION> · <sha> · <time>` at the bottom of the navbar (`App.tsx`) and under the login card
   (`components/AuthCard.tsx`). The same constant is the stamp's SECOND consumer: a small `transformIndexHtml` plugin in `vite.config.ts` writes it into
   `index.html` as `<meta name="astrolabe-build" content="<commit>">` (nothing else), so a build's shell and bundle always agree; `api/build.ts` reads it back (deploy check below).
+- **Test fetch stubs**: `test/http.ts` `routeFetch(table)` answers by `"METHOD /path"` (exact, or `:name`/`*` patterns) with a body, a `Response` or a function of the call, and an unlisted call rejects naming its method and path and fails the test in `setup.ts`'s `afterEach`; `test/planView.ts` and `test/roadmapView.ts` build the view documents. A touched test file moves to the router (and to the builders) instead of a hand-rolled `mockImplementation`.
 
 - Types are regenerated with `npm run gen:api` (rules: `web/CLAUDE.md`); `openapi-typescript` is installed with `--legacy-peer-deps` because its declared peer
   is TS `^5` while the scaffold uses TS 6 (the generated output is compatible); after a from-scratch `npm install`, use `npm install --legacy-peer-deps`.
@@ -1175,7 +1176,7 @@ chip's; `acknowledged=false` in a URL is dropped); Acknowledged sends `acknowled
 reads All. The "Show everything" switch writes the same `all`, so All and the switch are two views of one parameter. **There is no Acknowledgement column**: the
 Deviations cell lists every LISTED line of the row (`items[].deviations[]`, whatever the Status - a row on the Open list shows its acknowledged lines too), each
 as the kind badge (gray once acknowledged, `SeverityBadge dimmed`) and the sentence, and under it the line's own acknowledgement (`DeviationLine.acknowledgement{at, by, current}`; the
-deprecated item-level `acknowledgement` is NOT read): "Acknowledged by X on D" / "Acknowledged on D by X · changed since" (a stamp whose line changed is `current: false`,
+item has no `acknowledgement` of its own): "Acknowledged by X on D" / "Acknowledged on D by X · changed since" (a stamp whose line changed is `current: false`,
 the line is open again; a deleted acknowledger drops the name) and ONE button (`isLineOpen`, `utils/deviations.ts`): **Acknowledge** for an open line (no stamp or a stale one),
 **Unacknowledge** for a current one - both only with the item's `can.acknowledge` (a pure RIGHTS flag; a clean row has no lines, so no button). The buttons name the line by
 Jira key and kind ("Acknowledge E2E-6: End"), carry `data-ack-for="<bindingId>:<KIND>"`, are `aria-disabled` + `data-disabled` (Mantine's disabled look; never `disabled`/`loading`:
