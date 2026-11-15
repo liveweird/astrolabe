@@ -12,7 +12,6 @@ import ch.nokillswit.planning.periodOn
 import ch.nokillswit.planning.weekCapacity
 import ch.nokillswit.planning.weeklyLoad
 import ch.nokillswit.planning.wipLimitOn
-import ch.nokillswit.planning.wipOn
 import java.math.BigDecimal
 import java.time.LocalDate
 import kotlin.test.Test
@@ -104,7 +103,6 @@ class LoadKernelsTest {
     fun `a one-day milestone loads its whole estimate into its week`() {
         val rows = weeks(listOf(item("2027-02-03", "2027-02-03", "3")))
         assertEquals(listOf(md("3.00"), md("0.00")), rows.map { it.load })
-        assertEquals(1, wipOn(d("2027-02-03"), listOf(item("2027-02-03", "2027-02-03", "3")), calendar))
     }
 
     @Test
@@ -252,13 +250,6 @@ class LoadKernelsTest {
     private fun wip(rows: List<WeekLoad>) = rows.map { it.maxWip to it.wipExceeded }
 
     @Test
-    fun `the WIP of a day counts the items whose effective span covers it`() {
-        val daily = listOf("02-01", "02-02", "02-03", "02-04", "02-05", "02-08", "02-09", "02-10", "02-11", "02-12")
-            .map { wipOn(d("2027-$it"), base, calendar) }
-        assertEquals(listOf(1, 1, 2, 3, 2, 1, 1, 1, 0, 0), daily)
-    }
-
-    @Test
     fun `a flat limit flags the week whose peak day exceeds it`() {
         assertEquals(listOf(3 to true, 1 to false), wip(weeks(base, listOf(period("2027-02-01", "10", wip = 2)))))
     }
@@ -294,16 +285,11 @@ class LoadKernelsTest {
         val limit1 = listOf(period("2027-02-01", "10", wip = 1))
         assertEquals(wip(weeks(base, limit1))[0], wip(weeks(withE, limit1))[0], "E counts on no day of the earlier week")
         assertEquals(2 to true, wip(weeks(withE, limit1))[1], "Monday: B and E")
-        assertEquals(1, wipOn(d("2027-02-11"), withE, calendar), "Thursday: E alone")
-        assertEquals(2, wipOn(d("2027-02-05"), withE, calendar), "the Friday before: A and B, E has not started")
     }
 
     @Test
     fun `an item dated Friday to Saturday counts on that Friday only`() {
         val withF = base + item("2027-02-05", "2027-02-06", "1")
-        assertEquals(3, wipOn(d("2027-02-05"), withF, calendar), "Friday: A, B and F")
-        assertEquals(2, wipOn(d("2027-02-05"), base, calendar))
-        assertEquals(1, wipOn(d("2027-02-08"), withF, calendar), "F is gone on Monday")
         assertEquals(listOf(3 to true, 1 to false), wip(weeks(withF, listOf(period("2027-02-01", "10", wip = 2)))))
     }
 

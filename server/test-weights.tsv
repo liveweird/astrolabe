@@ -183,7 +183,6 @@ ch.nokillswit.PasswordResetConfirmationTest	1.8
 ch.nokillswit.PasswordResetServiceTest	0.4
 ch.nokillswit.PasswordResetTest	1.5
 ch.nokillswit.PasswordResetThrottleTest	0.0
-ch.nokillswit.PathGlobTest	0.0
 ch.nokillswit.PayloadValidationTest	0.2
 ch.nokillswit.PermitContentionTest	0.6
 ch.nokillswit.PersonMigrationTest	0.3

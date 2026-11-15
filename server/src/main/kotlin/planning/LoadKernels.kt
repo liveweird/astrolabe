@@ -105,14 +105,6 @@ private fun wipAt(day: LocalDate, spans: List<EffectiveSpan>, calendar: WorkingC
     return spans.count { it.first <= index && index <= it.last }
 }
 
-/**
- * The number of [items] whose effective span covers the working day [day] (the v0.4 dependency check's effective-span rule: a
- * weekend-only edge counts nothing). Counted by the index, so a weekend or holiday [day] reads the working day before it -
- * ask working days only.
- */
-fun wipOn(day: LocalDate, items: List<LoadItem>, calendar: WorkingCalendar): Int =
-    wipAt(day, items.map { effectiveSpanOf(it.span, calendar) }, calendar)
-
 private fun workingDaysOf(monday: LocalDate, calendar: WorkingCalendar): List<LocalDate> =
     (0 until DAYS_PER_WEEK).map { monday.plusDays(it) }.filter(calendar::isWorkingDay)
 

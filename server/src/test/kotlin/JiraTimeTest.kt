@@ -1,6 +1,5 @@
 package ch.nokillswit
 
-import ch.nokillswit.jira.minutesBetween
 import ch.nokillswit.jira.parseJiraInstant
 import ch.nokillswit.jira.parseJiraInstantEpochMillis
 import java.time.Instant
@@ -59,14 +58,5 @@ class JiraTimeTest {
     fun `a malformed value throws the same unchecked exception Instant-parse itself would have`() {
         assertFailsWith<DateTimeParseException> { parseJiraInstant("not-a-timestamp") }
         assertFailsWith<DateTimeParseException> { parseJiraInstant("12345") }
-    }
-
-    @Test
-    fun `minutesBetween rounds up and floors at zero`() {
-        assertEquals(0, minutesBetween(1_000, 1_000))
-        assertEquals(0, minutesBetween(2_000, 1_000))
-        assertEquals(1, minutesBetween(0, 1))
-        assertEquals(1, minutesBetween(0, 60_000))
-        assertEquals(2, minutesBetween(0, 60_001))
     }
 }

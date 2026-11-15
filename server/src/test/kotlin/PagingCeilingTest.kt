@@ -1,7 +1,5 @@
 package ch.nokillswit
 
-import ch.nokillswit.infra.fetch.AnswerCeiling
-import ch.nokillswit.infra.fetch.BoundedAnswer
 import ch.nokillswit.infra.fetch.DEPTH_CEILING_TEXT
 import ch.nokillswit.infra.fetch.FetchException
 import ch.nokillswit.infra.fetch.FetchSource
@@ -9,8 +7,6 @@ import ch.nokillswit.infra.fetch.MAX_PAGE_TOKEN_CHARS
 import ch.nokillswit.infra.fetch.NODE_CEILING_TEXT
 import ch.nokillswit.infra.fetch.PageCeiling
 import ch.nokillswit.infra.fetch.PageTokenGuard
-import ch.nokillswit.infra.fetch.RunBudget
-import ch.nokillswit.infra.fetch.RunCeiling
 import ch.nokillswit.infra.fetch.SourceHttp
 import ch.nokillswit.infra.fetch.defaultMaxResponseNodes
 import ch.nokillswit.infra.fetch.jsonCeilingBreach
@@ -30,8 +26,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * The ceilings the fetch machinery keeps (`infra/fetch/Ceilings.kt`, `PageTokenGuard.kt`, `NodeCeiling.kt`): the page, answer and run
- * ceilings a paging loop follows, the page-token guard and the node/depth ceiling `SourceHttp` applies before it parses. Flow's version of
+ * The ceilings the fetch machinery keeps (`infra/fetch/Ceilings.kt`, `PageTokenGuard.kt`, `NodeCeiling.kt`): the page ceiling a
+ * paging loop follows, the page-token guard and the node/depth ceiling `SourceHttp` applies before it parses. Flow's version of
  * this suite drove its Jira streams; the ceilings themselves are exercised here directly (the loops that use them come with the sync).
  * Every breach is a `LIMIT_EXCEEDED` (or `INVALID_RESPONSE` for a token) of the caller's [FetchSource], with constant text.
  */
@@ -47,43 +43,6 @@ class PagingCeilingTest {
         val failure = code { pages.next() }
         assertEquals("LIMIT_EXCEEDED", failure.code)
         assertTrue("more than 3 pages" in failure.message.orEmpty(), failure.message)
-    }
-
-    @Test
-    fun `a bounded answer refuses past its characters, its items and its pages`() {
-        val chars = BoundedAnswer<String>(source, "/x", AnswerCeiling(maxChars = 10, maxItems = 100, maxPages = 100), "rows")
-        chars.add("a", 5)
-        chars.add("b", 5)
-        assertEquals("LIMIT_EXCEEDED", code { chars.add("c", 1) }.code)
-        assertEquals(listOf("a", "b"), chars.items, "an item past the ceiling is not kept")
-
-        val items = BoundedAnswer<Int>(source, "/x", AnswerCeiling(maxChars = 1_000, maxItems = 2, maxPages = 100), "rows")
-        items.add(1, 1)
-        items.add(2, 1)
-        assertTrue("more than 2 rows" in code { items.add(3, 1) }.message.orEmpty())
-
-        val pages = BoundedAnswer<Int>(source, "/x", AnswerCeiling(maxChars = 1_000, maxItems = 100, maxPages = 1), "rows")
-        pages.nextPage()
-        assertEquals("LIMIT_EXCEEDED", code { pages.nextPage() }.code)
-    }
-
-    @Test
-    fun `a run budget counts pages, items and wire bytes across the whole run`() {
-        val budget = RunBudget(source, "/search", RunCeiling(maxPages = 2, maxItems = 10, maxBytes = 1_000), "issues")
-        budget.nextPage()
-        budget.add(4, wireBytes = 400)
-        budget.nextPage()
-        budget.add(6, wireBytes = 600)
-        assertEquals("LIMIT_EXCEEDED", code { budget.nextPage() }.code, "a third page")
-        assertTrue("more than 10 issues" in code { budget.add(1) }.message.orEmpty(), "an eleventh issue")
-
-        val bytes = RunBudget(source, "/search", RunCeiling(maxPages = 5, maxItems = 1_000, maxBytes = 100), "issues")
-        bytes.add(1, wireBytes = 100)
-        assertTrue("more than 100 bytes" in code { bytes.add(1, wireBytes = 1) }.message.orEmpty())
-
-        val unbounded = RunBudget(source, "/search", RunCeiling(maxPages = 5, maxItems = 1_000), "issues")
-        unbounded.add(1, wireBytes = Long.MAX_VALUE / 4)
-        unbounded.add(1, wireBytes = Long.MAX_VALUE / 4)
     }
 
     @Test

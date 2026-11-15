@@ -5,9 +5,9 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * Size guard for every Kotlin file under `server/src/main/kotlin`: no file may exceed [MAX_LINES] lines, so a split like
- * `norm/WorkItemStore.kt` (1028 lines -> a thin facade plus one collaborator per concern) does not regrow. Lines are
- * counted exactly like `wc -l` (the number of `\n` characters), so `wc -l <file>` is the number to put in [OVERSIZED].
+ * Size guard for every Kotlin file under `server/src/main/kotlin`: no file may exceed [MAX_LINES] lines, so a split into a thin
+ * facade plus one collaborator per concern does not regrow. Lines are counted exactly like `wc -l` (the number of `\n`
+ * characters), so `wc -l <file>` is the number to put in [OVERSIZED].
  *
  * Detekt has no file-length rule (`LargeClass` measures one class, and `TooManyFunctions` is off on purpose — see
  * `config/detekt/detekt.yml`), hence this test.

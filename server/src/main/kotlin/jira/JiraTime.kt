@@ -1,6 +1,5 @@
 package ch.nokillswit.jira
 
-import ch.nokillswit.infra.time.MILLIS_PER_MINUTE
 import ch.nokillswit.infra.time.parseIsoOffsetInstant
 import java.time.Instant
 
@@ -20,13 +19,3 @@ private val EPOCH_MILLIS = Regex("^[0-9]{12,18}$")
 
 /** Convenience for the overwhelmingly common `parseJiraInstant(text).toEpochMilli()` call shape. */
 fun parseJiraInstantEpochMillis(text: String): Long = parseJiraInstant(text).toEpochMilli()
-
-/**
- * Minutes between two epoch-millis instants, rounded UP (never under-covers a partial minute) and floored at zero - the `N` of a
- * relative `updated >= "-Nm"` JQL bound.
- */
-internal fun minutesBetween(fromMillis: Long, toMillis: Long): Long {
-    val millis = toMillis - fromMillis
-    if (millis <= 0) return 0
-    return (millis + MILLIS_PER_MINUTE - 1) / MILLIS_PER_MINUTE
-}
