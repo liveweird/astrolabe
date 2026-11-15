@@ -17,6 +17,30 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.21.0",
+    date: "2026-11-15",
+    en: `**Astrolabe 1.21.0: more filters, Team load week by week, a lighter Dependencies read.**
+
+- Programs page: the program pick is now in the address, so a Programs page with a pick is a link you can copy. As on the Roadmap, a link is shown as written and does not change the pick your browser remembers; opening Programs from the menu brings yours back.
+- Roadmap: a "Flag severity" filter (Warning or Info) and an "Unranked projects only" switch beside "Flagged projects only", in the address and remembered. Home's unranked figure opens the Roadmap with the unranked projects only, and its warnings and infos each open their own severity.
+- Milestones and Dependencies: a Project filter, and the Team filter lists every team, not only the first 100.
+- Team load: a new table, "Weeks with a warning", lists every overloaded week and every week over the WIP limit, team by team, with the same figures as the team's page. It follows the "Show" filter. At most 2,000 weeks are listed; a cut list says so.
+- API (\`/api/v1\`): \`GET /views/team-load\` adds \`warningWeeks\` to each team and \`warningWeeksTruncated\`. \`GET /views/dependencies\` now lists each project, milestone and team once (\`projects\`, \`milestones\`, \`teams\`) and a row names its ends by kind and id, so a client written for 1.20.0 reads the names from those lists. If a tab was open during the upgrade, reload it.
+- Nothing is written to Jira or Flow.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.
+- Proven against the built-in Flow stub; not yet compared with a real Flow.`,
+    pl: `**Astrolabe 1.21.0: więcej filtrów, obciążenie zespołów tydzień po tygodniu, lżejszy odczyt zależności.**
+
+- Programy: wybór programów jest teraz w adresie, więc stronę Programy z wyborem możesz skopiować jako link. Tak jak na roadmapie link pokazuje dokładnie to, co w nim zapisano, i nie zmienia wyboru zapamiętanego w Twojej przeglądarce; Programy otwarte z menu przywracają Twój wybór.
+- Roadmapa: filtr „Waga flag” (ostrzeżenie albo informacja) i przełącznik „Tylko projekty bez rankingu” obok „Tylko projekty z flagami”, w adresie i zapamiętywane. Liczba projektów bez rankingu na stronie głównej otwiera roadmapę z samymi takimi projektami, a ostrzeżenia i informacje otwierają każde swoją wagę.
+- Kamienie milowe i Zależności: filtr Projekt, a filtr Zespół wymienia każdy zespół, nie tylko pierwszych 100.
+- Obciążenie zespołów: nowa tabela „Tygodnie z ostrzeżeniem” wymienia każdy przeciążony tydzień i każdy tydzień ponad limitem WIP, zespół po zespole, z tymi samymi liczbami co strona zespołu. Tabela podąża za filtrem „Pokaż”. Lista zawiera najwyżej 2000 tygodni; ucięta lista to mówi.
+- API (\`/api/v1\`): \`GET /views/team-load\` dodaje \`warningWeeks\` przy każdym zespole oraz \`warningWeeksTruncated\`. \`GET /views/dependencies\` wymienia teraz każdy projekt, kamień milowy i zespół raz (\`projects\`, \`milestones\`, \`teams\`), a wiersz wskazuje swoje końce rodzajem i identyfikatorem, więc klient napisany dla 1.20.0 odczytuje nazwy z tych list. Jeśli karta była otwarta podczas aktualizacji, odśwież ją.
+- Niczego nie zapisujemy w Jirze ani we Flow.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.
+- Sprawdzone na wbudowanej atrapie Flow; jeszcze nie porównane z prawdziwym Flow.`,
+  },
+  {
     version: "1.20.0",
     date: "2026-11-15",
     en: `**Astrolabe 1.20.0: every dependency of the plan on one page.**
