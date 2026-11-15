@@ -81,5 +81,5 @@ with a test per declared status, or its list trimmed to what the route can answe
 
 **E2E scenarios.** `e2e/README.md` governs the Playwright suite. Every spec has a scenario file in
 `e2e/scenarios/` whose `## Scenario:` headings equal the `test()` titles verbatim; a new or behaviorally changed
-test lands in the same commit with its scenario file and its coverage-map line in the e2e README;
+test lands in the same commit with its scenario file and its line in the e2e README's "What's covered";
 `cd e2e && npm run check:scenarios` (parity, both directions) and `npm run typecheck` enforce it.

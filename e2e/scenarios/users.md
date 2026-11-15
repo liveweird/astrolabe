@@ -3,7 +3,7 @@
 - **Spec**: [tests/users.spec.ts](../tests/users.spec.ts)
 - **Actors**: the seed administrator (`admin@astrolabe.local`); one throwaway user created through
   the UI (email carries the `e2e` marker)
-- **Owns** (exclusive server-side state): its throwaway user, deleted at the end; the seed
+- **Owns** (exclusive server-side state): its throwaway user, deleted at the end, and the linked person the "Also create a linked person" scenario creates with its login (deleted through the API in a `finally`); the seed
   admin is never mutated — its row is only read (the own-row assertions)
 
 ## Scenario: admin creates a user who signs in, changes their password, and is finally deleted

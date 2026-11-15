@@ -53,12 +53,11 @@ const NOT_YET = [
   ".claude/docs/testing.md",
   ".claude/docs/web-internals.md",
   "CLAUDE.md",
-  "e2e/README.md",
 ];
 
 // ---- What is read ------------------------------------------------------------------------------------------------------
-
 const COVERED_FIXED = ["CLAUDE.md", "AGENTS.md", "web/CLAUDE.md", "e2e/README.md", "e2e/scenarios/README.md"];
+
 const DOCS_DIR = ".claude/docs";
 const REF_EXTENSIONS = new Set([".md", ".kt", ".kts", ".ts", ".tsx", ".mjs", ".yml", ".yaml", ".sh"]);
 // This script and its self-test quote reference-shaped text on purpose.

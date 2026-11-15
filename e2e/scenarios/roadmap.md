@@ -7,7 +7,7 @@
   (the third scenario; they leave with their projects) (unique `e2e-rm-*` names) and users, all deleted by the end of the file (the plan nodes and people also by the afterEach, through the API, children first,
   when a step fails first; deleting a project also removes it from the ranking). The ranking itself is ONE global list shared with
   every other spec's plan writes: this file ranks only its own projects, asserts only the relative order of its own rows, and
-  retries a ranking change that the server refuses as stale (another spec wrote the ranking meanwhile; plan writes elsewhere no longer stale it).
+  retries a ranking change that the server refuses as stale (another spec wrote the ranking meanwhile; plan writes elsewhere no longer stale it). The retry is bounded at 30 attempts, generous on purpose: `--repeat-each` runs copies of the test on parallel workers and they all write the one global ranking (run with `E2E_WORKERS=1` to take the contention away).
   The page lists EVERY project, so each test sets the **program pick** (the browser setting
   `astrolabe.viewSettings.planning.programPick`, the one key the plan pages share) to its own program before opening the page: only its own rows
   (and the "Unranked" divider) are on screen, whatever other specs or a loaded sample plan hold, and the grid stays on its plain (non-virtual) path. 1.19: the fourth scenario seeds its own person, team, work stream, program, a flagged and a plain project and one milestone (`e2e-rm-flag*` names), removed by the afterEach through the API; it writes no ranking. 1.21: the fifth scenario seeds the same world again (its own copy, same name prefixes); it too writes no ranking.

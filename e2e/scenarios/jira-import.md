@@ -12,6 +12,7 @@
   go with them), programs and the stream, then the team, the person and the login; the afterAll deletes the connection. The beforeAll first sweeps a crashed run's residue,
   found by the `e2e-import-` prefix and nothing else, over ALL pages (connections, the trees of work streams, then teams, people and logins); an "IMP Program", "IMF Program" or "IMF Program Old" under any OTHER work stream is not ours and is never deleted: the run fails
   fast naming it.
+  The five-key preview test makes, tests and deletes one more connection (`e2e-import-scale-*`, scoped to the five-key scope, never imported through): one more call of the Test bucket.
   1.13.2 adds, per IMF test, one more connection (`e2e-import-filter-*`, scoped to the stub's `IMF` project ONLY, on a unique throwaway site, tested through the API: one more call of the Test bucket
   each); the first IMF test IMPORTS through it, so its bindings are removed (with the file's own connection's) before the stream's tree, and the stub's other names it creates
   ("IMF Program", "IMF Program Old", the "IMF Initiative ..." projects and four "IMF Epic ..." milestones, dated 2045) go with the stream. `IMF` is imported by this spec alone too (same lock).
