@@ -17,6 +17,26 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.24.0",
+    date: "2026-11-15",
+    en: `**Astrolabe 1.24.0: a technical release.**
+
+- No new feature: the pages work as before. This release is the quality checkup of 1.23 — the project's documentation rewritten around its rules, the API description stating its contract, shared code in place of copies, and a faster build.
+- API (\`/api/v1\`), **a removal**: the items of \`GET /views/deviations\` no longer carry the deprecated item-level \`acknowledgement\` (no screen read it since 1.12). Each line's own acknowledgement, the Status filter, the counts and the acknowledge routes are unchanged.
+- API: the \`409\` for removing the last ADMIN and the two \`409\`s for a person's taken email or login now name their problem type (\`urn:astrolabe:problem:last-admin\`, \`…:person-email-taken\`, \`…:person-login-taken\`); the failure codes of sync runs and connection tests are one declared list; Jira's Peek rounds an estimate to two decimals, the way a sync stores it. If a tab was open during the upgrade, reload it.
+- Nothing is written to Jira or Flow.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.
+- Proven against the built-in Flow stub; not yet compared with a real Flow.`,
+    pl: `**Astrolabe 1.24.0: wydanie techniczne.**
+
+- Bez nowych funkcji: strony działają jak dotąd. To wydanie jest przeglądem jakości wersji 1.23 — dokumentacja projektu przepisana wokół jej zasad, opis API określający kontrakt, wspólny kod zamiast kopii i szybsza kompilacja.
+- API (\`/api/v1\`), **usunięcie**: elementy \`GET /views/deviations\` nie mają już przestarzałego pola \`acknowledgement\` na poziomie elementu (żaden ekran go nie czytał od wersji 1.12). Potwierdzenie każdej linii, filtr statusu, liczniki i ścieżki potwierdzania się nie zmieniły.
+- API: odpowiedź \`409\` przy usuwaniu ostatniego/ej administratora/ki oraz dwie odpowiedzi \`409\` dla zajętego adresu e-mail lub loginu osoby podają teraz typ problemu (\`urn:astrolabe:problem:last-admin\`, \`…:person-email-taken\`, \`…:person-login-taken\`); kody błędów przebiegów synchronizacji i testów połączenia tworzą jedną zadeklarowaną listę; podgląd (Peek) Jiry zaokrągla szacunek do dwóch miejsc po przecinku, tak jak zapisuje go synchronizacja. Jeśli karta była otwarta podczas aktualizacji, odśwież ją.
+- Niczego nie zapisujemy w Jirze ani we Flow.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.
+- Sprawdzone na wbudowanej atrapie Flow; jeszcze nie porównane z prawdziwym Flow.`,
+  },
+  {
     version: "1.23.0",
     date: "2026-11-15",
     en: `**Astrolabe 1.23.0: a database time limit, the Flow capacity flag on the Roadmap and Programs, everything you manage on Home.**

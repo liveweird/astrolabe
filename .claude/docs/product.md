@@ -15,7 +15,7 @@ Scale assumed: about 15 teams, 5 work streams, 20 programs, 100 projects, 1,000 
 
 ## Roadmap
 
-Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.23.0** (1.24.0 is built and not released). Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-visible fix between two increments is a patch bump. One row a version (patches ride their minor's row); the scope only, the detail is in "Release history".
+Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.24.0.** Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-visible fix between two increments is a patch bump. One row a version (patches ride their minor's row); the scope only, the detail is in "Release history".
 
 ### 0.1 to 0.9: the plan
 
@@ -64,7 +64,7 @@ Each increment gets its own plan (architect) before implementation; only v0.1.0 
 | **1.21.0 Filters, Team load by week** | The Programs pick in the address; "unranked only" and a severity filter on the Roadmap; a Project select and every team on Milestones and Dependencies; Team load per week; a slimmer Dependencies document |
 | **1.22.0 View ETags, dependencies edited from the list** | Ten view reads answer an `ETag` and `304`; "Edit..." and "Delete" on a Dependencies row the caller may change; Team load from this week on (`?past=true` for earlier weeks) |
 | **1.23.0 Database time limit, Flow capacity flag, Home "Yours"** | A 15 s statement limit on the pool (`POSTGRES_STATEMENT_TIMEOUT_SECONDS`), the focus after "edit, then delete", the Flow capacity flag on the Roadmap and Programs, everything you manage on Home (no migration; released 2026-11-15) |
-| **1.24.0 Technical release (built, not released)** | No feature: docs in Rules and sections with a guard, the spec's descriptions as contract, shared Jira and Flow pieces, two CI forks, a named e2e target; the item-level `acknowledgement` leaves `GET /views/deviations` |
+| **1.24.0 Technical release** | No feature: docs in Rules and sections with a guard, the spec's descriptions as contract, shared Jira and Flow pieces, two CI forks, a named e2e target; the item-level `acknowledgement` leaves `GET /views/deviations` |
 
 ## Domain decisions taken with the user
 
@@ -275,9 +275,9 @@ What was ported later, and what was left in Flow on purpose:
 
 Newest first. Each version: its scope, the user's answers, the defaults that still bind and what was not built; the commits, the plans (they live outside the repository) and the test runs are in git. "No migration" means the last one stays the last (V30 since 1.13.0). Every release leaves "nothing is written to Jira or Flow" true.
 
-### v1.24.0 — built, not released
+### v1.24.0 — what shipped
 
-A technical release, built 2026-11-15 and not released: nothing is bumped or tagged until the user says so (the changelog entry is written at release). No feature, migration (V30 stays the last), endpoint, audit event, Jira or Flow call, or dependency. This section keeps `product.md` over its 110,000 B ceiling (110,564 B before it); no ceiling was raised.
+A technical release, built 2026-11-15 and released on the user's word ("release 1.24", 2026-11-15), `1.24.0` (a minor bump: the API removes a member). No feature, migration (V30 stays the last), endpoint, audit event, Jira or Flow call, or dependency. This section keeps `product.md` over its 110,000 B ceiling (110,564 B before it); no ceiling was raised.
 
 **Scope:** every large doc restructured to `## Rules` plus sections, with a guard (`scripts/check-docs-shape.mjs`) and the new `sync.md`; the spec's descriptions as contract (limits pinned in `OpenApiSpecTest`), named enums, one `TeamRef`; refactors without a behaviour change (dead code, shared constants, the Jira and Flow shared pieces, two service splits, a web test fetch router); CI with two forks and `npm ci --no-audit`; Playwright only against a named stack; a flaky list in the nightly summary.
 

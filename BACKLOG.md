@@ -1,6 +1,6 @@
 # Product backlog
 
-Updated 2026-11-15 (1.23.0 released; 1.24.0 built, not released). This file tracks **outstanding work only**. Implemented behaviour and release history belong elsewhere:
+Updated 2026-11-15 (1.24.0 released). This file tracks **outstanding work only**. Implemented behaviour and release history belong elsewhere:
 - [README.md](README.md);
 - the [application changelog](web/src/changelog/entries.ts);
 - the topic guides under `.claude/docs/`.
