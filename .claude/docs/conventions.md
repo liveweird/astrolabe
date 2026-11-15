@@ -1,28 +1,43 @@
-### Feature conventions
+# Feature conventions
 
-The shape every new feature follows; read in full before adding a feature, route, service, migration or page.
+Owns: the `teams/` feature template and the recorded exceptions to it. Not here: the guard order and the 403/404 mapping (`authorization.md`), the table, migration and soft-delete rules (`persistence.md`), the plan's own shapes (`planning-model.md`). Read in full before adding a feature, route, service, migration or page.
 
-**Feature template — copy `teams/` (a small ADMIN-curated registry)**: it is the
-only shape the foundation ships. `<feature>/<Entity>.kt` (request/response DTOs + `toResponse`)
-with the `validateX` free function enforced by route AND service (in the DTO file, or a sibling
-`<Entity>Validation.kt` once the rules outgrow it), `<Entity>Routes.kt` (`@Resource` typed routes
-under `/api/v1/...` + `configureXRoutes()` reading services from `attributes`, `audit(...)` on
-every mutation, authorization BEFORE body decoding so 403 wins over 400 — declarative and flat; past
-~100 lines it delegates to private `Route.xxx(deps)` functions grouped by concern rather than
-splitting into more files, which is exactly what `config/detekt/detekt.yml`'s `LongMethod`
-(threshold 100) and `CyclomaticComplexMethod` (excludes `*Routes.kt`) overrides protect),
-`<Entity>Service.kt` (Exposed `object` table nested inside the service, `suspendTransaction`,
-soft-delete via `marked_as_deleted` + partial unique indexes, list = count + rows on one
-predicate), a `V<n>__description.sql` migration (+ its checksum pin in `MigrationChecksumTest`),
-spec paths in `openapi/documentation.yaml`, `cd web && npm run gen:api` (same commit), lazy pages +
-`NAV_SECTIONS` entries (`web/src/utils/navigation.ts`), and an e2e spec + scenario doc +
-coverage-map line. 
-**Deliberate exceptions to the template.** One in v0.2.0: **`planning/` has one routes file per entity** (`WorkStreamRoutes.kt`, `ProgramRoutes.kt`, `ProjectRoutes.kt`, `MilestoneRoutes.kt`, `DependencyRoutes.kt`, `PlanViewRoutes.kt`, `RoadmapRoutes.kt`, since V17 `TeamOrderRoutes.kt` — the team-scoped `PUT /teams/{id}/milestone-order`, its guard being the team manager's — and since v0.8 `TeamScheduleRoutes.kt`, the team-scoped batch accept `POST /teams/{id}/milestone-schedules` and the auto-proposal `POST /teams/{id}/schedule-proposal`, same guard, and since 1.8 `CrossTeamScheduleRoutes.kt` — the plan-scoped `/schedule-proposals` trio (the run, the teams it may include and, since C3, `…/accept`), guarded over a team set listed in the body),
-all registered by ONE module function (`configurePlanningRoutes()` in `PlanningRoutes.kt`, which also holds the shared per-request caller resolution) — six resources with different guards (read-before-guard
-owner-scoped writes, not the registry's ADMIN-only `requireAdmin`) would blow the 400-line file cap and the "past ~100 lines delegate to `Route.xxx(deps)` functions" rule is applied per entity instead; services
-(`ls planning/*Service.kt` lists them) and DTO files are per entity too. Flow's three (a config PUT validated in the service because it needs reference data; one route file per sub-resource when a registry,
-a queue and read-only views differ in guard; a service-side floor that reads another feature's setting) are recorded here only as precedent: a new exception is added to this list with its reason in
-the commit that introduces it. The second exception, v0.5.0: **`teams/` has a second routes file, `TeamCapacityRoutes.kt`** (the team's capacity periods, V16), registered from `configureTeamRoutes()` — Flow's recorded precedent "one route file per sub-resource when the guard differs": the registry's routes are ADMIN-only,
-the capacity routes are the team manager's or ADMIN's (read-before-guard, the guard re-run under the team row lock), with their own service (`TeamCapacityService`) and DTO file (`TeamCapacity.kt`). The third, v0.7.0: **an ADMIN registry inside `planning/`** (`PublicHoliday.kt`, `PublicHolidayRoutes.kt`, `PublicHolidayService.kt`, `PolishHolidays.kt` — the public-holiday dictionary, V19): it has the `teams/` shape exactly (guard-before-read, `requireAdmin` before the body) but lives beside the plan because its rows are plan state — its writes run in `planning.withPlanWrite` and bump the plan revision — and is registered from `configurePlanningRoutes()` (the service read from `attributes`, not through `PlanRouteDeps`, whose services sit in three groups: `structure`, `views`, `scheduling`). The fourth, v0.9.0: **a registry beside the ranking inside `planning/`** (`Baseline.kt`, `BaselineRoutes.kt`, `BaselineService.kt`, `BaselineRows.kt` — the baselines, V20): the `teams/` shape (guard-before-read, the guard before the body) with the RANKING's guard (`requireRoadmapEditorOrAdmin`, re-run under the plan lock) instead of `requireAdmin`, writes in `planning.withPlanWrite` like the holidays, registered from `configurePlanningRoutes()` (service read from `attributes`, routes taking the shared `PlanRouteDeps` for the caller's flags). The fifth, v1.1.0: **`jira/` has one routes file per concern** (`JiraConnectionRoutes.kt`, `JiraTestRoutes.kt`, `JiraMappingRoutes.kt`, `JiraBindingRoutes.kt`, `DeviationRoutes.kt`; since 1.2 `JiraImportRoutes.kt`, the preview and the apply; since 1.3 `JiraAcknowledgeRoutes.kt`, the owner-chain acknowledge of a binding's deviations), with services and DTO files per concern too (the registry service `JiraConnectionService`, plus `JiraTestRecorder` for the Test result and `JiraMappingStore` for the mapping document, both over the same table and neither ever selecting the token): the registry, test, mapping and Peek are ADMIN-only guard-before-read, the bindings and the import are owner-chain read-before-guard, the deviations view is any-authenticated, so one file would blow the 400-line cap (the planning precedent). They are registered from `configureJiraRoutes()` (`JiraConnectionRoutes.kt`) EXCEPT the deviations view, which is its own module `configureDeviationRoutes()` beside it in `application.yaml`; the run registry `sync/` is a separate package and module (`configureSync`, registered after `configureJira`, which registers the Jira connector). The sixth, v1.5.0: **`flow/` has one routes file per concern too** (`FlowConnectionRoutes.kt`, `FlowTestRoutes.kt`, `FlowTeamBindingRoutes.kt`, `CapacityImportRoutes.kt`, `CapacityAcknowledgeRoutes.kt`, `CapacityDeviationRoutes.kt`), with a service and DTO file per concern, all registered by ONE module function, `configureFlowRoutes()` (`FlowConnectionRoutes.kt`), which wires the sub-route functions; the guards differ by concern (the registry and Test are ADMIN-only, the bindings, the import and the acknowledgements are, with one exception, the team manager's or ADMIN), so one file would blow the 400-line cap. Fuller shapes arrive with the planning increments (`planning-model.md`): a **view endpoint** is now real (`GET /views/plan`: one read transaction, the plan revision first, the whole tree with the caller's
-`can:{…}` flags from a pure kernel, no paged envelope — `list-endpoints.md`); a **sub-collection create** names the parent in the path (`POST /work-streams/{id}/programs`) so the guard sees the chain; a **read-before-guard**
-route resolves the node's owner chain first (`authorization.md`).
+## The feature template
+
+**Copy `teams/`** (a small ADMIN-curated registry): it is the only shape the foundation ships.
+
+- `<feature>/<Entity>.kt`: the request/response DTOs and `toResponse`, with the `validateX` free function enforced by the route AND the service (in the DTO file, or a sibling `<Entity>Validation.kt` once the rules outgrow it).
+- `<Entity>Routes.kt`: `@Resource` typed routes under `/api/v1/...` and `configureXRoutes()`, which reads the services from `attributes`; `audit(...)` on every mutation; authorization BEFORE body decoding, so 403 wins over 400.
+- Routes stay declarative and flat. Past ~100 lines a routes file delegates to private `Route.xxx(deps)` functions grouped by concern rather than splitting into more files; `config/detekt/detekt.yml`'s `LongMethod` (threshold 100) and `CyclomaticComplexMethod` (excludes `*Routes.kt`) overrides protect exactly that.
+- `<Entity>Service.kt`: the Exposed `object` table nested inside the service, `suspendTransaction`, soft delete via `marked_as_deleted` plus partial unique indexes, a list as count + rows on one predicate.
+- A `V<n>__description.sql` migration and its checksum pin in `MigrationChecksumTest`.
+- Spec paths in `openapi/documentation.yaml`, and `cd web && npm run gen:api` in the same commit.
+- Lazy pages and `NAV_SECTIONS` entries (`web/src/utils/navigation.ts`).
+- An e2e spec, its scenario file and its coverage-map line.
+
+## Exceptions to the template
+
+A new exception is added to this table, with its reason, in the commit that introduces it. The shared reason is the 400-line file cap (`SourceFileSizeTest`): where guards differ by concern, one routes file would not fit. Guards per route: `authorization.md`.
+
+| Package | What differs from `teams/` | Why | Registered from |
+|---|---|---|---|
+| `planning/` | One routes file per entity (and per team- or plan-scoped batch command); services and DTO files per entity too | Six resources with different guards (read-before-guard, owner-scoped writes, not the registry's `requireAdmin`); "delegate past ~100 lines" is applied per entity | ONE function, `configurePlanningRoutes()` in `PlanningRoutes.kt`, which also holds the shared per-request caller resolution |
+| `teams/` (capacity periods) | A second routes file, `TeamCapacityRoutes.kt`, with its own service (`TeamCapacityService`) and DTO file (`TeamCapacity.kt`) | The registry's routes are ADMIN-only; the capacity routes are the team manager's or ADMIN's (read-before-guard, the guard re-run under the team row lock) | `configureTeamRoutes()` |
+| `planning/` (public holidays) | An ADMIN registry with the `teams/` shape exactly (guard-before-read, `requireAdmin` before the body); its writes run in `planning.withPlanWrite` and bump the plan revision | Its rows are plan state, so it lives beside the plan | `configurePlanningRoutes()`; the service is read from `attributes`, not through `PlanRouteDeps` (whose services sit in three groups: `structure`, `views`, `scheduling`) |
+| `planning/` (baselines) | A registry beside the ranking: the `teams/` shape with the RANKING's guard (`requireRoadmapEditorOrAdmin`, re-run under the plan lock) instead of `requireAdmin`; writes in `planning.withPlanWrite` like the holidays | A baseline is plan state guarded like the ranking | `configurePlanningRoutes()`; the service from `attributes`, the routes take the shared `PlanRouteDeps` for the caller's flags |
+| `jira/` | One routes file per concern, with services and DTO files per concern too (`JiraTestRecorder` and `JiraMappingStore` share the registry's table and never select the token) | The guards differ: registry, Test, mapping and Peek ADMIN-only guard-before-read; bindings and import owner-chain read-before-guard; the deviations view any-authenticated | `configureJiraRoutes()` (`JiraConnectionRoutes.kt`), except the deviations view: its own module `configureDeviationRoutes()` beside it in `application.yaml` |
+| `flow/` | One routes file per concern, a service and DTO file per concern | The guards differ: registry and Test ADMIN-only; bindings, import and acknowledgements the team manager's or ADMIN (one exception) | ONE function, `configureFlowRoutes()` (`FlowConnectionRoutes.kt`), which wires the sub-route functions |
+
+- The run registry `sync/` is a separate package and module (`configureSync`, registered after `configureJira`, which registers the Jira connector).
+- Flow's recorded precedents beyond the rows: a config PUT validated in the service because it needs reference data, and a service-side floor that reads another feature's setting.
+
+## Shapes beyond the template
+
+- A **view endpoint**: one read transaction, the plan revision first, the whole tree with the caller's `can:{…}` flags from a pure kernel, no paged envelope (`list-endpoints.md`; shapes in `planning-model.md`).
+- A **sub-collection create** names the parent in the path (`POST /work-streams/{id}/programs`), so the guard sees the chain.
+- A **read-before-guard** route resolves the node's owner chain first (`authorization.md`).
+
+## Idioms
+
+- **Not found.** A null read is `x.orNotFound("Resource")` and a zero-row mutation is `affected.orNotFound("Resource")` (`authz/Exceptions.kt`; the message is "<Resource> not found"). A boolean guard (`PlanningRoutes`' `requireTeamManager` team-exists check, `TeamOrderService`'s `lockActiveTeam`) keeps `if (!…) throw`.
+- **A code vocabulary stored or served as an enum** (the sync failure codes) lives in constant objects mirrored by a spec enum: `SyncFailureCodeTest` pins the objects against the enum and forbids a literal at a call site, so a new code is one constant and one enum value in one commit (`sync.md` "Failure codes").

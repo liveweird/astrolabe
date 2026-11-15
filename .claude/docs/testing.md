@@ -9,7 +9,9 @@ admin (`admin@astrolabe.local`) is present — tests scope their assertions with
 `sharedDatabaseForTests()`. The full reference (pool rationale, every helper, forks, watchdog, Kover, fixtures,
 conformance internals, Schemathesis, e2e scenarios): `.claude/docs/test-fixtures.md`.
 
-**Parallel forks (`-Pforks=N`).** `maxParallelForks` comes from the `forks` Gradle property (an integer 1..3 — the number of `ForkWarmup<k>Test` classes — anything
+#### Parallel forks
+
+`-Pforks=N`: `maxParallelForks` comes from the `forks` Gradle property (an integer 1..3 — the number of `ForkWarmup<k>Test` classes — anything
 else fails any build that runs the `test` task; default 1; CI (`TEST_FORKS` in `ci.yml`) and `scripts/gates.sh` pass 2; `forkEvery` is deliberately unset).
 Each fork is its own JVM with its OWN container and fixture singletons, so every "shared suite" rule in this doc holds
 per fork, never across forks: a test must never assume another class ran before it on the same JVM, or ran at all. Class order is not a contract (with `-Pforks>=2` the classes are dealt to forks by the weight plan of `server/test-weights.tsv`, `test-fixtures.md`).
@@ -19,7 +21,14 @@ per fork, never across forks: a test must never assume another class ran before 
 `server/build/reports/hung-tests/`); test-side raw JDBC uses `PostgresTestSupport.connect()`, never a bare
 `DriverManager.getConnection`.
 
-**The `TestEnvironment.kt` harness** — use it instead of hand-rolling setup:
+**Fork warm-up.** `ForkWarmup<k>Test` (k = 1..`-Pforks`, at most 3) is pinned as the FIRST class of fork k, so the one-time Postgres + Flyway +
+first-boot cost lands outside `testApplication`'s hard 60 s limit and outside any real test; a full run fails if a warm-up did not run first in its own JVM
+(`test-fixtures.md` "Fork warm-up"). The shared fixtures are the Jira and Flow stubs (`JiraStubFixture`, `FlowStubFixture`): a reader warms it
+in a `@BeforeClass` (the WireMock start stays outside the 60 s limit) and `StubWarmupGuardTest` fails a class that forgets (Flow's `SyncedStubFixture` pair is the donor shape). The stubs take a free port, so the gate runs beside a running compose stack (`StubPortGuardTest`).
+
+#### The `TestEnvironment.kt` harness
+
+Use it instead of hand-rolling setup:
 
 - App: `configureApp(vararg overrides)` points the app at the shared container (CSRF off) WITHOUT starting it —
   startup/fail-closed tests call `startApplication()` themselves; `usePostgresTestcontainer()` configures and starts.
@@ -36,6 +45,8 @@ per fork, never across forks: a test must never assume another class ran before 
   SHARED container; call it afterwards. Production-mode boots must also override `"mail.transport" to "disabled"` and
   `"security.encryption.key" to strongEncryptionKey()`; the checks fire in module order (JWT → mail → crypto → seed
   passwords), so a test asserting a later check must satisfy every earlier one.
+
+#### Gates, frontend tests and conformance
 
 **Coverage gates.** Backend Kover enforces line- and branch-coverage floors in `server/build.gradle.kts` (the
 `minBound` floors, wired into `check` via `koverVerify`; `@kotlinx.serialization.Serializable` classes are excluded
@@ -62,11 +73,6 @@ assertion), reset module-level state in `afterEach`, and unstub globals/timers a
 file order is the bug.
 
 `locales/parity.test.ts` enforces EN↔PL key parity (and pins folders == `SUPPORTED_LANGUAGES`).
-
-**Fork warm-up.** `ForkWarmup<k>Test` (k = 1..`-Pforks`, at most 3) is pinned as the FIRST class of fork k, so the one-time Postgres + Flyway +
-first-boot cost lands outside `testApplication`'s hard 60 s limit and outside any real test; a full run fails if a warm-up did not run first in its own JVM
-(`test-fixtures.md` "Fork warm-up"). The shared fixtures are the Jira and Flow stubs (`JiraStubFixture`, `FlowStubFixture`): a reader warms it
-in a `@BeforeClass` (the WireMock start stays outside the 60 s limit) and `StubWarmupGuardTest` fails a class that forgets (Flow's `SyncedStubFixture` pair is the donor shape). The stubs take a free port, so the gate runs beside a running compose stack (`StubPortGuardTest`).
 
 **Runtime OpenAPI conformance.** Every `/api/` interaction in the server suite is validated against
 `documentation.yaml` by the `OpenApiConformance` client plugin, installed via `jsonClient()`/`authedClient()`;

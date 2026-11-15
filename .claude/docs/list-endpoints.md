@@ -40,9 +40,22 @@ theme-level `foldedOptionsFilter` (`web/src/utils/text.ts`).
 
 **Repeated keys (`IN`).** A scalar key repeated is a `400` (`singleValue`); a parameter documents `IN` semantics through the `repeatedValues` family (`repeatedLongs`/`repeatedStrings` in `infra/paging/QueryParams.kt`), declared in the spec as `type: array` with `style: form`, `explode: true` and `minItems`/`maxItems`, with duplicates collapsed (`distinct()`) before the bound applies. No endpoint uses `IN` semantics yet; the first consumer adds a per-endpoint ledger line here.
 
-**View endpoints are the one shape-exception.** The plan view (`GET /views/plan`), the home view (`GET /views/home`: a `revision`, no `can`, no parameter), the team-load view (`GET /views/team-load`: a `revision`, `currentWeekStart`, no `can`, no parameter, ≤ 200 rows with `truncated`, ≤ 2,000 listed weeks, from that week on first, with `warningWeeksTruncated`), the dependencies view (`GET /views/dependencies`: the same shape, ≤ 1,000 rows, the ends named once, a `can` on each row), the four timeline views (`/views/roadmap`, `/views/project/{id}`, `/views/team/{id}`, `/views/programs`), `GET /views/baseline/{id}` and the integration views (`GET /views/deviations`, `GET /views/jira-links`, `GET /integrations/flow/teams`, `GET /views/capacity-deviations`) answer one unpaged document each, with capped sub-lists (the spec documents each cap) and, except the links reads (`GET /views/jira-links`, `GET /integrations/flow/teams`: no plan state), a `revision` and `can` flags; the timeline views take `?baseline=N` (additive `baseline` blocks). Ten of them answer through a validator (`ETag`, `If-None-Match`, `304`; `planning-model.md` "View validators (1.22)"). Shapes: `planning-model.md` "The view documents", `jira-sync.md`, `flow-sync.md`. Every ordinary resource list keeps the envelope; **projects and milestones have a paged list**, work streams and programs have NONE (the plan view is theirs).
+**View endpoints are the one shape-exception.** Each answers one unpaged document:
+
+- The plan view (`GET /views/plan`).
+- The home view (`GET /views/home`: a `revision`, no `can`, no parameter).
+- The team-load view (`GET /views/team-load`: a `revision`, `currentWeekStart`, no `can`, no parameter, ≤ 200 rows with `truncated`, ≤ 2,000 listed weeks, from that week on first, with `warningWeeksTruncated`).
+- The dependencies view (`GET /views/dependencies`: the same shape, ≤ 1,000 rows, the ends named once, a `can` on each row).
+- The four timeline views (`/views/roadmap`, `/views/project/{id}`, `/views/team/{id}`, `/views/programs`) and `GET /views/baseline/{id}`.
+- The integration views (`GET /views/deviations`, `GET /views/jira-links`, `GET /integrations/flow/teams`, `GET /views/capacity-deviations`).
+
+Every view has capped sub-lists (the spec documents each cap) and, except the links reads (`GET /views/jira-links`, `GET /integrations/flow/teams`: no plan state), a `revision` and `can` flags; the timeline views take `?baseline=N` (additive `baseline` blocks). Ten of them answer through a validator (`ETag`, `If-None-Match`, `304`; `planning-model.md` "View validators"). Shapes: `planning-model.md` "The view documents", `jira-sync.md`, `flow-sync.md`.
+
+Every ordinary resource list keeps the envelope; **projects and milestones have a paged list**, work streams and programs have NONE (the plan view is theirs).
 
 **Batch commands** (`…/milestone-schedules`, `/schedule-proposals[/accept|/check]`, the Jira import) answer one unpaged document; a per-item failure is data in `200` (shapes: `planning-model.md` "The view documents").
 
-**Sub-collections and facets:** a record's own unbounded sub-collection is paged like any other list; the plain `{items}`
+#### Sub-collections and facets
+
+A record's own unbounded sub-collection is paged like any other list; the plain `{items}`
 wrapper is reserved for bounded, curated sets — a team's capacity periods (`GET /teams/{id}/capacity`, a handful a year), the public-holiday dictionary (`GET /public-holidays`, ≈ 14 a year), the teams a run may include (`GET /schedule-proposals/teams`, ≈ 15), the baselines (`GET /baselines` → `{items, can}`, ≤ 100) and a connection's sync runs (`GET /integrations/sync/runs`, newest first, ≤ 50) and the Flow origins a connection may name (`GET /integrations/flow/origins`, ADMIN, the operator's allow-list: a handful). No facet counts yet (port Covenant's pattern when a list needs them).
