@@ -56,7 +56,6 @@ const NOT_YET = [
   ".claude/docs/security.md",
   ".claude/docs/test-fixtures.md",
   ".claude/docs/testing.md",
-  ".claude/docs/timeline.md",
   ".claude/docs/web-internals.md",
   "CLAUDE.md",
   "e2e/README.md",

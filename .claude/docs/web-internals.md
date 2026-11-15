@@ -368,7 +368,7 @@ follows: `web/CLAUDE.md` "Per-feature rules". What the pages see of the componen
   Jira holds: a 5 px dashed outline along the TOP of the row, pointer-transparent). Dependency arrows are `TimelineArrowData[]` (`from`/`to`
   `{row, bar, kind: START|END}`, `violated`, `label`) drawn by `components/TimelineArrows.tsx` through the `overlay={(geometry) => …}` slot — decorative
   (`aria-hidden`; the page's table is the accessible surface), gray, RED when `violated`, only for mounted rows and from committed dates. Tests read
-  `data-arrow`/`data-violated`/`data-tone`, never colour. Reference: "Arrows", "The proposal preview", "The baseline overlay (v0.9.0)", "The Jira markers
+  `data-arrow`/`data-violated`/`data-tone`, never colour. Reference: "Arrows", "The proposal preview", "The baseline overlay", "The Jira markers
   (1.3)".
 - **Row drag (v0.5).** The same one `TimelineDndContext` learns a fourth drag kind, `kind: "row"` (no `@dnd-kit/sortable`: no row ever gets a transform, a
   `DragOverlay` card plus an insertion line show the slot, computed from the live pointer against the body-wide row zone, so it reaches unmounted rows). It is
@@ -456,7 +456,7 @@ stay in the nav only, and the tab title stays the brand alone (`usePageTitle` of
 **The Deviations card's figures are the OPEN deviation counts** (`hooks/useOpenDeviationCounts.ts`): `GET /views/deviations?acknowledged=true` and `GET /views/capacity-deviations?acknowledged=true`,
 keyed `["jira","deviations","totals"]` and `["flow","deviations","totals"]` (under the prefixes the existing refresh helpers invalidate), `staleTime` 60 s. Why `acknowledged=true`: both views compute `totals` over
 "every filter but the acknowledgement state" and count the OPEN rows, so the same totals arrive while the body lists only the acknowledged items (typically a few KB against up to 700 KB for the default list of up to 2,000
-items; the cost grows with the acknowledgements, so a plan with nearly everything acknowledged pays close to the full list, bounded by `staleTime` 60 s). **Measured (1.10 release, NON-BINDING)** on the throwaway stack with the sample plan, nothing bound on the Jira side and the seed admin as the caller (loopback `curl`, median of 10 after warm-ups): `GET /views/deviations?acknowledged=true` 11 ms / 715 B and `GET /views/capacity-deviations?acknowledged=true` 6 ms / 137 B, against 13 ms / 2,010 B and 5 ms / 137 B for the default lists. This does not cover a heavily bound or acknowledged plan, where the cost grows as described above (the Jira computation is about 50 ms for 1,100 bindings, `timeline.md` "Measured figures (1.3)"). No new endpoint, no plan or roadmap read. Per source, ONE line (label "Open differences from Jira:" / "Open capacity differences from Flow:" and the orange warnings / gray infos badges of the Deviations page; a zero badge is omitted)
+items; the cost grows with the acknowledgements, so a plan with nearly everything acknowledged pays close to the full list, bounded by `staleTime` 60 s). **Measured (1.10 release, NON-BINDING)** on the throwaway stack with the sample plan, nothing bound on the Jira side and the seed admin as the caller (loopback `curl`, median of 10 after warm-ups): `GET /views/deviations?acknowledged=true` 11 ms / 715 B and `GET /views/capacity-deviations?acknowledged=true` 6 ms / 137 B, against 13 ms / 2,010 B and 5 ms / 137 B for the default lists. This does not cover a heavily bound or acknowledged plan, where the cost grows as described above (the Jira computation is about 50 ms for 1,100 bindings, `timeline.md` "Measured figures"). No new endpoint, no plan or roadmap read. Per source, ONE line (label "Open differences from Jira:" / "Open capacity differences from Flow:" and the orange warnings / gray infos badges of the Deviations page; a zero badge is omitted)
 - shown only for a source whose view lists a connection AND whose count is positive. **No claim at zero** (no "nothing open", `web/CLAUDE.md` "Deviations wording"): zero, no connection and loading all show nothing.
 A failed read is the inline `ErrorAlert` (title `home.deviations.loadFailed`) inside the Deviations card, the other source's line still shows and the links never depend on either read. **"May be out of date" (1.18):** `useOpenDeviationCounts` also answers `jiraStale` (`hasStaleSource` of the Jira document's connections: the Deviations banner's fold, an ENABLED connection only) and `flowStale` (`hasStaleFlowSource`); a source's sentence (`JiraStaleNote`, "Jira data may be out of date"; Flow's own `home.deviations.flowStale`) sits under its line and only while the line itself shows (no figure, no qualifier).
 
@@ -685,7 +685,7 @@ two dates are reversed): `JiraRowMenu` ("Operations for X (dates from Jira)", on
 writes the link's REAL dates (`jiraScheduleDates`, never the bar's, which may be cut at the window) through `schedule.commit(..., { announce: true })`, the one write
 path, so a save in flight refuses it out loud, a 400 is the working-day sentence and a failure rolls the row back; a taken change moves the focus to the milestone's own
 row (`useRowMenuFocus(timelineRef).keep`, the Timeline's `focusRow`). The row menu's Link/Unlink item and the header button read the view; the bind dialog asks for its `connections[]` when it opens (`useJiraLinks`).
-Reference: `timeline.md` "The Jira markers (1.3)", "Appended rows for the tray (1.16)". Tests: `ProjectView.jira.test.tsx`, `ProjectView.jiraTray.test.tsx`, `JiraRowMenu.test.tsx`.
+Reference: `timeline.md` "The Jira markers", "Appended rows for the tray". Tests: `ProjectView.jira.test.tsx`, `ProjectView.jiraTray.test.tsx`, `JiraRowMenu.test.tsx`.
 
 **Tests.** `ProjectView.test.tsx` runs the page against a small fetch-mock server (a schedule PUT applies the dates and bumps the revision; the dependency
 POST/DELETE and the milestone picker list are stubbed) and wraps `DndContext` to hand the test the page's drop handler; fake timers (`Date` only) pin "today"
@@ -751,7 +751,7 @@ mistyped Jira date cannot stretch the range; named "Jira E2E-6: start to end" pl
 with the chips' dimmed "Jira data may be out of date" (`JiraStaleNote` in `JiraChips.tsx`, key `deviations.chip.stale`), INSIDE the `role="group"` after the badges (nothing under it moves).
 It is about the PLAN, not the rows on screen: `jiraSites` lists every site a project or milestone binding of the whole document links through and a project's milestone roll-up does not say
 which, so no filter, program pick or fold narrows it; it shows with the "Jira dates" toggle off; a plan with no binding lists no site and says nothing. Plain text: the Deviations banner is the warning.
-Reference: `timeline.md` "The Jira markers (1.3)". Tests: `Roadmap.jira.test.tsx`.
+Reference: `timeline.md` "The Jira markers". Tests: `Roadmap.jira.test.tsx`.
 
 **The write path.** Every change — a row-menu move, a row drag, Rank (append), Unrank — becomes the complete new id list and is sent as the wholesale PUT with
 the `expectedRevision` of the view on screen (the view's `revision` is the RANKING's own, V18: a plan write elsewhere never stales it, so the page only echoes
@@ -1113,7 +1113,7 @@ the baseline all four pages compare with: `components/BaselinePicker.tsx` in the
 into the entry it was made on ONLY (the roadmap ranking and the schedule, pin, team-order and proposal-accept writes: a sibling pick's entry still holds the old order and dates, so it keeps its old revision and a write there is a 409); the picker is disabled while a write runs), the typed 400 `unknown-baseline` clearing the pick once (`useDropUnknownPick`), shadow bars
 and appended rows from the pure `utils/baselineOverlay.ts`. The project and team pages add the Movement section (`components/BaselineMovement.tsx`), the plan
 pages one totals line (`components/BaselineTotals.tsx`); the comparison page's "Show on timeline" sets the pick. Reference and the details: `timeline.md` "The
-baseline overlay (v0.9.0)".
+baseline overlay".
 
 ## Schedule proposals (`pages/ScheduleProposals.tsx`, 1.8)
 
@@ -1366,7 +1366,7 @@ childless epic) renders nothing of it, and the tray's `NameWithFlags` carries it
 component under the type/status line. **A binding through a DISABLED connection stays a link** (the server keeps `jira` with null dates and no flag): the chip
 counts it with no deviations, the key shows, Unlink works, no bar is drawn. A **tray row** has no column: the same key link and icon sit beside the name and,
 for an open `UNSCHEDULED_IN_PLAN` flag, the name cell adds "Jira: 2027-03-01 to 2027-03-05"; since 1.16 the timeline also gets an appended row for the milestone's Jira bar
-(`timeline.md` "Appended rows for the tray (1.16)"; the tray row itself is unchanged), whose menu since 1.17 offers "Schedule on Jira's dates" to whoever may schedule. Tests:
+(`timeline.md` "Appended rows for the tray"; the tray row itself is unchanged), whose menu since 1.17 offers "Schedule on Jira's dates" to whoever may schedule. Tests:
 `ProjectView.jira.test.tsx`, `TeamDetails.jira.test.tsx`, `JiraChips.test.tsx`, `utils/jiraMarks.test.ts`, `utils/flagSentences.test.ts`,
 `hooks/useDeviations.test.tsx`, `JiraBindDialog.test.tsx`, `JiraBindingsSection.test.tsx`.
 
@@ -1541,7 +1541,7 @@ not know reads "(new since the baseline)", and dimmed rows are appended after th
 ("(removed)", "(moved to {team})") or sit in the tray now ("(unscheduled since the baseline)"); the Movement section (`scope="team"`, with a Project column)
 follows Idle gaps. Tests: `TeamDetails.baseline.test.tsx`, `TeamTimeline.test.tsx`.
 
-**The schedule proposal (v0.8)** - a third write path, `hooks/useScheduleProposal.ts` (the generated view of it: `timeline.md` "The proposal preview (v0.8.0)").
+**The schedule proposal (v0.8)** - a third write path, `hooks/useScheduleProposal.ts` (the generated view of it: `timeline.md` "The proposal preview").
 "Propose schedule" (timeline header, `team.can.schedule`) POSTs the viewer's local day as `asOf`; a proposal with something to show opens the **Proposed
 schedule section** (`components/TeamProposal.tsx`, h3, mounted under the timeline before the Unscheduled tray; since 1.8 its summary line, table and unplaced rows are `components/ProposalTable.tsx`, a controlled table over the structural `ProposalContent` with no actions, which the cross-team page composes once per team), one that has nothing to show (nothing to propose
 / no capacity: add a capacity period first) opens nothing and says so in a note. The section is controlled by the hook (`selected`, `toggle`, `selectAll`,
@@ -1593,7 +1593,7 @@ old remembered "Jira" column and keeps its per-row key link), the tray rows' key
 column into the name cell), and the shadow bar `jira:<milestoneId>` with the "Jira dates" toggle after the baseline picker (a bar follows the baseline's shadow,
 the proposal bar and the current bar in one row). Since 1.16 a TRAY milestone that Jira dates gets a dimmed appended row `jira-unscheduled:<milestoneId>` (the
 project name, the estimate and an "Open project" menu; after the baseline's rows, before a preview's rows; or its bar on the baseline's own "unscheduled" row)
-and the page's range follows the tray's in-window Jira dates (`timeline.md` "Appended rows for the tray (1.16)"). **Since 1.17** (`components/TeamTimelineRows.tsx`, the
+and the page's range follows the tray's in-window Jira dates (`timeline.md` "Appended rows for the tray"). **Since 1.17** (`components/TeamTimelineRows.tsx`, the
 appended rows' pure builders, split out of `TeamTimeline.tsx`) those two row kinds' menu is "Operations for X (dates from Jira)" = "Schedule on Jira's dates", a divider
 and "Open project" while `team.can.schedule` holds, no proposal previews and Jira's two dates are in order; otherwise 1.16's "Open project" menu. The action is
 `lock.guarded` and writes the REAL dates through the page's one schedule write path; the focus goes to the milestone's own row afterwards (`useRowMenuFocus`). Tests: `TeamDetails.jira.test.tsx`, `TeamTimeline.test.tsx`.

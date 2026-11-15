@@ -79,7 +79,7 @@ node scripts/sample-plan/load.mjs --base-url http://localhost:8086 [--anchor 202
   and `--reset` never removes holidays. Every load reads the dictionary before it writes anything and moves the end of a span that falls wholly on holidays to the next working
   day (the count is printed), so a reload over holidays a previous run left behind schedules every milestone. The holiday dictionary is **global, not sample-owned**: other writers may hold rows in it, and the flag neither claims nor cleans them.
   The generator's `summary.json` statistics (loaded weeks, overloaded weeks, violated links) are **holiday-free by construction**; with the preset loaded the server's own figures differ
-  slightly (`timeline.md` "Measured figures (v0.7)").
+  slightly.
 - `--logins` needs `ASTROLABE_SAMPLE_LOGIN_PASSWORD` (10 to 71 bytes) and creates one login per person, linked to it.
 - **Collisions stop the load.** Names of teams, programs and work streams are unique across the whole plan: when a real (non-sample) one already uses a name of the dataset the loader
   lists it and writes nothing.
@@ -92,7 +92,7 @@ node scripts/sample-plan/load.mjs --base-url http://localhost:8086 [--anchor 202
 ## Try the proposal (v0.8)
 
 Sign in as a team's manager (`--logins`) or as the ADMIN, open `/teams/:id` and press **Propose schedule** (the page sends today as `asOf`; the figures below are for `asOf` = the loader's anchor Monday, measured by
-`POST /teams/{id}/schedule-proposal`, NON-BINDING, re-measure rather than quote: `planning-model.md` "The auto-proposal (v0.8.0)" has the whole per-team table, `timeline.md` "Measured figures (v0.8)" the timings).
+`POST /teams/{id}/schedule-proposal`, NON-BINDING, re-measure rather than quote: `planning-model.md` "The auto-proposal (v0.8.0)" has the whole per-team table, `timeline.md` "Measured figures" the timings).
 
 - **Platform** (the largest team, 301 milestones, virtual path): about 275 moves, 33 of them newly scheduled (the tray empties), so the preview is a long table; the load strip drops from 11 overloaded and 21 over-WIP weeks to
   1 and 2; the page shows a red "links would be violated" badge (28 links that held now break, 13 broken ones resolve): the Q2a rule, the order is yours, so move a milestone up and propose again. Response ~170 KB.
@@ -112,4 +112,4 @@ A baseline is a named, frozen copy of the plan's dates; the timelines can overla
 4. Open the baseline from the list (`/baselines/:id`) for the comparison: the projects with their span movement and the changed milestones under them. After every team's proposal is accepted the whole plan reads as moved: about 820 moved and 100 newly scheduled milestones against a baseline taken before it, so the page has about 1,000 rows (a plain table, about 16,000 DOM nodes; "Changed projects only" is on by default).
 5. Delete the baseline when you are done (it frees the name; the cap is 100 active baselines, about 130 KB each in the database).
 
-Accepting proposals and taking baselines write to the plan, so a stack you want to keep pristine needs a backup first: `pg_dump` the database before (`docker exec astrolabe-postgres pg_dump -U astrolabe -Fc astrolabe > before.dump`) and `pg_restore` it (into a recreated database, with the app stopped) to get the same plan back. Figures: `timeline.md` "Measured figures (v0.9)".
+Accepting proposals and taking baselines write to the plan, so a stack you want to keep pristine needs a backup first: `pg_dump` the database before (`docker exec astrolabe-postgres pg_dump -U astrolabe -Fc astrolabe > before.dump`) and `pg_restore` it (into a recreated database, with the app stopped) to get the same plan back. Figures: `timeline.md` "Measured figures".
