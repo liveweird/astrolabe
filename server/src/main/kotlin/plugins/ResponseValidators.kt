@@ -3,6 +3,7 @@ package ch.nokillswit.plugins
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.OutgoingContent
 import io.ktor.http.content.TextContent
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.createApplicationPlugin
@@ -29,12 +30,19 @@ fun ApplicationCall.offerValidator(etag: String) {
 }
 
 /**
- * Whether this call's `application/json` answer is a revalidated one: [ResponseValidators] writes its `no-store`, so it is exempt from
- * the blanket one (`Http.kt`) - otherwise the `200` would carry two `Cache-Control` headers (the bodiless `304` never gets the blanket).
+ * The validator to write on THIS outgoing answer, or null: the offered tag ([offerValidator]) when [content] is not a problem
+ * document and the call really ends `200`/`304`. The ONE expression for both decisions that must agree - [ResponseValidators] writes
+ * the tag and its `no-store` only when this is non-null, and `Http.kt` leaves out the blanket `no-store` exactly then (otherwise the
+ * `200` would carry two `Cache-Control` headers, or - the other way round - none). The status is the CONTENT's own when it has one
+ * (it is what goes on the wire), else the call's, else `200`; both callers pass the content they were handed, so a route that offers
+ * a tag with content carrying its own non-200 status can never lose its `Cache-Control`.
  */
-internal fun ApplicationCall.isRevalidated(): Boolean =
-    attributes.contains(ValidatorKey) &&
-        (response.status() ?: HttpStatusCode.OK).let { it == HttpStatusCode.OK || it == HttpStatusCode.NotModified }
+internal fun ApplicationCall.validatorFor(content: OutgoingContent): String? {
+    val etag = attributes.getOrNull(ValidatorKey) ?: return null
+    val status = content.status ?: response.status() ?: HttpStatusCode.OK
+    val problem = content.contentType?.withoutParameters() == ProblemJson
+    return etag.takeIf { !problem && (status == HttpStatusCode.OK || status == HttpStatusCode.NotModified) }
+}
 
 /** Writes an offered validator (see [offerValidator]) onto a `200`/`304` after the body is rendered, right before it is sent. */
 internal val ResponseValidators = createApplicationPlugin("ResponseValidators") {
@@ -42,10 +50,7 @@ internal val ResponseValidators = createApplicationPlugin("ResponseValidators") 
     // status and the content type seen here are what goes on the wire. `Http.kt` installs this BEFORE ContentNegotiation, which is why
     // the earlier `onCallRespond` hook (it ran before the body was rendered) leaked a tag onto a body that then failed to serialize.
     on(ResponseBodyReadyForSend) { call, content ->
-        val etag = call.attributes.getOrNull(ValidatorKey)
-        val status = content.status ?: call.response.status() ?: HttpStatusCode.OK
-        val problem = content.contentType?.withoutParameters() == ProblemJson
-        if (etag != null && !problem && (status == HttpStatusCode.OK || status == HttpStatusCode.NotModified)) {
+        call.validatorFor(content)?.let { etag ->
             call.response.header(HttpHeaders.ETag, etag)
             call.response.header(HttpHeaders.CacheControl, "no-store")
         }

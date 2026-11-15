@@ -231,6 +231,26 @@ class ServerTest {
     }
 
     @Test
+    fun `an origin outside the CORS allow-list gets neither If-None-Match allowed nor ETag exposed`() = testApplication {
+        configureApp("http.corsHosts" to "app.example.com")
+        startApplication()
+        val stranger = "https://other.example.com"
+        val preflight = client.options("/api/v1/views/team-load") {
+            header(HttpHeaders.Origin, stranger)
+            header(HttpHeaders.AccessControlRequestMethod, "GET")
+            header(HttpHeaders.AccessControlRequestHeaders, "If-None-Match")
+        }
+        assertNull(preflight.headers[HttpHeaders.AccessControlAllowOrigin])
+        assertNull(preflight.headers[HttpHeaders.AccessControlAllowHeaders], "the header is allowed to no stranger")
+        // The plain test client (no OpenAPI conformance: the CORS plugin's own 403 is no documented answer) - the plugin refuses the
+        // stranger's call before authentication, whatever the bearer.
+        val answer = client.get("/api/v1/views/team-load") { header(HttpHeaders.Origin, stranger) }
+        assertNull(answer.headers[HttpHeaders.AccessControlAllowOrigin])
+        assertNull(answer.headers[HttpHeaders.ETag])
+        assertNull(answer.headers[HttpHeaders.AccessControlExposeHeaders], "nothing is exposed to a stranger's script")
+    }
+
+    @Test
     fun `unknown route returns 404 when no SPA staticDir is configured`() = testApplication {
         usePostgresTestcontainer()
         val response = client.get("/definitely-not-a-route")

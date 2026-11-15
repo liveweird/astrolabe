@@ -13,8 +13,10 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsBytes
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.TextContent
 import io.ktor.http.contentType
 import io.ktor.server.config.MapApplicationConfig
 import io.ktor.server.plugins.BadRequestException
@@ -303,6 +305,14 @@ class ViewValidatorsTest {
                     call.respond(Unserializable("x"))
                 }
                 get("/api/probe-helper-unserializable") { call.respondRevalidated(1u, Unserializable("x")) }
+                get("/api/probe-own-202") {
+                    call.offerValidator("W/\"probe\"")
+                    call.respond(TextContent("{}", ContentType.Application.Json, HttpStatusCode.Accepted))
+                }
+                get("/api/probe-own-200") {
+                    call.offerValidator("W/\"probe\"")
+                    call.respond(TextContent("{}", ContentType.Application.Json, HttpStatusCode.OK))
+                }
                 get("/api/other") { call.respond(mapOf("ok" to true)) }
             }
         }
@@ -330,6 +340,15 @@ class ViewValidatorsTest {
             assertNull(problem.headers[HttpHeaders.ETag], "$path: a problem response carries no validator")
             assertEquals(listOf("no-store"), problem.headers.getAll(HttpHeaders.CacheControl), "$path stays no-store")
         }
+        // The status that decides is the CONTENT's own, for the tag and for the blanket no-store alike (one expression, `validatorFor`):
+        // content carrying a non-200 status gets no tag and keeps exactly one no-store; one carrying 200 gets the tag and exactly one.
+        val own202 = client.get("/api/probe-own-202")
+        assertEquals(HttpStatusCode.Accepted, own202.status)
+        assertNull(own202.headers[HttpHeaders.ETag])
+        assertEquals(listOf("no-store"), own202.headers.getAll(HttpHeaders.CacheControl))
+        val own200 = client.get("/api/probe-own-200")
+        assertEquals("W/\"probe\"", own200.headers[HttpHeaders.ETag])
+        assertEquals(listOf("no-store"), own200.headers.getAll(HttpHeaders.CacheControl))
         // Any other API answer keeps the blanket no-store.
         assertEquals(listOf("no-store"), client.get("/api/other").headers.getAll(HttpHeaders.CacheControl))
     }

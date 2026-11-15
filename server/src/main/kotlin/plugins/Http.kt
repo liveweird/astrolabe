@@ -71,7 +71,7 @@ fun Application.configureHttp() {
                 // "Caching"; it only avoids a duplicate header). Since 1.22 the ten view reads offer one (`respondRevalidated`);
                 // `problem+json` is ALWAYS `no-store`, whatever a route offered before it failed.
                 ContentType.Application.Json ->
-                    if (call.request.path().startsWith("/api/") && !call.isRevalidated()) {
+                    if (call.request.path().startsWith("/api/") && call.validatorFor(outgoingContent) == null) {
                         CachingOptions(CacheControl.NoStore(null))
                     } else {
                         null

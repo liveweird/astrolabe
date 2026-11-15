@@ -36,6 +36,7 @@ import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -307,6 +308,47 @@ class StaleAccessTokenTest {
             assertEquals(HttpStatusCode.NoContent, logout.status)
             assertEquals(HttpStatusCode.Unauthorized, client.getWith("/api/v1/teams", session.token).status)
             assertNotNull(audit.awaitEvent(rejected("revoked", id)), "audited access.rejected reason=revoked")
+        }
+    }
+
+    @Test
+    fun `a genuinely matching tag replayed with a token that has since ended is 401, never 304`() = testApplication {
+        usePostgresTestcontainer()
+        val admin = adminClient("stale-etag-admin")
+        val view = "/api/v1/views/team-load"
+        val client = jsonClient()
+        val enders = mapOf<String, suspend (UInt, String, LoginResponse) -> Unit>(
+            "logout" to { _, _, session ->
+                val logout = client.post("/api/v1/logout") { header(HttpHeaders.Authorization, "Bearer ${session.token}") }
+                assertEquals(HttpStatusCode.NoContent, logout.status)
+            },
+            "password change" to { id, _, _ ->
+                val update = admin.putJson("/api/v1/users/$id/password", PasswordUpdateRequest(password = "admin-chosen-pw"))
+                assertEquals(HttpStatusCode.NoContent, update.status)
+            },
+            "user delete" to { id, _, _ -> assertEquals(HttpStatusCode.NoContent, admin.delete("/api/v1/users/$id").status) },
+            "demotion" to { id, email, _ ->
+                assertEquals(HttpStatusCode.NoContent, admin.putJson("/api/v1/users/$id", userUpdate(email, emptyList())).status)
+            },
+        )
+        for ((what, end) in enders) {
+            val email = uniqueEmail("stale-etag")
+            val id = seed(email, UserRole.ADMIN)
+            val session = client.session(email)
+            val first = client.getWith(view, session.token)
+            assertEquals(HttpStatusCode.OK, first.status, what)
+            val tag = assertNotNull(first.headers[HttpHeaders.ETag], what)
+            fun replay(token: String, match: String): suspend () -> HttpResponse =
+                { client.get(view) { header(HttpHeaders.Authorization, "Bearer $token"); header(HttpHeaders.IfNoneMatch, match) } }
+            assertEquals(HttpStatusCode.NotModified, replay(session.token, tag)().status, "$what: the control, while the token lives")
+
+            end(id, email, session)
+
+            for (match in listOf(tag, "*")) {
+                val stale = replay(session.token, match)()
+                assertEquals(HttpStatusCode.Unauthorized, stale.status, "$what: $match with the ended token")
+                assertNull(stale.headers[HttpHeaders.ETag], "$what: a 401 carries no tag")
+            }
         }
     }
 

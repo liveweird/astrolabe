@@ -51,6 +51,30 @@ class AnonymousAccessTest {
     }
 
     @Test
+    fun `every operation that declares a 304 answers 401 to If-None-Match star without a token, and carries no tag`() = testApplication {
+        usePostgresTestcontainer()
+        val client = jsonClient()
+        val revalidating = OpenApiSpec.parsed.paths.flatMap { (path, item) ->
+            item.readOperationsMap()
+                .filter { (_, op) -> op.security?.isEmpty() != true && op.responses?.containsKey("304") == true }
+                .map { (method, op) -> Triple(path, method, op) }
+        }
+        assertTrue(revalidating.size >= MIN_REVALIDATING_OPERATIONS, "the sweep covers ${revalidating.size} operations - the spec shrank?")
+        val leaks = mutableListOf<String>()
+        for ((path, method, op) in revalidating) {
+            val response = client.request(path.replace(PATH_PARAMETER, "1")) {
+                this.method = HttpMethod.parse(method.name)
+                header(HttpHeaders.IfNoneMatch, "*")
+            }
+            val tagged = response.headers[HttpHeaders.ETag] != null
+            if (response.status != HttpStatusCode.Unauthorized || tagged) {
+                leaks += "${method.name} $path (${op.operationId}) -> ${response.status}${if (tagged) " with a tag" else ""}"
+            }
+        }
+        assertEquals(emptyList(), leaks, "revalidating operations reachable without a token")
+    }
+
+    @Test
     fun `a forged token signed with the wrong secret is 401`() = testApplication {
         usePostgresTestcontainer()
         val forged = com.auth0.jwt.JWT.create()
@@ -107,5 +131,8 @@ class AnonymousAccessTest {
          * `secured.size` in the sweep test).
          */
         const val MIN_SECURED_OPERATIONS = 16
+
+        /** The ten view reads that declare a `304` (1.22), less nothing: a new view only raises it. */
+        const val MIN_REVALIDATING_OPERATIONS = 10
     }
 }
