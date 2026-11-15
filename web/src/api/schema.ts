@@ -13,9 +13,7 @@ export interface paths {
         };
         /**
          * Liveness probe
-         * @description Public and unauthenticated (the container HEALTHCHECK and the k8s liveness probe call it):
-         *     `200` proves the process answers requests. It touches nothing — use `/api/v1/ready` for the
-         *     database round trip.
+         * @description Liveness probe. Public. `200` proves the process answers; it touches nothing, so it does not prove the database (see `/api/v1/ready`). Not rate-limited.
          */
         get: operations["health"];
         put?: never;
@@ -35,11 +33,7 @@ export interface paths {
         };
         /**
          * Readiness probe
-         * @description Public and unauthenticated (the k8s readiness probe and the e2e global setup call it): `200`
-         *     once a database round trip succeeds within a short budget, `503` while it does not — the pod
-         *     leaves the Service until the database is back.
-         *     Rate-limited per client IP (default 60/min, `READY_RATE_LIMIT_PER_MINUTE`; the kubelet needs
-         *     12/min): over the bucket it answers `429`. `/api/v1/health` is not bucketed.
+         * @description Readiness probe. Public. `200` once a database round trip succeeds within a short budget, `503` while it does not. Rate-limited per client IP (default 60 a minute): `429` over the bucket. `/api/v1/health` is not.
          */
         get: operations["ready"];
         put?: never;
@@ -61,28 +55,7 @@ export interface paths {
         put?: never;
         /**
          * Exchange credentials for a JWT
-         * @description Rate-limited per client IP, and additionally throttled per account: after several
-         *     consecutive failures for one email (default 5, `LOGIN_LOCKOUT_THRESHOLD`), further
-         *     attempts for that account — even with the correct password — are rejected with `429`
-         *     for a lockout window (default 15 min, `LOGIN_LOCKOUT_DURATION_SECONDS`). A successful
-         *     login resets the counter. The in-memory lockout store admits at most
-         *     `LOGIN_LOCKOUT_MAX_TRACKED` identities (default 10,000). At capacity a new identity
-         *     receives `429` before password verification; existing tracked identities continue,
-         *     and expired state frees capacity. This applies equally to existing and unknown emails.
-         *
-         *     **Email MFA (opt-in via the `MFA` feature flag):** when the account has MFA enabled,
-         *     correct credentials answer `200` with an `MfaChallengeResponse` instead of tokens — a
-         *     6-digit code is emailed to the account, and the client exchanges it together with the
-         *     `challengeId` at `POST /api/v1/login/mfa` for the ordinary `LoginResponse`. On a
-         *     deployment without outbound email (`MAIL_TRANSPORT=disabled`) an MFA-enabled login
-         *     fails closed with `503`. The pending challenge store admits at most
-         *     `MFA_MAX_TRACKED` challenges (default 10,000); new issuance at capacity receives
-         *     `429` without sending a code, while existing challenges remain verifiable.
-         *     One account holds at most `MFA_MAX_LIVE_PER_ACCOUNT` live challenges (default 3): a
-         *     password-correct login gets a fresh code (unless the shared store is full, above), and at
-         *     the limit the account's oldest live challenge is dropped, so its code stops working. A
-         *     code verifies only with the `challengeId` of its own login. MFA failures do not feed the
-         *     login lockout.
+         * @description Exchanges an email and password for a token pair or, for an account with the `MFA` feature enabled, an `MfaChallengeResponse`: a 6-digit code is emailed and the client finishes at `POST /api/v1/login/mfa`. Public. Rate-limited per client IP and throttled per account: 5 consecutive failures (default) lock the email for 15 minutes (default), `429` even with the correct password and for unknown emails too; a success resets the count. `429` also when the in-memory lockout or challenge store is full (10,000 entries by default), before any password check and without sending a code. `503` when MFA is enabled for the account but the deployment cannot send email. An account holds at most 3 live challenges (default); a further login drops the oldest, so its code stops working. MFA failures do not feed the lockout.
          */
         post: operations["login"];
         delete?: never;
@@ -102,12 +75,7 @@ export interface paths {
         put?: never;
         /**
          * Exchange an MFA challenge and emailed code for a JWT pair
-         * @description Second login step for MFA-enabled accounts. The `challengeId` comes from the login
-         *     response, the 6-digit `code` from the email. Challenges are single-use, expire after
-         *     a short TTL (default 5 min, `MFA_CODE_TTL_SECONDS`), and allow a few attempts
-         *     (default 5, `MFA_MAX_ATTEMPTS`); every failure mode — unknown challenge, expired,
-         *     wrong code, attempts exhausted, user gone, password changed — answers the uniform `401`. Rate-limited
-         *     per client IP.
+         * @description Second login step: exchanges the `challengeId` of the login answer and the emailed 6-digit `code` for the ordinary `LoginResponse`. Public; rate-limited per client IP. A challenge is single-use, expires after 5 minutes (default) and allows 5 attempts (default). Every failure (unknown challenge, expired, wrong code, attempts exhausted, user gone, password changed) answers one uniform `401`.
          */
         post: operations["verifyMfa"];
         delete?: never;
@@ -127,19 +95,7 @@ export interface paths {
         put?: never;
         /**
          * Exchange a refresh token for a fresh access + refresh pair
-         * @description Pure-sliding session renewal with refresh-token rotation. Accepts a valid, unexpired,
-         *     non-revoked refresh token and returns a brand-new access token and refresh token (each with
-         *     a full TTL). The presented refresh token is retired: it is blocklisted until its own expiry,
-         *     so it works once. A replay of an already-rotated token is `401`, except that a replay within
-         *     a short grace window after the rotation (60 seconds by default; it covers a response lost in
-         *     flight, at most twice per token, and not after a logout that reached the server) is answered with another fresh pair.
-         *     The superseded access token is not revoked and
-         *     lives until its own expiry. Requires no `Authorization` header (the access token may
-         *     already be expired). Returns `401` for a missing/invalid/expired/revoked/already-used
-         *     refresh token, if the user no longer exists, or if the token's credential revision no
-         *     longer matches the user's current credentials. Password changes invalidate earlier refresh
-         *     tokens even within the same clock second. Legacy tokens without a credential revision
-         *     require a fresh sign-in after upgrading to 0.14.1.
+         * @description Exchanges a refresh token for a new access and refresh pair, each with a full lifetime (a sliding session). Public: no `Authorization` header is needed, the access token may be expired. The presented refresh token is retired and works once; a replay within a 60-second grace after the rotation (default; it covers a lost response, at most twice per token, and not after a logout) answers another fresh pair. The superseded access token lives until its own expiry. `401` for a missing, invalid, expired, revoked or already-used token, a user that no longer exists, a token issued before a password change, or a token without a credential revision.
          */
         post: operations["refresh"];
         delete?: never;
@@ -159,8 +115,7 @@ export interface paths {
         put?: never;
         /**
          * Revoke the bearer token (server-side denylist)
-         * @description Revokes the access token carried in the `Authorization` header. If a `refreshToken` is
-         *     supplied in the body, it is revoked too. The body is optional.
+         * @description Revokes the access token in the `Authorization` header and, when the optional body carries a `refreshToken`, that refresh token too. Any authenticated caller.
          */
         post: operations["logout"];
         delete?: never;
@@ -180,24 +135,7 @@ export interface paths {
         put?: never;
         /**
          * Request a self-service password reset
-         * @description Normally answers `202` for a well-formed request, whether or not an account with that
-         *     email exists (no account enumeration; the actual work happens asynchronously). If the
-         *     account exists, a single-use reset link is emailed to its stored address. Requesting or
-         *     opening a link never changes the password or any session: nothing changes until the owner
-         *     confirms the link and chooses a new password (`POST /api/v1/password-reset/confirm`).
-         *     Links expire after 15 minutes by default (`PASSWORD_RESET_TOKEN_TTL_SECONDS`, 1 to 3600
-         *     seconds). Only a SHA-256 digest of the 256-bit random token is persisted, and the browser
-         *     receives the token in a URL fragment, never in a server-visible path or query string.
-         *     Throttled per submitted email — one request per interval
-         *     (default 60 s, `PASSWORD_RESET_MIN_INTERVAL_SECONDS`) — uniformly for existing and
-         *     unknown addresses, and rate-limited per client IP. The in-memory cooldown store admits
-         *     at most `PASSWORD_RESET_MAX_TRACKED` identities (default 10,000). At capacity a new
-         *     identity receives `429` and no reset email is scheduled; elapsed cooldowns free space.
-         *     A soft-deleted account is unknown here (no link is minted or emailed, and the response
-         *     follows the same acceptance and throttling rules). Answers `503` on deployments without
-         *     outbound email (`MAIL_TRANSPORT=disabled`) or without a configured `MAIL_APP_URL` (the
-         *     deployment's https origin, validated at startup, never derived from the `Host` header).
-         *     Several requested links may coexist; completing one invalidates all of them.
+         * @description Requests a reset link for an email. Public; rate-limited per client IP. Answers `202` for any well-formed request whether or not an account exists (a soft-deleted one counts as unknown); if one does, a single-use link, valid 15 minutes by default, is emailed, its token in the URL fragment. Nothing changes until the owner confirms the link (`POST /api/v1/password-reset/confirm`). One request per email per interval (60 seconds by default), uniformly for known and unknown addresses: `429` when throttled, or when the in-memory cooldown store is full (10,000 entries by default; no email is scheduled). `503` without outbound email or without a configured application URL. Several links may coexist; completing one invalidates them all.
          */
         post: operations["requestPasswordReset"];
         delete?: never;
@@ -217,20 +155,7 @@ export interface paths {
         put?: never;
         /**
          * Choose a new password using a single-use reset link
-         * @description Public credential exchange: the reset token authorizes only this operation, never
-         *     bearer-authenticated API calls. Send it in the JSON body, not the URL. A valid token is
-         *     checked before the password is validated. Expired, used, malformed and unknown tokens,
-         *     deleted accounts, and tokens predating a password or email change all answer one uniform
-         *     `401`. Consumption of the token, the password replacement and the credential-generation
-         *     advance commit atomically; concurrent confirmations cannot both succeed, including with
-         *     different links for one account. A password the rules refuse (`400`) does not consume the
-         *     token. Success invalidates every access and refresh session of the account and any pending
-         *     MFA challenge. There is no automatic sign-in: sign in normally, with the MFA code if it is
-         *     enabled. A best-effort confirmation email contains neither password nor token; a delivery
-         *     failure does not undo the reset. Rate-limited to 10 requests per minute per client IP. A
-         *     lost success response can make a retry answer `401`: try signing in with the chosen
-         *     password, or request another link. A link issued earlier still works if outbound mail is
-         *     later disabled.
+         * @description Chooses a new password with the token of an emailed reset link. Public; the token authorizes only this operation. Rate-limited to 10 requests a minute per client IP. A valid token is checked before the password rules, and a refused password (`400`) does not consume it. One uniform `401` for an expired, used, malformed or unknown token, a deleted account, or a token that predates a password or email change. Concurrent confirmations cannot both succeed. Success (`204`) revokes every session of the account and any pending MFA challenge; there is no automatic sign-in. A retry after a lost success response answers `401`. A link issued earlier still works if outbound mail is later disabled. A confirmation email follows on a best-effort basis.
          */
         post: operations["confirmPasswordReset"];
         delete?: never;
@@ -248,33 +173,13 @@ export interface paths {
         };
         /**
          * List users (management view)
-         * @description ADMIN only — the whole management surface is admin-gated; regular users keep only
-         *     their self password change.
-         *
-         *     Supports offset pagination, sorting and filtering.
-         *
-         *     - Sortable fields: `id`, `name`, `email` (deliberately not `roles` — a set has no
-         *       order). Default sort is `id` ascending; `id` ascending is always appended as a
-         *       deterministic tiebreaker.
-         *     - Filters (optional, whitelisted):
-         *       - `name` / `email` — case- and accent-insensitive substring matches.
-         *       - `role` — `ADMIN` (holders of the additional role) or `USER` (plain users).
-         *       - `feature` + `featureEnabled` — feature-flag state (the pair must come
-         *         together, `400` otherwise; `featureEnabled` is a strict boolean).
+         * @description Lists users for management. ADMIN only. Paged; sortable by `id` (default), `name` and `email` (not `roles`), `id` ascending always breaking ties. Filters: `name` and `email` (case- and accent-insensitive substring), `role` (`ADMIN` holders or `USER` plain users), and `feature` with `featureEnabled`, which must come together (`400` otherwise).
          */
         get: operations["listUsers"];
         put?: never;
         /**
          * Create a user
-         * @description ADMIN only. The initial password is CLIENT-generated (the SPA's 96-bit generator) and
-         *     shown to the admin exactly once — the server stores only the bcrypt hash and no
-         *     response ever carries plaintext. The email is canonicalized (trimmed + lowercased);
-         *     a duplicate among active accounts is a `409` (a soft-deleted account frees its email).
-         *     `alsoCreatePerson: true` also creates a person with the login's name and email, linked to it
-         *     (`people.user_id`), in the SAME transaction through the people directory's own rules; the
-         *     response then carries `personId`. A clash on the person side (an active person already has
-         *     this email, or a name/email the people rules refuse) fails the whole request with the people
-         *     route's own status (`409` / `400`) and creates no login.
+         * @description Creates a login. ADMIN only. The initial password is generated by the client, shown to the admin once and never returned. The email is trimmed and lowercased; a duplicate among active accounts is `409` (a deleted account frees its email). With `alsoCreatePerson: true` a person with the login's name and email is created and linked in the same transaction and the answer carries `personId`; a clash on the person side (`409`, or `400` for the people rules) fails the whole request and creates no login.
          */
         post: operations["createUser"];
         delete?: never;
@@ -294,23 +199,18 @@ export interface paths {
         };
         /**
          * Fetch a user
-         * @description Target user or ADMIN (guard-before-read — an unauthorized caller 403s uniformly).
+         * @description The target user or ADMIN; any other caller gets `403` whether or not the id exists.
          */
         get: operations["getUser"];
         /**
          * Update a user's name, email, and roles
-         * @description ADMIN only. The password is deliberately not writable here (it has its own endpoint).
-         *     Demoting the LAST active administrator is a `409` — the management surface must stay
-         *     reachable. An email already used by another active account is also a `409`.
+         * @description Updates name, email and roles; the password and the language have their own operations. ADMIN only. Demoting the last active administrator, or an email used by another active account, is `409`.
          */
         put: operations["updateUser"];
         post?: never;
         /**
          * Delete a user
-         * @description ADMIN only, soft delete: the account can no longer sign in, outstanding refresh
-         *     tokens die (`user_gone`), the email is freed for reuse, and the user's catalog files
-         *     stay with a deleted-creator marker. Deleting YOURSELF is a `403`; deleting the LAST
-         *     active administrator is a `409`.
+         * @description Soft-deletes a user. ADMIN only. The account can no longer sign in, its refresh tokens die and its email is freed for reuse. Deleting yourself is `403`; deleting the last active administrator is `409`.
          */
         delete: operations["deleteUser"];
         options?: never;
@@ -330,14 +230,7 @@ export interface paths {
         get?: never;
         /**
          * Replace a user's disabled-feature set (ADMIN only)
-         * @description Per-user feature flags: a **wholesale replace** of the target user's DISABLED set —
-         *     an empty array re-enables everything (idempotent, a same-set re-PUT is `204` again).
-         *     **ADMIN-only**; changing one's OWN flags is allowed (the users routes themselves are
-         *     never feature-gated, so an admin can always find their way back). `MFA` is the one
-         *     inverted-default flag: users start with it in the disabled set, and a set omitting it
-         *     — the empty "re-enable everything" array included — ENABLES the login second factor.
-         *     The set rides the JWT, so a change takes effect at the target's next token refresh
-         *     (≤15 min) or login. Audited as `user.features_changed` on an actual change.
+         * @description Replaces the user's disabled-feature set wholesale; an empty array re-enables everything. ADMIN only; changing your own flags is allowed. Idempotent (a same-set PUT is `204` again). `MFA` is the inverted-default flag: users start with it disabled, and a set that omits it, the empty array included, ENABLES the login second factor. The set rides the JWT, so a change reaches the target at their next token refresh (within 15 minutes) or login.
          */
         put: operations["setUserDisabledFeatures"];
         post?: never;
@@ -359,12 +252,7 @@ export interface paths {
         get?: never;
         /**
          * Replace a user's granted-permission set (ADMIN only)
-         * @description Per-user permissions: a **wholesale replace** of the target user's GRANTED set — an empty array revokes
-         *     everything (idempotent, a same-set re-PUT is `204` again and audits nothing). **ADMIN-only**; changing
-         *     one's OWN set is allowed (the features precedent). Unlike the feature flags (a disabled set riding the
-         *     JWT), permissions are rows read from the database on **every request**, so a grant or a revoke takes
-         *     effect on the target's very next request, never at the next token refresh. `ROADMAP_EDITOR` lets the user
-         *     rank the projects and set any project's target window. Audited as `user.permissions_changed` on an actual change.
+         * @description Replaces the user's granted-permission set wholesale; an empty array revokes everything. ADMIN only; changing your own set is allowed. Idempotent. Permissions are read on every request, so a grant or a revoke applies to the target's very next request. `ROADMAP_EDITOR` lets the user rank the projects and set any project's target window.
          */
         put: operations["setUserPermissions"];
         post?: never;
@@ -386,15 +274,7 @@ export interface paths {
         get?: never;
         /**
          * Set a user's language (target user or ADMIN)
-         * @description The ONE synced per-user language: it drives the UI at sign-in (rides `LoginResponse`,
-         *     applied by the SPA on login/MFA/refresh) and the language of every email sent to the
-         *     user (read fresh at send time, so a change takes effect immediately for emails; the
-         *     UI picks it up at the next sign-in or token refresh). **Target user or ADMIN** — the
-         *     header language switcher is the self-service writer (switching while signed in also
-         *     saves here); an admin may fix a mis-set language. Idempotent (a same-value re-PUT is
-         *     `204` again); an unsupported code is `400`. Audited as `user.language_changed` on an
-         *     actual change. Set initially at create (`UserCreateRequest.language`, default `en`);
-         *     the whole-user PUT deliberately never touches it.
+         * @description Sets the user's one language, which drives the UI at sign-in and the language of every email sent to them (an email follows a change at once, the UI at the next sign-in or token refresh). The target user or ADMIN. Idempotent; an unsupported code is `400`. Set initially at create; the whole-user update never touches it.
          */
         put: operations["setUserLanguage"];
         post?: never;
@@ -416,27 +296,7 @@ export interface paths {
         get?: never;
         /**
          * Change a user's password
-         * @description Sets a new password for the user (minimum 10 characters). Only the password is
-         *     changed; no other fields are touched. Requires the caller to be the target user,
-         *     or to be ADMIN. When the caller changes their OWN password (even an admin),
-         *     `currentPassword` is required and must match; an admin resetting another user's
-         *     password omits it. A successful change invalidates all outstanding refresh tokens
-         *     and pending MFA challenges, including changes within the same clock second
-         *     (already-issued access tokens expire naturally within their TTL). The self change is
-         *     throttled per user: after `security.lockout.threshold` consecutive wrong or missing current
-         *     passwords it answers `429` (problem `type` `urn:astrolabe:problem:password-change-locked`, no
-         *     `Retry-After`) for `security.lockout.durationSeconds`, even with the correct
-         *     current password. The bucket's `429` below has `type` `about:blank` and a `Retry-After`. The counter is separate from the login lockout (a stolen session cannot lock
-         *     the owner out of `POST /login`). A verified current password, an admin reset of the user's
-         *     password, a completed emailed password reset, the window expiring or a restart clears it.
-         *     The admin reset of another user's password is never throttled by that lock. Both the self change
-         *     and the admin reset also ride a per-user token bucket of 10 requests a minute, keyed by the
-         *     CALLER (never the target), checked before everything else (the guard, the body, the bcrypt
-         *     verify): an over-limit caller gets `429` whatever the request would have answered, with
-         *     `Retry-After`. Order: 429 (bucket), 403 (guard), 429 (locked),
-         *     400 (malformed body, then a new password the rules refuse, checked BEFORE the current password
-         *     so a refused new password reveals nothing and counts nothing), 403 (wrong or missing current
-         *     password).
+         * @description Sets a new password (at least 10 characters, at most 71 UTF-8 bytes) and nothing else. The target user or ADMIN. A caller changing their OWN password, an admin too, must send a matching `currentPassword`; an admin resetting another user's omits it. Success revokes the user's refresh tokens and pending MFA challenges; issued access tokens expire naturally. Both cases share a per-caller bucket of 10 requests a minute (`429` with `Retry-After`, `type` `about:blank`). The self change is also locked after 5 consecutive wrong or missing current passwords (the login lockout's defaults, counted apart): `429` with `type` `urn:astrolabe:problem:password-change-locked` and no `Retry-After`, even with the right password, until the window expires, a password is verified or reset, or the server restarts. An admin reset is never locked. Order: `429` bucket, `403` guard, `429` lock, `400` (malformed body, then a refused new password, checked before the current one so it reveals nothing), `403` wrong or missing current password.
          */
         put: operations["changeUserPassword"];
         post?: never;
@@ -455,19 +315,13 @@ export interface paths {
         };
         /**
          * List people
-         * @description Any authenticated user - the owner and manager pickers and the People page read it (emails included);
-         *     every mutation is ADMIN only.
-         *
-         *     - Sortable fields: `id`, `name`, `email`, `createdAt`, `updatedAt`. Default `id` ascending.
-         *     - Filters: `name`, `email` (each a case- and accent-insensitive substring).
+         * @description Lists people, the owners and managers of the plan. Any authenticated user (emails included); every write is ADMIN only. Paged; sortable by `id` (default), `name`, `email`, `createdAt` and `updatedAt`; filters `name` and `email` (case- and accent-insensitive substring).
          */
         get: operations["listPeople"];
         put?: never;
         /**
          * Create a person
-         * @description ADMIN only (guarded before the body decodes - a non-admin's malformed body is still 403). The optional
-         *     email must be unique among active people (case-insensitive, `409`). The optional `userId` links a login: it
-         *     must be an active user (`400` otherwise) not already linked to another active person (`409`).
+         * @description Creates a person. ADMIN only; a non-admin's malformed body is still `403`. The optional `email` must be unique among active people, case-insensitively (`409`). The optional `userId` must be an active user (`400`) not linked to another active person (`409`).
          */
         post: operations["createPerson"];
         delete?: never;
@@ -492,16 +346,13 @@ export interface paths {
         get: operations["getPerson"];
         /**
          * Rename a person, set their email and login link
-         * @description ADMIN only, guard before the id lookup (uniform 403). A full replace: an omitted `email` or `userId` clears it;
-         *     a set `userId` must be an active user (`400` otherwise). An email clash with another active person, or a login
-         *     already linked to another active person, is `409`. A change of the login link is audited on its own.
+         * @description Replaces a person: an omitted `email` or `userId` clears it. ADMIN only; a non-admin gets `403` whether or not the id exists. Conflicts and the login rule are those of create.
          */
         put: operations["updatePerson"];
         post?: never;
         /**
          * Delete a person (soft)
-         * @description ADMIN only, guard before the id lookup. Soft delete - the email and the login link are freed for reuse. `409`
-         *     while the person still manages an active team (or, once plan nodes exist, owns one): reassign first.
+         * @description Soft-deletes a person. ADMIN only; a non-admin gets `403` whether or not the id exists. The email and the login link are freed. `409` while the person manages an active team or owns an active work stream, program or project: reassign first.
          */
         delete: operations["deletePerson"];
         options?: never;
@@ -518,21 +369,13 @@ export interface paths {
         };
         /**
          * List teams
-         * @description Any authenticated user — teams are the shared ownership unit planning features scope to;
-         *     every mutation is ADMIN only.
-         *
-         *     - Sortable fields: `id`, `name`, `createdAt`, `updatedAt`. Default `id` ascending.
-         *     - Filters: `name` (case- and accent-insensitive substring).
+         * @description Lists teams, the unit milestones belong to. Any authenticated user; every write is ADMIN only. Paged; sortable by `id` (default), `name`, `createdAt` and `updatedAt`; filter `name` (case- and accent-insensitive substring).
          */
         get: operations["listTeams"];
         put?: never;
         /**
          * Create a team
-         * @description ADMIN only (guarded before the body decodes — a non-admin's malformed body is still
-         *     403). A case-insensitive name clash with an active team is `409`. An optional manager (a
-         *     person of the people directory; being a manager grants no write on the team record itself - the manager schedules the team's
-         *     milestones and edits its capacity periods) must be an
-         *     active person (`400` otherwise).
+         * @description Creates a team. ADMIN only; a non-admin's malformed body is still `403`. A case-insensitive name clash with an active team is `409`. The optional manager must be an active person (`400`); being manager grants no write on the team record itself, but lets that person schedule the team's milestones and edit its capacity periods.
          */
         post: operations["createTeam"];
         delete?: never;
@@ -557,15 +400,13 @@ export interface paths {
         get: operations["getTeam"];
         /**
          * Rename / re-describe a team, set its manager
-         * @description ADMIN only, guard before the id lookup (uniform 403). A full replace: an omitted `managerPersonId` clears the manager; a set one must be an active person (`400` otherwise). A case-insensitive name clash with another active team is `409`.
+         * @description Replaces a team: an omitted `managerPersonId` clears the manager. ADMIN only; a non-admin gets `403` whether or not the id exists. A set manager must be an active person (`400`); a case-insensitive name clash with another active team is `409`.
          */
         put: operations["updateTeam"];
         post?: never;
         /**
          * Delete a team (soft)
-         * @description ADMIN only, guard before the id lookup. Soft delete — the name is freed for reuse. `409` ("Team still has milestones") while an
-         *     ACTIVE milestone names the team: move those milestones to another team or delete them first (a deleted milestone no longer counts).
-         *     The team's ACTIVE capacity periods are soft-deleted with it, in the same transaction.
+         * @description Soft-deletes a team. ADMIN only; a non-admin gets `403` whether or not the id exists. The name is freed and the team's active capacity periods are deleted with it. `409` while an active milestone names the team: move or delete those milestones first.
          */
         delete: operations["deleteTeam"];
         options?: never;
@@ -584,19 +425,13 @@ export interface paths {
         };
         /**
          * List a team's capacity periods
-         * @description Any authenticated user. The team's ACTIVE capacity periods in `effectiveFrom` order (a bounded `{items}` list: a handful per team
-         *     per year, not paged). `404` when the team is missing or deleted.
+         * @description Lists a team's active capacity periods in `effectiveFrom` order. Any authenticated user. A bounded `{items}` list (a handful a year), not paged. `404` for a missing or deleted team.
          */
         get: operations["listCapacityPeriods"];
         put?: never;
         /**
          * Add a capacity period to a team
-         * @description ADMIN or the team's ACTIVE manager, read-before-guard (`404` for an unknown or deleted team, then `403`, then the body: a forbidden
-         *     caller's malformed body is still `403`). The project owner, the other teams' managers and every other caller get `403`. The
-         *     period is in force from `effectiveFrom` (ANY calendar day, past or future) until the team's next ACTIVE period; the start date
-         *     must be unique among the team's ACTIVE periods (`409` "A capacity period already starts on this date for this team"; a deleted
-         *     period frees its date). Capacity is TEAM data: the write runs in its own transaction under the team row lock, with the manager
-         *     re-checked there, takes no plan lock and does not bump the plan revision.
+         * @description Adds a capacity period to a team. ADMIN or the team's active manager. Order: `404` for an unknown or deleted team, then `403`, then the body (a forbidden caller's malformed body is `403`). The period applies from `effectiveFrom` (any day, past or future) until the team's next active period; the start date must be unique among the team's active periods (`409`; a deleted period frees its date). Capacity is team data: the plan revision does not move.
          */
         post: operations["createCapacityPeriod"];
         delete?: never;
@@ -616,23 +451,18 @@ export interface paths {
         };
         /**
          * Get a capacity period
-         * @description Any authenticated user. `404` when the period, or its team, is deleted.
+         * @description Any authenticated user. `404` when the period or its team is deleted.
          */
         get: operations["getCapacityPeriod"];
         /**
          * Replace a capacity period
-         * @description ADMIN or the period's team's ACTIVE manager, read-before-guard (`404`, then `403`, then the body). A full replace: an absent or null
-         *     `wipLimit` CLEARS the limit. A start date another ACTIVE period of the team already holds is `409`. A PUT that changes nothing is
-         *     `204` and writes (and audits) nothing, unless the period was imported from Flow: every PUT of a `FLOW` period takes it over (it becomes
-         *     `MANUAL` and its sprint is forgotten, so the capacity import no longer updates or removes it). Own transaction under the team row
-         *     lock, the manager re-checked there; no plan revision bump.
+         * @description Replaces a capacity period. ADMIN or the team's active manager; `404`, then `403`, then the body. An absent or null `wipLimit` clears the limit. A start date another active period of the team holds is `409`. A PUT that changes nothing is `204` and writes nothing, except on a `FLOW` period: any PUT takes it over (it becomes `MANUAL` and forgets its sprint, so the capacity import no longer updates or removes it). The plan revision does not move.
          */
         put: operations["updateCapacityPeriod"];
         post?: never;
         /**
          * Delete a capacity period (soft)
-         * @description ADMIN or the period's team's ACTIVE manager, read-before-guard (`404`, then `403`). Soft delete: the start date is free for a new
-         *     period; the weeks it covered fall back to the previous period (or to "no capacity" before the team's first one).
+         * @description Soft-deletes a capacity period. ADMIN or the team's active manager; `404`, then `403`. The start date is free for a new period; the weeks it covered fall back to the previous period, or to no capacity before the team's first.
          */
         delete: operations["deleteCapacityPeriod"];
         options?: never;
@@ -2239,16 +2069,7 @@ export interface paths {
         };
         /**
          * Astrolabe's own vital signs - processes, storage, request latency
-         * @description ADMIN only (operational data: process sizes, container limits, storage sizes), read-only, no audit event;
-         *     both telemetry reads share one per-user rate bucket (30/min, `429`). `.claude/docs/observability.md` "Telemetry".
-         *     `processes` lists each sampling process (role `app`) with its latest raw sample: every live process, and the
-         *     newest stale one when none is alive (a process that stopped stays visible for a day). `stale` = no sample for more than three
-         *     sample intervals. A figure the process could not measure is null (no container limit outside a cgroup, no `memory.peak` on an
-         *     old kernel) - never zero; `percentOfLimit` is the cgroup working set over the container limit, in percent. `storage` is the
-         *     newest database / per-schema size (null before the first measurement). `requests` is the latest sample interval of the live
-         *     processes: the `*` total and the 15 busiest routes. `sync` (1.3) is always present: whether this process runs the scheduler, its
-         *     tick, and every active connector connection with its derived `SyncStatus` (empty `connections` with no connector); it carries
-         *     no site, email or token.
+         * @description The app's own vital signs. ADMIN only, read-only; both telemetry reads share one per-user bucket of 30 requests a minute (`429`). `processes` lists each sampling process (role `app`) with its latest raw sample: every live process, or the newest stale one when none is alive (a stopped process stays visible for a day); `stale` means no sample for more than three sample intervals. A figure the process could not measure is null, never zero. `storage` is the newest database and per-schema size (null before the first measurement). `requests` covers the latest sample interval of the live processes: the `*` total and the 15 busiest routes. `sync` is always present: whether this process runs the scheduler, its tick, and every active connection with its derived `SyncStatus`; it carries no site, email or token.
          */
         get: operations["getTelemetryCurrent"];
         put?: never;
@@ -2268,17 +2089,7 @@ export interface paths {
         };
         /**
          * The trend of one telemetry section over 24 hours, 7 days or 90 days
-         * @description ADMIN only (guard before the query is read: `403` outranks `400`), read-only, no audit event.
-         *     `group` picks the section and `range` the span; both are required. Buckets: `24h` = the raw sample interval (widened to a whole
-         *     multiple of it when that would exceed 400 points), `7d` = one hour (the hourly rollups plus the raw rows of the hours not yet
-         *     rolled up), `90d` = six hours; `bucketSeconds` says which. At most 400 points per series and 40 series (`truncated` when more
-         *     matched); a series has points only for the buckets that hold data.
-         *     Per-process groups merge the processes of one `role` into one series, so a trend survives a restart (`memory`, `jvm`), or all
-         *     processes into one series per route (`requests`, `role` null); `storage` is cluster-wide (`role` null). `requests` keeps the `*`
-         *     total (count, p50, p95, 5xx, 429) and the ten busiest routes of the range (count, p50, p95). A DELTA series' `avg` is the
-         *     bucket's TOTAL and its `max` the largest single sample interval; a GAUGE or PERCENTILE series' `avg` is the n-weighted mean and
-         *     `max` the largest sample. `historyFrom` is the oldest instant the range can actually hold: the first sampler boot (a fresh
-         *     install, or retention shorter than the range).
+         * @description The trend of one telemetry section. ADMIN only (`403` outranks `400`), read-only; `group` and `range` are both required. Bucket width: `24h` the raw sample interval (widened to a whole multiple of it when that would exceed 400 points), `7d` one hour, `90d` six hours; `bucketSeconds` says which. At most 400 points per series and 40 series (`truncated` when more matched); a series has points only for buckets that hold data. `memory` and `jvm` merge the processes of one `role` into one series, so a trend survives a restart; `requests` has one series per route across all processes (`role` null) and keeps the `*` total (count, p50, p95, 5xx, 429) and the ten busiest routes of the range (count, p50, p95); `storage` is cluster-wide (`role` null). `historyFrom` is the oldest instant the range can hold: the first sampler boot, or the retention limit.
          */
         get: operations["getTelemetryHistory"];
         put?: never;
@@ -3440,7 +3251,7 @@ export interface components {
             token: string;
             /**
              * Format: password
-             * @description The new password; at most 71 UTF-8 bytes (bcrypt ceiling).
+             * @description The new password; at most 71 UTF-8 bytes.
              */
             password: string;
         };
@@ -3481,17 +3292,17 @@ export interface components {
          */
         UserRole: "ADMIN";
         /**
-         * @description A per-user gateable feature. Stored as the DISABLED set (no row = enabled). MFA is the one inverted-default, login-scoped flag: users start with it disabled (email MFA is opt-in), and it gates only the login flow.
+         * @description A per-user gateable feature; a user's set is the DISABLED one. MFA is the one inverted-default flag: users start with it disabled (email MFA is opt-in), and it gates only the login.
          * @enum {string}
          */
         Feature: "MFA";
         /**
-         * @description A per-user permission, stored as the GRANTED set (a row = held) and read from the database on every request. ROADMAP_EDITOR may rank the projects and set any project's target window.
+         * @description A per-user permission; a user's set is the GRANTED one, read on every request. ROADMAP_EDITOR may rank the projects and set any project's target window.
          * @enum {string}
          */
         Permission: "ROADMAP_EDITOR";
         /**
-         * @description A supported UI/email language. The ONE synced per-user language (V1) — set at create, changed only via PUT /users/{id}/language; drives the SPA at sign-in and every email sent to the user.
+         * @description A supported UI and email language. The one per-user language: set at create, changed only by `PUT /users/{id}/language`; drives the UI at sign-in and every email sent to the user.
          * @enum {string}
          */
         Language: "en" | "pl";
@@ -3532,7 +3343,7 @@ export interface components {
         UserCreateRequest: {
             name: string;
             email: string;
-            /** @description Client-generated; at most 71 UTF-8 bytes (the bcrypt ceiling). Stored only as a hash and never returned. */
+            /** @description Client-generated; at most 71 UTF-8 bytes. Never returned. */
             password: string;
             /** @description Additional roles; omitted/empty = a regular user. */
             roles?: components["schemas"]["UserRole"][];
@@ -3556,11 +3367,11 @@ export interface components {
             /** @description Per-user feature flags — the admin-disabled set; empty = full access. */
             disabledFeatures: components["schemas"]["Feature"][];
             language: components["schemas"]["Language"];
-            /** @description Per-user permissions - the GRANTED set (read from the database per request, not a token claim); empty = none. */
+            /** @description Per-user permissions - the GRANTED set; empty = none. */
             permissions: components["schemas"]["Permission"][];
             /**
              * Format: int32
-             * @description The id of the ACTIVE person linked to this login (`people.user_id`), on every read of a user (list, detail, and the create answer); null when none is linked (a soft-deleted person does not count).
+             * @description The id of the active person linked to this login, on every read of a user (the create answer included); null when none is linked (a deleted person does not count).
              */
             personId?: number | null;
         };
@@ -3756,7 +3567,7 @@ export interface components {
              * @description Epoch millis
              */
             updatedAt: number;
-            /** @description Who wrote the period: `MANUAL` (every period before 1.5.0 and every hand-entered one) or `FLOW` (imported for a Flow sprint). A `PUT` of a `FLOW` period makes it `MANUAL`. */
+            /** @description Who wrote the period: `MANUAL` (entered by hand) or `FLOW` (imported for a Flow sprint). A `PUT` of a `FLOW` period makes it `MANUAL`. */
             source: components["schemas"]["CapacitySource"];
             /** @description The Flow sprint a `FLOW` period was imported for; null on a `MANUAL` one. */
             flowSprintName: string | null;
@@ -6283,7 +6094,7 @@ export interface components {
             requests: components["schemas"]["TelemetryRequests"];
             sync: components["schemas"]["TelemetrySync"];
         };
-        /** @description The connector sync (1.3), always present. `schedulerEnabled` is whether THIS process runs the scheduler (`sync.scheduler.enabled`); `tickSeconds` its configured cadence, reported either way; `connections` every active connection of every registered connector (empty when there is none), by connector then id. */
+        /** @description The connector sync, always present. `schedulerEnabled` is whether THIS process runs the scheduler; `tickSeconds` its configured cadence, reported either way; `connections` every active connection of every registered connector (empty when there is none), by connector then id. */
         TelemetrySync: {
             schedulerEnabled: boolean;
             /** Format: int32 */
@@ -6527,7 +6338,10 @@ export interface components {
             t: number;
             /** Format: double */
             avg: number;
-            /** Format: double */
+            /**
+             * Format: double
+             * @description The largest single sample in the bucket; for a DELTA series, the largest sample interval's total.
+             */
             max: number;
         };
         JiraConnectionRequest: {
@@ -8335,7 +8149,7 @@ export interface operations {
             415: components["responses"]["UnsupportedMediaType"];
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalServerError"];
-            /** @description This deployment cannot send email, or has no `MAIL_APP_URL` (password reset unavailable) */
+            /** @description This deployment cannot send email, or has no configured application URL (password reset unavailable) */
             503: {
                 headers: {
                     [name: string]: unknown;
