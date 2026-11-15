@@ -1,0 +1,22 @@
+{
+  "title": "Zależności",
+  "intro": "Wszystkie zależności planu: następnik czeka na poprzednik. Niedotrzymane zależności są wymienione na początku i tylko ostrzegają; nic się nie przesuwa. Zależność zmienia się na stronie projektu jej następnika.",
+  "status": {
+    "all": "Wszystkie",
+    "violated": "Niedotrzymane"
+  },
+  "facts": {
+    "links_one": "{{count}} zależność",
+    "links_few": "{{count}} zależności",
+    "links_many": "{{count}} zależności",
+    "links_other": "{{count}} zależności",
+    "unscheduled": "jeszcze niezaplanowanych: {{count}}"
+  },
+  "factsAria": "Zależności w liczbach",
+  "tableAria": "Zależności planu",
+  "empty": "Plan nie ma jeszcze zależności",
+  "noMatch": "Żadna zależność nie pasuje do filtrów",
+  "noMatchShown": "Żadna z pierwszych {{count}} zależności nie pasuje do filtrów",
+  "truncated": "Lista pokazuje pierwsze {{count}} zależności.",
+  "loadFailed": "Nie udało się wczytać zależności"
+}

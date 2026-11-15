@@ -132,6 +132,7 @@ Everything is lazy under `RequireAuth` unless noted.
 - `/roadmap` — Planning, everyone (`can.editRank`, `can.editTargetWindow`; filters in the URL, remembered) — "Roadmap" + `timeline.md`.
 - `/programs` — Planning, everyone (the target window by `can`) — "Programs" + `timeline.md`.
 - `/milestones` — Planning, everyone (read-only; filters in the URL) — "Milestones".
+- `/dependencies` — Planning, everyone (read-only; filters in the URL) — "Dependencies".
 - `/team-load` — Planning, everyone (read-only; the warning filter in the URL) — "Team load".
 - `/baselines`, `/baselines/:id` — Planning, everyone (`can.manage` writes) — "Baselines".
 - `/schedule-proposals` — Planning, everyone (the teams offered come from `GET /schedule-proposals/teams`; the server's 403 is the rule) — "Schedule proposals".

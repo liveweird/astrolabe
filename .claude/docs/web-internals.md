@@ -24,6 +24,7 @@ section of the page you touch before changing it, and put a new page's mechanics
 - [Roadmap](#roadmap-pagesroadmaptsx)
 - [Programs](#programs-pagesprogramstsx)
 - [Milestones](#milestones-pagesmilestonestsx-119)
+- [Dependencies](#dependencies-pagesdependenciestsx-120)
 - [Team load](#team-load-pagesteamloadtsx-119)
 - [Baselines](#baselines-pagesbaselinestsx-pagesbaselinecomparetsx-v09)
 - [Schedule proposals](#schedule-proposals-pagesscheduleproposalstsx-18)
@@ -49,7 +50,7 @@ section of the page you touch before changing it, and put a new page's mechanics
 The shell is `Shell` in `App.tsx`: the sidebar (`NAV_SECTIONS`), the 48 px header, `AppShell.Main` around the `<Outlet />` and the telemetry aside. Rules: `web/CLAUDE.md` "Layout conventions".
 
 **Navigation.** The nav model lives in `utils/navigation.ts`, shared by the sidebar and the command palette: `NAV_SECTIONS` — labelled, always-open sections
-(currently Overview, Planning: Plan, Roadmap, Programs, Baselines and Deviations, and Administration: Teams, People, Public holidays (all readable by everyone),
+(currently Overview, Planning: Plan, Roadmap, Programs, Milestones, Dependencies, Team load, Baselines, Schedule proposals and Deviations, and Administration: Teams, People, Public holidays (all readable by everyone),
 Users, Feature flags, Jira, Flow) of `NavLeaf`s (the `label` is a typed i18n key; `adminOnly?` gates admin leaves, `keywords?` adds raw palette search terms for
 a renamed page's old name, and `visibleSections(isAdmin())` drops an emptied section) — plus `ACCOUNT_NAV` (Change password, Changelog), which the header
 `UserMenu` and the palette render and the sidebar never does. Sections are static captions (`role="group"` + `aria-label`), never toggles: every leaf is always
@@ -914,7 +915,7 @@ figures use).
 
 - **Filters** (`components/MilestonesFilters.tsx`): the Schedule select (All / Not scheduled / Scheduled, never clearable), the team select (the teams list under
   `["teams","options"]`, shared with the Deviations panel) and the name search (`ClearableTextInput`); a `projectId` from a link is a removable chip beside the
-  toggle ("Project: Invoices", named from `GET /views/plan` under `["plan","view"]` through `utils/planNames.ts`, the Deviations page's strings). The name
+  toggle (`components/ProjectScopeChip.tsx`, shared with the Dependencies page: "Project: Invoices", named from `GET /views/plan` under `["plan","view"]` through `utils/planNames.ts`, the Deviations page's strings). The name
   input keeps the text as typed and writes it trimmed to the URL at once; the REQUEST waits 300 ms (the debounced value is in the query key), and a URL change
   from elsewhere (Back, a link, "Clear the filters") that disagrees with the typed text replaces it during render.
 - **Query**: key `["plan","milestones","list", page, pageSize, sortParam, scheduled, teamId, projectId, name]` (under `["plan"]`, so a schedule or plan write refreshes
@@ -924,6 +925,35 @@ figures use).
   man-days, start, end; a milestone without dates shows one dimmed "Not scheduled" across the two date cells. Under the title: "N milestones" (the server's
   `total`); empty states "The plan has no milestones yet" / "No milestone matches the filters" with a "Clear the filters" button.
 - **Tests**: `Milestones.test.tsx`, `utils/milestoneFilters.test.ts`, `utils/milestoneLinks.test.ts` (fixtures `test/milestones.ts`).
+
+## Dependencies (`pages/Dependencies.tsx`, 1.20)
+
+`/dependencies` (nav: Planning after Milestones, `IconLink`, **everyone**, read-only; palette "Dependencies" / PL "Zależności") lists every dependency of the plan from the
+ONE unpaged `GET /views/dependencies` (`api/dependencyList.ts` `getDependencyListView`, key `DEPENDENCY_LIST_KEY = ["plan","dependencies"]`, under `["plan"]` so every
+plan write refreshes it; at most 1,000 rows with `truncated`, the same document for every caller, no `can`). Each row is the project view's own item minus `critical`
+and `can`, in the server's order (violated first, the largest shortfall first, then OK, then unscheduled): the page never sorts or recounts. The page changes
+nothing: no operations column, no dialog; each end names its project, whose page edits the link. The facts line (`role="group"`, "N dependencies", Home's own red
+string `home.roadmap.conflicts` and a gray "N not scheduled yet", each badge only when positive, the whole line absent while the plan has no dependency) reads the
+document's `totals` over EVERY dependency, so a filter or the cap never changes it. The three filters are in the URL like the Milestones page's
+(`utils/dependencyListFilters.ts` `parseDependencyListFilter`, `dependencyListFilterParams`, `matchesDependencyFilter`, `narrowingCount`; a change `replace`s the
+entry; nothing is remembered): `status` = `violated` | `ok` | `unscheduled` (absent, `all` or unknown = every dependency), `teamId`, `projectId` (positive integers,
+`idOf`). They are applied in the browser over the rows that arrived, AND-combined, so a change makes no second read: a team keeps a row when either end is a
+milestone of it (a project end has no team), a project when either end belongs to it (a project end's `projectId` is its own id). `utils/dependencyListLinks.ts`
+spells the route once (`dependenciesPath`, `dependenciesFilteredPath(filter)`, `violatedDependenciesPath({teamId?, projectId?})`, the builders the plan pages' and
+Home's links use).
+
+- **Filters** (`components/DependencyListFilters.tsx`): the Status select (All / Violated / OK / Not scheduled yet, never clearable; "OK" and "Not scheduled yet" are the
+  project table's `project.dependency.status.*`), the team select (the teams list under `["teams","options"]`, the Milestones page's) and, for a `projectId` from a
+  link, the removable chip `components/ProjectScopeChip.tsx` beside the toggle.
+- **Table** (`components/DependencyListTable.tsx`, named "Dependencies of the plan" - not "Dependencies of the project", which the project page's table and five e2e
+  specs address): a plain table in a `ScrollRegion` with a 70vh height cap and a sticky header (the baseline comparison's shape). Status, lag and dates are the
+  project table's own cells (`components/DependencyCells.tsx`: `DependencyStatusBadge`, `DependencyLagText`); the type and the column headers are its strings. An end's
+  cell: its name ("Project X" for a project end), under it its project (link, `plan.openProjectAria`) and, for a milestone, its team (link, `teams.openAria`).
+- **States**: loading (`LoadingBlock`, no facts line and no claim until the read answers), a failed read (`ErrorAlert`; the rows of a kept document stay on screen
+  over a failed re-read, and no empty claim is made from it), no dependency at all (`totals.links === 0`), nothing matches the filters (with "Clear the filters"
+  when a filter narrows), `truncated` (one dimmed line under the rows shown; when the filters hide every row READ, the line says
+  "none of the first N" with the same Clear button, never "nothing matches").
+- **Tests**: `Dependencies.test.tsx`, `api/dependencyList.test.ts`, `utils/dependencyListFilters.test.ts`, `utils/dependencyListLinks.test.ts` (fixtures `test/dependencyList.ts`).
 
 ## Team load (`pages/TeamLoad.tsx`, 1.19)
 

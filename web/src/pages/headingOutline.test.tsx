@@ -41,6 +41,9 @@ function emptyApi() {
     if (url === "/api/v1/views/team-load") {
       return Promise.resolve(jsonResponse(200, { revision: 0, totals: { teams: 0, overloadedTeams: 0, wipExceededTeams: 0 }, teams: [], truncated: false }));
     }
+    if (url === "/api/v1/views/dependencies") {
+      return Promise.resolve(jsonResponse(200, { revision: 0, totals: { links: 0, violated: 0, unscheduled: 0 }, dependencies: [], truncated: false }));
+    }
     if (/\/api\/v1\/(users|teams|people|milestones)(\?|$)/.test(url)) {
       return Promise.resolve(jsonResponse(200, { items: [], page: 1, pageSize: 20, total: 0 }));
     }

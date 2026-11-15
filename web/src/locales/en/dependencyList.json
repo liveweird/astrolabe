@@ -1,0 +1,20 @@
+{
+  "title": "Dependencies",
+  "intro": "Every dependency of the plan: the successor waits for the predecessor. The ones that do not hold are listed first and only warn; nothing moves. A dependency is changed on the page of its successor's project.",
+  "status": {
+    "all": "All",
+    "violated": "Violated"
+  },
+  "facts": {
+    "links_one": "{{count}} dependency",
+    "links_other": "{{count}} dependencies",
+    "unscheduled": "{{count}} not scheduled yet"
+  },
+  "factsAria": "Dependencies in figures",
+  "tableAria": "Dependencies of the plan",
+  "empty": "The plan has no dependencies yet",
+  "noMatch": "No dependency matches the filters",
+  "noMatchShown": "None of the first {{count}} dependencies matches the filters",
+  "truncated": "The list shows its first {{count}} dependencies.",
+  "loadFailed": "Could not read the dependencies"
+}

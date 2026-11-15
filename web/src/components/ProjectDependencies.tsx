@@ -2,7 +2,6 @@ import { useRef } from "react";
 import { Badge, Button, Group, Menu, Stack, Table, Text, Title } from "@mantine/core";
 import { IconLink, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { deleteDependency, type ProjectDependency } from "../api/dependencies";
 import type { ProjectView } from "../api/milestones";
@@ -11,6 +10,7 @@ import { dependencyEndpointText } from "../utils/dependencyForm";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import ConfirmDeleteModal from "./ConfirmDeleteModal";
+import { DependencyStatusBadge, DependencyLagText } from "./DependencyCells";
 import DestructiveMenuItem from "./DestructiveMenuItem";
 import EmptyState from "./EmptyState";
 import RowActionsMenu from "./RowActionsMenu";
@@ -18,29 +18,6 @@ import ScrollRegion from "./ScrollRegion";
 import SlackCell from "./SlackCell";
 
 const NO_WRAP = { whiteSpace: "nowrap" } as const;
-
-/** The link's status: a red badge naming the shortfall, or a gray one - never colour alone. */
-function StatusBadge({ dependency }: { dependency: ProjectDependency }) {
-  const { t } = useTranslation();
-  const { status, shortfallDays } = dependency.check;
-  if (status === "VIOLATED") {
-    return (
-      // miw max-content: a badge shrinks (and clips its sentence with an ellipsis) when the table is tight; the column grows instead. tt none: the badge holds a sentence, not a label.
-      <Badge color="red" variant="light" tt="none" miw="max-content">
-        {t("project.dependency.status.violated", { count: shortfallDays ?? 0 })}
-      </Badge>
-    );
-  }
-  return (
-    <Badge color="gray" variant="light" tt="none" miw="max-content">
-      {t(status === "OK" ? "project.dependency.status.ok" : "project.dependency.status.unscheduled")}
-    </Badge>
-  );
-}
-
-/** The lag in working days; a negative one is a lead. */
-const lagText = (lagDays: number, t: TFunction) =>
-  lagDays < 0 ? `${t("project.dependency.lag", { count: lagDays })} ${t("project.dependency.lead")}` : t("project.dependency.lag", { count: lagDays });
 
 function DependencyRow({
   dependency,
@@ -63,7 +40,7 @@ function DependencyRow({
     <Table.Tr>
       {/* Status, type and dates stay on one line (a badge clips its sentence, a date must not break at its hyphens); the ends wrap. */}
       <Table.Td style={NO_WRAP}>
-        <StatusBadge dependency={dependency} />
+        <DependencyStatusBadge check={check} />
         {showCritical && dependency.critical && (
           <Badge color="gray" variant="light" tt="none" miw="max-content" ml="xs">
             {t("project.critical.linkBadge")}
@@ -72,7 +49,7 @@ function DependencyRow({
       </Table.Td>
       <Table.Td>{dependencyEndpointText(predecessor, ownProjectId, t)}</Table.Td>
       <Table.Td>{t(`project.dependency.type.${dependency.type}`)}</Table.Td>
-      <Table.Td>{lagText(dependency.lagDays, t)}</Table.Td>
+      <Table.Td><DependencyLagText lagDays={dependency.lagDays} /></Table.Td>
       <Table.Td>{dependencyEndpointText(successor, ownProjectId, t)}</Table.Td>
       <Table.Td style={NO_WRAP}>
         {check.requiredDate !== null && check.actualDate !== null ? t("project.dependency.dates", { required: check.requiredDate, actual: check.actualDate }) : "–"}

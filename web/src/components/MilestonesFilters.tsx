@@ -1,34 +1,13 @@
 import { useTranslation } from "react-i18next";
-import { Badge, CloseButton, Group, Select } from "@mantine/core";
+import { Select } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
-import { getPlanView } from "../api/plan";
 import { listTeams } from "../api/teams";
 import { narrowingCount, scheduleChoice, scheduledOf, type MilestoneFilter, type ScheduleChoice } from "../utils/milestoneFilters";
-import { planNames } from "../utils/planNames";
 import ClearableTextInput from "./ClearableTextInput";
 import FilterPanel from "./FilterPanel";
+import ProjectScopeChip from "./ProjectScopeChip";
 
 const CHOICES: readonly ScheduleChoice[] = ["all", "unscheduled", "scheduled"];
-
-/** The project a link scopes the page to, as a removable chip beside the panel's toggle (visible with the panel collapsed), named from the plan view. */
-function ProjectChip({ projectId, onRemove }: { projectId: number; onRemove: () => void }) {
-  const { t } = useTranslation();
-  const plan = useQuery({ queryKey: ["plan", "view"], queryFn: getPlanView });
-  const name = planNames(plan.data).projects.get(projectId) ?? t("deviations.filter.projectUnknown", { id: projectId });
-  return (
-    <Group gap="xs" role="group" aria-label={t("deviations.filter.scopeAria")}>
-      <Badge
-        color="gray"
-        variant="light"
-        tt="none"
-        size="lg"
-        rightSection={<CloseButton size="xs" aria-label={t("deviations.filter.removeProject")} onClick={onRemove} />}
-      >
-        {t("deviations.filter.project", { name })}
-      </Badge>
-    </Group>
-  );
-}
 
 /**
  * The Milestones page's filters, which live in the URL (`utils/milestoneFilters.ts`): the Schedule select (All / Not scheduled / Scheduled, never
@@ -52,7 +31,7 @@ export default function MilestonesFilters({
     <FilterPanel
       activeFilterCount={narrowingCount(filter)}
       storageKey="milestones"
-      aside={filter.projectId === undefined ? undefined : <ProjectChip projectId={filter.projectId} onRemove={() => onChange({ projectId: undefined })} />}
+      aside={filter.projectId === undefined ? undefined : <ProjectScopeChip projectId={filter.projectId} onRemove={() => onChange({ projectId: undefined })} />}
     >
       <Select
         label={t("milestoneList.filter.schedule")}

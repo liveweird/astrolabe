@@ -6,7 +6,7 @@ describe("visibleSections", () => {
     const sections = visibleSections(false);
     expect(sections.map((s) => s.label)).toEqual(["appShell.section.overview", "appShell.section.planning", "appShell.section.administration"]);
     const paths = sections.flatMap((s) => s.items.map((l) => l.to));
-    expect(paths).toEqual(["/", "/plan", "/roadmap", "/programs", "/milestones", "/team-load", "/baselines", "/schedule-proposals", "/deviations", "/teams", "/people", "/public-holidays"]);
+    expect(paths).toEqual(["/", "/plan", "/roadmap", "/programs", "/milestones", "/dependencies", "/team-load", "/baselines", "/schedule-proposals", "/deviations", "/teams", "/people", "/public-holidays"]);
   });
 
   test("an admin session gets Teams, People, Public holidays, Users, Feature flags, Jira and Flow in the Administration section", () => {
@@ -24,12 +24,12 @@ describe("visibleSections", () => {
     expect(flow?.keywords).toEqual(["flow", "capacity", "roster"]);
   });
 
-  test("Planning sits above Administration and holds the Plan, Roadmap, Programs, Milestones, Team load, Baselines, Schedule proposals and Deviations leaves for everyone", () => {
+  test("Planning sits above Administration and holds the Plan, Roadmap, Programs, Milestones, Dependencies, Team load, Baselines, Schedule proposals and Deviations leaves for everyone", () => {
     for (const admin of [false, true]) {
       const labels = visibleSections(admin).map((s) => s.label);
       expect(labels.indexOf("appShell.section.planning")).toBeLessThan(labels.indexOf("appShell.section.administration"));
       const planning = visibleSections(admin).find((s) => s.label === "appShell.section.planning");
-      expect(planning?.items.map((l) => l.to)).toEqual(["/plan", "/roadmap", "/programs", "/milestones", "/team-load", "/baselines", "/schedule-proposals", "/deviations"]);
+      expect(planning?.items.map((l) => l.to)).toEqual(["/plan", "/roadmap", "/programs", "/milestones", "/dependencies", "/team-load", "/baselines", "/schedule-proposals", "/deviations"]);
     }
   });
 
