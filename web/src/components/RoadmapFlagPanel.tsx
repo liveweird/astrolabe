@@ -13,6 +13,7 @@ import JiraKeyLink from "./JiraKeyLink";
 import ScrollRegion from "./ScrollRegion";
 import SeverityBadge from "./SeverityBadge";
 import TableDisclosure from "./TableDisclosure";
+import TrailingLinkIcon from "./TrailingLinkIcon";
 
 const TABLE_MAX_HEIGHT = 420;
 
@@ -24,7 +25,7 @@ function TeamLink({ teamId, name }: { teamId: number; name: string }) {
   const { t } = useTranslation();
   return (
     <Anchor component={RouterLink} to={teamPath(teamId)} inherit>
-      <IconUsersGroup size="0.85em" aria-hidden style={{ marginInlineStart: "0.25em", verticalAlign: "-0.1em" }} />
+      <TrailingLinkIcon icon={IconUsersGroup} />
       <VisuallyHidden component="span">{` ${t("teams.openAria", { name })}`}</VisuallyHidden>
     </Anchor>
   );

@@ -11,6 +11,19 @@ export const RUN_POLL_MS = 3_000;
  */
 export const IDLE_REFRESH_MS = 30_000;
 
+/**
+ * The `refetchInterval` of a registry list (Jira, Flow connections): while any listed connection's newest run is running (the server's
+ * verdict) the bounded poll answers, keyed by the connections and their run ids; otherwise the list is still re-read slowly while the page is
+ * visible, because a scheduled run starts without anyone asking.
+ */
+export function listRefetchInterval(
+  poll: (liveKey: string | null) => number | false,
+  items: ReadonlyArray<{ id: number; lastRun: { id: number; running: boolean } | null }> | undefined,
+): number | false {
+  const running = items?.filter((c) => c.lastRun?.running).map((c) => `${c.id}:${c.lastRun?.id}`);
+  return poll(running && running.length > 0 ? running.join(",") : null) || IDLE_REFRESH_MS;
+}
+
 /** The poll period of the Deviations page while a run is running: the page is one big document, so it asks less often than the run table. */
 export const DEVIATIONS_POLL_MS = 10_000;
 

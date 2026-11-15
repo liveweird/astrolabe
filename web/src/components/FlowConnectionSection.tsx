@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Anchor, Button, Group, Stack, Table, Text, Title } from "@mantine/core";
+import { Alert, Anchor, Button, Group, Stack, Text, Title } from "@mantine/core";
 import { IconPlayerPlay, IconPlugConnected } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { testFlowConnection, type FlowConnection, type FlowTestResult } from "../api/flow";
@@ -14,11 +14,10 @@ import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import { IDLE_REFRESH_MS } from "../utils/syncRuns";
 import { showSuccessToast } from "../utils/toast";
-import ConnectionTestBadge from "./ConnectionTestBadge";
 import ConnectionTestResults from "./ConnectionTestResults";
 import ConnectionTestStatus from "./ConnectionTestStatus";
 import FormErrorAlert from "./FormErrorAlert";
-import SyncFacts, { Fact } from "./SyncFacts";
+import SyncFacts, { EnabledFact, Fact, FactsTable, LastTestFact, TokenFact } from "./SyncFacts";
 import SyncRunsTable from "./SyncRunsTable";
 
 /** The connection's own facts (never the token: only whether one is stored). */
@@ -26,27 +25,23 @@ function ConnectionFacts({ connection, readAt }: { connection: FlowConnection; r
   const { t } = useTranslation();
   const href = flowBaseHref(connection.baseUrl);
   return (
-    <Table aria-label={t("sync.connection.details.factsAria")}>
-      <Table.Tbody>
-        <Fact label={t("flow.field.baseUrl")}>
-          {href ? (
-            <Anchor href={href} target="_blank" rel="noopener noreferrer" size="sm">
-              {connection.baseUrl}
-            </Anchor>
-          ) : (
-            connection.baseUrl
-          )}
-        </Fact>
-        <Fact label={t("flow.field.timeZone")}>{connection.timeZone}</Fact>
-        <Fact label={t("flow.field.apiToken")}>{connection.hasApiToken ? t("sync.connection.details.tokenStored") : t("sync.connection.details.tokenMissing")}</Fact>
-        <Fact label={t("sync.connection.column.enabled")}>{connection.enabled ? t("sync.connection.yes") : t("sync.connection.no")}</Fact>
-        <SyncFacts status={connection.status} pollIntervalMinutes={connection.pollIntervalMinutes} ready={flowReady(connection)} readAt={readAt} />
-        <Fact label={t("sync.connection.details.lastTest")}>
-          <ConnectionTestBadge lastTestOk={connection.lastTestOk} lastTestedAt={connection.lastTestedAt} untestedKey={untestedKey(connection)} layout="fact" />
-        </Fact>
-        <Fact label={t("flow.details.teamsAt")}>{connection.teamsAt === null ? "—" : formatDateTime(connection.teamsAt)}</Fact>
-      </Table.Tbody>
-    </Table>
+    <FactsTable>
+      <Fact label={t("flow.field.baseUrl")}>
+        {href ? (
+          <Anchor href={href} target="_blank" rel="noopener noreferrer" size="sm">
+            {connection.baseUrl}
+          </Anchor>
+        ) : (
+          connection.baseUrl
+        )}
+      </Fact>
+      <Fact label={t("flow.field.timeZone")}>{connection.timeZone}</Fact>
+      <TokenFact label={t("flow.field.apiToken")} stored={connection.hasApiToken} />
+      <EnabledFact enabled={connection.enabled} />
+      <SyncFacts status={connection.status} pollIntervalMinutes={connection.pollIntervalMinutes} ready={flowReady(connection)} readAt={readAt} />
+      <LastTestFact lastTestOk={connection.lastTestOk} lastTestedAt={connection.lastTestedAt} untestedKey={untestedKey(connection)} />
+      <Fact label={t("flow.details.teamsAt")}>{connection.teamsAt === null ? "—" : formatDateTime(connection.teamsAt)}</Fact>
+    </FactsTable>
   );
 }
 

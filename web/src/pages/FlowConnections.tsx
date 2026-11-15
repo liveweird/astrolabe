@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { Anchor, Badge, Button, Group, Menu, Stack, Table, Text } from "@mantine/core";
-import { IconActivity, IconExternalLink, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconActivity, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAdmin } from "../auth";
 import { deleteFlowConnection, listFlowConnections, listFlowTeams, type FlowConnection } from "../api/flow";
@@ -11,11 +11,13 @@ import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 import ConnectionTestBadge from "../components/ConnectionTestBadge";
 import DestructiveMenuItem from "../components/DestructiveMenuItem";
 import FlowConnectionEditorModal from "../components/FlowConnectionEditorModal";
+import LastRunCell from "../components/LastRunCell";
 import PageHeader from "../components/PageHeader";
 import RegistryListTable from "../components/RegistryListTable";
 import RowActionsMenu from "../components/RowActionsMenu";
 import SortHeader from "../components/SortHeader";
 import SyncStatusBadge from "../components/SyncStatusBadge";
+import TrailingLinkIcon from "../components/TrailingLinkIcon";
 import { useBoundedPoll } from "../hooks/useBoundedPoll";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { useDialogFocus } from "../hooks/useDialogFocus";
@@ -23,10 +25,9 @@ import { useNow } from "../hooks/useNow";
 import { usePagedSort } from "../hooks/usePagedSort";
 import { flowReady, untestedKey } from "../utils/flowForm";
 import { flowBaseHref, flowConnectionPath } from "../utils/flowLinks";
-import { formatDateTime } from "../utils/formatDate";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
-import { IDLE_REFRESH_MS, RUN_STATE_COLOR, runState } from "../utils/syncRuns";
+import { listRefetchInterval } from "../utils/syncRuns";
 
 const SORT_FIELDS = ["name", "createdAt"] as const;
 type SortField = (typeof SORT_FIELDS)[number];
@@ -43,27 +44,6 @@ function DeleteBody({ connection }: { connection: FlowConnection }) {
   if (teams.data === undefined) return <>{t("flow.deleteBody", { name: connection.name })}</>;
   const linked = teams.data.items.filter((team) => team.bindingId !== null).length;
   return <>{linked === 0 ? t("flow.deleteBodyNoLinks", { name: connection.name }) : t("flow.deleteBodyLinks", { name: connection.name, count: linked })}</>;
-}
-
-/** The connection's own newest run, from the registry's `lastRun` (the SERVER says whether it is running): its outcome badge and when it started. */
-function LastRun({ run }: { run: FlowConnection["lastRun"] }) {
-  const { t } = useTranslation();
-  if (!run) {
-    return (
-      <Text size="sm" c="dimmed">
-        —
-      </Text>
-    );
-  }
-  const state = runState(run);
-  return (
-    <Group gap="xs" wrap="nowrap">
-      <Badge color={RUN_STATE_COLOR[state]} tt="none">
-        {t(`sync.runs.state.${state}`)}
-      </Badge>
-      <Text size="sm">{formatDateTime(run.startedAt)}</Text>
-    </Group>
-  );
 }
 
 /**
@@ -88,11 +68,7 @@ export default function FlowConnections() {
     placeholderData: keepPreviousData,
     enabled: admin,
     // While any listed connection's newest run is running (the server's verdict), the list is re-read so its badge moves by itself.
-    refetchInterval: (query) => {
-      const running = query.state.data?.items.filter((c) => c.lastRun?.running).map((c) => `${c.id}:${c.lastRun?.id}`);
-      // Nothing running: still re-read slowly while the page is visible, a scheduled run starts without anyone asking.
-      return poll(running && running.length > 0 ? running.join(",") : null) || IDLE_REFRESH_MS;
-    },
+    refetchInterval: (query) => listRefetchInterval(poll, query.state.data?.items),
   });
   const now = useNow(60_000, dataUpdatedAt);
 
@@ -165,7 +141,7 @@ export default function FlowConnections() {
                 {href ? (
                   <Anchor href={href} target="_blank" rel="noopener noreferrer" size="sm">
                     {connection.baseUrl.replace(/^https?:\/\//, "")}
-                    <IconExternalLink size="0.85em" aria-hidden style={{ marginInlineStart: "0.25em", verticalAlign: "-0.1em" }} />
+                    <TrailingLinkIcon />
                   </Anchor>
                 ) : (
                   <Text size="sm">{connection.baseUrl}</Text>
@@ -181,7 +157,7 @@ export default function FlowConnections() {
                 <SyncStatusBadge status={connection.status} now={now} ready={flowReady(connection)} pollIntervalMinutes={connection.pollIntervalMinutes} />
               </Table.Td>
               <Table.Td>
-                <LastRun run={connection.lastRun} />
+                <LastRunCell run={connection.lastRun} />
               </Table.Td>
               <Table.Td style={{ width: 1 }} ta="right">
                 <RowActionsMenu label={t("common.table.operationsAria", { name: connection.name })}>

@@ -1753,8 +1753,8 @@ has no switch for (a newer server), so a save can never silently revoke it.
 `/integrations/jira` (nav: Administration, **ADMIN only**, `IconPlugConnected`, palette "Jira"; both routes sit under `RequireAdmin` and their queries are
 `enabled: isAdmin()`) is the registry of the Jira Cloud sites Astrolabe OBSERVES (nothing is ever written to Jira), `GET /integrations/jira/connections` under
 `["jira","list",…]` through `api/jira.ts`: the Teams shape (`usePagedSort` + `RegistryListTable`, no name filter - the endpoint has none; columns name (the
-link, a gray "Disabled" badge), site (an external link, `rel="noopener noreferrer"`), project keys, last test, **Status**, last run, kebab Open / Edit /
-Delete). **Status** is `components/SyncStatusBadge.tsx` over the connection's server-derived `status` (`SyncStatus`: nothing is stored; CURRENT green, FAILED
+link, a gray "Disabled" badge), site (an external link, `rel="noopener noreferrer"`, its trailing icon `components/TrailingLinkIcon.tsx`, also the Jira key link's, Flow's and the Roadmap flag panel's), project keys, last test, **Status**, last run (`components/LastRunCell.tsx`, shared with Flow), kebab Open / Edit /
+Delete; the list's `refetchInterval` is `listRefetchInterval` in `utils/syncRuns.ts`, shared with Flow). **Status** is `components/SyncStatusBadge.tsx` over the connection's server-derived `status` (`SyncStatus`: nothing is stored; CURRENT green, FAILED
 red, STALE orange, NEVER_SYNCED / DISABLED gray, label `sync.status.<STATE>`) with a secondary line from `utils/syncStatus.ts`: the failure streak while there
 is one ("3 failures in a row · TOKEN_UNREADABLE", plural forms EN/PL), else "not polled: test the connection first" (`discoveredAt == null`), "manual only",
 "due now" or "next poll in 7 min" (minutes rounded UP, hours from 2 h); `now` is `hooks/useNow.ts`'s minute-ticking client clock (the telemetry section passes
@@ -1782,7 +1782,7 @@ transaction), with the count of LIVE-node links from `GET /integrations/jira/bin
 the sentences say "live plan items" and never claim there is nothing else; a count-less sentence while it loads or fails). A new connection lands on its page.
 
 The page is a thin adapter over the shared shell `components/ConnectionDetailsPage.tsx` (route-id parse keyed by `:id`, load triage, header with Edit, sections column, editor modal; it takes `kind`, the list path, the read, a `sections` render slot and the `Editor`; the Flow page is its twin). `/integrations/jira/:id` has h3 sections inside `Box maw={CONTENT_MAX_WIDTH}`, each with a component of its own so the page stays a composition (the Bindings
-section is the third, `components/JiraBindingsSection.tsx`, below): **Connection** (`components/JiraConnectionSection.tsx`: the facts table - the token only as
+section is the third, `components/JiraBindingsSection.tsx`, below): **Connection** (`components/JiraConnectionSection.tsx`: the facts table - `FactsTable` and the token, enabled and last-test rows (`TokenFact`, `EnabledFact`, `LastTestFact`) shared with Flow in `components/SyncFacts.tsx`, the token only as
 "stored / not stored" -, **Test connection** on the STORED token (the verdict is also said in a polite status region, `components/ConnectionTestStatus.tsx`, and
 an old result is cleared the moment a new attempt starts) with the result in `components/ConnectionTestResults.tsx` (Flow's, ported: one row per probe, a
 passing row GREEN, a failed required row RED, a failed optional one ORANGE, a row the server did not run (`SKIPPED`, after a failed `tenant_info`:
@@ -1847,8 +1847,8 @@ and the runs). Tests: `JiraConnections.test.tsx`, `JiraConnectionDetails.test.ts
 queries `enabled: isAdmin()`) is the registry of the Flow instances Astrolabe READS team capacity and rosters from (nothing is written to Flow),
 `GET /integrations/flow/connections` under `["flow","list",…]` through `api/flow.ts`: the Jira registry's twin (`usePagedSort` + `RegistryListTable`; columns
 name, base URL, time zone, last test, **Status** (`SyncStatusBadge`, `ready` = `flowReady`: a passing test or a mirrored document, the server's sticky rule),
-last run, kebab; the test cell is the shared `ConnectionTestBadge`) with the same slow re-read (`IDLE_REFRESH_MS`) and bounded poll while a run runs. `/integrations/flow/:id` is a thin adapter over the same shell (`components/ConnectionDetailsPage.tsx`, see the Jira section) and has two h3 sections: **Connection**
-(`components/FlowConnectionSection.tsx`: facts via the shared `SyncFacts`, Test connection on the STORED token, Refresh now =
+last run, kebab; the test cell is the shared `ConnectionTestBadge`, the last-run cell `LastRunCell`, the external-link icon `TrailingLinkIcon`) with the same slow re-read (`IDLE_REFRESH_MS`) and bounded poll while a run runs (`listRefetchInterval`, one rule for both lists). `/integrations/flow/:id` is a thin adapter over the same shell (`components/ConnectionDetailsPage.tsx`, see the Jira section) and has two h3 sections: **Connection**
+(`components/FlowConnectionSection.tsx`: facts via the shared `SyncFacts` and `FactsTable` / `TokenFact` / `EnabledFact` / `LastTestFact`, Test connection on the STORED token, Refresh now =
 `POST /integrations/sync/runs {kind: "FLOW"}`, `SyncRunsTable kind="FLOW"`; a test writes NO mirror - the run does - so the Teams section follows a run's end,
 not a test) and **Teams** (`components/FlowTeamsSection.tsx`, below). The shared pieces are kind-aware, never forked: `ConnectionTestResults kind="FLOW"` words
 the probes (`flow.probe.*`), adds the document's size and the truncation note and has no Jira scope note; `errorCodeText(code, t, kind)` (`utils/syncRuns.ts`)

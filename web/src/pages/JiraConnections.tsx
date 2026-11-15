@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { Anchor, Badge, Button, Group, Menu, Stack, Table, Text } from "@mantine/core";
-import { IconExternalLink, IconPencil, IconPlugConnected, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconPencil, IconPlugConnected, IconPlus, IconTrash } from "@tabler/icons-react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAdmin } from "../auth";
 import { HOME_VIEW_KEY } from "../api/home";
@@ -12,22 +12,23 @@ import ConnectionTestBadge from "../components/ConnectionTestBadge";
 import DestructiveMenuItem from "../components/DestructiveMenuItem";
 import JiraConnectionEditorModal from "../components/JiraConnectionEditorModal";
 import JiraStubBadge from "../components/JiraStubBadge";
+import LastRunCell from "../components/LastRunCell";
 import PageHeader from "../components/PageHeader";
 import RegistryListTable from "../components/RegistryListTable";
 import RowActionsMenu from "../components/RowActionsMenu";
 import SortHeader from "../components/SortHeader";
 import SyncStatusBadge from "../components/SyncStatusBadge";
+import TrailingLinkIcon from "../components/TrailingLinkIcon";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useBoundedPoll } from "../hooks/useBoundedPoll";
 import { useNow } from "../hooks/useNow";
 import { usePagedSort } from "../hooks/usePagedSort";
-import { formatDateTime } from "../utils/formatDate";
 import { untestedKey } from "../utils/jiraForm";
 import { jiraConnectionPath, jiraSiteUrl } from "../utils/jiraLinks";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
-import { IDLE_REFRESH_MS, RUN_STATE_COLOR, runState } from "../utils/syncRuns";
+import { listRefetchInterval } from "../utils/syncRuns";
 
 const SORT_FIELDS = ["name", "createdAt"] as const;
 type SortField = (typeof SORT_FIELDS)[number];
@@ -43,27 +44,6 @@ function DeleteBody({ connection }: { connection: JiraConnection }) {
   });
   if (links.data === undefined) return <>{t("jira.deleteBody", { name: connection.name })}</>;
   return <>{links.data.total === 0 ? t("jira.deleteBodyNoLinks", { name: connection.name }) : t("jira.deleteBodyLinks", { name: connection.name, count: links.data.total })}</>;
-}
-
-/** The connection's own newest run, from the registry's `lastRun` (the SERVER says whether it is running): its outcome badge and when it started. */
-function LastRun({ run }: { run: JiraConnection["lastRun"] }) {
-  const { t } = useTranslation();
-  if (!run) {
-    return (
-      <Text size="sm" c="dimmed">
-        —
-      </Text>
-    );
-  }
-  const state = runState(run);
-  return (
-    <Group gap="xs" wrap="nowrap">
-      <Badge color={RUN_STATE_COLOR[state]} tt="none">
-        {t(`sync.runs.state.${state}`)}
-      </Badge>
-      <Text size="sm">{formatDateTime(run.startedAt)}</Text>
-    </Group>
-  );
 }
 
 /**
@@ -88,11 +68,7 @@ export default function JiraConnections() {
     placeholderData: keepPreviousData,
     enabled: admin,
     // While any listed connection's newest run is running (the server's verdict), the list is re-read so its badge moves by itself.
-    refetchInterval: (query) => {
-      const running = query.state.data?.items.filter((c) => c.lastRun?.running).map((c) => `${c.id}:${c.lastRun?.id}`);
-      // Nothing running: still re-read slowly while the page is visible, a scheduled run starts without anyone asking.
-      return poll(running && running.length > 0 ? running.join(",") : null) || IDLE_REFRESH_MS;
-    },
+    refetchInterval: (query) => listRefetchInterval(poll, query.state.data?.items),
   });
   const now = useNow(60_000, dataUpdatedAt);
 
@@ -164,7 +140,7 @@ export default function JiraConnections() {
                 {jiraSiteUrl(connection.siteUrl) ? (
                   <Anchor href={jiraSiteUrl(connection.siteUrl)} target="_blank" rel="noopener noreferrer" size="sm">
                     {connection.siteUrl.replace(/^https:\/\//, "")}
-                    <IconExternalLink size="0.85em" aria-hidden style={{ marginInlineStart: "0.25em", verticalAlign: "-0.1em" }} />
+                    <TrailingLinkIcon />
                   </Anchor>
                 ) : (
                   <Text size="sm">{connection.siteUrl}</Text>
@@ -184,7 +160,7 @@ export default function JiraConnections() {
               <SyncStatusBadge status={connection.status} now={now} ready={connection.discoveredAt !== null} pollIntervalMinutes={connection.pollIntervalMinutes} />
             </Table.Td>
             <Table.Td>
-              <LastRun run={connection.lastRun} />
+              <LastRunCell run={connection.lastRun} />
             </Table.Td>
             <Table.Td style={{ width: 1 }} ta="right">
               <RowActionsMenu label={t("common.table.operationsAria", { name: connection.name })}>

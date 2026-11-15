@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Anchor, Button, Group, Stack, Table, Text, Title } from "@mantine/core";
+import { Alert, Anchor, Button, Group, Stack, Text, Title } from "@mantine/core";
 import { IconPlayerPlay, IconPlugConnected } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { HOME_VIEW_KEY } from "../api/home";
@@ -14,47 +14,42 @@ import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import { IDLE_REFRESH_MS } from "../utils/syncRuns";
 import { showSuccessToast } from "../utils/toast";
-import ConnectionTestBadge from "./ConnectionTestBadge";
 import ConnectionTestResults from "./ConnectionTestResults";
 import ConnectionTestStatus from "./ConnectionTestStatus";
 import FormErrorAlert from "./FormErrorAlert";
 import JiraStubBadge from "./JiraStubBadge";
 import SyncRunsTable from "./SyncRunsTable";
-import SyncFacts, { Fact } from "./SyncFacts";
+import SyncFacts, { EnabledFact, Fact, FactsTable, LastTestFact, TokenFact } from "./SyncFacts";
 
 /** The connection's own facts (never the token: only whether one is stored). */
 function ConnectionFacts({ connection, readAt }: { connection: JiraConnection; readAt: number }) {
   const { t } = useTranslation();
   const site = jiraSiteUrl(connection.siteUrl);
   return (
-    <Table aria-label={t("sync.connection.details.factsAria")}>
-      <Table.Tbody>
-        <Fact label={t("jira.field.siteUrl")}>
-          <Group gap="xs" wrap="wrap">
-            {site ? (
-              <Anchor href={site} target="_blank" rel="noopener noreferrer" size="sm">
-                {connection.siteUrl}
-              </Anchor>
-            ) : (
-              <Text size="sm">{connection.siteUrl}</Text>
-            )}
-            {connection.stub && <JiraStubBadge />}
-          </Group>
-        </Fact>
-        <Fact label={t("jira.field.email")}>{connection.email}</Fact>
-        <Fact label={t("jira.field.apiToken")}>{connection.hasApiToken ? t("sync.connection.details.tokenStored") : t("sync.connection.details.tokenMissing")}</Fact>
-        <Fact label={t("jira.field.authScheme")}>{t(`jira.authScheme.${connection.authScheme}`)}</Fact>
-        <Fact label={t("jira.field.projectKeys")}>{connection.projectKeys.join(", ")}</Fact>
-        <Fact label={t("sync.connection.column.enabled")}>{connection.enabled ? t("sync.connection.yes") : t("sync.connection.no")}</Fact>
-        <SyncFacts status={connection.status} pollIntervalMinutes={connection.pollIntervalMinutes} ready={connection.discoveredAt !== null} readAt={readAt} />
-        <Fact label={t("sync.connection.details.lastTest")}>
-          <ConnectionTestBadge lastTestOk={connection.lastTestOk} lastTestedAt={connection.lastTestedAt} untestedKey={untestedKey(connection)} layout="fact" />
-        </Fact>
-        <Fact label={t("jira.details.discovered")}>{connection.discoveredAt === null ? "—" : formatDateTime(connection.discoveredAt)}</Fact>
-        <Fact label={t("jira.details.cloudId")}>{connection.cloudId ?? "—"}</Fact>
-        <Fact label={t("jira.details.mapping")}>{connection.mappingSet ? t("jira.details.mappingSaved") : t("jira.details.mappingDefaults")}</Fact>
-      </Table.Tbody>
-    </Table>
+    <FactsTable>
+      <Fact label={t("jira.field.siteUrl")}>
+        <Group gap="xs" wrap="wrap">
+          {site ? (
+            <Anchor href={site} target="_blank" rel="noopener noreferrer" size="sm">
+              {connection.siteUrl}
+            </Anchor>
+          ) : (
+            <Text size="sm">{connection.siteUrl}</Text>
+          )}
+          {connection.stub && <JiraStubBadge />}
+        </Group>
+      </Fact>
+      <Fact label={t("jira.field.email")}>{connection.email}</Fact>
+      <TokenFact label={t("jira.field.apiToken")} stored={connection.hasApiToken} />
+      <Fact label={t("jira.field.authScheme")}>{t(`jira.authScheme.${connection.authScheme}`)}</Fact>
+      <Fact label={t("jira.field.projectKeys")}>{connection.projectKeys.join(", ")}</Fact>
+      <EnabledFact enabled={connection.enabled} />
+      <SyncFacts status={connection.status} pollIntervalMinutes={connection.pollIntervalMinutes} ready={connection.discoveredAt !== null} readAt={readAt} />
+      <LastTestFact lastTestOk={connection.lastTestOk} lastTestedAt={connection.lastTestedAt} untestedKey={untestedKey(connection)} />
+      <Fact label={t("jira.details.discovered")}>{connection.discoveredAt === null ? "—" : formatDateTime(connection.discoveredAt)}</Fact>
+      <Fact label={t("jira.details.cloudId")}>{connection.cloudId ?? "—"}</Fact>
+      <Fact label={t("jira.details.mapping")}>{connection.mappingSet ? t("jira.details.mappingSaved") : t("jira.details.mappingDefaults")}</Fact>
+    </FactsTable>
   );
 }
 

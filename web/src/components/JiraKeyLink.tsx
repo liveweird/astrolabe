@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Anchor, VisuallyHidden } from "@mantine/core";
-import { IconExternalLink } from "@tabler/icons-react";
 import { jiraBrowseUrl } from "../utils/jiraLinks";
+import TrailingLinkIcon from "./TrailingLinkIcon";
 
 /**
  * A Jira issue key as a link to the issue (`{siteUrl}/browse/{KEY}`) in a new tab: `rel="noopener noreferrer"`, an external-link icon and
@@ -31,7 +31,7 @@ export default function JiraKeyLink({
   return (
     <Anchor href={href} target="_blank" rel="noopener noreferrer" inherit underline={underline} tabIndex={skipTab ? -1 : undefined}>
       {!iconOnly && issueKey}
-      <IconExternalLink size="0.85em" aria-hidden style={{ marginInlineStart: "0.25em", verticalAlign: "-0.1em" }} />
+      <TrailingLinkIcon />
       <VisuallyHidden component="span">
         {iconOnly ? t("jira.link.openKeyInJira", { key: issueKey }) : ` ${t("jira.link.opensInJira")}`}
       </VisuallyHidden>

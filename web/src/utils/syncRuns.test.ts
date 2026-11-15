@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import i18n from "../i18n";
 import { run } from "../test/jira";
-import { errorCodeText, RUN_POLL_MAX_MS, RUN_POLL_MS, RUN_STATE_COLOR, runState } from "./syncRuns";
+import { errorCodeText, IDLE_REFRESH_MS, listRefetchInterval, RUN_POLL_MAX_MS, RUN_POLL_MS, RUN_STATE_COLOR, runState } from "./syncRuns";
 
 describe("runState", () => {
   test("the outcome of a finished run is read as is", () => {
@@ -90,4 +90,24 @@ describe("errorCodeText", () => {
       expect(errorCodeText(code, t, "FLOW")).not.toMatch(/Jira/);
     },
   );
+});
+
+describe("listRefetchInterval", () => {
+  const item = (id: number, lastRun: { id: number; running: boolean } | null) => ({ id, lastRun });
+
+  test("nothing running (or no data yet) re-reads slowly; a running run is polled under a key naming the connection and its run", () => {
+    const keys: Array<string | null> = [];
+    const poll = (key: string | null) => {
+      keys.push(key);
+      return key === null ? (false as const) : RUN_POLL_MS;
+    };
+    expect(listRefetchInterval(poll, undefined)).toBe(IDLE_REFRESH_MS);
+    expect(listRefetchInterval(poll, [item(1, null), item(2, { id: 7, running: false })])).toBe(IDLE_REFRESH_MS);
+    expect(listRefetchInterval(poll, [item(1, { id: 4, running: true }), item(2, { id: 9, running: true }), item(3, null)])).toBe(RUN_POLL_MS);
+    expect(keys).toEqual([null, null, "1:4,2:9"]);
+  });
+
+  test("a poll that gave up (its safety bound) falls back to the slow re-read", () => {
+    expect(listRefetchInterval(() => false, [item(1, { id: 4, running: true })])).toBe(IDLE_REFRESH_MS);
+  });
 });
