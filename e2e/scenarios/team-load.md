@@ -11,7 +11,15 @@
 2. They open the filter panel, choose "Every team" in the Show select, then click the team's name in the teams table ("Load of every team").
    - *Expected*: the address has no `warning`; the team page's heading (h2) is the team's name and its "Team facts" group reads "1 week overloaded".
 
+## Scenario: the Team load page lists the team's overloaded week with how far it is over, and the team's page shows the same week
+
+1. The administrator signs in and opens `/team-load?warning=overloaded`.
+   - *Expected*: the heading (h3) "Weeks with a warning" and, in the table "Weeks with a warning, by team", exactly one row that links to the spec's team (the plan is shared, so the rows are narrowed to the team's link before anything is read): the week "W14 · 2027-04-05", the load "10.00" and one badge matching `Overloaded · +N.NN MD` (a pattern: a holiday in that week would change the capacity, never the week or the load).
+2. They click the team's name in that row and open "Show the weekly figures" on the team's page.
+   - *Expected*: the team page's heading (h2) is the team's name, and the table "Weekly load of the team" has exactly one row "W14 · 2027-04-05" carrying the same badge text as step 1.
+
 ## Not covered here (and why)
 
 - The values of `totals`, the WIP badge, the "weeks without capacity" badge, the "Not scheduled" link and the `truncated` line: four workers share the plan or the case needs another capacity setup; vitest and `TeamLoadViewTest` pin them.
+- The weeks table's budget and its cut line ("Not every week is listed: the list stops after N weeks, team by team, so a later team may show fewer weeks or none."), a week over the WIP limit and the filter's effect on the listed weeks: a cut needs thousands of warning weeks, the WIP case another capacity setup, and four workers share the plan; vitest and `TeamLoadViewTest` pin them.
 - Home's two capacity badge links (vitest pins the hrefs) and the Polish text (vitest).

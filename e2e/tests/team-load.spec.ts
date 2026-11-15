@@ -4,7 +4,7 @@
 // stream, program, project and ONE milestone of 10 man-days on that team scheduled 2027-04-05..09 (unique `e2e-load-*` names), all seeded through the
 // API in the test and removed through the API (the project first - its milestone goes with it - then program, work stream, team - its capacity
 // period goes with it -, person), even after a failure. April 2027 on purpose: 10 man-days against 1 a week is overloaded whatever a holiday did to
-// that week, and no far-off year keeps the team page's timeline short; it writes no ranking, no holiday and no connection, and needs no lock.
+// that week (its two tests, the second since 1.21, share this world), and no far-off year keeps the team page's timeline short; it writes no ranking, no holiday and no connection, and needs no lock.
 import type { APIRequestContext } from "@playwright/test";
 import { apiAsAdmin, deleteViaApi, expect, login, openFilters, test, uniqueText } from "./helpers";
 
@@ -71,4 +71,33 @@ test("the Team load page lists a team with an overloaded week, and its name open
     .click();
   await expect(page.getByRole("heading", { level: 2, name: team, exact: true })).toBeVisible();
   await expect(page.getByRole("group", { name: "Team facts", exact: true })).toContainText("1 week overloaded");
+});
+
+test("the Team load page lists the team's overloaded week with how far it is over, and the team's page shows the same week", async ({ page }) => {
+  const team = await seedOverloadedTeam();
+  await login(page);
+
+  // Narrowed to the teams with an overloaded week; the weeks table names every such team's weeks, so the spec's own rows are the ones that
+  // link to its team (four workers share the plan: nothing here is a plan-wide figure). A holiday in the week would change the capacity, never
+  // the week or the load, so the shortfall is a pattern.
+  await page.goto("/team-load?warning=overloaded");
+  await expect(page.getByRole("heading", { level: 2, name: "Team load", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 3, name: "Weeks with a warning", exact: true })).toBeVisible();
+  const weeks = page.getByRole("table", { name: "Weeks with a warning, by team", exact: true });
+  const mine = weeks.locator("tbody tr").filter({ has: page.getByRole("link", { name: `Open team ${team}`, exact: true }) });
+  await expect(mine).toHaveCount(1);
+  await expect(mine.getByRole("cell").nth(1)).toHaveText("W14 · 2027-04-05");
+  await expect(mine.getByRole("cell").nth(2)).toHaveText("10.00");
+  const badge = mine.getByText(/^Overloaded · \+\d+\.\d{2} MD$/);
+  await expect(badge).toHaveCount(1);
+  const verdict = (await badge.textContent()) ?? "";
+
+  // The team's name opens its page; its weekly table shows the same week with the same worded badge.
+  await mine.getByRole("link", { name: `Open team ${team}`, exact: true }).click();
+  await expect(page.getByRole("heading", { level: 2, name: team, exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Show the weekly figures" }).click();
+  const weekly = page.getByRole("table", { name: "Weekly load of the team", exact: true });
+  const week = weekly.getByRole("row").filter({ hasText: "W14 · 2027-04-05" });
+  await expect(week).toHaveCount(1);
+  await expect(week).toContainText(verdict);
 });
