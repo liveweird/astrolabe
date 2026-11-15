@@ -112,4 +112,34 @@ describe("useRoadmapRanking across cached targets", () => {
     act(() => void result.current.move(2, -1, [1, 2, 3]));
     await waitFor(() => expect(client.getQueryState(HOME_VIEW_KEY)?.isInvalidated).toBe(true));
   });
+
+  test("rollbacks rises once per failed save, after the view is back and the reload has settled, and never for a saved one", async () => {
+    const { result } = renderHook(() => useRoadmapRanking(null, null), { wrapper });
+    await waitFor(() => expect(result.current.view?.revision).toBe(7));
+    act(() => void result.current.move(2, -1, [1, 2, 3]));
+    await waitFor(() => expect(result.current.pending).toBe(false));
+    expect(result.current.rollbacks).toBe(0);
+    // Someone else's change moves the server on: the next save, made from the revision on screen, is the stale 409.
+    server = { revision: 12, order: [3, 2, 1] };
+    act(() => void result.current.move(3, -1, [2, 1, 3]));
+    await waitFor(() => expect(result.current.rollbacks).toBe(1));
+    expect(result.current.stale).toBe(true);
+    expect(result.current.query.isFetching).toBe(false);
+    expect(orderOf(result.current.view)).toEqual([3, 2, 1]);
+  });
+
+  test("writeCount counts PUTs sent: a change that leaves the list as it is is taken without one", async () => {
+    const { result } = renderHook(() => useRoadmapRanking(null, null), { wrapper });
+    await waitFor(() => expect(result.current.view?.revision).toBe(7));
+    expect(result.current.writeCount()).toBe(0);
+    let taken = false;
+    act(() => {
+      taken = result.current.moveTo(1, "top", [1, 2, 3]);
+    });
+    expect(taken).toBe(true);
+    expect(result.current.writeCount()).toBe(0);
+    act(() => void result.current.move(2, -1, [1, 2, 3]));
+    expect(result.current.writeCount()).toBe(1);
+    await waitFor(() => expect(result.current.pending).toBe(false));
+  });
 });

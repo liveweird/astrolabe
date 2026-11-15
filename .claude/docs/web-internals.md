@@ -321,7 +321,7 @@ follows: `web/CLAUDE.md` "Per-feature rules". What the pages see of the componen
   row height, handles and keyboard as any editable bar). `TimelineRowData.draw = {barId, label}` mounts a pointer-only, `aria-hidden` `TimelineDrawSurface`
   behind the row's bars: a drag across the empty stretch is the fifth drag kind `draw`, previewed as a window-toned ghost and proposed through the SAME
   `onSchedule(barId, start, end)` as a bar move (`drawOutcome(anchorDay, pointerDay)`; the page's dialog is the keyboard/touch path). `ref` exposes
-  `focusRow(rowId)` (focus + reveal a row header, mounted or not). Reference: "The draw gesture", "Bar tones", "Accessibility model".
+  `focusRow(rowId)` (focus + reveal a row header, mounted or not; answers `false` for a row the Timeline does not have, 1.22). Reference: "The draw gesture", "Bar tones", "Accessibility model".
 - **Bands** (v0.7 adds a third tone): `TimelineBandData.tone` is `window` (quiet gray, dashed edges), `drift` (orange) or `idle` (a diagonal gray hatch, no
   edges; the project and team pages' idle gaps); every band carries `data-band-tone`, is `aria-hidden` and its facts live in the page's text. Reference: "Idle
   bands".
@@ -777,7 +777,21 @@ announces a drag (also across the divider); the page's polite region says the me
   earlier focus back into the dropdown, which lands on `body` when the dropdown unmounts.
   **Rank under "Unranked projects only" (1.21):** the ranked row leaves the list at once, its menu button with it, so the page reads the neighbour from
   `visible.unranked` BEFORE the write (`neighbourOf`: the next row, else the previous) and keeps the focus on THAT row (`focus.keep(neighbour ?? project.id, …)`;
-  `useRowMenuFocus` is unchanged); with no row left nothing is focused and the status region has said the change.
+  `useRowMenuFocus` is unchanged in that); with no row left the focus goes to the **Filters button** (1.22): the hook is given a `fallbackRef` (the page's
+  `FilterPanel` `toggleRef`) and uses it whenever the row it was asked for is neither a menu button nor one of the timeline's rows (`focusRow` answers
+  `false`) or the timeline is not mounted (the empty state replaced it). Only the Roadmap passes a fallback; Programs and the project page keep nothing.
+  The status region has said the change either way. **The armed second put (1.22):** that put waits for the used row's menu to close, but a menu that left
+  with its row never closes; the render after `keep` drops the wait when `[data-operations-for=<used row>]` is gone, so the row coming back later (the
+  filter turned off) is not mistaken for that close and does not steal the focus. **After a rolled-back ranking write (1.22):** `useRoadmapRanking`
+  counts `rollbacks` (a failed save has restored the view and its awaited reload has settled); the page's effect calls `focus.returnToOrigin()`, which
+  puts the focus back on the row the change came from (`watchRollback`'s `from`: the ranked row itself, not the neighbour) by the same rule, but only while the
+  focus is still on the element the hook put it on, or on `body`: a focus the user has moved meanwhile (the Programs field) is left alone, as in
+  `useDialogFocus`. Two limits: only the failure of a write the page saw go out (`watchRollback`, via `ranking.writeCount()`) can return the focus,
+  and the row is forgotten (`forgetOrigin`) when that write settles without a rollback, so a later failed pointer drag never pulls it to an old row;
+  and a user focus that sits on the very element the hook placed (they pressed Enter on the Filters button before a 409/403 settled) cannot be told
+  apart from the hook's own, so the focus returns to the row.
+  Under happy-dom Mantine's exit transition never ends, so `menuClosed` is proven at the hook (`useRowMenuFocus.test.tsx`), the rest in `Roadmap.test.tsx`
+  ("Rank under Unranked projects only").
 
 ### The target window (both plan pages)
 

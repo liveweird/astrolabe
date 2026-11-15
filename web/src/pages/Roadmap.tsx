@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, Badge, Group, Loader, Stack, Text, Title, VisuallyHidden } from "@mantine/core";
 import { IconFilterOff, IconListNumbers } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
@@ -164,6 +164,7 @@ function RoadmapBody({
   const { t } = useTranslation();
   const { filters: urlFilters, pick: urlPick, setFilters, setPick } = useRoadmapFilters();
   const timelineRef = useRef<TimelineHandle>(null);
+  const filtersRef = useRef<HTMLButtonElement>(null);
   // The "Jira dates" toggle (1.3, remembered, on by default; offered only where the view links a Jira site): `jira` is the window the shadow bars are
   // drawn in while they are on - the plan's own dates padded by a year - and their dates join the range only inside it (a mistyped Jira date must not
   // stretch the grow-only range).
@@ -182,8 +183,20 @@ function RoadmapBody({
 
   // The menu's moves are relative to the rows the user sees; the page binds the visible ranked ids. A taken menu change keeps the keyboard user on
   // the row they were working on (`useRowMenuFocus`: the row's menu button, or its header where the virtual path has unmounted the row); a row that
-  // leaves the list on the spot (Rank under "Unranked projects only") hands the focus to its neighbour.
-  const focus = useRowMenuFocus(timelineRef);
+  // leaves the list on the spot (Rank under "Unranked projects only") hands the focus to its neighbour, and to the Filters button when no row is
+  // left (the page shows its empty state, so there is no timeline either). A rolled-back change returns the focus to the row it came from.
+  const focus = useRowMenuFocus(timelineRef, filtersRef);
+  const { returnToOrigin, forgetOrigin } = focus;
+  // Only the failure of the write a change sent can return the focus: once it has settled (rolled back or not) the row is forgotten.
+  const seenRollbacks = useRef(0);
+  useEffect(() => {
+    if (ranking.pending) return;
+    if (ranking.rollbacks === seenRollbacks.current) forgetOrigin();
+    else {
+      seenRollbacks.current = ranking.rollbacks;
+      returnToOrigin();
+    }
+  }, [ranking.pending, ranking.rollbacks, returnToOrigin, forgetOrigin]);
   // The target window's dialog: only which project it is open on; the project is read from the view on every render.
   const [editingId, setEditingId] = useState<number | null>(null);
   const editing = editingId === null ? undefined : allProjects(view).find((project) => project.id === editingId);
@@ -205,18 +218,25 @@ function RoadmapBody({
     allProjects(view).find((project) => project.id === view.criticalPath?.projectId),
     ranking.announce,
   );
+  // A ranking change from a row's menu: the focus stays on `id`; if it sent a PUT and that is rolled back, the focus returns to the row `from`.
+  const rankingChange = (id: number, change: () => boolean, from = id) => {
+    const sent = ranking.writeCount();
+    focus.keep(id, change(), from);
+    if (ranking.writeCount() > sent) focus.watchRollback(from);
+  };
   const actions: RoadmapActions = {
     menuClosed: (project) => focus.menuClosed(project.id),
-    move: (project, delta) => focus.keep(project.id, ranking.move(project.id, delta, visibleRankedIds)),
-    moveTo: (project, edge) => focus.keep(project.id, ranking.moveTo(project.id, edge, visibleRankedIds)),
+    move: (project, delta) => rankingChange(project.id, () => ranking.move(project.id, delta, visibleRankedIds)),
+    moveTo: (project, edge) => rankingChange(project.id, () => ranking.moveTo(project.id, edge, visibleRankedIds)),
     rank: (project) => {
       // Under "Unranked projects only" the ranked row leaves the list at once (the optimistic reorder), so its menu button goes with it: the focus
-      // moves to the neighbouring row (the next, else the previous), read BEFORE the write. With no row left there is nothing to focus.
+      // moves to the neighbouring row (the next, else the previous), read BEFORE the write. With no row left the ranked row itself is asked for,
+      // which is gone too: the hook sends the focus to the Filters button.
       const neighbour = filters.unrankedOnly ? neighbourOf(visible.unranked, project.id) : undefined;
-      // `from`: the ranked row's menu is the one that closes, so its close re-puts the focus on the neighbour and nothing stays armed.
-      return focus.keep(neighbour ?? project.id, ranking.rank(project.id), project.id);
+      // `from`: the ranked row, where the focus returns if the write is rolled back; its menu leaves with it, so the hook drops the second put.
+      return rankingChange(neighbour ?? project.id, () => ranking.rank(project.id), project.id);
     },
-    unrank: (project) => focus.keep(project.id, ranking.unrank(project.id)),
+    unrank: (project) => rankingChange(project.id, () => ranking.unrank(project.id)),
     window: {
       edit: (project) => setEditingId(project.id),
       clear: (project) => focus.keep(project.id, windowWrite.commit(project.id, null, null, { announce: true })),
@@ -232,7 +252,7 @@ function RoadmapBody({
     <>
       <RoadmapFacts ranked={visible.ranked.length} unranked={visible.unranked.length} flags={flagTotals(visible)} jiraStale={view.jiraSites.some(isStaleSource)} />
       {view.baseline !== undefined && <BaselineTotals name={view.baseline.name} totals={projectTotals(allProjects(view), view.baseline.removedProjects.length)} ranks={rankTotals(allProjects(view))} />}
-      <FilterPanel activeFilterCount={activeFilterCount(filters, pick)} storageKey="roadmap">
+      <FilterPanel activeFilterCount={activeFilterCount(filters, pick)} storageKey="roadmap" toggleRef={filtersRef}>
         <RoadmapFilterFields view={view} filters={filters} onFilters={setFilters} pick={[...(pick ?? [])]} onPick={setPick} />
       </FilterPanel>
 

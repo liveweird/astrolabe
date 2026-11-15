@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { type ReactNode, type Ref } from "react";
 import { Badge, Button, Group, Paper } from "@mantine/core";
 import { IconChevronDown, IconFilter } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
@@ -14,6 +14,7 @@ export default function FilterPanel({
   children,
   aside,
   trailing,
+  toggleRef,
 }: {
   activeFilterCount: number;
   storageKey: string;
@@ -23,6 +24,8 @@ export default function FilterPanel({
   aside?: ReactNode;
   /** Rendered at the END of the header row, pushed right (the Kind pills' slot, v1.20.0). */
   trailing?: ReactNode;
+  /** The toggle button, for a page that sends the keyboard focus here when the row it meant is gone (the Roadmap, `useRowMenuFocus`). */
+  toggleRef?: Ref<HTMLButtonElement>;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useStoredState(`${storageKey}.filtersOpen`, false, isBoolean);
@@ -30,6 +33,7 @@ export default function FilterPanel({
     <div data-print="hide">
       <Group gap="xs" mb={open ? "sm" : 0} wrap="wrap">
         <Button
+          ref={toggleRef}
           variant="default"
           size="xs"
           onClick={() => setOpen(!open)}

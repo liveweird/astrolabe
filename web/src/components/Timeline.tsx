@@ -46,9 +46,10 @@ export interface TimelineHandle {
   /**
    * Focus the row-header cell of the row with this `TimelineRowData.id` and reveal it clear of the sticky parts (a programmatic focus after a
    * click is not `:focus-visible`, so the grid's own reveal would skip it). A row the virtual path has not mounted is scrolled to and focused
-   * once it mounts. An unknown id does nothing.
+   * once it mounts. Answers whether the row is one of the Timeline's rows: an unknown id does nothing and answers `false`, so the caller can
+   * put the focus somewhere else.
    */
-  focusRow: (rowId: number | string) => void;
+  focusRow: (rowId: number | string) => boolean;
 }
 
 export interface TimelineProps {
@@ -193,17 +194,18 @@ export default function Timeline({
     () => ({
       focusRow: (rowId) => {
         const index = rows.findIndex((candidate) => candidate.id === rowId);
-        if (index < 0) return;
+        if (index < 0) return false;
         if (index >= first && index <= last) {
           const cell = grid.ref.current?.querySelector<HTMLElement>(`[data-grid-pos="${index + 1},0"]`);
-          if (cell === null || cell === undefined) return;
+          if (cell === null || cell === undefined) return false;
           cell.focus();
           reveal(cell, true);
-          return;
+          return true;
         }
         // Not mounted (the virtual path): scroll to it and let the pending-focus layout effect (useTimelinePendingFocus) focus it as soon as it exists.
         pendingFocus.current = { r: index + 1, c: 0 };
         virtualizer.scrollToIndex(index);
+        return true;
       },
     }),
   );

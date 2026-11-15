@@ -330,6 +330,24 @@ describe("Roadmap page", () => {
     await waitFor(() => expect(rowLabels()).toEqual(["Audit", "Invoices", "Unranked", "Taxes", "Ledger"]));
   });
 
+  test("a saved move is forgotten: a later failed pointer drag does not pull the focus back to that row", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Roadmap />);
+    await screen.findByRole("grid", { name: "Roadmap timeline" });
+    await openMenu(user, "Audit");
+    await user.click(await screen.findByRole("menuitem", { name: "Move up Audit" }));
+    await waitFor(() => expect(puts(mockFetch)).toHaveLength(1));
+    await waitFor(() => expect(grid()).toHaveAttribute("aria-busy", "false"));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Operations for Audit" })).toHaveFocus());
+    (document.activeElement as HTMLElement).blur();
+    putStatus = { status: 403 };
+    dropRow(INVOICES, 1, 3);
+    expect(await screen.findByText("You are not allowed to change the roadmap")).toBeInTheDocument();
+    await waitFor(() => expect(grid()).toHaveAttribute("aria-busy", "false"));
+    expect(screen.getByRole("button", { name: "Operations for Audit" })).not.toHaveFocus();
+    expect(document.activeElement).toBe(document.body);
+  });
+
   test("any other failure rolls the optimistic order back with an inline alert (403 says it is not allowed; 400 and 500 have their own words)", async () => {
     putStatus = { status: 403 };
     const user = userEvent.setup();
@@ -704,6 +722,75 @@ describe("Roadmap page: unranked projects only and the flag severity", () => {
       expect(rowLabels()).toEqual(["Unranked", "Ledger", "Mortgage"]);
       await waitFor(() => expect(grid()).toHaveAttribute("aria-busy", "false"));
       await waitFor(() => expect(screen.getByRole("button", { name: "Operations for Mortgage" })).toHaveFocus());
+    });
+
+    test("Rank of the only unranked row: the empty state shows, the page says the rank and the Filters button has the focus", async () => {
+      view = viewOf({ unranked: [LEDGER] });
+      const user = userEvent.setup();
+      renderAt("/roadmap?unranked=true");
+      await screen.findByRole("grid", { name: "Roadmap timeline" });
+      await openMenu(user, "Ledger");
+      await user.click(await screen.findByRole("menuitem", { name: "Rank Ledger" }));
+      expect(await screen.findByText("No project matches the filters")).toBeInTheDocument();
+      expect(screen.queryByRole("grid", { name: "Roadmap timeline" })).toBeNull();
+      await waitFor(() => expect(puts(mockFetch)).toEqual([{ expectedRevision: 7, projectIds: [1, 2, 3, 4] }]));
+      expect(liveText()).toContain("Ledger ranked at position 4 of 4");
+      await waitFor(() => expect(screen.getByRole("button", { name: /^Filters/ })).toHaveFocus());
+    });
+
+    test.each([
+      ["a stale 409", { status: 409, body: STALE }, async () => expect(await screen.findByRole("alert")).toHaveTextContent("The roadmap changed in the meantime")],
+      ["a 403", { status: 403 }, async () => expect(await screen.findByText("You are not allowed to change the roadmap")).toBeInTheDocument()],
+    ])("%s on that Rank brings the row back and the focus returns to its menu button", async (_name, status, saysSo) => {
+      view = viewOf({ unranked: [LEDGER] });
+      putStatus = status;
+      const user = userEvent.setup();
+      renderAt("/roadmap?unranked=true");
+      await screen.findByRole("grid", { name: "Roadmap timeline" });
+      await openMenu(user, "Ledger");
+      await user.click(await screen.findByRole("menuitem", { name: "Rank Ledger" }));
+      await saysSo();
+      await waitFor(() => expect(rowLabels()).toEqual(["Unranked", "Ledger"]));
+      await waitFor(() => expect(grid()).toHaveAttribute("aria-busy", "false"));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Operations for Ledger" })).toHaveFocus());
+    });
+
+    test("a Rank of a middle row that is rolled back returns the focus from the neighbour to the row", async () => {
+      putStatus = { status: 403 };
+      const user = userEvent.setup();
+      renderAt("/roadmap?unranked=true");
+      await screen.findByRole("grid", { name: "Roadmap timeline" });
+      await openMenu(user, "Mortgage");
+      await user.click(await screen.findByRole("menuitem", { name: "Rank Mortgage" }));
+      expect(await screen.findByText("You are not allowed to change the roadmap")).toBeInTheDocument();
+      await waitFor(() => expect(rowLabels()).toEqual(["Unranked", "Ledger", "Mortgage", "Zoning"]));
+      await waitFor(() => expect(grid()).toHaveAttribute("aria-busy", "false"));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Operations for Mortgage" })).toHaveFocus());
+    });
+
+    test("a 409 that arrives after the user moved the focus into the Programs field leaves it there", async () => {
+      view = viewOf({ unranked: [LEDGER] });
+      const resolvers: Array<(response: Response) => void> = [];
+      const inner = mockFetch.getMockImplementation() as (url: string, init?: RequestInit) => Promise<Response>;
+      mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+        if ((init?.method ?? "GET") === "PUT") return new Promise<Response>((resolve) => resolvers.push(resolve));
+        return inner(url, init);
+      });
+      const user = userEvent.setup();
+      renderAt("/roadmap?unranked=true");
+      await screen.findByRole("grid", { name: "Roadmap timeline" });
+      await openMenu(user, "Ledger");
+      await user.click(await screen.findByRole("menuitem", { name: "Rank Ledger" }));
+      await waitFor(() => expect(puts(mockFetch)).toHaveLength(1));
+      await openFiltersPanel(user);
+      await user.click(screen.getByRole("combobox", { name: "Programs" }));
+      const programs = screen.getByRole("combobox", { name: "Programs" });
+      expect(programs).toHaveFocus();
+      act(() => resolvers[0](jsonResponse(409, STALE)));
+      expect(await screen.findByRole("alert")).toHaveTextContent("The roadmap changed in the meantime");
+      await waitFor(() => expect(rowLabels()).toEqual(["Unranked", "Ledger"]));
+      await waitFor(() => expect(grid()).toHaveAttribute("aria-busy", "false"));
+      expect(screen.getByRole("combobox", { name: "Programs" })).toHaveFocus();
     });
 
     test("without the filter the ranked row keeps the focus on its own menu button (unchanged)", async () => {

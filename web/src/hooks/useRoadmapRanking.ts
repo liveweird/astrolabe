@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { keepPreviousData, useIsMutating, useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { HOME_VIEW_KEY } from "../api/home";
@@ -56,6 +56,9 @@ export function useRoadmapRanking(baseline: number | null, criticalPath: number 
   const overlaid = withoutStaleOverlay(query.data, query.isPlaceholderData);
   const view = overlaid !== undefined && query.isPlaceholderData ? withoutCriticalPath(overlaid) : overlaid;
   const [announcement, setAnnouncement] = useState("");
+  const [rollbacks, setRollbacks] = useState(0);
+  /** PUTs sent so far (a ref: read by the page right after a change, before any render). */
+  const writes = useRef(0);
   /** An identical sentence said twice would not be re-read: every announcement flips an invisible suffix. */
   const announce = (text: string) => setAnnouncement((previous) => (previous.endsWith(REREAD) ? text : text + REREAD));
 
@@ -73,7 +76,12 @@ export function useRoadmapRanking(baseline: number | null, criticalPath: number 
     },
     onError: async (_err, { before, key }) => {
       queryClient.setQueryData<RoadmapView>(key, before);
-      await refreshQueriesAfterMutation(queryClient, ["roadmap"], HOME_VIEW_KEY);
+      try {
+        await refreshQueriesAfterMutation(queryClient, ["roadmap"], HOME_VIEW_KEY);
+      } finally {
+        // The view is back (and the reload has settled): the page may return the keyboard focus to the row the change came from.
+        setRollbacks((count) => count + 1);
+      }
     },
   });
   const busy = useIsMutating({ mutationKey: ROADMAP_WRITE_KEY }) > 0;
@@ -97,6 +105,7 @@ export function useRoadmapRanking(baseline: number | null, criticalPath: number 
     void queryClient.cancelQueries({ queryKey: viewKey });
     queryClient.setQueryData<RoadmapView>(viewKey, applyRanking(view, ids));
     if (sentence) announce(sentence());
+    writes.current += 1;
     save.mutate({ ids, expectedRevision: view.revision, before: view, key: viewKey });
     return true;
   };
@@ -122,6 +131,10 @@ export function useRoadmapRanking(baseline: number | null, criticalPath: number 
     stale: isStaleRevision(save.error),
     error: save.isError && !isStaleRevision(save.error) ? saveErrorMessage(save.error, t, SAVE_ERROR_KEYS) : null,
     announcement,
+    /** How many failed saves have restored the view and settled the reload so far (rises once per failure): the page's cue to return the focus. */
+    rollbacks,
+    /** How many PUTs this hook has sent: a change that is "taken" without one (nothing to save) leaves it as it was. */
+    writeCount: () => writes.current,
     /** Say a sentence in the page's live region (the window write path shares it, so the page has ONE announcer). */
     announce,
     /** Menu path: move one place up (-1) or down (+1) among the VISIBLE ranked rows. Answers whether the change was taken. */

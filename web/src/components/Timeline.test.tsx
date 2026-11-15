@@ -1899,6 +1899,14 @@ describe("focusRow", () => {
   const MANY: TimelineRowData[] = Array.from({ length: 40 }, (_, i) => row(i + 1, `Item ${i + 1}`, [bar(i + 1, `Item ${i + 1}`, "2026-09-16", "2026-09-18")]));
   const handleRef = () => createRef<TimelineHandle>();
   const call = (ref: { current: TimelineHandle | null }, rowId: number | string) => act(() => ref.current?.focusRow(rowId));
+  /** What `focusRow` answered (`act` does not hand the callback's value back). */
+  const answer = (ref: { current: TimelineHandle | null }, rowId: number | string) => {
+    let answered: boolean | undefined;
+    act(() => {
+      answered = ref.current?.focusRow(rowId);
+    });
+    return answered;
+  };
   const rect = (left: number, top: number, width = 100, height = 24) => ({ left, top, right: left + width, bottom: top + height, width, height }) as DOMRect;
 
   test("a mounted row: its header cell takes the focus and becomes the tab stop", () => {
@@ -1933,6 +1941,16 @@ describe("focusRow", () => {
     renderWithProviders(<Harness ref={ref} />);
     expect(() => call(ref, 99)).not.toThrow();
     expect(document.activeElement).toBe(document.body);
+  });
+
+  test("it answers whether the row is one of the Timeline's rows: false for an unknown id, true for a mounted row and for one the virtual path has not mounted", () => {
+    stubViewport(900, 180);
+    const ref = handleRef();
+    renderWithProviders(<Harness ref={ref} rows={MANY} virtualizeFrom={5} />);
+    expect(answer(ref, 999)).toBe(false);
+    expect(answer(ref, 2)).toBe(true);
+    expect(screen.queryByRole("rowheader", { name: "Item 40" })).not.toBeInTheDocument();
+    expect(answer(ref, 40)).toBe(true);
   });
 
   test("a row the virtual path has not mounted is scrolled to and focused once it mounts; a mounted one at once", async () => {
