@@ -165,11 +165,12 @@ class PersonTest {
             .body<PersonResponse>()
         val clash = admin.postJson("/api/v1/people", PersonCreateRequest(name = name("clash"), email = email.uppercase()))
         assertEquals(HttpStatusCode.Conflict, clash.status)
-        assertTrue(clash.body<ProblemDetail>().detail!!.contains("person with this email"))
-        assertEquals(
-            HttpStatusCode.Conflict,
-            admin.putJson("/api/v1/people/${first.id}", PersonUpdateRequest(name = shared, email = email)).status,
-        )
+        val clashProblem = clash.body<ProblemDetail>()
+        assertEquals("A person with this email already exists", clashProblem.detail)
+        assertEquals("urn:astrolabe:problem:person-email-taken", clashProblem.type)
+        val updateClash = admin.putJson("/api/v1/people/${first.id}", PersonUpdateRequest(name = shared, email = email))
+        assertEquals(HttpStatusCode.Conflict, updateClash.status)
+        assertEquals("urn:astrolabe:problem:person-email-taken", updateClash.body<ProblemDetail>().type)
         // A person with no email never clashes with another one.
         assertEquals(HttpStatusCode.Created, admin.postJson("/api/v1/people", PersonCreateRequest(name(" noemail"))).status)
 
@@ -198,12 +199,13 @@ class PersonTest {
 
         val second = admin.postJson("/api/v1/people", PersonCreateRequest(name = name("second"), userId = user))
         assertEquals(HttpStatusCode.Conflict, second.status)
-        assertTrue(second.body<ProblemDetail>().detail!!.contains("already linked"))
+        val secondProblem = second.body<ProblemDetail>()
+        assertEquals("Another person is already linked to this user", secondProblem.detail)
+        assertEquals("urn:astrolabe:problem:person-login-taken", secondProblem.type)
         val other = TestPeople.seed(name("other"))
-        assertEquals(
-            HttpStatusCode.Conflict,
-            admin.putJson("/api/v1/people/$other", PersonUpdateRequest(name = name("other"), userId = user)).status,
-        )
+        val updateClash = admin.putJson("/api/v1/people/$other", PersonUpdateRequest(name = name("other"), userId = user))
+        assertEquals(HttpStatusCode.Conflict, updateClash.status)
+        assertEquals("urn:astrolabe:problem:person-login-taken", updateClash.body<ProblemDetail>().type)
 
         assertEquals(HttpStatusCode.NoContent, admin.delete("/api/v1/people/${linked.id}").status)
         assertNull(TestPeople.service.activePersonIdOf(user), "a deleted person is nobody's person")

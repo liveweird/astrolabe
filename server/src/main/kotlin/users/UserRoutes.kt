@@ -226,12 +226,12 @@ private fun Route.userReadUpdateDelete(userService: UserService) {
         if (existing.role == UserRole.ADMIN && requestedRole != UserRole.ADMIN &&
             userService.countActiveAdmins() <= 1
         ) {
-            throw ConflictException("The last administrator cannot be demoted")
+            throw ConflictException("The last administrator cannot be demoted", LAST_ADMIN_PROBLEM)
         }
         when (userService.updateGuarded(route.id, name, email, requestedRole)) {
             UserService.GuardedMutation.NOT_FOUND -> throw NotFoundException("User not found")
             UserService.GuardedMutation.LAST_ADMIN ->
-                throw ConflictException("The last administrator cannot be demoted")
+                throw ConflictException("The last administrator cannot be demoted", LAST_ADMIN_PROBLEM)
             UserService.GuardedMutation.DONE -> Unit
         }
         auditUserUpdated(caller.userId, route.id, existing, name = name, email = email)
@@ -260,7 +260,7 @@ private fun Route.userReadUpdateDelete(userService: UserService) {
         when (userService.deleteGuarded(route.id)) {
             UserService.GuardedMutation.NOT_FOUND -> throw NotFoundException("User not found")
             UserService.GuardedMutation.LAST_ADMIN ->
-                throw ConflictException("The last administrator cannot be deleted")
+                throw ConflictException("The last administrator cannot be deleted", LAST_ADMIN_PROBLEM)
             UserService.GuardedMutation.DONE -> Unit
         }
         audit(

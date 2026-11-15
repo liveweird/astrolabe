@@ -85,7 +85,10 @@ class UserRoutesTest {
         val duplicate = client.postJson("/api/v1/users", createRequest(email))
         assertEquals(HttpStatusCode.Conflict, duplicate.status)
         // The central 23505 handler names WHAT clashed (per-constraint detail, ErrorHandling.kt).
-        assertEquals("A user with this email already exists", duplicate.body<ProblemDetail>().detail)
+        val duplicateProblem = duplicate.body<ProblemDetail>()
+        assertEquals("A user with this email already exists", duplicateProblem.detail)
+        // Only the person indexes and the last-admin guard name a type: another index's clash stays the plain problem.
+        assertEquals("about:blank", duplicateProblem.type)
 
         // Soft-deleting frees the email for reuse (the V1 partial index).
         assertEquals(HttpStatusCode.NoContent, client.delete("/api/v1/users/${created.id}").status)
@@ -229,6 +232,9 @@ class UserRoutesTest {
                 UserUpdateRequest(name = solo.name, email = soloEmail, roles = emptyList()),
             )
             assertEquals(HttpStatusCode.Conflict, demote.status)
+            val demoteProblem = demote.body<ProblemDetail>()
+            assertEquals("The last administrator cannot be demoted", demoteProblem.detail)
+            assertEquals("urn:astrolabe:problem:last-admin", demoteProblem.type)
             // ... and cannot delete itself either: the permissions-shaped self-delete 403 wins over the last-admin 409.
             assertEquals(HttpStatusCode.Forbidden, soloClient.delete("/api/v1/users/${solo.id}").status)
 
@@ -274,7 +280,11 @@ class UserRoutesTest {
                             val deleting = async { client.delete("/api/v1/users/${solo.id}") }
                             awaitLockWait("FOR UPDATE")
                             raw.commit()
-                            assertEquals(HttpStatusCode.Conflict, deleting.await().status)
+                            val deleted = deleting.await()
+                            assertEquals(HttpStatusCode.Conflict, deleted.status)
+                            val problem = deleted.body<ProblemDetail>()
+                            assertEquals("The last administrator cannot be deleted", problem.detail)
+                            assertEquals("urn:astrolabe:problem:last-admin", problem.type)
                         }
                     } finally {
                         raw.rollback() // a no-op after the commit; releases the lock if an assertion failed first

@@ -93,7 +93,7 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     unauthorized caller 403s uniformly whether or not the id exists). Two protections with a
     deliberate 403/409 split: **self-delete is a `ForbiddenException` (403)** — a
     permissions-shaped rule about WHO acts — while **deleting or demoting the LAST active
-    administrator is a `ConflictException` (409)** — a state-shaped rule about what the system
+    administrator is a `ConflictException` (409, `type` `urn:astrolabe:problem:last-admin`, `LAST_ADMIN_PROBLEM`)** — a state-shaped rule about what the system
     can afford to lose. Initial passwords are client-generated (the SPA) and stored only as
     bcrypt hashes; no response carries plaintext.
   - `/api/v1/teams` (V6, flat teams) → `GET` list and `GET /{id}` **any authenticated user**
@@ -449,7 +449,7 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
   ContentTransformationException parent is deliberately not caught), the typed exceptions as above
   (**the route 404 convention**: read preambles and zero-row mutation results
   `throw NotFoundException("<Resource> not found")` — never a hand-rolled
-  `respondProblem(NotFound, …)` + return), unique-violation `23505`→409 and NUL-byte `22021`→400
+  `respondProblem(NotFound, …)` + return), unique-violation `23505`→409 (`about:blank`, except the two people indexes: `uq_people_email_active` answers `urn:astrolabe:problem:person-email-taken` and `uq_people_user_id_active` `urn:astrolabe:problem:person-login-taken`, through `UNIQUE_CONSTRAINT_TYPES`; the `detail` is the index's own sentence either way) and NUL-byte `22021`→400
   (via the R2DBC/Exposed cause-chain walkers), a statement the database cancelled at its time limit (`57014`, anywhere in the cause chain, also through the catch-all and the access check's failed read, pinned by `StatementTimeoutAnswerTest`)→500 with
   `type: urn:astrolabe:problem:database-timeout` and one WARN (`persistence.md`, `observability.md`), and a catch-all `Throwable`→500 (logged) through
   that helper. A `status(TooManyRequests)` handler additionally gives the `RateLimit`

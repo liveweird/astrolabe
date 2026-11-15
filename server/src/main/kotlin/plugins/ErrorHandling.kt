@@ -102,6 +102,15 @@ private const val PG_QUERY_CANCELED = "57014"
  */
 const val DATABASE_TIMEOUT_PROBLEM = "urn:astrolabe:problem:database-timeout"
 
+/**
+ * The `type` of the `409` a person's email clash answers (`uq_people_email_active`): the SPA tells it from the login-link clash below
+ * and from a user-email clash without reading the prose. Also what `POST /users` answers when `alsoCreatePerson` meets that clash.
+ */
+const val PERSON_EMAIL_TAKEN_PROBLEM = "urn:astrolabe:problem:person-email-taken"
+
+/** The `type` of the `409` that answers a person linked to a login another active person already holds (`uq_people_user_id_active`). */
+const val PERSON_LOGIN_TAKEN_PROBLEM = "urn:astrolabe:problem:person-login-taken"
+
 /** One cause-chain walk for every predicate below (self included). */
 private inline fun Throwable.anyInChain(predicate: (Throwable) -> Boolean): Boolean {
     var cur: Throwable? = this
@@ -143,18 +152,31 @@ private val UNIQUE_CONSTRAINT_DETAILS = mapOf(
     "uq_flow_connections_name_active" to "A Flow connection with this name already exists",
 )
 
-private fun Throwable.uniqueViolationDetail(): String {
+// The problem `type` of the few indexes whose clash a client must tell apart; every other index answers `about:blank`.
+private val UNIQUE_CONSTRAINT_TYPES = mapOf(
+    "uq_people_email_active" to PERSON_EMAIL_TAKEN_PROBLEM,
+    "uq_people_user_id_active" to PERSON_LOGIN_TAKEN_PROBLEM,
+)
+
+/** The violated index's name, found in the cause chain's messages; null when none of the mapped indexes is named. */
+private fun Throwable.violatedConstraint(): String? {
     var found: String? = null
     anyInChain { t ->
         val message = t.message ?: return@anyInChain false
-        found = UNIQUE_CONSTRAINT_DETAILS.entries.firstOrNull { (name, _) -> name in message }?.value
+        found = UNIQUE_CONSTRAINT_DETAILS.keys.firstOrNull { it in message }
         found != null
     }
-    return found ?: "Resource already exists"
+    return found
 }
 
-private suspend fun ApplicationCall.respondConflict(cause: Throwable) =
-    respondProblem(HttpStatusCode.Conflict, cause.uniqueViolationDetail())
+private suspend fun ApplicationCall.respondConflict(cause: Throwable) {
+    val constraint = cause.violatedConstraint()
+    respondProblem(
+        HttpStatusCode.Conflict,
+        UNIQUE_CONSTRAINT_DETAILS[constraint] ?: "Resource already exists",
+        type = UNIQUE_CONSTRAINT_TYPES[constraint] ?: "about:blank",
+    )
+}
 
 private suspend fun ApplicationCall.respondDbFailure(cause: Throwable) = when {
     cause.isUniqueViolation() -> respondConflict(cause)

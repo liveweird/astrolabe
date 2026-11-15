@@ -150,6 +150,12 @@ data class UserPermissionsUpdateRequest(val permissions: List<Permission>)
 
 typealias UserPageResponse = ch.nokillswit.infra.paging.PageResponse<UserResponse>
 
+/**
+ * The `type` of the `409` that refuses to demote or delete the last active administrator (`urn:astrolabe:problem:last-admin`): the SPA
+ * tells it from a user-email clash on this, never on the prose.
+ */
+const val LAST_ADMIN_PROBLEM = "urn:astrolabe:problem:last-admin"
+
 /** The single stored role from a wire roles set: ADMIN present wins, else the baseline. */
 fun rolesToStored(roles: Collection<UserRole>?): UserRole =
     if (roles != null && UserRole.ADMIN in roles) UserRole.ADMIN else UserRole.USER

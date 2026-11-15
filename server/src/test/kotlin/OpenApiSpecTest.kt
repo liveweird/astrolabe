@@ -164,4 +164,20 @@ class OpenApiSpecTest {
             assertEquals(expected, schema.enum.filterNotNull().map { it.toString() }, "$name must list DeviationKind.entries in order")
         }
     }
+
+    /**
+     * `ProblemDetail.type`'s description is the client's list of problem types: it names exactly the `urn:astrolabe:problem:` slugs
+     * the server's sources declare (a constant or a mention in a comment alike), so a new type cannot ship unlisted.
+     */
+    @Test
+    fun `the problem type's description names exactly the slugs the server's sources declare`() {
+        val slug = Regex("""urn:astrolabe:problem:[a-z-]+""")
+        val sources = File(System.getProperty("repo.root") ?: "..", "server/src/main/kotlin")
+        assertTrue(sources.isDirectory, "${sources.absolutePath} not found")
+        val declared = sources.walkTopDown().filter { it.isFile && it.extension == "kt" }
+            .flatMap { file -> slug.findAll(file.readText()).map { it.value.trimEnd('-') } }.toSortedSet()
+        val type = assertNotNull(OpenApiSpec.parsed.components.schemas["ProblemDetail"]?.properties?.get("type"), "ProblemDetail.type")
+        val listed = slug.findAll(type.description.orEmpty()).map { it.value.trimEnd('-') }.toSortedSet()
+        assertEquals(declared.toList(), listed.toList(), "ProblemDetail.type must list exactly the slugs the server declares")
+    }
 }

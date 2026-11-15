@@ -6180,7 +6180,27 @@ export interface components {
         /** @description RFC 7807 problem detail. Served as `application/problem+json`; instance is the request path without query parameters. */
         ProblemDetail: {
             /**
-             * @description A URI reference identifying the problem type; `about:blank` unless a problem names its own (`urn:astrolabe:problem:stale-revision` on a stale ranking, milestone-schedule or team-order PUT, or a batch schedule from a future revision, `urn:astrolabe:problem:stale-scope` on a batch accept whose team plan changed since its proposal (a pin flipped meanwhile included), `urn:astrolabe:problem:milestone-unscheduled` on a pin of an unscheduled milestone, `urn:astrolabe:problem:dependency-cycle` on a dependency that would close a cycle, `urn:astrolabe:problem:stale-deviations` on an acknowledge whose fingerprint is no longer the binding's or whose binding has no deviation, `urn:astrolabe:problem:database-timeout` on a `500` whose statement the database cancelled at its time limit: try again shortly).
+             * @description A URI reference identifying the problem type: `about:blank` unless a problem names its own. The complete list, one per line
+             *     (status, when):
+             *     - `urn:astrolabe:problem:already-bound` (409) - a bind finds its target taken: the node or team already has a link, or the Jira issue or Flow team is already linked elsewhere
+             *     - `urn:astrolabe:problem:baseline-limit` (409) - a baseline create at the cap of 100 active baselines: delete one first
+             *     - `urn:astrolabe:problem:database-timeout` (500) - a statement the database cancelled at its time limit: try again shortly
+             *     - `urn:astrolabe:problem:dependency-cycle` (409) - a dependency that would close a cycle; `cycle` lists the entities
+             *     - `urn:astrolabe:problem:jira-mapping-invalid` (409) - the connection's stored mapping no longer fits the site's discovery: an administrator must fix it
+             *     - `urn:astrolabe:problem:jira-not-discovered` (409) - a mapping or import needs a discovery and no passing Test connection has stored one
+             *     - `urn:astrolabe:problem:jira-root-unusable` (409) - the linked Jira item a rooted import starts from cannot be used
+             *     - `urn:astrolabe:problem:jira-token-unreadable` (409) - the stored Jira API token cannot be decrypted: enter it again
+             *     - `urn:astrolabe:problem:jira-upstream` (502) - Jira did not answer a Peek or an import read; the detail names the failure code only
+             *     - `urn:astrolabe:problem:last-admin` (409) - the last active administrator cannot be demoted or deleted
+             *     - `urn:astrolabe:problem:milestone-unscheduled` (409) - a pin of an unscheduled milestone
+             *     - `urn:astrolabe:problem:password-change-locked` (429) - the self password change is locked after repeated wrong current passwords
+             *     - `urn:astrolabe:problem:person-email-taken` (409) - an active person already has this email (a person create or update, or a user create with `alsoCreatePerson`)
+             *     - `urn:astrolabe:problem:person-login-taken` (409) - another active person is already linked to this login
+             *     - `urn:astrolabe:problem:run-in-progress` (409) - a sync run of this kind is already unfinished for the connection
+             *     - `urn:astrolabe:problem:stale-deviations` (409) - an acknowledge whose fingerprint is no longer the binding's, or whose binding has no deviation
+             *     - `urn:astrolabe:problem:stale-revision` (409) - a write whose `expectedRevision` is stale (a ranking, schedule or team-order PUT, or a batch schedule from a future revision)
+             *     - `urn:astrolabe:problem:stale-scope` (409) - a batch accept whose team plan changed since its proposal (a pin flipped meanwhile included)
+             *     - `urn:astrolabe:problem:unknown-baseline` (400) - a view's `?baseline=` names a baseline that is unknown or deleted: clear the pick and reload
              * @default about:blank
              */
             type: string;
@@ -8426,7 +8446,15 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
-            409: components["responses"]["Conflict"];
+            /** @description The email is taken by another user (plain problem), or, with `alsoCreatePerson`, by an active person (`type` `urn:astrolabe:problem:person-email-taken`); no login is created */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
             500: components["responses"]["InternalServerError"];
@@ -8485,7 +8513,15 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
+            /** @description The user is the last active administrator and cannot be demoted (`type` `urn:astrolabe:problem:last-admin`), or the email is taken by another user (plain problem) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
             500: components["responses"]["InternalServerError"];
@@ -8521,7 +8557,15 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
+            /** @description The user is the last active administrator and cannot be deleted (`type` `urn:astrolabe:problem:last-admin`); nothing is written */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
             500: components["responses"]["InternalServerError"];
         };
     };
@@ -8753,7 +8797,15 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
-            409: components["responses"]["Conflict"];
+            /** @description A person with this email already exists (`type` `urn:astrolabe:problem:person-email-taken`), or another person is already linked to the login (`type` `urn:astrolabe:problem:person-login-taken`); nothing is written */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
             500: components["responses"]["InternalServerError"];
@@ -8811,7 +8863,15 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
+            /** @description A person with this email already exists (`type` `urn:astrolabe:problem:person-email-taken`), or another person is already linked to the login (`type` `urn:astrolabe:problem:person-login-taken`); nothing is written */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
             500: components["responses"]["InternalServerError"];
