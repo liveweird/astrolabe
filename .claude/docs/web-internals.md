@@ -18,11 +18,11 @@ section of the page you touch before changing it, and put a new page's mechanics
 
 **Pages in nav order**
 
-- [Home](#home-pageshometsx-110)
-- [Plan](#plan-pagesplantsx)
-- [Project view](#project-view-pagesprojectviewtsx)
-- [Roadmap](#roadmap-pagesroadmaptsx)
-- [Programs](#programs-pagesprogramstsx)
+- [Home](#home)
+- [Plan](#plan)
+- [Project view](#project-view)
+- [Roadmap](#roadmap)
+- [Programs](#programs)
 - [Milestones](#milestones-pagesmilestonestsx-119)
 - [Dependencies](#dependencies-pagesdependenciestsx-120)
 - [Team load](#team-load-pagesteamloadtsx-119)
@@ -457,382 +457,494 @@ The non-obvious wiring:
     holidays shown" paragraph (`holidaysShown`). The pages never touch any of it: they pass `useHolidays()` straight through. happy-dom keeps gradient strings
     in `style.backgroundImage`, so the tests count `gradient(` occurrences on the body row's LAST `gridcell` (its left cells are gridcells too).
 
----
+## Home
 
-*The sections above are restructured. Everything from "Home" to the end keeps its old shape, with its tags and history, until the three steps that finish
-this document (the 1.24.0 docs restructuring, D23 to D25); the last of them removes this line.*
+Files: `pages/Home.tsx`; `api/home.ts`; `hooks/useOpenDeviationCounts.ts`; `components/HomeMine.tsx` with `HomeProjectsTable.tsx`, `HomeTeamsTable.tsx`, `HomeNodesTable.tsx`
+and `HomeFlagBadges.tsx`; `components/BadgeLink.tsx`.
 
-## Home (`pages/Home.tsx`, 1.10, figures 1.18, links 1.19)
+### Route and data
 
-The landing at `/`, for everyone: `PageHeader` (title "Astrolabe", the intro as its description) and a `SimpleGrid` of three `Paper withBorder` cards - Plan, Roadmap, Deviations - each an h3
-(the nav's own label, `appShell.nav.*`), the nav's icon, one dimmed sentence, whatever the card shows live and a real `RouterLink` `Anchor` ("Open the plan", "Open the roadmap", "Open the deviations": distinct from the
-sidebar's names, so a by-name locator never meets two links) to `planPath` / `roadmapPath` / `deviationsPath`. The outline is `[[2,"Astrolabe"],[3,"Plan"],[3,"Roadmap"],[3,"Deviations"],[3,"Yours"]]`, plus an h4 per "Yours" table shown (a failed first read of `GET /views/home` leaves "Yours" out); the other pages
-stay in the nav only, and the tab title stays the brand alone (`usePageTitle` of the `home.title`). The links never depend on a read.
+The landing at `/`, for everyone: `PageHeader` (title "Astrolabe", the intro as its description) and a `SimpleGrid` of three `Paper withBorder` cards - Plan, Roadmap, Deviations.
 
-**Three reads.** (1) `GET /views/home` (`api/home.ts`, key `HOME_VIEW_KEY = ["plan","home"]`, `staleTime` `HOME_STALE_MS` = 60 s like the two deviation counts: coming back to Home or refocusing the tab inside the minute makes no request and shows the kept figures; the document, its disclosure rules and its measured figures: `planning-model.md`) feeds the Plan and Roadmap cards and, through its `me` block, "Yours" (below). (2) and (3) the two open-deviation reads below feed the Deviations card. **What refreshes at once, what waits (1.19):** the user's own write re-reads Home on its next visit because it marks the key stale: every plan write refreshes `["plan"]` (the key's prefix), and the writes that move a figure WITHOUT refreshing `["plan"]` name `HOME_VIEW_KEY` in their `refreshQueriesAfterMutation` call - the ranking (`hooks/useRoadmapRanking.ts`: ranked, unranked, rank), the Teams registry (`pages/Teams.tsx`: a team's name, manager, deletion), the People pages (`People.tsx`, `PersonDetails.tsx`: the person line and what is owned) and the login-person link (`Users.tsx` "Create a person", `CreateUser.tsx`) and, since 1.20, every Jira and Flow write the user makes: a connection's create, edit, delete and stored test (the two connection pages, `ConnectionDetailsPage`, the editor modals' stored test), Refresh now and a run seen to end on the connection sections, the Deviations pages' "Sources" tables, the mapping save, the Flow team links (`refreshFlowLinks`) and the refused acknowledge's re-read (`useAcknowledge`) - those still refresh only their own `["jira"]` / `["flow"]` keys beside it, as they never refreshed the timelines. A new write that moves a Home figure must do the same. What waits up to a minute: another person's change, a scheduled poll, and a run that ends after the user left the page that started it (Home's Jira and Flow sides follow within the minute). A cold landing still makes the three requests and computes the Jira side twice (BACKLOG).
+- Each card has an h3 (the nav's own label, `appShell.nav.*`), the nav's icon, one dimmed sentence, whatever the card shows live and a real `RouterLink` `Anchor` ("Open the plan",
+  "Open the roadmap", "Open the deviations": distinct from the sidebar's names, so a by-name locator never meets two links) to `planPath` / `roadmapPath` / `deviationsPath`.
+  The links never depend on a read.
+- The outline is `[[2,"Astrolabe"],[3,"Plan"],[3,"Roadmap"],[3,"Deviations"],[3,"Yours"]]`, plus an h4 per "Yours" table shown (a failed first read of `GET /views/home` leaves
+  "Yours" out). The other pages stay in the nav only, and the tab title stays the brand alone (`usePageTitle` of the `home.title`).
+- **Three reads.** (1) `GET /views/home` (`api/home.ts`, key `HOME_VIEW_KEY = ["plan","home"]`, `staleTime` `HOME_STALE_MS` = 60 s like the two deviation counts: coming back to Home
+  or refocusing the tab inside the minute makes no request and shows the kept figures; the document, its disclosure rules and its measured figures: `planning-model.md` "The home view")
+  feeds the Plan and Roadmap cards and, through its `me` block, "Yours". (2) and (3) the two open-deviation reads feed the Deviations card.
 
-**The plan's figures are shown as the server derives them, never recomputed.** Each is one `role="group"` (`aria-label` "The plan in figures" / "The roadmap in figures") passed as the card's `children`, so the sentence above and the link below keep their place; before the read answers the group is in the DOM EMPTY with a minimum height (`PLAN_FIGURES_MIN_HEIGHT`, `ROADMAP_FIGURES_MIN_HEIGHT`; no skeleton, the app has none). Plan card, in the facts lines' own strings, zero shown (plan state is known exactly): work streams, programs, projects (`programs.facts.*`), milestones (`teams.view.milestones`), `home.plan.notScheduled` (a link when positive, see "Where each figure leads"). Roadmap card: `roadmap.facts.ranked|unranked`, then badges only when positive - orange warnings, gray infos (`roadmap.facts.*`), red `home.roadmap.conflicts` ("N violated dependencies": `plan.conflicts` counts every violated link once, a link inside one project included, so it is NOT worded or linked as a Roadmap figure, the Roadmap draws only the links between projects; since 1.20 it is a link to the Dependencies page narrowed to the violated ones), and the two whole-plan capacity badges, orange, `home.roadmap.overloadedTeams|wipTeams` ("N teams with an overloaded week" / "over the WIP limit": the teams the team page flags) - and the Jira sentence. **A failed Home read** (first or a later re-read) is ONE `ErrorAlert` (`home.figures.loadFailed`) under the grid and above "Yours"; a first failure leaves the groups empty and mounts no "Yours" section, a failed re-read keeps the figures and "Yours" with its rows on screen.
+### Refresh after other pages' writes
 
-**"Yours" (`components/HomeMine.tsx`) is a section under the cards, never a fourth card** (an h3, `home.mine.*`). It reads `me` of the Home document, never the session's role: what the login's linked person may manage through the owner chain (what they own and everything under a work stream or program they own; each program and project row names its owner and says `direct`) and the teams it manages. While the first read is pending: the heading and the one `LoadingBlock`. `me: null` (no active person): the sentence `home.mine.noPerson`, and for an ADMIN (`useAdmin()`, UX only) the link "Open the People page" to `peoplePath`. A person with nothing: `home.mine.nothing`. Otherwise one dimmed line naming the person, one dimmed sentence under it that says what is listed (`home.mine.scope`; `home.mine.scopeOwn` while the switch below narrows the lists), the switch, then up to three tables, each under its h4, each a `Table` with an `aria-label` in a `ScrollRegion`, each only when it has a row, plus `home.mine.truncated` when the document says a list was cut (the cap, 100, is the spec's). **The switch "Only what I own myself" (1.23, `home.mine.ownOnly`)** sits above the tables, only while a project or program row exists; off by default and remembered in this browser (`useStoredState`, key `home.mine.ownOnly` under `astrolabe.viewSettings.`, every read and write try/catch-wrapped, a corrupt value reads as off). On, it keeps the `direct` rows of the projects and programs tables on the client (a work stream is listed only when the person owns it, so it stays, and its roll-up figures - programs, projects, flags - still count the rows under it, the document's own; the teams are untouched). A table it empties keeps its h4 and says `home.mine.ownOnlyNoProjects|NoPrograms` ("You do not own any of the listed projects yourself."), a claim about the LISTED rows only, because the document may have cut the list (`truncated`); the page never says "owns nothing" while the unfiltered list has rows. *Your projects* (`HomeProjectsTable`): the name (a link to `projectPath`, `plan.openProjectAria`), program, owner (`ownerName`: the person's own name on a `direct` row, the owner's on an inherited one), rank (or "Unranked"), milestones, not scheduled (a link when positive), the flag badges (`HomeFlagBadges`: orange warnings, gray infos, each only when positive) and the red conflicts badge (a link since 1.20, see below). *Your teams* (`HomeTeamsTable`): the name (a link to `teamPath`, `teams.openAria`), milestones, not scheduled (a link when positive), the two orange capacity badges of the team page, conflicts (a link since 1.20), the Jira chip's count badge (`DeviationCount`, a link to `deviationsForTeamPath`, only when positive, `stale={false}`) and the header's Flow sentence badge (`TeamFlags`, MOVED out of `TeamPageHeader` unchanged so one badge serves both). *Your programs and work streams* (`HomeNodesTable`): work streams then programs by name, each a link to the filtered Roadmap (a closed work stream as `plan.move.closedName`; neither has a page of its own), level, the program's work stream, owner (a work stream's is the person, a program's its `ownerName`), programs, projects, flags; one "Open the programs" link follows. "May be out of date" is said once beside the person line: the Jira sentence by the plan pages' fold over the document's `jiraSites` and only when a row exists, the Flow sentence when a listed team carries a `FLOW_CAPACITY` flag and `flowStale` (the Deviations card's fold) holds.
+Home writes nothing. The user's own write re-reads Home on its next visit because it marks the key stale.
 
-**Where each figure leads (1.19).** A figure that leads somewhere is itself the link: a real `RouterLink` (`components/BadgeLink.tsx`, a light `Badge` as a link, the `DeviationCount` idiom; a text line is an `Anchor`), shown only when positive (zero is no claim and no link), and what it says is still the document's own figure - a link changes where it leads, never what it says. Every URL comes from a builder (`roadmapFilteredPath`, `unscheduledMilestonesPath`, `teamLoadWarningPath`); none is assembled by hand.
+- Every plan write refreshes `["plan"]` (the key's prefix).
+- A write that moves a figure WITHOUT refreshing `["plan"]` names `HOME_VIEW_KEY` in its `refreshQueriesAfterMutation` call:
+  - the ranking (`hooks/useRoadmapRanking.ts`: ranked, unranked, rank);
+  - the Teams registry (`pages/Teams.tsx`: a team's name, manager, deletion);
+  - the People pages (`People.tsx`, `PersonDetails.tsx`: the person line and what is owned) and the login-person link (`Users.tsx` "Create a person", `CreateUser.tsx`);
+  - every Jira and Flow write the user makes: a connection's create, edit, delete and stored test (the two connection pages, `ConnectionDetailsPage`, the editor modals' stored test),
+    Refresh now and a run seen to end on the connection sections, the Deviations pages' "Sources" tables, the mapping save, the Flow team links (`refreshFlowLinks`) and the
+    refused acknowledge's re-read (`useAcknowledge`) - those still refresh only their own `["jira"]` / `["flow"]` keys beside it, as they never refreshed the timelines.
+- A new write that moves a Home figure must do the same.
+- What waits up to a minute: another person's change, a scheduled poll, and a run that ends after the user left the page that started it (Home's Jira and Flow sides follow
+  within the minute). A cold landing still makes the three requests and computes the Jira side twice (BACKLOG).
+
+### The plan's figures
+
+Shown as the server derives them, never recomputed.
+
+- Each is one `role="group"` (`aria-label` "The plan in figures" / "The roadmap in figures") passed as the card's `children`, so the sentence above and the link below keep their
+  place. Before the read answers the group is in the DOM EMPTY with a minimum height (`PLAN_FIGURES_MIN_HEIGHT`, `ROADMAP_FIGURES_MIN_HEIGHT`; no skeleton, the app has none).
+- Plan card, in the facts lines' own strings, zero shown (plan state is known exactly): work streams, programs, projects (`programs.facts.*`), milestones (`teams.view.milestones`),
+  `home.plan.notScheduled` (a link when positive).
+- Roadmap card: `roadmap.facts.ranked|unranked`, then badges only when positive - orange warnings, gray infos (`roadmap.facts.*`), red `home.roadmap.conflicts` and the two
+  whole-plan capacity badges, orange, `home.roadmap.overloadedTeams|wipTeams` ("N teams with an overloaded week" / "over the WIP limit": the teams the team page flags) - and the Jira sentence.
+  - "N violated dependencies": `plan.conflicts` counts every violated link once, a link inside one project included, so it is NOT worded or linked as a Roadmap figure (the Roadmap
+    draws only the links between projects); it is a link to the Dependencies page narrowed to the violated ones.
+- **A failed Home read** (first or a later re-read) is ONE `ErrorAlert` (`home.figures.loadFailed`) under the grid and above "Yours". A first failure leaves the groups empty and
+  mounts no "Yours" section; a failed re-read keeps the figures and "Yours" with its rows on screen.
+
+### Yours
+
+`components/HomeMine.tsx` is a section under the cards, never a fourth card (an h3, `home.mine.*`). It reads `me` of the Home document, never the session's role: what the login's
+linked person may manage through the owner chain (what they own and everything under a work stream or program they own; each program and project row names its owner and says
+`direct`) and the teams it manages.
+
+- States: while the first read is pending, the heading and the one `LoadingBlock`. `me: null` (no active person): the sentence `home.mine.noPerson`, and for an ADMIN
+  (`useAdmin()`, UX only) the link "Open the People page" to `peoplePath`. A person with nothing: `home.mine.nothing`.
+- Otherwise: one dimmed line naming the person, one dimmed sentence under it that says what is listed (`home.mine.scope`; `home.mine.scopeOwn` while the switch narrows the lists),
+  the switch, then up to three tables, each under its h4, each a `Table` with an `aria-label` in a `ScrollRegion`, each only when it has a row, plus `home.mine.truncated` when the
+  document says a list was cut (the cap, 100, is the spec's).
+- **The switch "Only what I own myself"** (`home.mine.ownOnly`) sits above the tables, only while a project or program row exists; off by default and remembered in this browser
+  (`useStoredState`, key `home.mine.ownOnly` under `astrolabe.viewSettings.`, every read and write try/catch-wrapped, a corrupt value reads as off).
+  - On, it keeps the `direct` rows of the projects and programs tables on the client. A work stream is listed only when the person owns it, so it stays, and its roll-up figures
+    (programs, projects, flags) still count the rows under it, the document's own; the teams are untouched.
+  - A table it empties keeps its h4 and says `home.mine.ownOnlyNoProjects|NoPrograms` ("You do not own any of the listed projects yourself."), a claim about the LISTED rows only,
+    because the document may have cut the list (`truncated`); the page never says "owns nothing" while the unfiltered list has rows.
+- *Your projects* (`HomeProjectsTable`): the name (a link to `projectPath`, `plan.openProjectAria`), program, owner (`ownerName`: the person's own name on a `direct` row, the owner's
+  on an inherited one), rank (or "Unranked"), milestones, not scheduled (a link when positive), the flag badges (`HomeFlagBadges`: orange warnings, gray infos, each only when
+  positive) and the red conflicts badge (a link, see the table below).
+- *Your teams* (`HomeTeamsTable`): the name (a link to `teamPath`, `teams.openAria`), milestones, not scheduled (a link when positive), the two orange capacity badges of the team
+  page, conflicts (a link), the Jira chip's count badge (`DeviationCount`, a link to `deviationsForTeamPath`, only when positive, `stale={false}`) and the header's Flow sentence badge
+  (`TeamFlags`, shared with `TeamPageHeader`: one badge serves both).
+- *Your programs and work streams* (`HomeNodesTable`): work streams then programs by name, each a link to the filtered Roadmap (a closed work stream as `plan.move.closedName`;
+  neither has a page of its own), level, the program's work stream, owner (a work stream's is the person, a program's its `ownerName`), programs, projects, flags; one "Open the
+  programs" link follows.
+- "May be out of date" is said once beside the person line: the Jira sentence by the plan pages' fold over the document's `jiraSites` and only when a row exists, the Flow sentence
+  when a listed team carries a `FLOW_CAPACITY` flag and `flowStale` (the Deviations card's fold) holds.
+
+### Where each figure leads
+
+A figure that leads somewhere is itself the link: a real `RouterLink` (`components/BadgeLink.tsx`, a light `Badge` as a link, the `DeviationCount` idiom; a text line is an `Anchor`),
+shown only when positive (zero is no claim and no link). What it says is still the document's own figure - a link changes where it leads, never what it says. Every URL comes from a
+builder (`roadmapFilteredPath`, `unscheduledMilestonesPath`, `teamLoadWarningPath`); none is assembled by hand.
 
 | Figure on Home | Leads to | Why the two agree |
 |---|---|---|
 | Plan: "N not scheduled yet" | `/milestones?scheduled=false` | the list's `total` and `plan.unscheduledMilestones` count one set |
-| Roadmap: "N unranked" (1.21; a link when positive, text at zero) | `/roadmap?unranked=true` | `plan.unrankedProjects` and the Roadmap's "N unranked" count the same rows; a link is shown as written, so no remembered filter or pick narrows it; "N ranked" stays text (no "ranked only" filter) |
-| Roadmap: "N warnings" / "N infos" (1.21; each opens its own severity, before 1.21 both opened "flagged only") | `/roadmap?severity=WARNING` / `?severity=INFO` | every warning sits on a project that has one, so the facts line's warnings figure under the filter is Home's; the infos figure there counts the infos of those rows (fewer than Home's, as every filter narrows a count) |
+| Roadmap: "N unranked" (a link when positive, text at zero) | `/roadmap?unranked=true` | `plan.unrankedProjects` and the Roadmap's "N unranked" count the same rows; a link is shown as written, so no remembered filter or pick narrows it; "N ranked" stays text (no "ranked only" filter) |
+| Roadmap: "N warnings" / "N infos" (each opens its own severity) | `/roadmap?severity=WARNING` / `?severity=INFO` | every warning sits on a project that has one, so the facts line's warnings figure under the filter is Home's; the infos figure there counts the infos of those rows (fewer than Home's, as every filter narrows a count) |
 | Roadmap: "N teams with an overloaded week" / "over the WIP limit" | `/team-load?warning=overloaded` / `wip` | the page's rows and Home's count fold the same `teamWeeks` |
-| Roadmap: "N violated dependencies" | `/dependencies?status=violated` (1.20, `violatedDependenciesPath()`) | `totals.violated` of the dependencies view and `plan.conflicts` are one server function over one kernel's output |
-| Yours, a project's / a team's red "N conflicts" (1.20) | `/dependencies?status=violated&projectId=N` / `&teamId=N` | the violated links with an end in the project / a milestone end in the team: the subsets Home counts; the page's filter keeps the same rows |
+| Roadmap: "N violated dependencies" | `/dependencies?status=violated` (`violatedDependenciesPath()`) | `totals.violated` of the dependencies view and `plan.conflicts` are one server function over one kernel's output |
+| Yours, a project's / a team's red "N conflicts" | `/dependencies?status=violated&projectId=N` / `&teamId=N` | the violated links with an end in the project / a milestone end in the team: the subsets Home counts; the page's filter keeps the same rows |
 | Yours, a project's / a team's "Not scheduled" | `/milestones?scheduled=false&projectId=N` / `&teamId=N` | the project's / team's subset of the same set |
-| Yours, "Open the projects you own yourself on the roadmap" (1.23; under the projects table, only while a listed project is `direct`) | `/roadmap?ownerPersonId=<me.personId>` | the Roadmap's Owner filter; direct ownership on both sides (the table may list more: the projects under a work stream or program the person owns) |
+| Yours, "Open the projects you own yourself on the roadmap" (under the projects table, only while a listed project is `direct`) | `/roadmap?ownerPersonId=<me.personId>` | the Roadmap's Owner filter; direct ownership on both sides (the table may list more: the projects under a work stream or program the person owns) |
 | Yours, a work stream's / a program's name | `/roadmap?workStreamId=N` / `?programId=N` | the Work stream filter / the program pick with one program; a node with no project is plain text (its id is no filter option on the Roadmap, so the link would open it unfiltered) |
-| Yours, a project's and a team's name; a team's Jira badge | unchanged (their pages; the Deviations page) | 1.18 |
-| Plan card's counts, ranked, the capacity badges in "Yours", the Deviations card | unchanged | the card's own link / the team's name |
+| Yours, a project's and a team's name; a team's Jira badge | their pages; the Deviations page | the existing links, not figure-links |
+| Plan card's counts, ranked, the capacity badges in "Yours", the Deviations card | no figure-link | the card's own link / the team's name leads there |
 
-**Naming rule.** A figure-link's accessible name contains its visible text. Where several rows show the same number each link names its row (`home.mine.notScheduledAria` "{{count}} not scheduled: {{name}}", a node's name `home.mine.nodeOnRoadmapAria` "Open {{name}} on the roadmap" with a closed work stream's visible "(closed)" name inside it); the Roadmap card's two flag badges each name their own destination (`home.roadmap.warningsAria` "{{figure}}: the projects with a warning on the roadmap", `home.roadmap.infosAria` likewise; the unranked line is named by its own text); a "Yours" conflicts badge names its row (`home.mine.conflictsAria` "{{figure}}: {{name}}", the figure being `project.conflicts`' own words); the Roadmap card's violated badge is unique and needs no extra name. None contains the e2e's exact names ("Open the plan", "Open the roadmap", "Open the programs", "Open <project>", "Open team <name>").
+**Naming rule.** A figure-link's accessible name contains its visible text.
 
-**"May be out of date" follows the page each figure links to.** The Roadmap card shows `JiraStaleNote` while `jiraSites.some(isStaleSource)` (the plan pages' fold: plan-wide, a DISABLED site counts, `mappingOk: false` counts); the Deviations card's two sentences are below.
+- Where several rows show the same number each link names its row: `home.mine.notScheduledAria` "{{count}} not scheduled: {{name}}"; a node's name `home.mine.nodeOnRoadmapAria`
+  "Open {{name}} on the roadmap" with a closed work stream's visible "(closed)" name inside it; a "Yours" conflicts badge `home.mine.conflictsAria` "{{figure}}: {{name}}", the
+  figure being `project.conflicts`' own words.
+- The Roadmap card's two flag badges each name their own destination (`home.roadmap.warningsAria` "{{figure}}: the projects with a warning on the roadmap", `home.roadmap.infosAria`
+  likewise; the unranked line is named by its own text); the violated badge is unique and needs no extra name.
+- None contains the e2e's exact names ("Open the plan", "Open the roadmap", "Open the programs", "Open <project>", "Open team <name>").
 
-**The Deviations card's figures are the OPEN deviation counts** (`hooks/useOpenDeviationCounts.ts`): `GET /views/deviations?acknowledged=true` and `GET /views/capacity-deviations?acknowledged=true`,
-keyed `["jira","deviations","totals"]` and `["flow","deviations","totals"]` (under the prefixes the existing refresh helpers invalidate), `staleTime` 60 s. Why `acknowledged=true`: both views compute `totals` over
-"every filter but the acknowledgement state" and count the OPEN rows, so the same totals arrive while the body lists only the acknowledged items (typically a few KB against up to 700 KB for the default list of up to 2,000
-items; the cost grows with the acknowledgements, so a plan with nearly everything acknowledged pays close to the full list, bounded by `staleTime` 60 s). **Measured (1.10 release, NON-BINDING)** on the throwaway stack with the sample plan, nothing bound on the Jira side and the seed admin as the caller (loopback `curl`, median of 10 after warm-ups): `GET /views/deviations?acknowledged=true` 11 ms / 715 B and `GET /views/capacity-deviations?acknowledged=true` 6 ms / 137 B, against 13 ms / 2,010 B and 5 ms / 137 B for the default lists. This does not cover a heavily bound or acknowledged plan, where the cost grows as described above (the Jira computation is about 50 ms for 1,100 bindings, `timeline.md` "Measured figures"). No new endpoint, no plan or roadmap read. Per source, ONE line (label "Open differences from Jira:" / "Open capacity differences from Flow:" and the orange warnings / gray infos badges of the Deviations page; a zero badge is omitted)
-- shown only for a source whose view lists a connection AND whose count is positive. **No claim at zero** (no "nothing open", `web/CLAUDE.md` "Deviations wording"): zero, no connection and loading all show nothing.
-A failed read is the inline `ErrorAlert` (title `home.deviations.loadFailed`) inside the Deviations card, the other source's line still shows and the links never depend on either read. **"May be out of date" (1.18):** `useOpenDeviationCounts` also answers `jiraStale` (`hasStaleSource` of the Jira document's connections: the Deviations banner's fold, an ENABLED connection only) and `flowStale` (`hasStaleFlowSource`); a source's sentence (`JiraStaleNote`, "Jira data may be out of date"; Flow's own `home.deviations.flowStale`) sits under its line and only while the line itself shows (no figure, no qualifier).
+### The Deviations card
 
-**Tests:** `Home.test.tsx` is built on the honest builders (`connectionIn(shape)` / `view()` of `test/deviations.ts`, `CAPACITY_CONNECTION` / `capacityView()` of `test/flow.ts`, `homeView()` / `homeMe()` / `emptyHomeView()` of `test/home.ts`) and pins the outline (with "Yours" and its h4s), the three hrefs, the three requests, the five Plan lines, the Roadmap badges (a zero badge absent, a zero count shown), the empty groups before an answer, both failure shapes, each staleness shape for the Roadmap card, the Jira and the Flow line, and the Polish strings; `components/HomeMine.test.tsx` pins the section's states, tables, links and sentences; `components/BadgeLink.test.tsx` the badge-link; the figure-links' hrefs and names are pinned in both Home tests. `App.test.tsx` renders `/` about twenty times, so its blanket fetch stubs answer the three Home URLs with their own empty documents (`homeViews`): a paged envelope is not one of them. `pages/headingOutline.test.tsx`'s `emptyApi` answers them with a 404 and the outline holds with the alert shown.
+- **"May be out of date" follows the page each figure links to.** The Roadmap card shows `JiraStaleNote` while `jiraSites.some(isStaleSource)` (the plan pages' fold: plan-wide, a
+  DISABLED site counts, `mappingOk: false` counts).
+- **The figures are the OPEN deviation counts** (`hooks/useOpenDeviationCounts.ts`): `GET /views/deviations?acknowledged=true` and `GET /views/capacity-deviations?acknowledged=true`,
+  keyed `["jira","deviations","totals"]` and `["flow","deviations","totals"]` (under the prefixes the existing refresh helpers invalidate), `staleTime` 60 s. No new endpoint, no plan or
+  roadmap read.
+  - Why `acknowledged=true`: both views compute `totals` over "every filter but the acknowledgement state" and count the OPEN rows, so the same totals arrive while the body lists only
+    the acknowledged items (typically a few KB against up to 700 KB for the default list of up to 2,000 items). The cost grows with the acknowledgements, so a plan with nearly
+    everything acknowledged pays close to the full list, bounded by `staleTime` 60 s.
+  - Measured at the 1.10 release, NON-BINDING (throwaway stack, sample plan, nothing bound on the Jira side, the seed admin, loopback `curl`, median of 10 after warm-ups):
+    `GET /views/deviations?acknowledged=true` 11 ms / 715 B and `GET /views/capacity-deviations?acknowledged=true` 6 ms / 137 B, against 13 ms / 2,010 B and 5 ms / 137 B for the
+    default lists. A heavily bound or acknowledged plan costs more (the Jira computation is about 50 ms for 1,100 bindings, `timeline.md` "Measured figures").
+- Per source, ONE line (label "Open differences from Jira:" / "Open capacity differences from Flow:" and the orange warnings / gray infos badges of the Deviations page; a zero badge is
+  omitted), shown only for a source whose view lists a connection AND whose count is positive. **No claim at zero** (no "nothing open", `web/CLAUDE.md` "Deviations wording"): zero, no
+  connection and loading all show nothing.
+- A failed read is the inline `ErrorAlert` (title `home.deviations.loadFailed`) inside the Deviations card; the other source's line still shows and the links never depend on either read.
+- `useOpenDeviationCounts` also answers `jiraStale` (`hasStaleSource` of the Jira document's connections: the Deviations banner's fold, an ENABLED connection only) and `flowStale`
+  (`hasStaleFlowSource`). A source's sentence (`JiraStaleNote`, "Jira data may be out of date"; Flow's own `home.deviations.flowStale`) sits under its line and only while the line
+  itself shows (no figure, no qualifier).
 
-## Plan (`pages/Plan.tsx`)
+### Tests
 
-The plan tree (V12 + `GET /views/plan`), a read for everyone whose actions are gated by the view's `can` flags (`utils/planActions.ts` is the row-to-page
-callback contract). `Plan.tsx` owns the query (`["plan","view"]`), which editor is open (`EditorState`: work stream / program under its stream / project under
-its program), one `useDeleteConfirm` for all three delete levels (the confirm texts come from the `DELETE_TEXT` map, a 409 says "delete the children first") and
-the close/reopen mutation; every success refreshes `["plan"]` through `refreshQueriesAfterMutation`. A stream's menu (`can.edit`) also has **Import from Jira…** (1.10: the connections read from the deviations view only after the click) a LINKED program's menu (`can.createProject`) **Import from Jira…** rooted at it (1.14) and a LINKED project's row menu (`can.createMilestone`) the same rooted at the project (1.15); all three live in `hooks/usePlanJiraImport.ts` ("The import modal" under the Jira sections). **Close / reopen** is a one-step menu action on a stream:
-the full-replace `PUT /work-streams/{id}` of the row as it stands with only `endDate` changed (today, never before the start / `null`) — a closed stream (end
-date set) still shows "New program" and still takes children. The stream editor's End date field does the same with a typed date, and clearing it reopens.
+Pinned by: `Home.test.tsx`, `components/HomeMine.test.tsx`, `components/BadgeLink.test.tsx`, `pages/headingOutline.test.tsx`.
 
-**The project editor has two independently permitted parts**, because the server guards them differently: the fields (`PUT /projects/{id}`, `can.edit`) and the
-target window (`PUT /projects/{id}/target-window`, `can.editTargetWindow` — a project's OWN owner is deliberately not enough; a roadmap editor has the window
-but not the fields). A disabled part still shows its current values with a note. Save sends only the parts that are enabled AND differ from what the server last
-accepted (held in state, updated after each successful PUT, so a retry after the second PUT failed never repeats the first); nothing changed closes the modal
-without a request. A NEW project carries its window in the create body (the creator is always a window editor). The window is both dates or neither (validated
-in `utils/planForm.ts`, the server's 400 is the backstop).
+- `Home.test.tsx` is built on the honest builders (`connectionIn(shape)` / `view()` of `test/deviations.ts`, `CAPACITY_CONNECTION` / `capacityView()` of `test/flow.ts`, `homeView()` /
+  `homeMe()` / `emptyHomeView()` of `test/home.ts`); the figure-links' hrefs and names are pinned in it and in `HomeMine.test.tsx`.
+- `App.test.tsx` renders `/` about twenty times, so its blanket fetch stubs answer the three Home URLs with their own empty documents (`homeViews`): a paged envelope is not one of them.
+  `headingOutline.test.tsx`'s `emptyApi` answers them with a 404 and the outline holds with the alert shown.
 
-**Route and editors.** `/plan` (nav section Planning, everyone) renders `GET /views/plan` under `["plan", "view"]` as the tree work stream (h3,
-`PlanWorkStreamSection`) → program (h4, `PlanProgramBlock`) → projects table. What a row offers comes from the view's `can:{}` flags, which the server computes
-with the guards' own arithmetic; the server's 403/409/400 reach the modals through `planSaveErrorMessage`/`saveErrorMessage` (a name clash marks the name field,
-everything else is an inline alert). The three editors (`WorkStreamEditorModal`, `ProgramEditorModal`, `ProjectEditorModal`) share `PlanNodeFields` (name,
-description, owner via `PersonSelect` — required on every node); the project editor enables its fields by `can.edit` and its target window by
-`can.editTargetWindow` and saves only the changed, enabled parts as two PUTs.
+## Plan
 
-**Move to…** (`components/PlanMoveModal.tsx`; `moveProject`/`moveProgram` in `api/plan.ts`; the pure arithmetic in `utils/planMove.ts`: `projectMoveTargets`
-groups the eligible programs by work stream, `programMoveTargets` lists the eligible streams, `hasTarget` reads either shape, `findProject`/`findProgram` look a
-node up in the current view, `canMoveProject`/`canMoveProgram` are the row-level "offer it?" tests). A row offers the action only when its own `can.move` is set
-AND some target is eligible (`Plan.tsx` puts both tests into `actions.canMoveProject|Program`); with no target it is hidden, not disabled, and a row whose only
-action it was loses its kebab. The page holds a `MoveState` of just `{kind, id}`: on every render it looks the node up in the CURRENT view and derives the
-dialog's name, its parent now ("currently in …"), the targets (excluding that parent) and `forbidden = !can.move`. So a reload under the open dialog (a
-400/403's `onRefresh`, or any other `["plan"]` refetch) reshapes the options, a pick that is no longer offered is dropped
-(`picked = hasTarget(data, value) ? value : null`), a node that lost `can.move` shows the 403 message with Move disabled, and a node that left the plan closes
-the dialog (state reset during render, as on a 404). Eligibility is only the target half of the server's rule (`can.createProject` / `can.createProgram`); the
-source half is the node's `can.move`, and the server re-checks both. Outcomes besides 204 are inline in the dialog, never toasts: 409 on a PROJECT (name taken
-in the target program) stays open to pick another; 400 and 403 say so, then `onRefresh` reloads the plan, and `submitting` is cleared only AFTER that reload
-(Move cannot be pressed on the old plan); 404 closes via `onDone` (close + refresh); anything else, including a 409 on a program, is "The move failed (status)".
-Success refreshes `["plan"]` AND `["roadmap"]`. Tests: `PlanMove.test.tsx`, `planMove.test.ts`. The row-level tests are computed in `Plan.tsx`'s `actions`.
+Files: `pages/Plan.tsx`; `components/PlanWorkStreamSection.tsx`, `PlanProgramBlock.tsx`; the editors `WorkStreamEditorModal.tsx`, `ProgramEditorModal.tsx`, `ProjectEditorModal.tsx` over
+`PlanNodeFields.tsx`; `PlanMoveModal.tsx`; `PlanDateInput.tsx`, `AppDatesProvider.tsx`; `api/plan.ts`; `hooks/usePlanJiraImport.ts`; `utils/planActions.ts` (the row-to-page callback
+contract), `planMove.ts`, `planForm.ts` (rules and wire mappers).
 
-**Move targets and outcomes (the page's side).** For a project the targets are the programs whose `can.createProject` is set minus its current program, grouped
-by work stream; for a program the work streams whose `can.createProgram` is set minus its current stream; a closed stream stays a valid target and is labelled
-"(closed)"; the picker is a searchable `Select` (the theme's folded filter). `POST /projects/{id}/move` `{programId}` / `POST /programs/{id}/move`
-`{workStreamId}` answer 204: the success toast is `plan.toast.projectMoved|programMoved`, then the page refreshes `["plan"]` + `["roadmap"]` (a mounted project
-view is under `["plan"]`). If the last target vanishes under an open dialog it says so and disables Move.
+### Route and data
 
-**Dates**: `PlanDateInput` wraps Mantine's `DateInput` (string `value`/`onChange`, `valueFormat="YYYY-MM-DD"`, placeholder `common.dateFormatHint`, a clear
-button named "Clear {label}"). `AppDatesProvider` (mounted in `main.tsx` around the router) passes the UI language and `firstDayOfWeek: 1` to `DatesProvider`;
-dayjs only knows `en` until `dayjs/locale/<lang>` is imported (that file imports `pl`); `@mantine/dates/styles.layer.css` is imported in `main.tsx` next to the
-core layer. Tests need no provider (the default locale is English). Unit tests type the ISO text into the input; the calendar popup is covered by
-`AppDatesProvider.test.tsx` (month and weekday names per language). The input is `components/PlanDateInput.tsx`; the language reaches the calendar through
-`components/AppDatesProvider.tsx` in `main.tsx`, which also owns the `dayjs/locale/<lang>` imports — a new shipped language needs its line there. Rules and wire
-mappers: `utils/planForm.ts`.
+`/plan` (nav section Planning, everyone) renders `GET /views/plan` (V12) under `["plan", "view"]` as the tree work stream (h3, `PlanWorkStreamSection`) → program (h4,
+`PlanProgramBlock`) → projects table. A read for everyone whose actions are gated by the view's `can:{}` flags, which the server computes with the guards' own arithmetic.
 
-## Project view (`pages/ProjectView.tsx`)
+- `Plan.tsx` owns the query, which editor is open (`EditorState`: work stream / program under its stream / project under its program), one `useDeleteConfirm` for all three delete
+  levels (the confirm texts come from the `DELETE_TEXT` map, a 409 says "delete the children first") and the close/reopen mutation. Every success refreshes `["plan"]` through
+  `refreshQueriesAfterMutation`.
+- The server's 403/409/400 reach the modals through `planSaveErrorMessage`/`saveErrorMessage` (a name clash marks the name field, everything else is an inline alert).
+- The three editors share `PlanNodeFields` (name, description, owner via `PersonSelect` - required on every node).
+- **Import from Jira…** (all in `hooks/usePlanJiraImport.ts`; "The import modal" under the Jira sections): a stream's menu (`can.edit`; the connections are read from the deviations
+  view only after the click), a LINKED program's menu (`can.createProject`) rooted at it, and a LINKED project's row menu (`can.createMilestone`) rooted at the project.
 
-The first Timeline page (lazy). Files: `api/milestones.ts` (`getProjectView`, `createMilestone`, `updateMilestone`, `deleteMilestone`, `scheduleMilestone`),
-`hooks/useMilestoneSchedule.ts` (the query under `["plan","project",id]` and the ONE schedule write path), `utils/projectViewUpdate.ts` (`applySchedule`),
-`utils/milestoneForm.ts`, `components/ProjectTimeline.tsx` (the view → `TimelineRowData[]` adapter: it composes `ProjectTimelineRows.tsx`'s row and band builders and `MilestoneMenu.tsx`'s row menu;
-`ProjectTray` for the Unscheduled tray), `MilestoneEditorModal`, `MilestoneScheduleModal`, `TeamSelect` (a `SearchPicker` over `GET /teams`). `ProjectView` is
-`<ProjectPage key={id}>` so another project starts with its own range and editors. `ProjectPage` composes child components (1.6 split, `complexity` 35):
-`ProjectPageHeader` (name, meta lines, the `can`-gated actions), `ProjectViewNotices` (notes, inline write failures, the polite status region), `ProjectEditors`
-(the dialogs for the open `editor`; the union, `isJiraEditor` and `needsJiraConnections` in `utils/projectEditor.ts`), `TimelineTitle` and `UnscheduledTraySection` (shared with the
-team page) and `utils/seenRange.ts` `growSeenRange` (the remembered range only grows). The team page has the same shape: `TeamPageHeader`, `TeamViewNotices`,
-`TeamResetConfirm` and `TeamFlowSection`. (Files: `components/ProjectPageHeader.tsx`, `ProjectViewNotices.tsx`, `ProjectEditors.tsx`, `TimelineTitle.tsx`,
-`UnscheduledTraySection.tsx`; the team page's `TeamPageHeader.tsx`, `TeamViewNotices.tsx`, `TeamResetConfirm.tsx`, `TeamFlowSection.tsx`.) A split moves markup,
-never ARIA, focus or query behaviour (the complexity backstop is `complexity: 35`, `eslint.config.js`).
+### Close and reopen
 
-`/projects/:id` (a detail page, no nav leaf: the Plan page's project NAME is the link, `plan.openProjectAria`; `projectPath(id)` in `utils/planLinks.ts`)
-renders `GET /views/project/{id}` under `["plan","project",id]` — under the `["plan"]` prefix, so every Plan mutation also refreshes a mounted project view.
-Header facts: the target window, the derived span and the drift in words ("Ends 7 days after the target", one `Badge` per non-zero figure: ORANGE when the
-project runs later than its target, gray when ahead, nothing red). **Everything is gated by the view's `can:{…}` flags, never the session's roles:** the owner
-chain's `can.edit`/`can.delete`/`createMilestone` give the plan-field editors (`MilestoneEditorModal`: name, description, `TeamSelect`, an estimate
-`NumberInput` step 0.25, **no dates for anyone** — a new milestone is always unscheduled), and ONLY a milestone's `can.schedule` (its team's manager or an
-ADMIN) makes its bar editable, shows its Schedule button and drag handle and its schedule menu items — the project's own owner reads read-only bars
-(`role="img"`, no handles). **Import from Jira… (1.14)**: a header button (`ProjectJiraImportButton`, `components/JiraChips.tsx`, beside Link/Unlink) shown with the project's `can.createMilestone` AND only while the view says the project is linked (`marks`, not a request); `Editor` gains `{kind: "jiraImport"}`, `needsJiraConnections(editor)` enables `useJiraLinks` for it as for the bind dialog (so the connections are asked only after the click), and `ProjectEditors` mounts `JiraImportModal` rooted at the project (`ImportRoot` built by the shared `rootOf("PROJECT", project, project.jira)` of `utils/jiraImportRoot.ts`, which the Plan page's program and project entries use too: `workStreamId`, `ownerPersonId/ownerName`; level PROJECT, so no owner field: the project's owner is sent) through `importSourceOf(links)` (`utils/jiraImport.ts`, shared with the Plan page). An apply refreshes `["plan"]` (this view included). Tests: `pages/ProjectView.jiraImport.test.tsx`.
-**One write path for dates**, `hooks/useMilestoneSchedule.ts` (a thin wrapper of the generic `hooks/useScheduleWritePath.ts`, which
-the team page runs too; the `useRoadmapRanking` shape): a drag, a resize, the tray's Schedule, "Edit schedule…" (`MilestoneScheduleModal`) and Unschedule all
-`commit(id, start, end)` — optimistic (`utils/projectViewUpdate.ts` `applySchedule`), the PUT carries the view's `revision`, success adopts the revision the PUT
-answers, any failure rolls back and AWAITS the refetch; a stale-revision 409 (THIS milestone moved) shows `project.stale`, 403/400/other an inline alert, never
-a toast; a change aimed at a milestone that has left the view (deleted, refetched away) is refused the same way with `project.milestoneGone` and closes the
-schedule dialog. **The status region is the one announcer** of these notices: the page's visible notices are `role="note"` (an Alert's implicit `role="alert"`
-would read each twice), and the dialog's own refusal Alert stays a live alert (`ownRefusalAlert`) because a modal's content is all a screen reader reads. The
-tray's Schedule places the milestone for one calendar week from the later of today (the viewer's LOCAL calendar day, `localIsoDate`) and the project's target
-start (`dropOutcome("tray", …)`, the pointer drop's week). **The page owns the timeline range** ("Range" below); the zoom is `useStoredState("timeline.zoom")`,
-shared by the project and team pages. Deleting the project states the milestone count (it cascades). Rules mirror the server in `utils/milestoneForm.ts` (the
-schedule dialog also pre-checks "at least one working day": Monday–Friday and not a public holiday of the cached dictionary,
-`hasWorkingDay(start, end, holidayDays)`; the server's 400 is the rule); a 409 on save marks the name field.
+A one-step menu action on a stream: the full-replace `PUT /work-streams/{id}` of the row as it stands with only `endDate` changed (today, never before the start / `null`). A closed
+stream (end date set) still shows "New program" and still takes children. The stream editor's End date field does the same with a typed date, and clearing it reopens.
 
-**The write path** is the Roadmap's (`commit` cancels in-flight `["plan"]` fetches (the whole prefix, not only this view), writes
-`applySchedule(view, id, start, end)` synchronously — the milestone moves between `scheduled` and `unscheduled` and both keep the server's order, `span`/`drift`
-stay the server's — then `mutate`s with the pre-change view as the rollback). The PUT's `expectedRevision` is the cached view's `revision`; the server compares
-it with THAT milestone's last schedule write only (unrelated plan writes never stale a drag), so `onSuccess` stores the answered revision and refreshes
-`["plan"]` without awaiting it (the refetch also brings the new `span`/`drift`), and `onError` restores and AWAITS the refresh. `stale` is
-`isStaleRevision(save.error)` (a 409 of the stale-revision problem type); the 400 of the schedule PUT has several causes (order, shape, no working day), so its
-one sentence names the working-day rule instead of sniffing the server's text. The page's polite live region announces the button/dialog paths
-(`project.announce.*`); a drag is announced by dnd-kit's own localized region. **A change is never lost silently:** while a save is in flight `commit` answers
-`false` and sets `refused` (cleared when that save settles) — the page shows an orange "a save is still running — try again" notice (also inside the schedule
-dialog, which stays open), announces it (every announcement flips an invisible zero-width suffix, so the same sentence twice is re-read), a visible "Saving…"
-indicator sits by the Timeline heading, and `TimelineDndContext` corrects dnd-kit's drop announcement (`onSchedule` returns a boolean). **The schedule dialog
-saves with the revision of the view it was OPENED on** (`Scheduling = {milestone, revision}`), so another manager's move of that milestone meanwhile is the
-stale 409, not an overwrite; unrelated writes never stale it (the check is per milestone).
+### The project editor
 
-**Range.** The page keeps `seen = {min, max}` (ISO strings) in state, grows it during render whenever the view holds an earlier/later date (scheduled dates, the
-target window), and builds `makeScale(zoom, defaultRange([min, max], today, zoom))` from it — `today` is `localIsoDate()` (`utils/isoDate.ts`): the VIEWER'S
-local calendar day, not UTC — the today line and the Schedule button agree with their wall calendar, and a Saturday evening in Warsaw is Saturday, not (for part
-of the day) Friday or Sunday in UTC. It is the one place the UI reads the browser's zone; the server's dates stay plain ISO dates with no zone, and the Plan
-page's close-a-stream date still uses UTC `todayIsoDate()`. The range NEVER shrinks: after the last far-off link (a ghost row's dates) is deleted it stays wide
-until the page is reloaded. A drag cannot go further than the padded range (the track clips); typed dates in the schedule dialog can, and the range then grows.
-**Bands.** The target window is a `window` band across every row; when the span ends after the target a `drift` band covers the overrun (`addDays(targetEnd, 1)`
-… `span.end`). **Rows** are fixed 36 px, so the name cell is one line: the name and the description as dimmed text after it, clipped by the cell. The kebab of a
-row is a roving stop of the grid (`RowActionsMenu`'s `trigger` prop spreads the stop on the button). The timeline body is at least three rows tall
-(`MIN_BODY_ROWS`) so an empty timeline still has an area to drop a tray row on.
+Two independently permitted parts, because the server guards them differently: the fields (`PUT /projects/{id}`, `can.edit`) and the target window
+(`PUT /projects/{id}/target-window`, `can.editTargetWindow` - a project's OWN owner is deliberately not enough; a roadmap editor has the window but not the fields).
 
-**Dependencies (v0.4.0).** Files: `api/dependencies.ts` (`createDependency(projectId, body)`, `updateDependency(id, {type, lagDays})` (the in-place edit, 204),
-`deleteDependency(id)`, `isDependencyCycle(err)` — the `isStaleRevision` shape — and the types), `api/plan.ts` `listProjects` / `api/milestones.ts`
-`listMilestones` (the pickers' paged searches), `api/http.ts` `ApiError.cycle` (a typed getter beside `detail`/`type`; malformed entries dropped),
-`utils/projectDependencies.ts` (pure: `ghostEndpoints`, `summaryRowNeeded`, `arrowSpecs`, `conflictCount`, `conflictsByBar`, `linksOfMilestone`),
-`utils/dependencyForm.ts` (form values, the self-link and lag rules, `toDependencyBody`, `cyclePathText`, `dependencySaveErrorMessage`; the edit's
-`editDependencyForm`, `dependencyEditValidation` (the lag only), `toDependencyUpdateBody`, `dependencyUpdateErrorMessage` and the shared
-`dependencyEndpointText`, 1.22: its `ownProjectId` is `number | null`, `null` = no own project so every milestone end names its project; `EditableDependency` is what the editor and the delete read of a link), `components/ProjectDependencies.tsx` (the h3 section: table, Delete, empty state), `DependencyEditorModal.tsx`, `DependencyDeleteModal.tsx` (1.22: the delete confirmation's wording and error mapping, shared with the Dependencies page),
-`MilestoneSelect.tsx`, `ProjectSelect.tsx`, and in `ProjectTimelineRows.tsx` the summary row and the ghost rows, in `ProjectTimeline.tsx` the overlay, in `MilestoneMenu.tsx` the "Add dependency…" menu item.
-- **Row and bar ids.** Own milestones keep their numeric ids; the synthetic rows are strings that cannot collide: `project:<id>` (the summary row, one hollow
-  bar of the derived span — none while nothing is scheduled), `ghost:m:<id>` / `ghost:p:<id>` (one per DISTINCT external endpoint WITH dates, sorted by start,
-  end, name). A row's bar id equals its row id for the synthetic rows. An arrow end resolves to: the own project → the summary row, an own milestone → its row
-  (a tray milestone has none: the arrow is skipped by `arrowsToDraw`, as is the whole link when its status is UNSCHEDULED), anything else → its ghost row. The
-  page's `seen` range includes every end's dates so an arrow to a far-away ghost is in range.
-- **Placement.** The section sits AFTER the Unscheduled tray (and after the "No milestones yet" empty state), not between the timeline and the tray: the tray's
-  pointer drop needs the tray close to the timeline and in view with it (the e2e tray drop asserts both are inside the viewport), and the section is taller than
-  the viewport slack once it holds an empty state.
-- **The page owns the dialog**, not the section: `Editor` has a `{kind: "dependency", successor}` variant so the section's button (successor null → "This
-  project") and a milestone's row-menu item (successor = that milestone) open the same `DependencyEditorModal`; the section owns only its Delete confirmation (the shared `DependencyDeleteModal`, 1.22).
-  The page's `editDependency` variant (the row menu's "Edit…", `ProjectDependencies`' `onEdit`) opens the SAME modal with `target` set: ends as read-only
-  `TextInput`s, `TypeAndLagFields` shared with the create, `updateDependency` on Save, success toast `project.toast.dependencySaved`, the cycle sentence
-  `project.dependency.cycleEdit`; a held `ProjectDependency` snapshot is fine because a vanished link answers 404 ("This no longer exists"). The modal saves
-  with `createDependency` and a cycle 409 (`isDependencyCycle`) is drawn from `err.cycle`; every other failure goes through `dependencySaveErrorMessage` (the
-  fixed vocabulary — a 409 here is the duplicate pair).
-- **Refresh.** Create/edit/delete: `refreshQueriesAfterMutation(queryClient, ["plan"])` (+ `["roadmap"]` through the page's `saved`). The schedule write path
-  already refreshes `["plan"]` after a PUT (`useMilestoneSchedule`), which is what brings the new checks: the optimistic `applySchedule` moves the bar but never
-  touches `dependencies[].check`, so for a moment after a drop the table/arrow still show the previous check. Pinned by `ProjectView.test.tsx` ("a schedule
-  write refetches the view…").
-- **Picker query keys** are `["plan", "milestones", "picker", term]` and `["plan", "projects", "picker", term]` — under the `["plan"]` prefix, so a Plan mutation refreshes an open picker's list too.
-- **Delete bodies** state the cascade: `project.dependency.deleteWith` ("Its N dependencies will be deleted too.") is appended to the milestone's and the
-  project's confirm text when the view holds any link on them (`linksOfMilestone`; the project's count is `dependencies.length`, which is exactly its own links
-  and its milestones').
+- A disabled part still shows its current values with a note.
+- Save sends only the parts that are enabled AND differ from what the server last accepted (held in state, updated after each successful PUT, so a retry after the second PUT failed
+  never repeats the first); nothing changed closes the modal without a request.
+- A NEW project carries its window in the create body (the creator is always a window editor).
+- The window is both dates or neither (validated in `utils/planForm.ts`, the server's 400 is the backstop).
 
-**Dependencies (v0.4).** The view's `dependencies[]` is read, never recomputed: the SERVER's `check` (OK / VIOLATED + shortfall + required/actual dates /
-UNSCHEDULED) is shown as is. The **Dependencies section** (`components/ProjectDependencies.tsx`, h3) is the accessible surface — one table row per link in the
-server's order, violated first (so the top IS the conflict list): a red `Badge` "Violated · N working days short" (gray "OK" / "Not scheduled yet" — never
-colour alone), predecessor, type ("Finish → Start (FS)"), lag (a negative one reads "(lead)"), successor, "needs X · is Y", an "Edit…" in the row menu only with
-the link's own `can.edit` and a Delete only with its own `can.delete` (both the SUCCESSOR's project chain, or ADMIN; the predecessor's owner sees the link and
-the arrow but can neither change nor remove it; the kebab shows when either is set; Delete through `useDeleteConfirm`). **Edit** (the row's `editDependency`
-variant, "The page owns the dialog"): only Type and Lag are editable (changing an end stays delete + add); Save is `PUT /dependencies/{id}` `{type, lagDays}`
-(204); a type that would close a cycle is the same 409 drawn from `ApiError.cycle` under "With this type the link would close a cycle through:", a 400 reads as
-the lag sentence, 403/404 as the create's. The facts line gains a red "N conflicts" badge and a violated bar's accessible name gains ", N conflicts" (an
-editable bar's name ends with it; a read-only bar reads "…, N conflicts, read-only"); the timeline gets a **ghost row** per distinct external endpoint with
-dates (dimmed; its name a `RouterLink` to that project whose accessible name keeps the visible text — `project.ghostLinkAria` "A › a1 - open project A", axe's
-label-content-name-mismatch), a **summary row** only while the project itself is an endpoint, and gray/red arrows (`utils/projectDependencies.ts` maps view →
-`TimelineArrowData[]`; an own end with no row is simply not drawn). **Add dependency** (button beside the heading, and "Add dependency…" in a milestone's row
-menu, both gated by `project.can.createDependency`) opens `DependencyEditorModal`: the SUCCESSOR is fixed to this project or one of its milestones (the
-constrained side; the intro says so), the predecessor is a Milestone/Project `SegmentedControl` over `MilestoneSelect`/`ProjectSelect` (`SearchPicker`s over the
-paged `GET /milestones` / `GET /projects`, options "name · project" / "name · program · work stream"), type, and a lag in working days (−365..365, negative = a
-lead). Create, edit and delete are plain mutations (no optimistic step, no revision; `refreshQueriesAfterMutation(["plan"])` brings the server's new checks,
-"Refresh" below). A cycle 409 renders the localized sentence plus the path ("A → B → A", from `ApiError.cycle`, never the server's text); the duplicate pair 409
-is "already linked".
+### Move to…
 
-**Idle gaps (v0.7.0).** `view.idleGaps` is the server's list (`IdleGap{start, end, workingDays}`, `api/milestones.ts` `IdleGap`), read as is: `bandsOf` appends
-`idleBands(view.idleGaps, t)` (`utils/idleGaps.ts`) after the window/drift bands (and returns them when the project has no window), `ProjectFacts` adds the gray
-`timeline.idle.badge` plural badge only when the list is non-empty, and `<IdleGaps gaps scope="project" />` is mounted right after `{dependencies}` (so the h3
-order is Timeline, Unscheduled, Dependencies, Idle gaps). `applySchedule` spreads the view, so the cached gaps survive the optimistic step unchanged (pinned by
-`projectViewUpdate.test.ts`: same array identity) and the refetch replaces them (`ProjectView.test.tsx`: the old band is still drawn synchronously after a drop,
-then the server's new gap). Reference: `timeline.md` "Idle bands".
+`components/PlanMoveModal.tsx`; `moveProject`/`moveProgram` in `api/plan.ts`: `POST /projects/{id}/move` `{programId}` / `POST /programs/{id}/move` `{workStreamId}` answer 204. The pure
+arithmetic is `utils/planMove.ts`: `projectMoveTargets` groups the eligible programs by work stream, `programMoveTargets` lists the eligible streams, `hasTarget` reads either shape,
+`findProject`/`findProgram` look a node up in the current view, `canMoveProject`/`canMoveProgram` are the row-level "offer it?" tests.
 
-**Idle gaps (v0.7).** The view's `idleGaps[]` (working-day runs of 3 or more inside the span when none of the project's milestones is in progress; the SERVER's
-list, read and never recomputed) draw as one hatched `idle` band per gap across every row (`TimelineBandData.tone "idle"`, `data-band-tone="idle"`,
-`utils/idleGaps.ts` `idleBands`; `bandsOf` appends them after the window and drift bands, also when the project has no target window), list in the **Idle gaps
-section** (`components/IdleGaps.tsx`, h3 after the Dependencies section: a `TableDisclosure` over a From / To / Working days table, or "No idle gaps of 3 or
-more working days.") and count in a gray "N idle gaps" badge of the facts line (absent at zero; neutral information, never a warning). The optimistic step keeps
-them (above): dropping them would flash a false "no idle gaps" for a round trip. Strings: `timeline.idle.*`.
+- **Targets.** For a project, the programs whose `can.createProject` is set minus its current program, grouped by work stream; for a program, the work streams whose
+  `can.createProgram` is set minus its current stream. A closed stream stays a valid target and is labelled "(closed)"; the picker is a searchable `Select` (the theme's folded filter).
+  Eligibility is only the target half of the server's rule; the source half is the node's `can.move`, and the server re-checks both.
+- **The offer.** A row offers the action only when its own `can.move` is set AND some target is eligible (`Plan.tsx`'s `actions.canMoveProject|Program` hold both tests); with no target it is
+  hidden, not disabled, and a row whose only action it was loses its kebab.
+- **State.** The page holds a `MoveState` of just `{kind, id}`; on every render it looks the node up in the CURRENT view and derives the dialog's name, its parent now ("currently in …"),
+  the targets (excluding that parent) and `forbidden = !can.move`. So a reload under the open dialog (a 400/403's `onRefresh`, or any other `["plan"]` refetch) reshapes the options, a
+  pick that is no longer offered is dropped (`picked = hasTarget(data, value) ? value : null`), a node that lost `can.move` shows the 403 message with Move disabled, and a node that left
+  the plan closes the dialog (state reset during render, as on a 404). If the last target vanishes under an open dialog it says so and disables Move.
+- **Outcomes** besides 204 are inline in the dialog, never toasts: 409 on a PROJECT (name taken in the target program) stays open to pick another; 400 and 403 say so, then `onRefresh`
+  reloads the plan, and `submitting` is cleared only AFTER that reload (Move cannot be pressed on the old plan); 404 closes via `onDone` (close + refresh); anything else, including a 409
+  on a program, is "The move failed (status)".
+- **Success:** the toast `plan.toast.projectMoved|programMoved`, then `["plan"]` AND `["roadmap"]` refresh (a mounted project view is under `["plan"]`).
 
-**Critical path (v0.7.0).** `ProjectPage` holds `useCriticalPathPick()` (the one `timeline.criticalPath` key, shared with the team page, 1.7; before the early return: hooks stay unconditional),
-passes `criticalPath` and `<CriticalPathToggle>` (as `toolbar`) to `ProjectTimeline`, `showCritical` to `ProjectDependencies` (1.7: with it a **Slack** column of each link's own `check.slackDays`, "—" while an end is unscheduled, a critical link "0" + the hidden "critical path") and mounts `<CriticalChain view />`
-right after `{dependencies}` (before `IdleGaps`) while the toggle is on and the project has milestones (so the h3 order is Timeline, Unscheduled, Dependencies,
-Critical chain, Idle gaps). `ProjectTimeline` (rows in `ProjectTimelineRows.tsx`, cell in `SlackCell.tsx`) adds the `slack` column (`withOptional` inserts the cell before the actions cell, so a bar's roving columns shift by
-one with it) and applies `emphasized(t, critical, describe)` to the bar fields; `arrowSpecs(view, criticalPath)` flags the arrows. The ghost rows' slack and
-emphasis come from `upstreamIndex(view)` by kind + id. `applySchedule` leaves `slackDays`/`critical`/`criticalPath` as cached (the refetch brings the server's).
-Reference: `timeline.md` "The critical-path highlight".
+### Dates
 
-**The pin (1.7, project page).** A scheduled milestone's row menu offers "Pin dates" / "Unpin dates" (`common.action.pin*`, `IconPin`/`IconPinnedOff`) by the ROW's `can.schedule` (the team's manager or an ADMIN;
-the project's owner sees the glyph and no item) and never on a tray row: `MilestoneActions.pin` -> `schedule.pin(id, pinned)` of the page's write path (the team page's section has the mechanics). A pinned row
-carries `PinMark` after its name (`IconPin` `aria-hidden` + a `VisuallyHidden` "pinned", `timeline.pinned`) and its bar's accessible name gains ", pinned" right after the base sentence (`withPinned`,
-`utils/pinText.ts`, before ", N conflicts" and ", on the critical path"). Tests: `ProjectView.pin.test.tsx`.
+- `PlanDateInput` (`components/PlanDateInput.tsx`) wraps Mantine's `DateInput` (string `value`/`onChange`, `valueFormat="YYYY-MM-DD"`, placeholder `common.dateFormatHint`, a clear
+  button named "Clear {label}").
+- `AppDatesProvider` (`components/AppDatesProvider.tsx`, mounted in `main.tsx` around the router) passes the UI language and `firstDayOfWeek: 1` to `DatesProvider` and owns the
+  `dayjs/locale/<lang>` imports (dayjs only knows `en` until the locale file is imported; a new shipped language needs its line there). `@mantine/dates/styles.layer.css` is imported in
+  `main.tsx` next to the core layer.
+- Tests need no provider (the default locale is English). Unit tests type the ISO text into the input; the calendar popup is covered by `AppDatesProvider.test.tsx` (month and weekday
+  names per language). Rules and wire mappers: `utils/planForm.ts`.
 
-**The critical path (v0.7).** A "Critical path" toggle button in the timeline's new `toolbar` slot (after Today; `aria-pressed`, filled cyan while on;
-`useStoredState("timeline.criticalPath", false, isBoolean)`) shows the server's critical path, read and never recomputed (`milestone.slackDays`/`critical`,
-`dependency.critical`, `criticalPath{upstream, upstreamTruncated}`). While on: a **Slack** column (own rows "0" + a hidden "critical path" or "N working days";
-ghost rows the neighbour's slack looked up in `upstream` by kind + id, "—" when absent; **never filter by `hops`**: a milestone of a project a link names is 1
-hop but not a ghost row), a text-colour outline (`TimelineBarData.emphasis: "critical"`, `data-critical="true"`, ", on the critical path" in the bar's name) on
-critical milestones, on ghost bars whose entity is critical and on the summary bar when a critical link ends on the project, heavier text-colour arrows with
-their own arrowhead for critical links (a violated arrow stays red), a gray "Critical path" badge on those links' Dependencies rows and the **Critical chain
-section** (`components/CriticalChain.tsx`, h3 between Dependencies and Idle gaps): "On the chain" (the critical `upstream` entries that are not ghost rows,
-server order, each name a link into its project) and "Upstream with slack" behind a disclosure, with a "not shown" note when truncated. Off, the DOM is
-unchanged (pinned). Pure derivations: `utils/projectDependencies.ts`. Strings: `project.critical.*`, `project.column.slack`, `timeline.criticalToggle`,
-`timeline.bar.critical`. Reference: `timeline.md` "The critical-path highlight".
+### Tests
 
-**The baseline overlay (v0.9).** With a baseline picked (the toolbar's picker, beside the Critical path toggle; `useMilestoneSchedule(id, pick)`) each scheduled
-milestone's row gets a shadow bar for the span the baseline froze, a milestone it did not know reads "(new since the baseline)", dimmed rows follow the
-milestones for the baseline's milestones that were deleted ("(removed)") or are in the tray now ("(unscheduled since the baseline)"), the facts line gains
-badges for the project's own span ("Ends 3 working days later than the baseline" ORANGE when the END is later, a gray start figure) and the **Movement section**
-(`components/BaselineMovement.tsx`, h3, after Idle gaps) is the accessible surface: totals badges, then a disclosure over a table of every milestone against the
-baseline ("Changed only" on by default, an estimate-only change counts as changed). The optimistic step keeps the cached `baseline` block. Tests:
-`ProjectView.baseline.test.tsx`, `BaselineMovement.test.tsx`.
+Pinned by: `Plan.test.tsx`, `PlanMove.test.tsx`, `utils/planMove.test.ts`, `AppDatesProvider.test.tsx`, `utils/planForm.test.ts`.
 
-**The Jira markers (1.3).** All from the view, no request of their own: the chip in the facts line (the project's `jira` and `flags`, the milestones' count and
-open-flag total - "The chips and marks" under "Deviations, bindings and the Jira chips"), a **Flags** column (while a scheduled milestone is linked; before
-Slack) holding each linked row's Jira key link and flag icon, the tray rows' key, icon and "Jira: start to end", and the dashed shadow bar `jira:<milestoneId>`
-per linked scheduled row with the toolbar's "Jira dates" toggle (after Critical path; only when `jiraSites` is non-empty; the shared `timeline.jiraBars`). The
-page's range follows `jiraPageRange(...)`: the Jira days join it only inside the plan's own dates padded by a year, so a mistyped Jira date cannot stretch the
-track (it also follows the TRAY's in-window Jira dates, 1.16). A tray milestone whose Jira item holds both dates inside the window gets a dimmed appended row
-`jira-unscheduled:<milestoneId>` ("(unscheduled; dates from Jira)", the bar only, after the baseline's rows and before the ghost rows) while the toggle
-is on - or, when the baseline already appended an "unscheduled since the baseline" row for it, its Jira bar on that row (`jiraRows`/`baselineRows` in
-`ProjectTimelineRows.tsx`). **Since 1.17 that row has a menu for whoever may schedule THAT milestone** (its own `can.schedule`; none without it, none when Jira's
-two dates are reversed): `JiraRowMenu` ("Operations for X (dates from Jira)", one item "Schedule on Jira's dates") whose click is `actions.scheduleOnJira`: the page
-writes the link's REAL dates (`jiraScheduleDates`, never the bar's, which may be cut at the window) through `schedule.commit(..., { announce: true })`, the one write
-path, so a save in flight refuses it out loud, a 400 is the working-day sentence and a failure rolls the row back; a taken change moves the focus to the milestone's own
-row (`useRowMenuFocus(timelineRef).keep`, the Timeline's `focusRow`). The row menu's Link/Unlink item and the header button read the view; the bind dialog asks for its `connections[]` when it opens (`useJiraLinks`).
-Reference: `timeline.md` "The Jira markers", "Appended rows for the tray". Tests: `ProjectView.jira.test.tsx`, `ProjectView.jiraTray.test.tsx`, `JiraRowMenu.test.tsx`.
+## Project view
 
-**Tests.** `ProjectView.test.tsx` runs the page against a small fetch-mock server (a schedule PUT applies the dates and bumps the revision; the dependency
-POST/DELETE and the milestone picker list are stubbed) and wraps `DndContext` to hand the test the page's drop handler; fake timers (`Date` only) pin "today"
-for the Schedule button. `milestoneForm.test.ts`, `projectViewUpdate.test.ts`, `projectDependencies.test.ts`, `dependencyForm.test.ts`,
-`api/milestones.test.ts`, `api/dependencies.test.ts`, `TeamSelect.test.tsx`, `DependencyEditorModal.test.tsx` are pure/small. The real pointer drag, the resize
-handle, the tray drop under scroll, the keyboard sensor and the stale notice are `e2e/tests/project-view.spec.ts`; the dependency journeys (link, ghost row,
-arrow, cycle refusal, the manager's conflict, delete) are `e2e/tests/dependencies.spec.ts`.
+Files:
 
-## Roadmap (`pages/Roadmap.tsx`)
+- Page and data: `pages/ProjectView.tsx`; `api/milestones.ts` (`getProjectView`, `createMilestone`, `updateMilestone`, `deleteMilestone`, `scheduleMilestone`); `hooks/useMilestoneSchedule.ts`
+  (the query under `["plan","project",id]` and the ONE schedule write path, a thin wrapper of the generic `hooks/useScheduleWritePath.ts`, which the team page runs too);
+  `utils/projectViewUpdate.ts` (`applySchedule`); `utils/milestoneForm.ts`; `utils/seenRange.ts` (`growSeenRange`); `utils/projectEditor.ts` (the `Editor` union, `isJiraEditor`,
+  `needsJiraConnections`).
+- Timeline: `components/ProjectTimeline.tsx` (the view → `TimelineRowData[]` adapter; it composes `ProjectTimelineRows.tsx`'s row and band builders and `MilestoneMenu.tsx`'s row menu;
+  `ProjectTray` for the Unscheduled tray).
+- Page parts: `components/ProjectPageHeader.tsx`, `ProjectViewNotices.tsx`, `ProjectEditors.tsx`, `TimelineTitle.tsx`, `UnscheduledTraySection.tsx` (the last two shared with the team page); the dialogs `MilestoneEditorModal.tsx`,
+  `MilestoneScheduleModal.tsx`; `TeamSelect.tsx` (a `SearchPicker` over `GET /teams`).
+- Dependencies: `api/dependencies.ts` (`createDependency(projectId, body)`, `updateDependency(id, {type, lagDays})` - the in-place edit, 204 -, `deleteDependency(id)`, `isDependencyCycle(err)`
+  - the `isStaleRevision` shape -, the types), `api/plan.ts` `listProjects` / `api/milestones.ts` `listMilestones` (the pickers' paged searches), `api/http.ts` `ApiError.cycle` (a typed
+  getter beside `detail`/`type`; malformed entries dropped), `utils/projectDependencies.ts` (pure: `ghostEndpoints`, `summaryRowNeeded`, `arrowSpecs`, `conflictCount`,
+  `conflictsByBar`, `linksOfMilestone`), `utils/dependencyForm.ts`, `components/ProjectDependencies.tsx`, `DependencyEditorModal.tsx`, `DependencyDeleteModal.tsx`, `MilestoneSelect.tsx`,
+  `ProjectSelect.tsx`; the summary and ghost rows are in `ProjectTimelineRows.tsx`, the overlay in `ProjectTimeline.tsx`, the "Add dependency…" item in `MilestoneMenu.tsx`.
+  - `dependencyForm.ts`: the form values, the self-link and lag rules, `toDependencyBody`, `cyclePathText`, `dependencySaveErrorMessage`; the edit's `editDependencyForm`,
+    `dependencyEditValidation` (the lag only), `toDependencyUpdateBody`, `dependencyUpdateErrorMessage`, and the shared `dependencyEndpointText` (its `ownProjectId` is `number | null`;
+    `null` = no own project, so every milestone end names its project). `EditableDependency` is what the editor and the delete read of a link.
+  - `DependencyDeleteModal.tsx`: the delete confirmation's wording and error mapping, shared with the Dependencies page.
 
-The global project ranking (V13 + `GET /views/roadmap`, `PUT /roadmap/ranking`) as a timeline, a read for everyone whose editing is gated by the view's
-`can.editRank`. Files: `api/roadmap.ts` (`getRoadmapView`, `putRanking`, `isStaleRevision` — a 409 whose problem `type` is
-`urn:astrolabe:problem:stale-revision`; the view's `RoadmapProject` carries the server's `rankPosition`, `teamIds`, `span`, `drift`, `flags[]`,
-`can.editTargetWindow`, and the view `teams[]` and the rolled-up `links[]`), `hooks/useRoadmapRanking.ts` (query + the one write path),
-`hooks/useRoadmapFilters.ts` (the filters and the pick, in the address and remembered) and `hooks/useProgramPick.ts` (the programs page's pick, in its address and remembered under the shared key), `utils/roadmapOrder.ts` (pure:
-`moveBy`/`moveToEdge`/`moveToSlot` — the team page's too —, `moveAmongVisible`, `rankingAfterDrop`, `sameIds`, `appendId`, `removeId`, `applyRanking`),
-`utils/roadmapRows.ts` (pure: filters, the pick, the displayed rows and the divider, the flag totals and panel entries, the drift band, the arrows of the
-rolled-up links) and the components `RoadmapTimeline` (the rows, bars, bands, the row menu, the arrows — inside the page's `TimelineDndContext`),
-`RoadmapFlagPanel`, `RoadmapFilters`.
+### Route and data
 
-`/roadmap` (nav section Planning after Plan, palette entry "Roadmap" / PL "Roadmapa") renders `GET /views/roadmap` under `["roadmap","view"]` as a **timeline**
-on the shared `Timeline*` (`components/RoadmapTimeline.tsx`): a row per project in rank order, then an "Unranked" divider row (present only while something
-unranked is visible) and the unranked projects (by name). Left columns, 404 px sticky: `#` (the SERVER's position, "—" when unranked; a filter leaves gaps),
-Project (the pointer-only row handle, the name as the link into `/projects/:id` — `roadmap.openProjectAria` "Open {{name}}" — the program dimmed after it),
-Flags, Operations (the row menu); work stream and owner are filters, not columns. On the track: the project's **span bar** (read-only, `tone: "summary"`, name
-"{{name}}, {{start}} to {{end}}" plus ", N conflicts") over its **target window** (a `tone: "window"` bar, `window:<id>`, name `timeline.bar.window`; editable
-only where the project's own `can.editTargetWindow` is set, else a read-only image) and, past the window, the orange drift band (`utils/roadmapRows.ts`
-`driftBandOf`). The server's `span`/`drift`/`flags` are only read, never recomputed (a window write drops them optimistically; the refetch brings the server's).
-**Whether the ranking can be changed is the view's `can.editRank`** (never the session's roles); without it: no handle, no ranking item in the menu, read-only
-bars.
+`/projects/:id` (a detail page, no nav leaf: the Plan page's project NAME is the link, `plan.openProjectAria`; `projectPath(id)` in `utils/planLinks.ts`) renders
+`GET /views/project/{id}` under `["plan","project",id]` - under the `["plan"]` prefix, so every Plan mutation also refreshes a mounted project view. `ProjectView` is
+`<ProjectPage key={id}>`, so another project starts with its own range and editors.
 
-**Flags**: a row's `flags[]` show as icons with counts in the Flags cell (an ORANGE triangle for warnings, a gray info circle for infos, plus a visually hidden
-"2 warnings, 1 info"); the facts line under the title ("N ranked", "M unranked", an ORANGE "K warnings" badge, a gray "J infos" badge) counts the VISIBLE rows;
-`components/RoadmapFlagPanel.tsx` (h3 "Flags", behind `TableDisclosure`) is their accessible surface — one table row per flag, severity in words (never colour
-alone), the project link, the sentence by kind (plural keys: "Ends 10 days after the target", "Ranked below X, but starts 7 days earlier on Team", …) and a
-"Show in timeline" button that calls `timelineRef.current.focusRow(projectId)` (the row-header cell, revealed, mounted or not). A `SegmentedControl` above the open table (a labelled radiogroup: All / Warnings / Infos, each label with its count, default All) filters the LIST by severity: panel-local state, never stored or in the URL; the row icons and the disclosure's count stay total, and an empty slice says "No warnings/infos among the flags shown." instead of an empty table (the Programs page has no flag panel). **The Flow capacity flag (1.23):** `flagSentence` phrases `FLOW_CAPACITY_MILESTONES` through `names.team` ("{{count}} milestones on {{team}} are scheduled in sprints whose capacity differs from Flow"; the plural forms of both languages are in `flagSentences.test.ts`), and the panel puts an icon-only link beside it (`TeamLink`: `IconUsersGroup`, a visually hidden name `teams.openAria` "Open team {{name}}", to `teamPath(teamId)`, where the sprints are), shown only when the flag has a `teamId` the document's `teams[]` names; a team the document does not name (the server always names it) reads without its name (`roadmap.flag.flowCapacityMilestonesNoTeam`, as `inversionNoTeam` does) and offers no link. The counts cells, the facts line and the filters count it like any flag; no Flow-staleness note is shown beside it (the document carries no Flow connection state). Tests: `Roadmap.flow.test.tsx`. **Filters**
-(`components/RoadmapFilters.tsx` in a `FilterPanel`, held in the address and remembered through `hooks/useRoadmapFilters.ts`, below): work stream, team (a project matches when
-`teamIds` has it), owner, the **flag severity** (1.21: a select "Flag severity", Any / Warning / Info; a project is kept when one of its `flags[]`, Jira's included, has that severity, the flag panel keeps its own control and still lists every flag of the rows shown), flagged only, **unranked projects only** (1.21: a switch; no ranked row is shown, the unranked ones pass the other filters as before) and the **program pick** (a `MultiSelect`, empty = all; its memory is the ONE key `planning.programPick`, which the programs page
-reads and writes through `hooks/useProgramPick.ts`, below) — applied client-side by `utils/roadmapRows.ts` (`visibleProjects`; an id the address or the memory names and the
-view no longer has is ignored, `knownFilters`/`knownPick`), and to the facts line and the panel too. **Arrows** (`arrowSpecsForLinks`): a PROJECT-to-project link by its type on
-the two span bars (red when VIOLATED), plus ONE bundle arrow per ordered project pair for the milestone links between them (`bundle:<pred>-<succ>`, end to
-start, red when any is violated, `<title>` "A → B, 3 milestone links (1 violated)"); an arrow whose project has no span or no visible row is left out. **Zoom**:
-Month / Quarter / Year (`PLAN_ZOOMS`, default Quarter) under its own key `timeline.planZoom`; the range only ever grows over every span and window of the WHOLE
-plan (a filter never shifts it). Rows virtualise above 80 (the sample plan's ~100 projects take the virtual path).
+- **Header facts:** the target window, the derived span and the drift in words ("Ends 7 days after the target", one `Badge` per non-zero figure: ORANGE when the project runs later
+  than its target, gray when ahead, nothing red).
+- **Everything is gated by the view's `can:{…}` flags, never the session's roles.**
+  - The owner chain's `can.edit`/`can.delete`/`createMilestone` give the plan-field editors (`MilestoneEditorModal`: name, description, `TeamSelect`, an estimate `NumberInput` step
+    0.25, **no dates for anyone** - a new milestone is always unscheduled).
+  - ONLY a milestone's `can.schedule` (its team's manager or an ADMIN) makes its bar editable and shows its Schedule button, drag handle and schedule menu items; the project's own
+    owner reads read-only bars (`role="img"`, no handles).
+- **Import from Jira…:** a header button (`ProjectJiraImportButton`, `components/JiraChips.tsx`, beside Link/Unlink) shown with the project's `can.createMilestone` AND only while the
+  view says the project is linked (`marks`, not a request).
+  - `Editor` has `{kind: "jiraImport"}`; `needsJiraConnections(editor)` enables `useJiraLinks` for it as for the bind dialog, so the connections are asked only after the click.
+  - `ProjectEditors` mounts `JiraImportModal` rooted at the project: `ImportRoot` is built by the shared `rootOf("PROJECT", project, project.jira)` of `utils/jiraImportRoot.ts` (which
+    the Plan page's program and project entries use too: `workStreamId`, `ownerPersonId/ownerName`; level PROJECT, so no owner field: the project's owner is sent) through
+    `importSourceOf(links)` (`utils/jiraImport.ts`, shared with the Plan page). An apply refreshes `["plan"]` (this view included).
+- Deleting the project states the milestone count (it cascades). Rules mirror the server in `utils/milestoneForm.ts`; a 409 on save marks the name field.
 
-**The baseline overlay (v0.9):** with a baseline picked (`useRoadmapRanking(pick)`, the picker in the timeline toolbar) a project the baseline froze gets a
-shadow bar `baseline:<id>` under its span bar (`projectTrack`; named with the frozen dates and the movement), `components/BaselineTotals.tsx` prints one
-`role="note"` line under the facts ("vs baseline X: 14 end later, 3 end earlier, 2 new, 1 removed" - the removed ones are `view.baseline.removedProjects`),
-the range grows over the frozen spans (the removed projects' too) and, since 1.10, every removed project that had a span is appended as a dimmed "(removed)" row
-after the last unranked row (`RoadmapTimeline`, `removedProjectRows`, `visibleRemoved`: the work stream filter and the program pick apply, a team, owner,
-flagged-only, severity or unranked-only filter hides them; rank cell "—", the shadow bar only; `timeline.md`); the flag panel is untouched. **Rank movement (1.7):** the rank cell reads "5 (was 3)" / "(was unranked)" from the frozen `baseline.rankPosition` (a `VisuallyHidden` sentence carries it for assistive technology; the column widens while a baseline is picked) and the totals note appends `rankTotals` ("N moved up in rank", "M down", newly ranked / no longer ranked). Tests: `Roadmap.baseline.test.tsx`.
+### Page composition
 
-**The critical path to a picked project (1.7):** the toolbar's "Critical path to…" picker (`components/RoadmapCriticalPicker.tsx`: a searchable `Select`, "None" first, then the projects with a span by name; a picked project without one stays an option of its own) and the row menu's "Show critical path to this project" / "Hide critical path" (disabled while a write runs, like the picker) set the target: PAGE-LOCAL state (`hooks/useCriticalTarget.ts`, never stored - a question, not a setting), said in the live region. It is the second part of the view's key (`roadmapViewKey(baseline, criticalPath)` = `["roadmap","view",{baseline, criticalPath}]`, `getRoadmapView(baseline, criticalPath)` -> `?baseline=N&criticalPath=M`; `useRoadmapRanking(baseline, criticalPath)`, `useTargetWindow` take the key like the pick; the optimistic steps spread the view, so the cached `criticalPath` block is KEPT like `baseline`; the `keepPreviousData` placeholder shows NO chain, `withoutCriticalPath`, since it is the old target's). The server's block is read by `utils/roadmapCritical.ts` (`criticalIndex`: the target and the zero-slack projects are emphasised, the pairs key the arrows; `chainProjects`: the panel's rows in the server's order) and drawn by `projectTrack`/`planArrows` ("The roadmap page's use" in `timeline.md`). **A plain 400 for the target** (`isRejectedTarget`: deleted or off-roadmap; not the typed `unknown-baseline` one) clears the selection during render (`reject()`), shows `roadmap.critical.unknown` in a red inline alert until the next pick, and the key change fetches the plain view - no error flash, no loop. The panel (`components/RoadmapCriticalChain.tsx`, h3 "Critical path to {name}", under the flag panel while a target is set) states the target's span, then ONE table (`components/UpstreamTable.tsx`, generalised from the project page's `CriticalChain` so both share it: hops, the project as a `RouterLink`, program, dates, slack, an "On the chain" badge) over `criticalPath.projects`; "Nothing is scheduled in {name}" and "No other project is upstream of {name}" are its empty states, and a project the filters hide stays listed with a dimmed "(not shown)". **Shared with the programs page (1.16):** `RoadmapCriticalPicker` takes `projects` (the page's `allProjects(view)` / `treeProjects(view)`), `RoadmapCriticalChain` takes `{projects, criticalPath, shown, intro, notShown}` (the two strings are the page's typed keys: the roadmap's `roadmap.critical.intro` / `.notShown`), `chainProjects(projects, block)`, the menu item is `CriticalPathItem` (`PlanProjectCells.tsx`) and "said once per pick" is `useCriticalAnnouncement(target, chainProject, announce)` (`hooks/useCriticalTarget.ts`: it remembers the TARGET it said the sentence for, forgetting it only when the target is cleared or replaced, so another baseline picked under a target - the kept copy shows no chain while the new document loads - does not say it again); the roadmap's DOM did not change (`Roadmap.critical.test.tsx` passes unchanged). Tests: `Roadmap.critical.test.tsx`, `RoadmapCriticalChain.test.tsx`, `roadmapCritical.test.ts`, `baselineWrites.test.tsx`.
+`ProjectPage` composes child components, split for the complexity backstop (`complexity: 35`, `eslint.config.js`):
 
-**The Jira markers (1.3):** the toolbar's "Jira dates" toggle (`components/JiraBarsToggle.tsx`, after the baseline picker; ONE remembered boolean
-`timeline.jiraBars` through `hooks/useJiraBarsPick.ts`, **on by default**, shared by all four timeline pages; rendered only when the view lists a Jira site)
-switches each bound project's shadow bar `jira:<id>` (`tone: "jira"`, a 5 px dashed outline along the TOP of the row from `project.jira.start/end`, drawn only
-when both are known; `projectTrack(…, jira)`, `utils/jiraBars.ts`; drawn and ranged only inside the Jira window - the plan's own dates padded by a year - so a
-mistyped Jira date cannot stretch the range; named "Jira E2E-6: start to end" plus the row's open date-deviation sentence). The flag panel phrases
-`JIRA_DEVIATION` as "Jira {{key}}: " + the Deviations page's sentence for `flag.deviation` with an icon-only link to the issue through the view's `jiraSites`
-(`JiraKeyLink`; the URL is never per row), and `JIRA_MILESTONES` as "{{count}} milestones deviate from Jira"; the icons and counts stay severity-driven.
-**The currency line (1.17).** While `view.jiraSites.some(isStaleSource)` (`utils/staleness.ts`: a site's `state` is not `CURRENT`, or `mappingOk` is false; a DISABLED site counts, as on the chips) the facts line ends
-with the chips' dimmed "Jira data may be out of date" (`JiraStaleNote` in `JiraChips.tsx`, key `deviations.chip.stale`), INSIDE the `role="group"` after the badges (nothing under it moves).
-It is about the PLAN, not the rows on screen: `jiraSites` lists every site a project or milestone binding of the whole document links through and a project's milestone roll-up does not say
-which, so no filter, program pick or fold narrows it; it shows with the "Jira dates" toggle off; a plan with no binding lists no site and says nothing. Plain text: the Deviations banner is the warning.
-Reference: `timeline.md` "The Jira markers". Tests: `Roadmap.jira.test.tsx`.
+- `ProjectPageHeader` (name, meta lines, the `can`-gated actions), `ProjectViewNotices` (notes, inline write failures, the polite status region), `ProjectEditors` (the dialogs for the
+  open `editor`), `TimelineTitle` and `UnscheduledTraySection` (shared with the team page).
+- The team page has the same shape: `TeamPageHeader.tsx`, `TeamViewNotices.tsx`, `TeamResetConfirm.tsx` and `TeamFlowSection.tsx` (`components/`).
+- A split moves markup, never ARIA, focus or query behaviour.
 
-**The write path.** Every change — a row-menu move, a row drag, Rank (append), Unrank — becomes the complete new id list and is sent as the wholesale PUT with
-the `expectedRevision` of the view on screen (the view's `revision` is the RANKING's own, V18: a plan write elsewhere never stales it, so the page only echoes
-it and a stale 409 means another ranking write or the delete of a ranked project). `commit` (a) answers `true` WITHOUT a PUT when the list equals the current
-one (a drop beside the row itself), (b) REFUSES the change out loud while a write is in flight (`useIsMutating` on the shared mutation key `["roadmap","write"]`
-— the key the window write path shares in a later v0.6 step —: `refused` drives the page's `role="note"` Alert and `project.busy` goes to the live region;
-`useRefusal` clears it when no write is left), (c) cancels in-flight `["roadmap"]` fetches, (d) writes `applyRanking(view, ids)` into the cached view
-synchronously (the optimistic reorder: the ranked list in the new order, positions 1..n AND each project's own `rankPosition`; flags and spans stay the server's
-until the refetch; the row, the focus and the PUT all start from the same click), (e) `mutate`s with the pre-change view as the rollback. `onSuccess` stores the
-response's `revision` in the cached view and starts `refreshQueriesAfterMutation(["roadmap"])` WITHOUT awaiting it (the save is over once the PUT answers, so a
-held Enter on a menu item is never swallowed; the next `commit` cancels that refetch before it writes its optimistic order, and the stored revision is what it
-sends); `onError` restores the pre-change view and AWAITS the refresh (the reload after a stale 409 must finish before another change builds on the list). A 409
-stale-revision shows `roadmap.stale` (the problem type is what tells it from any other 409), 403/400/other failures map through `saveErrorMessage` into an
-inline alert — never a toast, and no success toast either (the optimistic reorder and the live region are the feedback). The stale 409 means **the change was
-NOT saved** — the alert says so.
+### Write path (dates)
 
-**Re-ranking** (the write path above): the stale-revision 409 reads "the roadmap changed in the meantime — the list was reloaded". **A change made while a write
-is in flight is refused out loud** (the team page's rule: `useRefusal`, an orange `role="note"` "try again" Alert, `project.busy` in the page's one polite live
-region, `aria-busy` and a "Saving…" indicator on the grid; every entry point answers whether the change was taken; one mutation key per cached view so a later
-window write sees it). The paths: the **row menu** (the deterministic, keyboard path; after a taken change the page puts focus back on the row's menu button — a
-browser blurs a row moved in the DOM — or, when the virtual path has unmounted the row, `focusRow`s its header; done once at render and again when the menu has
-FINISHED closing, "Roadmap menu focus" below) — ranked rows: Move up / Move down / Move to top / Move to bottom (disabled at the ends of the VISIBLE ranked
-rows) and Unrank, unranked rows: Rank (appended at the END, the v0.2 rule), always Dependencies (1.20: the arrows' text path, a `RouterLink` to `/dependencies?projectId=N` through `dependenciesFilteredPath`, accessible name "Dependencies of {{name}}", offered on EVERY project row to every viewer, also a project without links, since the row's own document cannot tell; `DependenciesItem` in `PlanProjectCells.tsx`) and Open project — and the **row drag** by the pointer-only handle
-(`onReorder(id, slot)` on the page's `TimelineDndContext`, the team page's mechanism): inside the ranked rows it moves the row; **across the divider** a drop
-above it RANKS an unranked row at that slot and a drop below it UNRANKS a ranked row (dropping an unranked row among the unranked changes nothing). A drag
-(including one across the divider) is announced by dnd-kit's region only; every menu change is said by the page ("{{name}} moved to position …", "… ranked at
-position …", "… removed from the ranking"). The Plan page's mutations also refresh `["roadmap"]`.
+`hooks/useMilestoneSchedule.ts` (the `useRoadmapRanking` shape): a drag, a resize, the tray's Schedule, "Edit schedule…" (`MilestoneScheduleModal`) and Unschedule all
+`commit(id, start, end)`.
 
-**Under a filter.** The moves take the ids of the VISIBLE ranked rows: `moveAmongVisible(full, visible, id, slot)` numbers the gaps like `moveToSlot` but over
-the rows the user sees and puts the row just before the visible row that follows the gap (after the last visible row for the final gap), so hidden rows keep
-their order and their place. A drop is `rankingAfterDrop(full, visibleRanked, id, slot)` with the slot counted over the DISPLAYED rows: a slot beyond the
-divider (`visibleRanked.length`) unranks a ranked row (an unranked row comes back unchanged = no PUT); a slot up to it is a place in the ranking, so an unranked
-row is RANKED there. The page binds `visibleRankedIds` into the hook's `move`/`moveTo`/`dropAt`.
+- `commit` cancels in-flight `["plan"]` fetches (the whole prefix, not only this view), writes `applySchedule(view, id, start, end)` synchronously - the milestone moves between
+  `scheduled` and `unscheduled` and both keep the server's order, `span`/`drift` stay the server's - then `mutate`s with the pre-change view as the rollback.
+- The PUT carries the view's `revision` as `expectedRevision`. The server compares it with THAT milestone's last schedule write only (unrelated plan writes never stale a drag), so
+  `onSuccess` stores the answered revision and refreshes `["plan"]` without awaiting it (the refetch also brings the new `span`/`drift`), and `onError` restores and AWAITS the refresh.
+- `stale` is `isStaleRevision(save.error)` (a 409 of the stale-revision problem type) and shows `project.stale` (THIS milestone moved). A 403/400/other failure is an inline alert, never
+  a toast. The 400 of the schedule PUT has several causes (order, shape, no working day), so its one sentence names the working-day rule instead of sniffing the server's text.
+- A change aimed at a milestone that has left the view (deleted, refetched away) is refused the same way with `project.milestoneGone` and closes the schedule dialog.
+- **The status region is the one announcer** of these notices (`web/CLAUDE.md` "Per-feature rules"): the page's visible notices are `role="note"`, and the dialog's own refusal Alert
+  stays a live alert (`ownRefusalAlert`) because a modal's content is all a screen reader reads. The polite live region announces the button/dialog paths (`project.announce.*`); a drag is
+  announced by dnd-kit's own localized region.
+- **A change is never lost silently:** while a save is in flight `commit` answers `false` and sets `refused` (cleared when that save settles). The page shows an orange "a save is still
+  running - try again" notice (also inside the schedule dialog, which stays open) and announces it (every announcement flips an invisible zero-width suffix, so the same sentence twice
+  is re-read); a visible "Saving…" indicator sits by the Timeline heading; `TimelineDndContext` corrects dnd-kit's drop announcement (`onSchedule` returns a boolean).
+- **The schedule dialog saves with the revision of the view it was OPENED on** (`Scheduling = {milestone, revision}`), so another manager's move of that milestone meanwhile is the
+  stale 409, not an overwrite; unrelated writes never stale it (the check is per milestone).
+- The tray's Schedule places the milestone for one calendar week from the later of today (the viewer's LOCAL calendar day, `localIsoDate`) and the project's target start
+  (`dropOutcome("tray", …)`, the pointer drop's week).
+- The schedule dialog also pre-checks "at least one working day": Monday-Friday and not a public holiday of the cached dictionary (`hasWorkingDay(start, end, holidayDays)`); the
+  server's 400 is the rule.
+- The zoom is `useStoredState("timeline.zoom")`, shared by the project and team pages.
 
-**The URL holds the filters (1.19).** Flow's rule (its `useReportFilter`, ported): the address bar always holds the filters the page shows, and the seven
-stored keys (`roadmap.filter.workStream|team|owner|flagged|severity|unranked`, `planning.programPick`) are the Roadmap's MEMORY, not its state. Parameters (`utils/roadmapFilterParams.ts`,
-pure: `parseRoadmapFilter`, `roadmapFilterParams`, `hasRoadmapFilterParams`; the ONE spelling of a filtered link is `roadmapFilteredPath` in `utils/planLinks.ts`):
-`workStreamId`, `teamId`, `ownerPersonId` (one positive integer each, `idOf`'s rule), `flagged=true` and `unranked=true` (the exact word), `severity=WARNING|INFO` (exact; the Deviations address's spelling) and `programId` repeated for the pick
-(de-duplicated, ascending, at most 100), written in the order `programId, workStreamId, teamId, ownerPersonId, flagged, severity, unranked` (every address 1.19 wrote reads and writes as before); a malformed or unknown value is dropped, an id the plan no longer has filters nothing.
+### Range, bands and rows
+
+- **Range.** The page keeps `seen = {min, max}` (ISO strings) in state, grows it during render whenever the view holds an earlier/later date (scheduled dates, the target window), and
+  builds `makeScale(zoom, defaultRange([min, max], today, zoom))` from it.
+  - `today` is `localIsoDate()` (`utils/isoDate.ts`): the VIEWER'S local calendar day, not UTC - the today line and the Schedule button agree with their wall calendar (a Saturday
+    evening in Warsaw is Saturday, not Friday or Sunday in UTC). It is the one place the UI reads the browser's zone; the server's dates stay plain ISO dates with no zone, and the Plan
+    page's close-a-stream date still uses UTC `todayIsoDate()`.
+  - The range NEVER shrinks: after the last far-off link (a ghost row's dates) is deleted it stays wide until the page is reloaded. A drag cannot go further than the padded range (the
+    track clips); typed dates in the schedule dialog can, and the range then grows.
+- **Bands.** The target window is a `window` band across every row; when the span ends after the target a `drift` band covers the overrun (`addDays(targetEnd, 1)` … `span.end`).
+- **Rows** are fixed 36 px, so the name cell is one line: the name and the description as dimmed text after it, clipped by the cell. The kebab of a row is a roving stop of the grid
+  (`RowActionsMenu`'s `trigger` prop spreads the stop on the button). The timeline body is at least three rows tall (`MIN_BODY_ROWS`) so an empty timeline still has an area to drop a
+  tray row on.
+
+### Dependencies
+
+The view's `dependencies[]` is read, never recomputed: the SERVER's `check` (OK / VIOLATED + shortfall + required/actual dates / UNSCHEDULED) is shown as is.
+
+- **The section** (`components/ProjectDependencies.tsx`, h3) is the accessible surface: one table row per link in the server's order, violated first (so the top IS the conflict list).
+  - A red `Badge` "Violated · N working days short" (gray "OK" / "Not scheduled yet" - never colour alone), predecessor, type ("Finish → Start (FS)"), lag (a negative one reads "(lead)"),
+    successor, "needs X · is Y".
+  - An "Edit…" in the row menu only with the link's own `can.edit` and a Delete only with its own `can.delete` (both the SUCCESSOR's project chain, or ADMIN; the predecessor's owner
+    sees the link and the arrow but can neither change nor remove it; the kebab shows when either is set; Delete through `useDeleteConfirm`).
+- **In the rest of the page:**
+  - The facts line gains a red "N conflicts" badge; a violated bar's accessible name gains ", N conflicts" (an editable bar's name ends with it; a read-only bar reads "…, N conflicts,
+    read-only").
+  - The timeline gets a **ghost row** per distinct external endpoint with dates (dimmed; its name a `RouterLink` to that project whose accessible name keeps the visible text -
+    `project.ghostLinkAria` "A › a1 - open project A", axe's label-content-name-mismatch), a **summary row** only while the project itself is an endpoint, and gray/red arrows
+    (`utils/projectDependencies.ts` maps view → `TimelineArrowData[]`; an own end with no row is simply not drawn).
+- **Add dependency** (button beside the heading, and "Add dependency…" in a milestone's row menu, both gated by `project.can.createDependency`) opens `DependencyEditorModal`:
+  - The SUCCESSOR is fixed to this project or one of its milestones (the constrained side; the intro says so).
+  - The predecessor is a Milestone/Project `SegmentedControl` over `MilestoneSelect`/`ProjectSelect` (`SearchPicker`s over the paged `GET /milestones` / `GET /projects`, options
+    "name · project" / "name · program · work stream").
+  - Type, and a lag in working days (−365..365, negative = a lead).
+  - It saves with `createDependency`. A cycle 409 (`isDependencyCycle`) renders the localized sentence plus the path ("A → B → A", from `err.cycle`, never the server's text); every other
+    failure goes through `dependencySaveErrorMessage` (the fixed vocabulary - a 409 here is the duplicate pair, "already linked").
+- **Edit** (the page's `editDependency` variant: the row menu's "Edit…", `ProjectDependencies`' `onEdit`) opens the SAME modal with `target` set: the ends as read-only `TextInput`s,
+  `TypeAndLagFields` shared with the create, `updateDependency` on Save (`PUT /dependencies/{id}` `{type, lagDays}`, 204), success toast `project.toast.dependencySaved`.
+  - Only Type and Lag are editable (changing an end stays delete + add).
+  - A type that would close a cycle is the same 409 drawn from `ApiError.cycle` under "With this type the link would close a cycle through:" (`project.dependency.cycleEdit`); a 400
+    reads as the lag sentence, 403/404 as the create's.
+  - A held `ProjectDependency` snapshot is fine because a vanished link answers 404 ("This no longer exists").
+- Create, edit and delete are plain mutations (no optimistic step, no revision).
+
+### Dependency rows, ids and refresh
+
+- **Row and bar ids.** Own milestones keep their numeric ids; the synthetic rows are strings that cannot collide: `project:<id>` (the summary row), `ghost:m:<id>` / `ghost:p:<id>` (one
+  per DISTINCT external endpoint WITH dates); a synthetic row's bar id equals its row id. An arrow end resolves to: the own project → the summary row, an own milestone → its row (a tray
+  milestone has none), anything else → its ghost row. The skipped arrows and the range: `timeline.md` "The project page".
+- **Placement.** The section sits AFTER the Unscheduled tray (and after the "No milestones yet" empty state), not between the timeline and the tray: the tray's pointer drop needs the
+  tray close to the timeline and in view with it (the e2e tray drop asserts both are inside the viewport), and the section is taller than the viewport slack once it holds an empty state.
+- **The page owns the dialog**, not the section: `Editor` has a `{kind: "dependency", successor}` variant, so the section's button (successor null → "This project") and a milestone's
+  row-menu item (successor = that milestone) open the same `DependencyEditorModal`; the section owns only its Delete confirmation (the shared `DependencyDeleteModal`).
+- **Refresh.** Create/edit/delete: `refreshQueriesAfterMutation(["plan"])` (+ `["roadmap"]` through the page's `saved`), which brings the server's new checks. The schedule
+  write path already refreshes `["plan"]` after a PUT (`useMilestoneSchedule`); the optimistic `applySchedule` moves the bar but never touches `dependencies[].check`, so for a moment after
+  a drop the table/arrow still show the previous check. Pinned by `ProjectView.test.tsx` ("a schedule write refetches the view…").
+- **Picker query keys** are `["plan", "milestones", "picker", term]` and `["plan", "projects", "picker", term]` - under the `["plan"]` prefix, so a Plan mutation refreshes an open
+  picker's list too.
+- **Delete bodies** state the cascade: `project.dependency.deleteWith` ("Its N dependencies will be deleted too.") is appended to the milestone's and the project's confirm text when the
+  view holds any link on them (`linksOfMilestone`; the project's count is `dependencies.length`, which is exactly its own links and its milestones').
+
+### Idle gaps
+
+The view's `idleGaps[]` is the SERVER's list, read and never recomputed; the band, its look and order, the accessible surface and the optimistic rule are `timeline.md` "Idle bands".
+
+- `bandsOf` appends `idleBands(view.idleGaps, t)` (`utils/idleGaps.ts`) after the window and drift bands, also when the project has no target window.
+- `<IdleGaps gaps scope="project" />` (`components/IdleGaps.tsx`, h3) is mounted right after `{dependencies}` (the h3 order is Timeline, Unscheduled, Dependencies, Idle gaps); the
+  facts line gains a gray `timeline.idle.badge` plural badge "N idle gaps", absent at zero.
+- `applySchedule` spreads the view, so the cached gaps survive the optimistic step unchanged (same array identity, `projectViewUpdate.test.ts`) and the refetch replaces them
+  (`ProjectView.test.tsx`: the old band is still drawn synchronously after a drop, then the server's new gap). Strings: `timeline.idle.*`.
+
+### The critical path
+
+The server's critical path (`milestone.slackDays`/`critical`, `dependency.critical`, `criticalPath{upstream, upstreamTruncated}`) is read and never recomputed; what is drawn, the Slack
+column, the ghost-row lookup (by kind + id, never by `hops`) and the Critical chain section are `timeline.md` "The critical-path highlight".
+
+- `ProjectPage` holds `useCriticalPathPick()` (the one `timeline.criticalPath` key, shared with the team page; called before the early return: hooks stay unconditional) and passes
+  `criticalPath` and `<CriticalPathToggle>` (as `toolbar`) to `ProjectTimeline`, `showCritical` to `ProjectDependencies`.
+- The toggle is a "Critical path" button in the timeline's `toolbar` slot (after Today; `aria-pressed`, filled cyan while on; `useStoredState("timeline.criticalPath", false,
+  isBoolean)`).
+- `ProjectTimeline` (rows in `ProjectTimelineRows.tsx`, cell in `SlackCell.tsx`) adds the `slack` column; `withOptional` inserts the cell before the actions cell, so a bar's roving
+  columns shift by one. `emphasized(t, critical, describe)` applies the outline to the bar fields, `arrowSpecs(view, criticalPath)` flags the arrows, and the ghost rows' slack and
+  emphasis come from `upstreamIndex(view)` by kind + id.
+- `<CriticalChain view />` (`components/CriticalChain.tsx`, h3) is mounted right after `{dependencies}` (before `IdleGaps`) while the toggle is on and the project has milestones (the h3
+  order is Timeline, Unscheduled, Dependencies, Critical chain, Idle gaps).
+- Off, the DOM is unchanged (pinned). `applySchedule` leaves `slackDays`/`critical`/`criticalPath` as cached (the refetch brings the server's).
+- Strings: `project.critical.*`, `project.column.slack`, `timeline.criticalToggle`, `timeline.bar.critical`.
+
+### The pin
+
+A scheduled milestone's row menu offers "Pin dates" / "Unpin dates" (`common.action.pin*`, `IconPin`/`IconPinnedOff`) by the ROW's `can.schedule` (the team's manager or an ADMIN; the
+project's owner sees the glyph and no item) and never on a tray row: `MilestoneActions.pin` → `schedule.pin(id, pinned)` of the page's write path (the team page's section has the
+mechanics).
+
+- A pinned row carries `PinMark` after its name (`IconPin` `aria-hidden` + a `VisuallyHidden` "pinned", `timeline.pinned`).
+- Its bar's accessible name gains ", pinned" right after the base sentence (`withPinned`, `utils/pinText.ts`, before ", N conflicts" and ", on the critical path").
+
+### The baseline overlay
+
+With a baseline picked (the toolbar's picker, beside the Critical path toggle; `useMilestoneSchedule(id, pick)`) the page draws the shadow bars, the dimmed "(new since the baseline)",
+"(removed)" and "(unscheduled since the baseline)" rows and the facts-line badges for the project's own span; the rules are `timeline.md` "The baseline overlay".
+
+- The **Movement section** (`components/BaselineMovement.tsx`, h3, after Idle gaps) is the accessible surface: totals badges, then a disclosure over a table of every milestone against
+  the baseline ("Changed only" on by default, an estimate-only change counts as changed).
+- The optimistic step keeps the cached `baseline` block.
+
+### The Jira markers
+
+All from the view, no request of their own; the bars, the Jira window, `jiraPageRange` and the appended tray rows are `timeline.md` "The Jira markers" ("Appended rows for the tray").
+
+- The chip in the facts line (the project's `jira` and `flags`, the milestones' count and open-flag total - "The chips and marks" under "Deviations, bindings and the Jira chips").
+- A **Flags** column (while a scheduled milestone is linked; before Slack) holding each linked row's Jira key link and flag icon; the tray rows' key, icon and "Jira: start to end".
+- The toolbar's "Jira dates" toggle (after Critical path; only when `jiraSites` is non-empty; the shared `timeline.jiraBars`) shows the dashed bar `jira:<milestoneId>` per linked
+  scheduled row.
+- A tray milestone's appended row (`jiraRows`/`baselineRows` in `ProjectTimelineRows.tsx`) has a menu for whoever may schedule THAT milestone (its own `can.schedule`; none when Jira's two dates are reversed): `JiraRowMenu`, one item "Schedule
+  on Jira's dates", whose click is `actions.scheduleOnJira`. The page writes the link's REAL dates (`jiraScheduleDates`) through `schedule.commit(..., { announce: true })`, the one write
+  path, and a taken change moves the focus to the milestone's own row (`useRowMenuFocus(timelineRef).keep`, the Timeline's `focusRow`).
+- The row menu's Link/Unlink item and the header button read the view; the bind dialog asks for its `connections[]` when it opens (`useJiraLinks`).
+
+### Tests
+
+Pinned by: `ProjectView.test.tsx`, `ProjectView.jira.test.tsx`, `ProjectView.jiraTray.test.tsx`, `pages/ProjectView.jiraImport.test.tsx`, `ProjectView.pin.test.tsx`,
+`ProjectView.baseline.test.tsx`, `BaselineMovement.test.tsx`, `JiraRowMenu.test.tsx`, `milestoneForm.test.ts`, `projectViewUpdate.test.ts`, `projectDependencies.test.ts`,
+`dependencyForm.test.ts`, `api/milestones.test.ts`, `api/dependencies.test.ts`, `TeamSelect.test.tsx`, `DependencyEditorModal.test.tsx`, and the e2e `project-view.spec.ts` (the real
+pointer drag, the resize handle, the tray drop under scroll, the keyboard sensor, the stale notice) and `dependencies.spec.ts` (link, ghost row, arrow, cycle refusal, the manager's
+conflict, delete).
+
+`ProjectView.test.tsx` runs the page against a small fetch-mock server (a schedule PUT applies the dates and bumps the revision; the dependency POST/DELETE and the milestone picker list
+are stubbed) and wraps `DndContext` to hand the test the page's drop handler; fake timers (`Date` only) pin "today" for the Schedule button.
+
+## Roadmap
+
+Files: `pages/Roadmap.tsx`;
+
+- `api/roadmap.ts`: `getRoadmapView`, `putRanking`, `isStaleRevision` (a 409 whose problem `type` is `urn:astrolabe:problem:stale-revision`). The view's `RoadmapProject` carries the
+  server's `rankPosition`, `teamIds`, `span`, `drift`, `flags[]`, `can.editTargetWindow`; the view carries `teams[]` and the rolled-up `links[]`.
+- Hooks: `useRoadmapRanking.ts` (query + the one write path), `useRoadmapFilters.ts` (the filters and the pick, in the address and remembered), `useProgramPick.ts` (the programs
+  page's pick, in its address and remembered under the shared key), `useCriticalTarget.ts`, `useTargetWindow.ts`, `useRowMenuFocus.ts`, `useJiraBarsPick.ts`.
+- `utils/roadmapOrder.ts` (pure: `moveBy`/`moveToEdge`/`moveToSlot` - the team page's too -, `moveAmongVisible`, `rankingAfterDrop`, `sameIds`, `appendId`, `removeId`, `applyRanking`);
+  `utils/roadmapRows.ts` (pure: filters, the pick, the displayed rows and the divider, the flag totals and panel entries, the drift band, the arrows of the rolled-up links);
+  `utils/roadmapFilterParams.ts`, `utils/roadmapCritical.ts`, `utils/planTrack.ts`.
+- Components: `RoadmapTimeline` (the rows, bars, bands, the row menu, the arrows - inside the page's `TimelineDndContext`), `RoadmapFlagPanel`, `RoadmapFilters`,
+  `RoadmapCriticalPicker`, `RoadmapCriticalChain`, `UpstreamTable`, `BaselineTotals`, `JiraBarsToggle`, `TargetWindowModal`, `PlanProjectCells`.
+
+### Route and data
+
+`/roadmap` (nav section Planning after Plan, palette entry "Roadmap" / PL "Roadmapa") renders `GET /views/roadmap` (V13; the ranking is `PUT /roadmap/ranking`) under
+`["roadmap","view"]` as a **timeline** on the shared `Timeline*` (`components/RoadmapTimeline.tsx`). A read for everyone; its editing is gated by the view's `can.editRank` (never the
+session's roles): without it there is no handle, no ranking item in the menu, and the bars are read-only.
+
+- Rows: one per project in rank order, then an "Unranked" divider row (present only while something unranked is visible) and the unranked projects (by name).
+- Left columns, 404 px sticky: `#` (the SERVER's position, "—" when unranked; a filter leaves gaps), Project (the pointer-only row handle, the name as the link into `/projects/:id` -
+  `roadmap.openProjectAria` "Open {{name}}" - the program dimmed after it), Flags, Operations (the row menu). Work stream and owner are filters, not columns.
+- On the track: the project's **span bar** (read-only, `tone: "summary"`, name "{{name}}, {{start}} to {{end}}" plus ", N conflicts") over its **target window** (a `tone: "window"` bar,
+  `window:<id>`, name `timeline.bar.window`; editable only where the project's own `can.editTargetWindow` is set, else a read-only image) and, past the window, the orange drift band
+  (`utils/roadmapRows.ts` `driftBandOf`).
+- The server's `span`/`drift`/`flags` are only read, never recomputed (a window write drops them optimistically; the refetch brings the server's).
+- **Zoom:** Month / Quarter / Year (`PLAN_ZOOMS`, default Quarter) under its own key `timeline.planZoom`. The range only ever grows over every span and window of the WHOLE plan (a filter
+  never shifts it); rows virtualise above 80 (`timeline.md` "The roadmap page's use").
+- **Arrows** (`arrowSpecsForLinks`): a PROJECT-to-project link by its type on the two span bars, plus ONE bundle arrow per ordered project pair for the milestone links between them
+  (`bundle:<pred>-<succ>`, `<title>` "A → B, 3 milestone links (1 violated)"); the roadmap never rolls up (`timeline.md` "The roadmap page's use").
+
+### Flags
+
+A row's `flags[]` show as icons with counts in the Flags cell (an ORANGE triangle for warnings, a gray info circle for infos, plus a visually hidden "2 warnings, 1 info"). The facts line
+under the title ("N ranked", "M unranked", an ORANGE "K warnings" badge, a gray "J infos" badge) counts the VISIBLE rows.
+
+- `components/RoadmapFlagPanel.tsx` (h3 "Flags", behind `TableDisclosure`) is their accessible surface: one table row per flag, severity in words (never colour alone), the project link,
+  the sentence by kind (plural keys: "Ends 10 days after the target", "Ranked below X, but starts 7 days earlier on Team", …) and a "Show in timeline" button that calls
+  `timelineRef.current.focusRow(projectId)` (the row-header cell, revealed, mounted or not).
+- A `SegmentedControl` above the open table (a labelled radiogroup: All / Warnings / Infos, each label with its count, default All) filters the LIST by severity: panel-local state,
+  never stored or in the URL. The row icons and the disclosure's count stay total, and an empty slice says "No warnings/infos among the flags shown." instead of an empty table (the
+  Programs page has no flag panel).
+- **The Flow capacity flag:** `flagSentence` phrases `FLOW_CAPACITY_MILESTONES` through `names.team` ("{{count}} milestones on {{team}} are scheduled in sprints whose capacity differs
+  from Flow"; the plural forms of both languages are in `flagSentences.test.ts`).
+  - The panel puts an icon-only link beside it (`TeamLink`: `IconUsersGroup`, a visually hidden name `teams.openAria` "Open team {{name}}", to `teamPath(teamId)`, where the sprints
+    are), shown only when the flag has a `teamId` the document's `teams[]` names. A team the document does not name (the server always names it) reads without its name
+    (`roadmap.flag.flowCapacityMilestonesNoTeam`, as `inversionNoTeam` does) and offers no link.
+  - The counts cells, the facts line and the filters count it like any flag; no Flow-staleness note is shown beside it (the document carries no Flow connection state).
+
+### Filters
+
+`components/RoadmapFilters.tsx` in a `FilterPanel`, held in the address and remembered through `hooks/useRoadmapFilters.ts` ("The URL holds the filters"): work stream, team (a project
+matches when `teamIds` has it), owner, and:
+
+- the **flag severity** (a select "Flag severity", Any / Warning / Info): a project is kept when one of its `flags[]`, Jira's included, has that severity; the flag panel keeps its own
+  control and still lists every flag of the rows shown;
+- flagged only;
+- **unranked projects only** (a switch): no ranked row is shown, the unranked ones pass the other filters as before;
+- the **program pick** (a `MultiSelect`, empty = all; its memory is the ONE key `planning.programPick`, which the programs page reads and writes through `hooks/useProgramPick.ts`).
+
+They apply client-side through `utils/roadmapRows.ts` (`visibleProjects`; an id the address or the memory names and the view no longer has is ignored, `knownFilters`/`knownPick`), and
+to the facts line and the panel too.
+
+### The URL holds the filters
+
+Flow's rule (its `useReportFilter`, ported): the address bar always holds the filters the page shows, and the seven stored keys (`roadmap.filter.workStream|team|owner|flagged|severity|unranked`,
+`planning.programPick`) are the Roadmap's MEMORY, not its state.
+
+- Parameters (`utils/roadmapFilterParams.ts`, pure: `parseRoadmapFilter`, `roadmapFilterParams`, `hasRoadmapFilterParams`; the ONE spelling of a filtered link is `roadmapFilteredPath`
+  in `utils/planLinks.ts`): `workStreamId`, `teamId`, `ownerPersonId` (one positive integer each, `idOf`'s rule), `flagged=true` and `unranked=true` (the exact word),
+  `severity=WARNING|INFO` (exact; the Deviations address's spelling) and `programId` repeated for the pick (de-duplicated, ascending, at most 100).
+- Written in the order `programId, workStreamId, teamId, ownerPersonId, flagged, severity, unranked`. A malformed or unknown value is dropped, an id the plan no longer has filters
+  nothing.
 
 | Situation | Shown | Address | Remembered keys |
 |---|---|---|---|
@@ -842,169 +954,299 @@ pure: `parseRoadmapFilter`, `roadmapFilterParams`, `hasRoadmapFilterParams`; the
 | the user changes a filter or the pick | the new whole state | rewritten by `replace` (bare when empty) | all seven written with the new state |
 | Back / forward | what that URL names | as navigated | untouched |
 
-The hook answers `{ filters, pick, setFilters, setPick }`; the remembered state is read once at mount; a foreign parameter in the address is kept. A change is
-never a push and no effect writes the memory on a link's arrival. The Programs page follows the same rule for the pick alone (1.21, "Programs" below): `programId` in its address, the same key remembered. Tests: `hooks/useRoadmapFilters.test.tsx` (the table), `utils/roadmapFilterParams.test.ts`, `Roadmap.test.tsx` "the filters in the address".
+The hook answers `{ filters, pick, setFilters, setPick }`; the remembered state is read once at mount; a foreign parameter in the address is kept. A change is never a push and no effect
+writes the memory on a link's arrival. The Programs page follows the same rule for the pick alone (`programId` in its address, the same key remembered: "Programs").
 
-**Dragging.** The row handle (`TimelineRowHandle`, pointer-only) and the page's `TimelineDndContext` `onReorder(id, slot)` are the team page's mechanism
-(`timeline.md` "Row drag"); there is no keyboard drag — the row menu is the keyboard path, and the page restores keyboard focus after a taken menu change
-(`refocus` in `Roadmap.tsx`): a browser blurs a focused element whose row is moved in the DOM, so the render that reorders is followed by `focus()` on the row's
-`data-operations-for` menu button, or by `focusRow(id)` when the virtual path has unmounted the row (Move to bottom, Rank on a 100-row plan). dnd-kit's region
-announces a drag (also across the divider); the page's polite region says the menu changes only.
+### The baseline overlay
 
-- **Roadmap menu focus.** After a taken menu change the roadmap repeats its refocus once the row menu has FINISHED closing (`RowActionsMenu`'s opt-in `onClosed`
-  = Mantine's `onExitTransitionEnd`, via `actions.menuClosed`): the dropdown and its focus trap stay mounted through the ~150 ms exit transition and pull an
-  earlier focus back into the dropdown, which lands on `body` when the dropdown unmounts.
-  **Rank under "Unranked projects only" (1.21):** the ranked row leaves the list at once, its menu button with it, so the page reads the neighbour from
-  `visible.unranked` BEFORE the write (`neighbourOf`: the next row, else the previous) and keeps the focus on THAT row (`focus.keep(neighbour ?? project.id, …)`;
-  `useRowMenuFocus` is unchanged in that); with no row left the focus goes to the **Filters button** (1.22): the hook is given a `fallbackRef` (the page's
-  `FilterPanel` `toggleRef`) and uses it whenever the row it was asked for is neither a menu button nor one of the timeline's rows (`focusRow` answers
-  `false`) or the timeline is not mounted (the empty state replaced it). Only the Roadmap passes a fallback; Programs and the project page keep nothing.
-  The status region has said the change either way. **The armed second put (1.22):** that put waits for the used row's menu to close, but a menu that left
-  with its row never closes; the render after `keep` drops the wait when `[data-operations-for=<used row>]` is gone, so the row coming back later (the
-  filter turned off) is not mistaken for that close and does not steal the focus. **After a rolled-back ranking write (1.22):** `useRoadmapRanking`
-  counts `rollbacks` (a failed save has restored the view and its awaited reload has settled); the page's effect calls `focus.returnToOrigin()`, which
-  puts the focus back on the row the change came from (`watchRollback`'s `from`: the ranked row itself, not the neighbour) by the same rule, but only while the
-  focus is still on the element the hook put it on, or on `body`: a focus the user has moved meanwhile (the Programs field) is left alone, as in
-  `useDialogFocus`. Two limits: only the failure of a write the page saw go out (`watchRollback`, via `ranking.writeCount()`) can return the focus,
-  and the row is forgotten (`forgetOrigin`) when that write settles without a rollback, so a later failed pointer drag never pulls it to an old row;
-  and a user focus that sits on the very element the hook placed (they pressed Enter on the Filters button before a 409/403 settled) cannot be told
-  apart from the hook's own, so the focus returns to the row.
-  Under happy-dom Mantine's exit transition never ends, so `menuClosed` is proven at the hook (`useRowMenuFocus.test.tsx`), the rest in `Roadmap.test.tsx`
-  ("Rank under Unranked projects only").
+With a baseline picked (`useRoadmapRanking(pick)`, the picker in the timeline toolbar) the page draws what `timeline.md` "The baseline overlay" ("Roadmap and programs") describes: the
+shadow bar `baseline:<id>` (`projectTrack`), the dimmed "(removed)" rows, the rank movement "5 (was 3)" and the totals line.
 
-### The target window (both plan pages)
+- `components/BaselineTotals.tsx` prints the totals as one `role="note"` line under the facts; the removed ones are `view.baseline.removedProjects`, and the range grows over the frozen
+  spans (the removed projects' too).
+- The removed rows are appended after the last unranked row (`RoadmapTimeline`, `removedProjectRows`, `visibleRemoved`): the work stream filter and the program pick apply; a team,
+  owner, flagged-only, severity or unranked-only filter hides them. The flag panel is untouched.
+- The rank cell widens while a baseline is picked; a `VisuallyHidden` sentence carries the movement for assistive technology, and the totals note appends `rankTotals`.
 
-**The target window (v0.6, both pages):** wherever the project's own `can.editTargetWindow` is set (ADMIN, an owner ABOVE the project, a ROADMAP_EDITOR - the
-project's own owner alone is read-only; never the session's roles) the window is edited by (1) moving or resizing its band (the bar machinery, keyboard
-included; the read-only span bar over it is pointer-transparent, `.timelineBarInert`, so the window under it is grabbed where they overlap and a draw can start
-on it), (2) a **draw** across a row with no window (`projectTrack` returns `draw: {barId: "window:<id>"}`), and (3) the row menu: "Edit target window…"
-(`components/TargetWindowModal.tsx`, the `MilestoneScheduleModal` shape: two `PlanDateInput`s, both required, end not before start, a Clear button, the refusal
-shown inside the dialog) and "Clear target window" (`TargetWindowItems` in `PlanProjectCells.tsx`) - the keyboard and touch path. All three are
-`onSchedule("window:<id>", start, end)` / the menu on the page's `TimelineDndContext`, answered by ONE write path, `hooks/useTargetWindow.ts` ("The target
-window's write path" below; generic over the cached view: roadmap `["roadmap","view"]` with `applyRoadmapWindow`, programs `["roadmap","programs"]` with
-`applyProgramsWindow`): the failures read 403 `roadmap.window.forbidden` / 404 `roadmap.window.gone` / 400 `roadmap.window.invalid`, and a change while the
-ranking write runs (or the reverse) is **refused out loud**, the dialog staying open with its own alert. After a menu action the focus returns to the row's menu
-button (`hooks/useRowMenuFocus.ts`, the roadmap's `onClosed` pattern, `restore` for a closed dialog). Drags are announced by dnd-kit, the dialog and Clear by
-the page (`roadmap.announce.windowSet/windowCleared`). Tests: `Roadmap.window.test.tsx`, `Programs.window.test.tsx`, `targetWindowUpdate.test.ts`; the real
-pointer gestures are the third scenario of `e2e/tests/roadmap.spec.ts`.
+### The critical path to a picked project
 
-**The target window's write path (v0.6, both plan pages).** `hooks/useTargetWindow.ts` is generic over the page's cached view (`view`, `queryKey`, `apply`,
-`nameOf`, and the page's `announce`): `commit(id, start|null, end|null, {announce?, ownRefusalAlert?}) → boolean` cancels in-flight reads of the view, writes
-`apply(...)` (`utils/targetWindowUpdate.ts`: the window set, `drift` and the DRIFT_* flags dropped - the RANK_INVERSION flags stay -, and on the programs view
-the program's and work stream's roll-up counts lowered by the dropped flags), then `mutate`s `PUT /projects/{id}/target-window` (204, no revision) with the
-pre-change view as the rollback. Success refreshes `["roadmap"]` and `["plan"]` WITHOUT awaiting (so the other plan page, not mounted, is invalidated and a
-mounted project view's band follows); failure restores the view, AWAITS the refresh and maps 403/404/400 through `saveErrorMessage` (`roadmap.window.*`). The
-mutation key is the ranking's exported `ROADMAP_WRITE_KEY`, so `useIsMutating` sees both and each refuses the other: `commit` answers `false`, sets `refused`
-(`useRefusal`) and announces `project.busy`; a change aimed at a project that left the view sets `gone`. The roadmap passes `ranking.announce` as its `announce`
-(ONE polite region), the programs page its own toggled-suffix announcer. `hooks/useRowMenuFocus.ts` is the roadmap's former inline refocus (`keep` = at render
-and again on the menu's `onClosed`; `restore` = at render only, for a dialog that was opened from the menu) shared by both pages. The dialog
-(`TargetWindowModal`, `returnFocus={false}`: the page puts the focus on the menu button) is kept as `{id}` page state, the project read from the view on every
-render and the dialog closed when it left. **dnd-kit's click blocker:** after ANY drag ends, dnd-kit swallows the next `click` for 50 ms (its document-level
-capture listener is removed on a timer), and an Enter on a button is a click - a Playwright step that presses a menu button right after a drag must retry
-(`e2e/tests/roadmap.spec.ts` `menuItemByKeyboard`). Tests: `Roadmap.window.test.tsx` and `Programs.window.test.tsx` (the PUT bodies, the optimistic figures,
-rollback, the 403/404/400 sentences, the refusal both ways, the dialog and Clear, focus), `targetWindowUpdate.test.ts`, `planTrack.test.ts` (who gets an
-editable band and a draw surface), `planForm.test.ts` (the dialog's rules).
+The toolbar's "Critical path to…" picker (`components/RoadmapCriticalPicker.tsx`: a searchable `Select`, "None" first, then the projects with a span by name; a picked project without
+one stays an option of its own) and the row menu's "Show critical path to this project" / "Hide critical path" (disabled while a write runs, like the picker) set the target: PAGE-LOCAL
+state (`hooks/useCriticalTarget.ts`, never stored - a question, not a setting), said in the live region. What is emphasised and drawn: `timeline.md` "The roadmap page's use".
 
-**Tests.** `Roadmap.test.tsx` runs the whole flow against a small fetch-mock server (a PUT applies the order and bumps the revision); it wraps `DndContext` to
-hand the test the page's drag handlers (a row drop is fed with the row zone's live readers), since happy-dom has no layout for a real drag.
-`roadmapOrder.test.ts`, `roadmapRows.test.ts` and `api/roadmap.test.ts` are pure. The real pointer drag (inside the ranking and across the divider), focus
-retention after a menu move and the stale notice are `e2e/tests/roadmap.spec.ts`.
+- **The view's key.** The target is the second part of the key: `roadmapViewKey(baseline, criticalPath)` = `["roadmap","view",{baseline, criticalPath}]`.
+  `getRoadmapView(baseline, criticalPath)` → `?baseline=N&criticalPath=M`; `useRoadmapRanking(baseline, criticalPath)` and `useTargetWindow` take the key like the pick. The optimistic steps spread the view, so
+  the cached `criticalPath` block is KEPT like `baseline`; the `keepPreviousData` placeholder shows NO chain (`withoutCriticalPath`), since it is the old target's.
+- The server's block is read by `utils/roadmapCritical.ts` (`criticalIndex`: the target and the zero-slack projects are emphasised, the pairs key the arrows; `chainProjects`: the
+  panel's rows in the server's order) and drawn by `projectTrack`/`planArrows`.
+- **A plain 400 for the target** (`isRejectedTarget`: deleted or off-roadmap; not the typed `unknown-baseline` one) clears the selection during render (`reject()`), shows
+  `roadmap.critical.unknown` in a red inline alert until the next pick, and the key change fetches the plain view - no error flash, no loop.
+- **The panel** (`components/RoadmapCriticalChain.tsx`, h3 "Critical path to {name}", under the flag panel while a target is set) states the target's span, then ONE table
+  (`components/UpstreamTable.tsx`, shared with the project page's `CriticalChain`: hops, the project as a `RouterLink`, program, dates, slack, an "On the chain" badge) over
+  `criticalPath.projects`. "Nothing is scheduled in {name}" and "No other project is upstream of {name}" are its empty states, and a project the filters hide stays listed with a dimmed
+  "(not shown)".
+- **Shared with the programs page:** `RoadmapCriticalPicker` takes `projects` (the page's `allProjects(view)` / `treeProjects(view)`).
+  `RoadmapCriticalChain` takes `{projects, criticalPath, shown, intro, notShown}` (the two strings are the page's typed keys: the roadmap's `roadmap.critical.intro` / `.notShown`),
+  with `chainProjects(projects, block)`. The menu item is `CriticalPathItem` (`PlanProjectCells.tsx`).
+- **Said once per pick:** `useCriticalAnnouncement(target, chainProject, announce)` (`hooks/useCriticalTarget.ts`) remembers the TARGET it said the sentence for, forgetting it only when
+  the target is cleared or replaced, so another baseline picked under a target (the kept copy shows no chain while the new document loads) does not say it again.
 
-## Programs (`pages/Programs.tsx`)
+### The Jira markers
 
-`/programs` (nav section Planning after Roadmap, `IconListTree`; palette "Programs" / PL "Programy") renders `GET /views/programs` under
-`["roadmap","programs"]` (`api/programs.ts`; under the `["roadmap"]` prefix the Plan page and the project view already refresh) as the plan **tree on the shared
-Timeline** (`components/ProgramsTimeline.tsx`): work stream → program → project, one row each, in the server's order (open streams first, projects ranked
-first). Read for everyone; the one thing written here is a project's target window (band, draw, row menu - "The target window" under the Roadmap page, the same
-shared row and write path); the server's spans, flag counts, drift and link checks are only read.
+The toolbar's "Jira dates" toggle (`components/JiraBarsToggle.tsx`, after the baseline picker; ONE remembered boolean `timeline.jiraBars` through `hooks/useJiraBarsPick.ts`, **on by
+default**, shared by all four timeline pages; rendered only when the view lists a Jira site) switches each bound project's shadow bar `jira:<id>` (`projectTrack(…, jira)`,
+`utils/jiraBars.ts`; look, window and naming: `timeline.md` "The Jira markers").
 
-Files: `api/programs.ts` (`getProgramsView(baseline, criticalPath)`, `programsViewKey` = `["roadmap","programs",{baseline, criticalPath}]`, the view types), `utils/programsTree.ts` (pure: `treeRows`,
-`defaultOpen`, `allOpen`, `toggled`, `programChoices`, `treeFacts`, `treeDates`, `arrowAnchors`), `components/ProgramsTimeline.tsx` (tree rows → `TimelineRowData[]`, the
-chevron cell, the arrows), and the pieces it shares with the roadmap: `utils/planTrack.ts`, `components/PlanProjectCells.tsx`,
-`components/ProgramPickField.tsx`, `hooks/usePlanScale.ts`, `hooks/useProgramPick.ts`, `utils/roadmapRows.ts` `pickAmong`.
+- The flag panel phrases `JIRA_DEVIATION` as "Jira {{key}}: " + the Deviations page's sentence for `flag.deviation` with an icon-only link to the issue through the view's `jiraSites`
+  (`JiraKeyLink`; the URL is never per row), and `JIRA_MILESTONES` as "{{count}} milestones deviate from Jira"; the icons and counts stay severity-driven.
+- **The currency line.** While `view.jiraSites.some(isStaleSource)` (`utils/staleness.ts`: a site's `state` is not `CURRENT`, or `mappingOk` is false; a DISABLED site counts, as on the
+  chips) the facts line ends with the chips' dimmed "Jira data may be out of date" (`JiraStaleNote` in `JiraChips.tsx`, key `deviations.chip.stale`), INSIDE the `role="group"` after the
+  badges (nothing under it moves).
+  - It is about the PLAN, not the rows on screen: `jiraSites` lists every site a project or milestone binding of the whole document links through and a project's milestone roll-up does
+    not say which, so no filter, program pick or fold narrows it. It shows with the "Jira dates" toggle off; a plan with no binding lists no site and says nothing.
+  - Plain text: the Deviations banner is the warning.
 
-**Rows** (`utils/programsTree.ts`, pure and tested: `treeRows(view, pick, open)`). Left columns, 448 px sticky (the Flags column is 120 px: a stream's roll-up
-runs to three digits on the sample plan): the name (a tree indent of 16 px per level), Flags, Operations. A **work stream / program row** shows its name with
-the owner dimmed (and "(closed)" for a stream with an end date), a read-only `tone: "summary"` bar over the span its projects cover
-(`programs.streamBarAria`/`programBarAria`) and the **roll-up counts** of its projects' flags in the Flags cell (the project row's icons: an orange triangle and
-a gray info circle with a visually hidden sentence, `data-flags`); a node with nothing under it (an empty program) shows no chevron. A **project row** is the
-roadmap's row — `projectTrack`: the target-window band, the span bar (with ", N conflicts"), the drift band — with the name as the link into the project (the
-owner dimmed) and a menu that holds the critical-path item (1.16, "Show…"/"Hide critical path", for everyone), "Dependencies" (1.20, the roadmap's `DependenciesItem`: the text path of the arrows, a link to the list narrowed to the project), "Open project" and, by the project's own `can.editTargetWindow`, the window items. Row ids are `ws:<id>` / `pg:<id>` / the
-project id; bar ids the same (`ws:`/`pg:` keys, the project id) so the arrows anchor on the project ids as on the roadmap, or, for a project whose row is folded away, on the
-bar of the folded row that stands for it ("Arrows" below).
+### The write path
 
-**The baseline overlay (v0.9):** the same picker, shadow bar (`projectTrack`) and totals line as the roadmap (since 1.10 the view lists its removed projects too: the line
-counts them, and each is appended as a dimmed "(removed)" row under its program when that program is shown and expanded - `treeRows`' `removedProject` kind,
-`ProgramsTimeline`'s `RemovedLabel`; they count as the program's children, so a program whose live projects are all deleted can still be expanded; a removed project of a gone, hidden or folded program has no row); a work stream and a program row also get a shadow bar from their own `baseline.span` (a work stream the program pick shows in part: the union
-of the shown programs' frozen spans, named without a movement sentence). The query key `["roadmap","programs",{baseline, criticalPath}]` carries the pick (and, since 1.16, the critical-path target). Tests:
-`Programs.baseline.test.tsx`.
+Every change - a row-menu move, a row drag, Rank (append), Unrank - becomes the complete new id list and is sent as the wholesale PUT with the `expectedRevision` of the view on screen.
+The view's `revision` is the RANKING's own (V18): a plan write elsewhere never stales it, so the page only echoes it and a stale 409 means another ranking write or the delete of a
+ranked project.
 
-**The Jira markers (1.3):** the same "Jira dates" toggle (after the baseline picker, the one stored `timeline.jiraBars`, on by default, only when the view lists
-a Jira site) and the same project-row bar `jira:<id>` (`projectTrack`; a project row only - work stream and program rows are not bound); the roll-up counts in
-the Flags cell and the facts badges stay severity-driven. The page has no flag panel (a project's Flow capacity flag, 1.23, counts in its row and in the roll-ups of its program and work stream like any flag; the sentence and the team link are the Roadmap's panel's: "Roadmap" above). **The currency line (1.17)** is the roadmap's: the facts line (`ProgramsFacts`) ends with
-"Jira data may be out of date" while any site in `view.jiraSites` is behind (`isStaleSource`); plan-wide, so neither the program pick nor a fold narrows it. Tests: `Programs.jira.test.tsx`.
+`commit`:
 
-**Expand / collapse.** A node with children has a chevron `ActionIcon` as the ONE roving stop of its name cell (a function cell), `aria-expanded`, its name
-telling the level ("Work stream X" / "Program Y", `programs.streamAria`/`programAria`; no `aria-controls` — the child rows are separate grid rows without ids).
-Enter/Space flips it, the focus stays on that chevron ("The expanded set" below) and the page SAYS what happened in its polite status region ("X expanded, 3
-programs", "X collapsed"). Defaults: every work stream open, every program closed (≈ 25 rows on the sample plan; "Expand all" there is ~125 rows = the virtual
-path); **Expand all / Collapse all** buttons in the facts row. The expanded set is **page state, not persisted**.
+1. answers `true` WITHOUT a PUT when the list equals the current one (a drop beside the row itself);
+2. REFUSES the change out loud while a write is in flight (`useIsMutating` on the shared mutation key `["roadmap","write"]`, `ROADMAP_WRITE_KEY`, which the window write path shares):
+   `refused` drives the page's orange `role="note"` "try again" Alert and `project.busy` goes to the page's one polite live region; `useRefusal` clears it when no write is left. The grid
+   carries `aria-busy` and a "Saving…" indicator, and every entry point answers whether the change was taken;
+3. cancels in-flight `["roadmap"]` fetches;
+4. writes `applyRanking(view, ids)` into the cached view synchronously (the optimistic reorder: the ranked list in the new order, positions 1..n AND each project's own `rankPosition`;
+   flags and spans stay the server's until the refetch; the row, the focus and the PUT all start from the same click);
+5. `mutate`s with the pre-change view as the rollback.
 
-**The program pick** is the roadmap's and **in the address since 1.21** (`hooks/useProgramPick.ts`, Flow's rule exactly as the Roadmap's 1.19 hook, for the
-pick alone): `programId` repeated (`parseProgramPick` / `withProgramPick` in `utils/roadmapFilterParams.ts`, the Roadmap's own spelling: de-duplicated, ascending,
-at most 100). A bare address with nothing remembered stays bare and shows every program; with a pick remembered it shows it and is rewritten by `replace` to say
-so; an address naming `programId` (even a malformed one) is shown exactly as written (none valid = every program) and remembers nothing; only the user's own
-change writes the ONE key `planning.programPick` (shared with the Roadmap) and rewrites the address by `replace` (bare when empty); Back/forward shows what
-that address names. The remembered value is read once when the page's body mounts, a foreign parameter is kept, no effect writes the memory on a link's
-arrival, and nothing links into the page (the address is there to be copied). The same `ProgramPickField` (its labels `common.filter.*`) sits in a
-`FilterPanel` (stored `programs.filtersOpen`); read through `pickAmong(programChoices(view), pick)` (an id the plan no longer has is ignored, and stays in the
-address as written). A picked program keeps its work stream's row; a stream with no picked program is hidden; a stream the pick shows in part is rolled up over the
-programs that remain ("Roll-up in part" below). The facts line ("N work streams · M programs · K projects", an orange "K warnings" and a gray "J infos" badge)
-counts what is shown. **Arrows** (1.16): `planArrows` over `view.links` between the rows that STAND FOR the projects (`arrowAnchors(view, pick, open)`: the project's
-own row, else its folded program's row, else its folded work stream's; a project of a program the pick hides, or whose row has no span bar, has none). Two project
-rows keep today's arrows; a link inside one row draws nothing; every other pair of rows gets ONE `rollup:<fromRow>-<toRow>` arrow, END to START, counting every
-link folded into it (a direct link counts one), red when any is violated, titled by `roadmap.rollupLabel` with the two rows' names; a folded node's bar says ", N
-conflicts" for the violated links ending on it. Nothing is opened for the user, and the figures are the server's, only summed over what is folded (`timeline.md` "The
-programs page's use"). **Zoom**: Month / Quarter / Year under `timeline.planZoom` (the roadmap's key), the range grows over every span and window of the WHOLE plan. Tests:
-`utils/programsTree.test.ts`, `pages/Programs.test.tsx`, `api/programs.test.ts`; the real browser is `e2e/tests/programs.spec.ts` and the axe scans in
-`accessibility.spec.ts`.
+- `onSuccess` stores the response's `revision` in the cached view and starts `refreshQueriesAfterMutation(["roadmap"])` WITHOUT awaiting it (the save is over once the PUT answers, so a
+  held Enter on a menu item is never swallowed; the next `commit` cancels that refetch before it writes its optimistic order, and the stored revision is what it sends).
+- `onError` restores the pre-change view and AWAITS the refresh (the reload after a stale 409 must finish before another change builds on the list).
+- A stale-revision 409 (the problem type is what tells it from any other 409) shows `roadmap.stale`, "the roadmap changed in the meantime - the list was reloaded": **the change was NOT
+  saved**, and the alert says so. 403/400/other failures map through `saveErrorMessage` into an inline alert - never a toast, and no success toast either (the optimistic reorder and the
+  live region are the feedback).
+- The Plan page's mutations also refresh `["roadmap"]`.
 
-- **The critical path to a picked project (1.16).** The roadmap's pieces, shared and never forked ("Roadmap" above): the toolbar's "Critical path to…" picker
-  (after the baseline picker; every project of the tree with a span, folded or picked away too), the row menu's `CriticalPathItem`, the panel (`RoadmapCriticalChain`,
-  h3 under the timeline) and `useCriticalAnnouncement` (the sentence is said once per pick, "Roadmap" above); the target is `useCriticalTarget()` in `Programs()` (page-local, never stored, not the roadmap's) and the
-  second part of the view's key (`programsViewKey(baseline, criticalPath)`, `getProgramsView` -> `?baseline=N&criticalPath=M`; `useTargetWindow` gets the keyed entry, so
-  a window write keeps the block; the `keepPreviousData` placeholder shows no chain, `withoutCriticalPath` after `withoutStaleOverlay`). A plain 400 for the target
-  clears it during render and shows `roadmap.critical.unknown` (`isRejectedTarget`). **The emphasis lands on the row that stands for the project**
-  (`arrowAnchors`, "Arrows" above): a project row on the chain gets `projectTrack`'s `critical` argument; a FOLDED node row that stands for at least one chain project
-  gets `emphasis: "critical"` on its summary bar and ", holds a project on the critical path" (`programs.barCriticalInside`) in its name, so the folded default shows
-  something; an expanded node is not emphasised (its children are); nothing is ever opened for the user. The chain's pairs mark the arrows through the same
-  `planArrows`, rolled-up ones included (a rolled-up arrow is `critical` when any pair folded into it is; red still wins). The panel's `shown` is the project rows on
-  the timeline; a chain project in a folded row or outside the program pick reads `programs.critical.notShown` "(folded or not picked)", and the intro's last sentence
-  is `programs.critical.intro`. "Showing the critical path to X" / "Critical path hidden" go through the page's one status region. Without a target nothing differs from 1.15
-  (no attribute, class or panel; the menu item reads "Show…"). Tests: `Programs.critical.test.tsx`.
-- **One project-row builder.** `projectTrack(project, t, conflicts)` is the only place a project's bars and drift band are made (`window:<id>` and `<id>` bars,
-  `drift:<id>` band), `planArrows` (over `arrowSpecsForLinks` and `rolledUpLinks`, in `utils/roadmapRows.ts`) the only place the rolled-up links become arrows; `RoadmapTimeline` and `ProgramsTimeline` both call them (the roadmap's `anchorOf` answers only a project's own id, so it never rolls up), so the target
-  window's gestures (an editable `window:<id>` bar by the project's `can.editTargetWindow`, the draw surface on a row without a window) land once; the menu's
-  window items are `TargetWindowItems`. Row/bar ids never collide on the programs timeline: project rows use the numeric project id, work stream / program rows
-  the strings `ws:<id>` / `pg:<id>` (also their bars' ids).
-- **The expanded set** is `useState<ReadonlySet<string> | null>(null)` in `ProgramsBody`: `null` means "the defaults" (`defaultOpen(view)`: every stream), so a
-  work stream that appears with a refetch opens; any change (a chevron, Expand all, Collapse all) writes a concrete set from what the user sees. `toggle(key)`
-  finds the row in the CURRENT rows to say what it did (`programs.announce.*` with a plural `count`); while the rows stay on one render path the chevron button
-  is the same DOM node before and after (rows are keyed by id), so it keeps the focus and the roving grid re-adopts it as the tab stop. **When a toggle crosses
-  the virtualisation threshold (80 rows) it is NOT**: the Timeline swaps plain for virtual rows (or back), every row remounts and the pressed chevron is lost (a
-  freshly enabled virtualiser also mounts no row on its first render). So `toggle` records the node key in a ref and an effect, after the render, leaves the
-  focus alone only when `[data-node-key=<key>]` is the active element and otherwise calls `timelineRef.focusRow(key)` (the roadmap's `refocus` pattern; the
-  virtual path scrolls to the row and the Timeline's layout effect focuses it once mounted). Pinned by `Programs.virtual.test.tsx` (Expand all, an Enter
-  collapse staying over 80 and falling under it, a single toggle crossing up and back).
-- **The pick.** `programChoices(view)` lists every program (empty ones too) and `pickAmong` reads the address's ids against them; the roadmap passes its own
-  `programOptions(view)` (programs with projects) to the same function. An id only one of the pages knows is ignored there, not dropped from storage. The
-  `MultiSelect`'s clear button is `aria-hidden` (Mantine), so tests and e2e find it by its label (`getByLabel`), not by role.
-- **Roll-up in part.** `shownStreams` (inside `programsTree.ts`) keeps the server's span/counts for a stream shown whole and recomputes them (`unionSpan`,
-  `sumFlags`) for one the pick shows in part. Nothing else on the page is computed.
-- **No `TimelineDndContext`.** Nothing on the page is draggable yet, so the `Timeline` is mounted without a drag context (it works without one); the target-window step wraps it like the roadmap.
-- **Tests.** `Programs.test.tsx` runs the page against a one-endpoint fetch mock (default open set, the chevron by pointer and keyboard, the status sentences,
-  Expand/Collapse all, the project row, the arrows following the fold (rolled up onto the program and work stream rows, 1.16), the pick and its shared key, Year zoom, empty and failed loads);
-  `programsTree.test.ts` and `api/programs.test.ts` are pure.
+**The paths.**
+
+- The **row menu** (the deterministic, keyboard path; focus: "Roadmap menu focus" below):
+  - ranked rows: Move up / Move down / Move to top / Move to bottom (disabled at the ends of the VISIBLE ranked rows) and Unrank;
+  - unranked rows: Rank (appended at the END);
+  - always: Dependencies (a `RouterLink` to `/dependencies?projectId=N` through `dependenciesFilteredPath`, accessible name "Dependencies of {{name}}", the arrows' text path, offered on EVERY
+    project row to every viewer, also a project without links, since the row's own document cannot tell; `DependenciesItem` in `PlanProjectCells.tsx`) and Open project.
+- The **row drag** by the pointer-only handle (`TimelineRowHandle`; `onReorder(id, slot)` on the page's `TimelineDndContext`, the team page's mechanism, `timeline.md` "Row drag"):
+  inside the ranked rows it moves the row; **across the divider** a drop above it RANKS an unranked row at that slot and a drop below it UNRANKS a ranked row (dropping an unranked row
+  among the unranked changes nothing). There is no keyboard drag - the row menu is the keyboard path.
+- **Announcements:** dnd-kit's region announces a drag (also across the divider); the page's polite region says the menu changes only ("{{name}} moved to position …", "… ranked at
+  position …", "… removed from the ranking").
+
+**Under a filter.** The moves take the ids of the VISIBLE ranked rows: `moveAmongVisible(full, visible, id, slot)` numbers the gaps like `moveToSlot` but over the rows the user sees and
+puts the row just before the visible row that follows the gap (after the last visible row for the final gap), so hidden rows keep their order and their place. A drop is
+`rankingAfterDrop(full, visibleRanked, id, slot)` with the slot counted over the DISPLAYED rows: a slot beyond the divider (`visibleRanked.length`) unranks a ranked row (an unranked row
+comes back unchanged = no PUT); a slot up to it is a place in the ranking, so an unranked row is RANKED there. The page binds `visibleRankedIds` into the hook's `move`/`moveTo`/`dropAt`.
+
+### Roadmap menu focus
+
+A browser blurs a focused element whose row is moved in the DOM, so after a taken menu change the page restores keyboard focus (`refocus` in `Roadmap.tsx`, then `hooks/useRowMenuFocus.ts`).
+
+- The render that reorders is followed by `focus()` on the row's `data-operations-for` menu button, or by `focusRow(id)` when the virtual path has unmounted the row (Move to bottom,
+  Rank on a 100-row plan).
+- The refocus is repeated once the row menu has FINISHED closing (`RowActionsMenu`'s opt-in `onClosed` = Mantine's `onExitTransitionEnd`, via `actions.menuClosed`): the dropdown and its
+  focus trap stay mounted through the ~150 ms exit transition and pull an earlier focus back into the dropdown, which lands on `body` when the dropdown unmounts.
+- **Rank under "Unranked projects only":** the ranked row leaves the list at once, its menu button with it, so the page reads the neighbour from `visible.unranked` BEFORE the write
+  (`neighbourOf`: the next row, else the previous) and keeps the focus on THAT row (`focus.keep(neighbour ?? project.id, …)`; `useRowMenuFocus` is unchanged in that).
+  - With no row left the focus goes to the **Filters button**: the hook is given a `fallbackRef` (the page's `FilterPanel` `toggleRef`) and uses it whenever the row it was asked for is
+    neither a menu button nor one of the timeline's rows (`focusRow` answers `false`) or the timeline is not mounted (the empty state replaced it). Only the Roadmap passes a fallback;
+    Programs and the project page keep nothing. The status region has said the change either way.
+  - **The armed second put:** that put waits for the used row's menu to close, but a menu that left with its row never closes; the render after `keep` drops the wait when
+    `[data-operations-for=<used row>]` is gone, so the row coming back later (the filter turned off) is not mistaken for that close and does not steal the focus.
+- **After a rolled-back ranking write:** `useRoadmapRanking` counts `rollbacks` (a failed save has restored the view and its awaited reload has settled); the page's effect calls
+  `focus.returnToOrigin()`, which puts the focus back on the row the change came from (`watchRollback`'s `from`: the ranked row itself, not the neighbour) by the same rule, but only
+  while the focus is still on the element the hook put it on, or on `body`: a focus the user has moved meanwhile (the Programs field) is left alone, as in `useDialogFocus`.
+  - Only the failure of a write the page saw go out (`watchRollback`, via `ranking.writeCount()`) can return the focus, and the row is forgotten (`forgetOrigin`) when that write
+    settles without a rollback, so a later failed pointer drag never pulls it to an old row.
+  - A user focus that sits on the very element the hook placed (they pressed Enter on the Filters button before a 409/403 settled) cannot be told apart from the hook's own, so the focus
+    returns to the row.
+- Under happy-dom Mantine's exit transition never ends, so `menuClosed` is proven at the hook (`useRowMenuFocus.test.tsx`), the rest in `Roadmap.test.tsx` ("Rank under Unranked projects
+  only").
+
+### The target window
+
+Both plan pages. Wherever the project's own `can.editTargetWindow` is set (ADMIN, an owner ABOVE the project, a ROADMAP_EDITOR - the project's own owner alone is read-only; never the
+session's roles) the window is edited by:
+
+1. moving or resizing its band (the bar machinery, keyboard included; the read-only span bar over it is pointer-transparent, `.timelineBarInert`, so the window under it is grabbed where
+   they overlap and a draw can start on it);
+2. a **draw** across a row with no window (`projectTrack` returns `draw: {barId: "window:<id>"}`);
+3. the row menu: "Edit target window…" (`components/TargetWindowModal.tsx`, the `MilestoneScheduleModal` shape: two `PlanDateInput`s, both required, end not before start, a Clear
+   button, the refusal shown inside the dialog) and "Clear target window" (`TargetWindowItems` in `PlanProjectCells.tsx`) - the keyboard and touch path.
+
+All three are `onSchedule("window:<id>", start, end)` / the menu on the page's `TimelineDndContext`, answered by ONE write path, `hooks/useTargetWindow.ts` ("The target window's write
+path"; generic over the cached view: roadmap `["roadmap","view"]` with `applyRoadmapWindow`, programs `["roadmap","programs"]` with `applyProgramsWindow`).
+
+- Failures read 403 `roadmap.window.forbidden` / 404 `roadmap.window.gone` / 400 `roadmap.window.invalid`, and a change while the ranking write runs (or the reverse) is **refused out
+  loud**, the dialog staying open with its own alert.
+- After a menu action the focus returns to the row's menu button (`hooks/useRowMenuFocus.ts`, the roadmap's `onClosed` pattern, `restore` for a closed dialog).
+- Drags are announced by dnd-kit, the dialog and Clear by the page (`roadmap.announce.windowSet/windowCleared`).
+
+### The target window's write path
+
+`hooks/useTargetWindow.ts` is generic over the page's cached view (`view`, `queryKey`, `apply`, `nameOf`, and the page's `announce`).
+
+- `commit(id, start|null, end|null, {announce?, ownRefusalAlert?}) → boolean` cancels in-flight reads of the view, writes `apply(...)` (`utils/targetWindowUpdate.ts`: the window set,
+  `drift` and the DRIFT_* flags dropped - the RANK_INVERSION flags stay -, and on the programs view the program's and work stream's roll-up counts lowered by the dropped flags), then
+  `mutate`s `PUT /projects/{id}/target-window` (204, no revision) with the pre-change view as the rollback.
+- Success refreshes `["roadmap"]` and `["plan"]` WITHOUT awaiting (so the other plan page, not mounted, is invalidated and a mounted project view's band follows). Failure restores
+  the view, AWAITS the refresh and maps 403/404/400 through `saveErrorMessage` (`roadmap.window.*`).
+- The mutation key is the ranking's exported `ROADMAP_WRITE_KEY`, so `useIsMutating` sees both and each refuses the other: `commit` answers `false`, sets `refused` (`useRefusal`) and
+  announces `project.busy`. A change aimed at a project that left the view sets `gone`.
+- The roadmap passes `ranking.announce` as its `announce` (ONE polite region), the programs page its own toggled-suffix announcer.
+- `hooks/useRowMenuFocus.ts` is shared by both pages (`keep` = at render and again on the menu's `onClosed`; `restore` = at render only, for a dialog that was opened from the menu).
+- The dialog (`TargetWindowModal`, `returnFocus={false}`: the page puts the focus on the menu button) is kept as `{id}` page state, the project read from the view on every render and the
+  dialog closed when it left.
+- **dnd-kit's click blocker:** after ANY drag ends, dnd-kit swallows the next `click` for 50 ms (its document-level capture listener is removed on a timer), and an Enter on a button is a
+  click - a Playwright step that presses a menu button right after a drag must retry (`e2e/tests/roadmap.spec.ts` `menuItemByKeyboard`).
+
+### Tests
+
+Pinned by: `Roadmap.test.tsx` (including "the filters in the address"), `roadmapOrder.test.ts`, `roadmapRows.test.ts`, `api/roadmap.test.ts`, `Roadmap.flow.test.tsx`,
+`Roadmap.jira.test.tsx`, `Roadmap.baseline.test.tsx`, `Roadmap.critical.test.tsx`, `RoadmapCriticalChain.test.tsx`, `roadmapCritical.test.ts`, `baselineWrites.test.tsx`,
+`hooks/useRoadmapFilters.test.tsx` (the table), `utils/roadmapFilterParams.test.ts`, `Roadmap.window.test.tsx`, `Programs.window.test.tsx`, `targetWindowUpdate.test.ts`,
+`planTrack.test.ts` (who gets an editable band and a draw surface), `planForm.test.ts` (the dialog's rules), and the e2e `roadmap.spec.ts` (the real pointer drag inside the ranking and
+across the divider, focus retention after a menu move, the stale notice, the window gestures: its third scenario).
+
+`Roadmap.test.tsx` runs the whole flow against a small fetch-mock server (a PUT applies the order and bumps the revision); it wraps `DndContext` to hand the test the page's drag
+handlers (a row drop is fed with the row zone's live readers), since happy-dom has no layout for a real drag.
+
+## Programs
+
+Files: `pages/Programs.tsx`;
+
+- `api/programs.ts`: `getProgramsView(baseline, criticalPath)`, `programsViewKey` = `["roadmap","programs",{baseline, criticalPath}]`, the view types.
+- `utils/programsTree.ts` (pure: `treeRows`, `defaultOpen`, `allOpen`, `toggled`, `programChoices`, `treeFacts`, `treeDates`, `arrowAnchors`); `components/ProgramsTimeline.tsx` (tree rows →
+  `TimelineRowData[]`, the chevron cell, the arrows).
+- Shared with the roadmap: `utils/planTrack.ts`, `components/PlanProjectCells.tsx`, `components/ProgramPickField.tsx`, `hooks/usePlanScale.ts`, `hooks/useProgramPick.ts`,
+  `utils/roadmapRows.ts` `pickAmong`.
+
+### Route and data
+
+`/programs` (nav section Planning after Roadmap, `IconListTree`; palette "Programs" / PL "Programy") renders `GET /views/programs` under `["roadmap","programs"]` (under the
+`["roadmap"]` prefix the Plan page and the project view already refresh) as the plan **tree on the shared Timeline** (`components/ProgramsTimeline.tsx`): work stream → program →
+project, one row each, in the server's order (open streams first, projects ranked first).
+
+- Read for everyone; the one thing written here is a project's target window (band, draw, row menu - "The target window" under "Roadmap", the same shared row and write path). The
+  server's spans, flag counts, drift and link checks are only read.
+- **Zoom:** Month / Quarter / Year under `timeline.planZoom` (the roadmap's key); the range grows over every span and window of the WHOLE plan (`hooks/usePlanScale.ts`).
+- The Timeline is wrapped in the page's `TimelineDndContext`, the window gestures' drag context, as on the roadmap.
+
+### Rows
+
+`treeRows(view, pick, open)` (`utils/programsTree.ts`, pure and tested). Left columns, 448 px sticky (the Flags column is 120 px: a stream's roll-up runs to three digits on the sample
+plan): the name (a tree indent of 16 px per level), Flags, Operations.
+
+- A **work stream / program row** shows its name with the owner dimmed (and "(closed)" for a stream with an end date), a read-only `tone: "summary"` bar over the span its projects cover
+  (`programs.streamBarAria`/`programBarAria`) and the **roll-up counts** of its projects' flags in the Flags cell (the project row's icons: an orange triangle and a gray info circle
+  with a visually hidden sentence, `data-flags`). A node with nothing under it (an empty program) shows no chevron.
+- A **project row** is the roadmap's row - `projectTrack`: the target-window band, the span bar (with ", N conflicts"), the drift band - with the name as the link into the project (the
+  owner dimmed) and a menu that holds the critical-path item ("Show…"/"Hide critical path", for everyone), "Dependencies" (the roadmap's `DependenciesItem`: the text path of the arrows, a
+  link to the list narrowed to the project), "Open project" and, by the project's own `can.editTargetWindow`, the window items.
+- Row ids are `ws:<id>` / `pg:<id>` / the project id; bar ids the same (`ws:`/`pg:` keys, the project id), so the arrows anchor on the project ids as on the roadmap, or, for a project
+  whose row is folded away, on the bar of the folded row that stands for it ("Arrows").
+- **One project-row builder.** `projectTrack(project, t, conflicts)` is the only place a project's bars and drift band are made (`window:<id>` and `<id>` bars, `drift:<id>` band);
+  `planArrows` (over `arrowSpecsForLinks` and `rolledUpLinks`, in `utils/roadmapRows.ts`) is the only place the rolled-up links become arrows. `RoadmapTimeline` and `ProgramsTimeline`
+  both call them (the roadmap's `anchorOf` answers only a project's own id, so it never rolls up), so the target window's gestures (an editable `window:<id>` bar by the project's
+  `can.editTargetWindow`, the draw surface on a row without a window) land once; the menu's window items are `TargetWindowItems`.
+- **Roll-up in part.** `shownStreams` (inside `programsTree.ts`) keeps the server's span/counts for a stream shown whole and recomputes them (`unionSpan`, `sumFlags`) for one the pick
+  shows in part. Nothing else on the page is computed.
+
+### Expand and collapse
+
+A node with children has a chevron `ActionIcon` as the ONE roving stop of its name cell (a function cell), `aria-expanded`, its name telling the level ("Work stream X" / "Program Y",
+`programs.streamAria`/`programAria`; no `aria-controls` - the child rows are separate grid rows without ids). Enter/Space flips it, the focus stays on that chevron and the page SAYS what
+happened in its polite status region ("X expanded, 3 programs", "X collapsed").
+
+- Defaults: every work stream open, every program closed. **Expand all / Collapse all** buttons in the facts row. The expanded set is **page state, not persisted**.
+- **The expanded set** is `useState<ReadonlySet<string> | null>(null)` in `ProgramsBody`: `null` means "the defaults" (`defaultOpen(view)`: every stream), so a work stream that appears
+  with a refetch opens; any change (a chevron, Expand all, Collapse all) writes a concrete set from what the user sees.
+- `toggle(key)` finds the row in the CURRENT rows to say what it did (`programs.announce.*` with a plural `count`).
+- **Focus.** While the rows stay on one render path the chevron button is the same DOM node before and after (rows are keyed by id), so it keeps the focus and the roving grid re-adopts
+  it as the tab stop. A toggle that crosses the virtualisation threshold (80 rows) remounts every row (`timeline.md` "The programs page's use"), so `toggle` records the node key in a
+  ref and an effect, after the render, leaves the focus alone only when `[data-node-key=<key>]` is the active element and otherwise calls `timelineRef.focusRow(key)` (the roadmap's
+  `refocus` pattern). Pinned by `Programs.virtual.test.tsx`.
+
+### The program pick
+
+The roadmap's pick, in the address (`hooks/useProgramPick.ts`): the same rule as the Roadmap's filters ("Roadmap" "The URL holds the filters", the table), for the pick alone.
+`programId` repeated (`parseProgramPick` / `withProgramPick` in `utils/roadmapFilterParams.ts`, the Roadmap's own spelling: de-duplicated, ascending, at most 100).
+
+- An address naming `programId` (even a malformed one) is shown exactly as written (none valid = every program) and remembers nothing; only the user's own change writes the ONE key
+  `planning.programPick` (shared with the Roadmap) and rewrites the address by `replace`.
+- Nothing links into the page (the address is there to be copied).
+- The same `ProgramPickField` (its labels `common.filter.*`) sits in a `FilterPanel` (stored `programs.filtersOpen`). The `MultiSelect`'s clear button is `aria-hidden` (Mantine), so tests
+  and e2e find it by its label (`getByLabel`), not by role.
+- It is read through `pickAmong(programChoices(view), pick)`: `programChoices(view)` lists every program (empty ones too); the roadmap passes its own `programOptions(view)` (programs with
+  projects) to the same function. An id only one of the pages knows, or that the plan no longer has, is ignored there, not dropped from storage or the address.
+- A picked program keeps its work stream's row; a stream with no picked program is hidden; a stream the pick shows in part is rolled up over the programs that remain ("Roll-up in
+  part"). The facts line ("N work streams · M programs · K projects", an orange "K warnings" and a gray "J infos" badge) counts what is shown.
+
+### Arrows
+
+`planArrows` over `view.links` between the rows that STAND FOR the projects (`arrowAnchors(view, pick, open)`, `utils/programsTree.ts`): the project's own row, else its folded
+program's row, else its folded work stream's. Two project rows keep the roadmap's arrows; every other pair of rows gets ONE `rollup:<fromRow>-<toRow>` arrow, END to START, titled by
+`roadmap.rollupLabel` with the two rows' names; a folded node's bar says ", N conflicts" for the violated links ending on it. Nothing is opened for the user, and the figures are the
+server's, only summed over what is folded. The rules (the anchors, the count, red, critical, what draws nothing): `timeline.md` "The programs page's use".
+
+### The baseline overlay
+
+The same picker, shadow bar (`projectTrack`) and totals line as the roadmap; the rules are `timeline.md` "The baseline overlay" ("Roadmap and programs"). The query key
+`["roadmap","programs",{baseline, criticalPath}]` carries the pick (and the critical-path target).
+
+- The view lists its removed projects: each is appended as a dimmed "(removed)" row under its program when that program is shown and expanded (`treeRows`' `removedProject` kind,
+  `ProgramsTimeline`'s `RemovedLabel`). They count as the program's children, so a program whose live projects are all deleted can still be expanded.
+- A work stream and a program row also get a shadow bar from their own `baseline.span`.
+- Tests: `Programs.baseline.test.tsx`.
+
+### The Jira markers
+
+- The same "Jira dates" toggle (after the baseline picker, the one stored `timeline.jiraBars`, on by default, only when the view lists a Jira site) and the same project-row bar
+  `jira:<id>` (`projectTrack`; a project row only - work stream and program rows are not bound); the roll-up counts in the Flags cell and the facts badges stay severity-driven.
+- The page has no flag panel. A project's Flow capacity flag counts in its row and in the roll-ups of its program and work stream like any flag; the sentence and the team link are the
+  Roadmap panel's ("Roadmap" "Flags").
+- **The currency line** is the roadmap's: the facts line (`ProgramsFacts`) ends with "Jira data may be out of date" while any site in `view.jiraSites` is behind (`isStaleSource`);
+  plan-wide, so neither the program pick nor a fold narrows it.
+- Tests: `Programs.jira.test.tsx`.
+
+### The critical path to a picked project
+
+The roadmap's pieces, shared and never forked ("Roadmap" "The critical path to a picked project"): the toolbar's "Critical path to…" picker (after the baseline picker; every project of
+the tree with a span, folded or picked away too), the row menu's `CriticalPathItem`, the panel (`RoadmapCriticalChain`, h3 under the timeline) and `useCriticalAnnouncement` (the sentence
+is said once per pick).
+
+- The target is `useCriticalTarget()` in `Programs()` (page-local, never stored, not the roadmap's) and the second part of the view's key (`programsViewKey(baseline, criticalPath)`,
+  `getProgramsView` → `?baseline=N&criticalPath=M`). `useTargetWindow` gets the keyed entry, so a window write keeps the block; the `keepPreviousData` placeholder shows no chain
+  (`withoutCriticalPath` after `withoutStaleOverlay`). A plain 400 for the target clears it during render and shows `roadmap.critical.unknown` (`isRejectedTarget`).
+- **The emphasis lands on the row that stands for the project** (`arrowAnchors`; `timeline.md` "The programs page's use"): a project row on the chain gets `projectTrack`'s `critical`
+  argument; a FOLDED node row that stands for at least one chain project gets `emphasis: "critical"` on its summary bar and ", holds a project on the critical path"
+  (`programs.barCriticalInside`) in its name; an expanded node is not emphasised (its children are); nothing is ever opened for the user.
+- The panel's `shown` is the project rows on the timeline; a chain project in a folded row or outside the program pick reads `programs.critical.notShown` "(folded or not picked)", and
+  the intro's last sentence is `programs.critical.intro`. "Showing the critical path to X" / "Critical path hidden" go through the page's one status region.
+- Tests: `Programs.critical.test.tsx`.
+
+### Tests
+
+Pinned by: `pages/Programs.test.tsx`, `Programs.virtual.test.tsx`, `Programs.baseline.test.tsx`, `Programs.jira.test.tsx`, `Programs.critical.test.tsx`, `Programs.window.test.tsx`,
+`utils/programsTree.test.ts`, `api/programs.test.ts`, the e2e `programs.spec.ts` and the axe scans in `accessibility.spec.ts`.
+
+`Programs.test.tsx` runs the page against a one-endpoint fetch mock (the default open set, the chevron by pointer and keyboard, the status sentences, Expand/Collapse all, the arrows
+following the fold, the pick and its shared key, Year zoom, empty and failed loads).
+
+---
+
+*The sections above are restructured. Everything from "Milestones" to the end keeps its old shape, with its tags and history, until the two steps that finish this document (the 1.24.0 docs restructuring, D24 and D25); the last of them removes this line.*
 
 ## Milestones (`pages/Milestones.tsx`, 1.19)
 
@@ -2116,7 +2358,7 @@ When a feature needs one of these, port the sibling's `web/` implementation and 
   `astrolabe.chunkReloadedAt` (the one-shot reload after a failed lazy chunk, `main.tsx`). **Web Lock:** `astrolabe.auth.refresh`. **CSS variables:**
   `--astrolabe-*`. None of Flow's `flow.*` keys exist; there are no legacy redirects.
 - **The Roadmap's seven filter keys** (`roadmap.filter.workStream|team|owner|flagged|severity|unranked`, `planning.programPick`, under `astrolabe.viewSettings.`) are its MEMORY since 1.19,
-  not its state: the address holds the state and only the user's own change writes them (this doc, "Roadmap", "The URL holds the filters (1.19)"); the Programs page
+  not its state: the address holds the state and only the user's own change writes them (this doc, "Roadmap", "The URL holds the filters"); the Programs page
   reads and writes `planning.programPick` alone on the same terms since 1.21 (its pick is in its address).
 - **Timeline view settings** (`astrolabe.viewSettings.timeline.*`, shared by the pages that show them, each a `useStoredState` with its own validator): `zoom`
   (project, team), `planZoom` (roadmap, programs), `criticalPath` (project and team, default false; `hooks/useCriticalPathPick.ts`), `baseline` (all four, an id or none), **`jiraBars`** (1.3, all four
