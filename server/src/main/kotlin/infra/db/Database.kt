@@ -213,8 +213,9 @@ private fun Application.wirePlanViews(
     deviationView: DeviationViewService,
     capacityDeviations: CapacityDeviationService,
 ) {
-    // The four timeline views read the Jira links and flags (and, since 1.9, the team view's Flow capacity flag) through planning's seam,
-    // inside their own snapshot; the composite merges the two sources.
+    // The four timeline views read the Jira links and flags (and, since 1.9, the team view's Flow capacity flag; since 1.23 also the
+    // every-team Flow read of the Roadmap, Programs and Home, which folds into their project rows) through planning's seam, inside their
+    // own snapshot; the composite merges the two sources.
     val jiraFlags = CompositeExternalFlagSource(listOf(JiraFlagSource(deviationView), FlowFlagSource(capacityDeviations)))
     attributes.put(ProjectViewServiceKey, ProjectViewService(database, jiraFlags))
     attributes.put(RoadmapViewServiceKey, RoadmapViewService(database, jiraFlags))

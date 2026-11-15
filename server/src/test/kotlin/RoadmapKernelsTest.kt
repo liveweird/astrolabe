@@ -11,6 +11,7 @@ import ch.nokillswit.planning.FLAG_ORDER
 import ch.nokillswit.planning.FlagCounts
 import ch.nokillswit.planning.FlagKind
 import ch.nokillswit.planning.FlagSeverity
+import ch.nokillswit.planning.FlaggedRange
 import ch.nokillswit.planning.PlanFlag
 import ch.nokillswit.planning.PlanLinkFact
 import ch.nokillswit.planning.PlanMilestoneFact
@@ -373,6 +374,106 @@ class RoadmapKernelsTest {
         assertEquals(crossOnly, RoadmapKernels.aggregate(checked(*mixed)))
         // Every in-plan link is kept with its check; the two with an end outside the plan (77, 82) are dropped.
         assertEquals(mixed.size - 2, checked(*mixed).size)
+    }
+
+    // ---------------------------------------------------------------------------------------------------------------- capacity flags
+
+    private fun range(start: String, end: String, severity: FlagSeverity) =
+        FlaggedRange(LocalDate.parse(start), LocalDate.parse(end), severity)
+
+    private fun capacity(teamId: UInt, severity: FlagSeverity, count: Int) =
+        PlanFlag(FlagKind.FLOW_CAPACITY_MILESTONES, severity, teamId = teamId, count = count)
+
+    private val sprint = range("2027-03-08", "2027-03-19", FlagSeverity.WARNING)
+
+    @Test
+    fun `a milestone inside a range raises ONE flag with its team and count 1, a project it is not on gets none`() {
+        val flags = RoadmapKernels.capacityFlags(
+            listOf(ms(1u, 10u, 5u, "2027-03-10", "2027-03-12"), ms(2u, 11u, 6u, "2027-03-10", "2027-03-12")),
+            mapOf(5u to listOf(sprint)),
+        )
+        assertEquals(mapOf(10u to listOf(capacity(5u, FlagSeverity.WARNING, 1))), flags)
+        val flag = flags.getValue(10u).single()
+        assertEquals(listOf(null, null, null), listOf(flag.days, flag.otherProjectId, flag.deviation), "only team and count are set")
+    }
+
+    @Test
+    fun `touching the range by a single day at either end counts, one day outside does not (both ends inclusive)`() {
+        val ranges = mapOf(5u to listOf(sprint))
+        fun hits(start: String, end: String) =
+            RoadmapKernels.capacityFlags(listOf(ms(1u, 10u, 5u, start, end)), ranges).containsKey(10u)
+        assertTrue(hits("2027-03-01", "2027-03-08"), "ends on the range's first day")
+        assertTrue(hits("2027-03-19", "2027-03-26"), "starts on the range's last day")
+        assertTrue(hits("2027-03-01", "2027-03-26"), "wraps the range")
+        assertTrue(hits("2027-03-08", "2027-03-08"), "a one-day milestone on the first day")
+        assertEquals(false, hits("2027-03-01", "2027-03-07"), "ends the day before")
+        assertEquals(false, hits("2027-03-20", "2027-03-26"), "starts the day after")
+    }
+
+    @Test
+    fun `an unscheduled milestone raises nothing`() {
+        assertEquals(emptyMap(), RoadmapKernels.capacityFlags(listOf(ms(1u, 10u, 5u, null)), mapOf(5u to listOf(sprint))))
+    }
+
+    @Test
+    fun `two milestones of one project on one team make count 2, in a range of another team they make none`() {
+        val milestones = listOf(
+            ms(1u, 10u, 5u, "2027-03-08", "2027-03-09"),
+            ms(2u, 10u, 5u, "2027-03-15", "2027-03-16"),
+            ms(3u, 10u, 5u, "2027-04-05", "2027-04-06"),
+            ms(4u, 10u, 6u, "2027-03-08", "2027-03-09"),
+        )
+        assertEquals(
+            mapOf(10u to listOf(capacity(5u, FlagSeverity.WARNING, 2))),
+            RoadmapKernels.capacityFlags(milestones, mapOf(5u to listOf(sprint))),
+            "the third lies outside, the fourth is on a team that has no range",
+        )
+    }
+
+    @Test
+    fun `two teams make two flags in team order, each with its own count and worst severity`() {
+        val milestones = listOf(
+            ms(1u, 10u, 9u, "2027-03-08", "2027-03-09"),
+            ms(2u, 10u, 5u, "2027-03-08", "2027-03-09"),
+            ms(3u, 10u, 5u, "2027-03-22", "2027-03-23"),
+        )
+        val ranges = mapOf(
+            9u to listOf(sprint),
+            5u to listOf(range("2027-03-22", "2027-03-26", FlagSeverity.INFO)),
+        )
+        assertEquals(
+            mapOf(10u to listOf(capacity(5u, FlagSeverity.INFO, 1), capacity(9u, FlagSeverity.WARNING, 1))),
+            RoadmapKernels.capacityFlags(milestones, ranges),
+        )
+    }
+
+    @Test
+    fun `the severity is the worst among the ranges any of the milestones meets`() {
+        val ranges = mapOf(5u to listOf(range("2027-03-01", "2027-03-05", FlagSeverity.INFO), sprint))
+        val one = RoadmapKernels.capacityFlags(listOf(ms(1u, 10u, 5u, "2027-03-01", "2027-03-12")), ranges)
+        assertEquals(FlagSeverity.WARNING, one.getValue(10u).single().severity, "one milestone meets both: the worst")
+        val two = RoadmapKernels.capacityFlags(
+            listOf(ms(1u, 10u, 5u, "2027-03-02", "2027-03-03"), ms(2u, 10u, 5u, "2027-03-10", "2027-03-11")),
+            ranges,
+        )
+        assertEquals(capacity(5u, FlagSeverity.WARNING, 2), two.getValue(10u).single(), "two milestones, one INFO and one WARNING")
+        val onlyInfo = RoadmapKernels.capacityFlags(listOf(ms(1u, 10u, 5u, "2027-03-02", "2027-03-03")), ranges)
+        assertEquals(capacity(5u, FlagSeverity.INFO, 1), onlyInfo.getValue(10u).single())
+    }
+
+    @Test
+    fun `no ranges at all, or only empty ones, answer an empty map`() {
+        val milestones = listOf(ms(1u, 10u, 5u, "2027-03-08", "2027-03-09"))
+        assertEquals(emptyMap(), RoadmapKernels.capacityFlags(milestones, emptyMap()))
+        assertEquals(emptyMap(), RoadmapKernels.capacityFlags(milestones, mapOf(5u to emptyList())))
+        assertEquals(emptyMap(), RoadmapKernels.capacityFlags(emptyList(), mapOf(5u to listOf(sprint))))
+    }
+
+    @Test
+    fun `the new kind sorts after every other kind of its severity and by team`() {
+        val flags = listOf(capacity(9u, FlagSeverity.WARNING, 1), capacity(5u, FlagSeverity.WARNING, 1), endLate(2), info(3, 2u))
+            .sortedWith(FLAG_ORDER)
+        assertEquals(listOf(endLate(2), capacity(5u, FlagSeverity.WARNING, 1), capacity(9u, FlagSeverity.WARNING, 1), info(3, 2u)), flags)
     }
 
     // ---------------------------------------------------------------------------------------------------------------- counts

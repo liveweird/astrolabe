@@ -110,6 +110,8 @@
     "jiraMilestones_other": "{{count}} milestones deviate from Jira",
     "flowCapacity_one": "Capacity differs from Flow: {{count}} open difference",
     "flowCapacity_other": "Capacity differs from Flow: {{count}} open differences",
+    "flowCapacityMilestones_one": "{{count}} milestone on {{team}} is scheduled in a sprint whose capacity differs from Flow",
+    "flowCapacityMilestones_other": "{{count}} milestones on {{team}} are scheduled in sprints whose capacity differs from Flow",
     "show": "Show in timeline",
     "showAria": "Show in timeline: {{name}}"
   },

@@ -25,13 +25,13 @@ class HomeCaller(val userId: UInt)
  * streams and programs), the capacity load of EVERY team with scheduled milestones for EVERY caller (the plan block's two team figures
  * must not depend on who asks: [teamWeeks] in `TeamLoadRows.kt`, the loader the team-load view runs too - the team view's own inputs,
  * its scheduled milestones' spans and estimates, [teamCapacityRows], [loadWindow], the snapshot's calendar, through [weeklyLoad]) and
- * the caller's person: the ACTIVE `People` row linked to the login
- * (`user_id`; the login's own liveness is the per-request access check, as in `PersonService.activePersonIdOf`), the ACTIVE teams it
- * manages and per managed team the seam's team half (Jira reads nothing for a request naming no node; Flow at most six statements);
- * a person deleted or unlinked before the snapshot began reads `me: null`. Statements: the roadmap's, plus 2, plus 1 for the
- * scheduled milestones, plus 1 for ALL the capacity periods of the teams with scheduled work, plus 1 for the person lookup
- * (every caller), plus 1 for a caller with a person (the managed teams) and the seam's per managed team
- * (`HomeViewSizeTest` pins them). Reads `WorkStreams`, `Programs`, `Projects`, `People`,
+ * the caller's person: the ACTIVE `People` row linked to the login (`user_id`; the login's own liveness is the per-request access
+ * check, as in `PersonService.activePersonIdOf`) and the ACTIVE teams it manages, whose flags come from the roadmap loader's own
+ * answer for every team (1.23: the seam's team half is asked once, for all teams, by the loader; a managed team adds no statement);
+ * a person deleted or unlinked before the snapshot began reads `me: null`. Statements: the roadmap's (which includes the Flow side's
+ * one statement without an enabled connection and at most five with one), plus 2, plus 1 for the scheduled milestones, plus 1 for ALL
+ * the capacity periods of the teams with scheduled work, plus 1 for the person lookup (every caller) and plus 1 for a caller with a
+ * person (the managed teams); `HomeViewSizeTest` pins them. Reads `WorkStreams`, `Programs`, `Projects`, `People`,
  * `Milestones`, `Teams`, `CapacityPeriods`, `Dependencies`, `RoadmapEntries` and `PublicHolidays` and (through [external]) the Jira
  * and Flow tables the seam reads (`persistence.md` matrix); nothing is written. [maxRows] caps each list of `me` ([MAX_HOME_ROWS]).
  */
@@ -76,15 +76,15 @@ class HomeViewService(
             ?.let { it[people.id].value to it[people.name] }
     }
 
-    /** The ACTIVE teams [personId] manages with their names and, per team, the seam's team half (the team view's `team.flags`). */
+    /**
+     * The ACTIVE teams [personId] manages with their names and, per team, the seam's team half (the team view's `team.flags`), read from
+     * the roadmap loader's answer for every team ([RoadmapSnapshot.teamFlags]): no statement per team (1.23).
+     */
     private suspend fun managedTeams(personId: UInt, snapshot: RoadmapSnapshot): List<HomeTeamFact> {
         val teams = TeamService.Teams
         return teams.select(teams.id, teams.name).where { (teams.managerPersonId eq personId) and teams.active() }.toList().map { row ->
             val id = row[teams.id].value
-            val outside = external.flagsInTransaction(
-                ExternalFlagRequest(projectIds = emptyList(), milestoneIds = emptyList(), calendar = snapshot.calendar, teamId = id),
-            )
-            HomeTeamFact(id, row[teams.name], outside.team(id).flags)
+            HomeTeamFact(id, row[teams.name], snapshot.teamFlags[id].orEmpty())
         }
     }
 

@@ -13,9 +13,13 @@ import java.time.LocalDate
 
 /**
  * The Flow side of the timeline views' [ExternalFlagSource] seam (1.9): the team view's header flag and the weeks strip's marked days.
- * It answers only the TEAM half of a request (a request naming no team gets nothing, so the other three views cost nothing) from the SAME
- * computation the capacity deviations view runs ([CapacityDeviationService.computeTeamInTransaction]), INSIDE the view's own snapshot
- * transaction. It reads only and takes no lock.
+ * It answers only the TEAM half of a request. A request naming a team ([ExternalFlagRequest.teamId]) gets that team's [TeamExternal]
+ * from the SAME computation the capacity deviations view runs ([CapacityDeviationService.computeTeamInTransaction]), INSIDE the view's
+ * own snapshot transaction. Since 1.23 a request for EVERY team ([ExternalFlagRequest.everyTeam]: the roadmap loader, so the roadmap,
+ * programs and Home views) gets the [TeamExternal] of each team that has something to say, from the same arithmetic in five statements
+ * whatever the number of teams ([CapacityDeviationService.computeEveryTeamInTransaction]); both paths fold a team's facts through
+ * [externalOf], so a team reads the same either way. A request naming no team and not asking for every one gets nothing, so the
+ * project view costs nothing. It reads only and takes no lock.
  *
  * What a team gets, from the OPEN rows only (a row whose acknowledgement is current raises nothing; a stale one raises again):
  * - ONE [FlagKind.FLOW_CAPACITY] roll-up: `count` = the open rows, the severity the worst of them (a `CAPACITY_MISSING` row is
@@ -27,10 +31,20 @@ import java.time.LocalDate
  */
 internal class FlowFlagSource(private val deviations: CapacityDeviationService) : ExternalFlagSource {
     override suspend fun flagsInTransaction(request: ExternalFlagRequest): ExternalFlags {
+        if (request.everyTeam) {
+            val teams = deviations.computeEveryTeamInTransaction(request.calendar)
+                .mapNotNull { (teamId, facts) -> externalOf(facts)?.let { teamId to it } }.toMap()
+            return ExternalFlags(teams = teams)
+        }
         val teamId = request.teamId ?: return ExternalFlags()
-        val facts = deviations.computeTeamInTransaction(teamId, request.calendar)
-        val open = facts?.takeIf { it.enabled }?.deviations?.filter { it.isOpen }.orEmpty()
-        if (open.isEmpty()) return ExternalFlags()
+        val external = deviations.computeTeamInTransaction(teamId, request.calendar)?.let(::externalOf) ?: return ExternalFlags()
+        return ExternalFlags(teams = mapOf(teamId to external))
+    }
+
+    /** A team's flag and ranges from its OPEN rows, or null when its connection is disabled or nothing is open. */
+    private fun externalOf(facts: TeamCapacityFacts): TeamExternal? {
+        val open = facts.takeIf { it.enabled }?.deviations?.filter { it.isOpen }.orEmpty()
+        if (open.isEmpty()) return null
         val flag = PlanFlag(
             kind = FlagKind.FLOW_CAPACITY,
             severity = open.minOf { it.severity.flag() },
@@ -44,7 +58,7 @@ internal class FlowFlagSource(private val deviations: CapacityDeviationService) 
             val to = row.detail.end ?: return@mapNotNull null
             FlaggedRange(LocalDate.parse(from), LocalDate.parse(to), row.severity.flag())
         }
-        return ExternalFlags(teams = mapOf(teamId to TeamExternal(listOf(flag), ranges)))
+        return TeamExternal(listOf(flag), ranges)
     }
 
     private fun DeviationSeverity.flag(): FlagSeverity = if (this == DeviationSeverity.WARNING) FlagSeverity.WARNING else FlagSeverity.INFO

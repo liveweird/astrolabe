@@ -100,6 +100,37 @@ object RoadmapKernels {
     private fun days(early: LocalDate, late: LocalDate): Int? = ChronoUnit.DAYS.between(early, late).toInt().takeIf { it > 0 }
 
     /**
+     * The Flow capacity flags of the projects (1.23), by project id: per (project, team), ONE [FlagKind.FLOW_CAPACITY_MILESTONES] when
+     * at least one SCHEDULED milestone of the project on that team lies in days an open capacity difference of the team covers. A
+     * milestone meets a range of its own team when the two share a calendar day, both ends inclusive (the weeks strip's test,
+     * [withFlaggedRanges]); an unscheduled milestone has no days and meets nothing. [teamRanges] are the answer's day ranges by team id
+     * (a team without an entry has none, so a project is never flagged for a team that has nothing open). The flag's `count` is the
+     * project's milestones on that team that meet a range, its severity the worst among the ranges any of them meets; the flags of a
+     * project come in team order ([FLAG_ORDER] places them among the project's others).
+     */
+    fun capacityFlags(
+        milestones: Collection<PlanMilestoneFact>,
+        teamRanges: Map<UInt, List<FlaggedRange>>,
+    ): Map<UInt, List<PlanFlag>> {
+        if (teamRanges.values.all { it.isEmpty() }) return emptyMap()
+        val hits = milestones.mapNotNull { m ->
+            val span = m.span ?: return@mapNotNull null
+            val met = teamRanges[m.teamId].orEmpty().filter { !it.start.isAfter(span.end) && !it.end.isBefore(span.start) }
+            if (met.isEmpty()) null else Triple(m.projectId, m.teamId, met.minOf { it.severity })
+        }
+        return hits.groupBy { it.first }.mapValues { (_, own) ->
+            own.groupBy { it.second }.toSortedMap().map { (teamId, onTeam) ->
+                PlanFlag(
+                    kind = FlagKind.FLOW_CAPACITY_MILESTONES,
+                    severity = onTeam.minOf { it.third },
+                    teamId = teamId,
+                    count = onTeam.size,
+                )
+            }
+        }
+    }
+
+    /**
      * Every link whose two ends resolve, checked, in the order of [links]. Each end resolves to its project (a milestone's own, a
      * project itself) and span (the milestone's dates, the project's derived span from [spans]); a link with an end whose project is not
      * among [projects] is dropped. A link INSIDE one project is kept (the roll-up [aggregate] skips it; the home figures count it).

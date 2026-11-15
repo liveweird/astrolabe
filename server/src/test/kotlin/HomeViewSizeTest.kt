@@ -56,8 +56,8 @@ import kotlin.test.assertTrue
  * service built on a database whose connection factory records every statement, [countingDatabase], over the app's own flag sources;
  * the count is pinned RELATIVE to the roadmap service's on the same database, because the Jira fold's statements depend on what
  * earlier classes left in the shared database (CI: 43 against 13 alone): Home = the roadmap's + 5, one more for a person, and per
- * managed team the seam's bounded team half; ten projects and ten milestones are bound to a live connection in the test itself, so
- * the leak is reproduced in every run).
+ * managed team nothing (1.23: the loader asks the seam for every team once); ten projects and ten milestones are bound to a live
+ * connection in the test itself, so the leak is reproduced in every run).
  * The roadmap view is timed on the same plan for comparison (what Home adds to the loader it runs). The sizes (plain and
  * gzip), the medians and the statement counts are `scale-figure` lines ([ScaleFigures]), recorded in `timeline.md` "Measured figures
  * (1.18)". The asserted time bounds are loose tripwires (at least 5x the figure measured on the dev machine), never the machine's
@@ -341,14 +341,13 @@ class HomeViewSizeTest {
             println("scale-figure\thome statements, the person-less login\n${personlessSql.joinToString("\n")}")
             // Relative to the roadmap read on the same database (its loader and both sources): the plan block adds the streams, the
             // programs, the scheduled milestones, ALL the capacity periods and the caller's person lookup, whoever asks (a read per
-            // team would break this); a person adds the managed teams' select, and each managed team the seam's team half (one read
-            // here: no Flow connection of ours; at most six with one).
+            // team would break this); a person adds the managed teams' select, and a managed team adds NOTHING: since 1.23 the roadmap
+            // loader asks the seam for every team once and Home reads its teams' flags from that answer.
             val shown = personlessSql.joinToString("\n")
             assertEquals(reference.size + HOME_ONLY_STATEMENTS, personlessSql.size, "Home against the roadmap:\n$shown")
             assertEquals(personlessSql.size + 1, nothingSql.size, "a person with nothing adds the managed teams' select")
-            val perTeam = managerSql.size - nothingSql.size
-            assertTrue(perTeam in 1..SEAM_STATEMENTS_PER_TEAM, "a managed team adds $perTeam statements")
-            assertEquals(nothingSql.size + 15 * perTeam, worstSql.size, "the statements grow by $perTeam a managed team, nothing else")
+            assertEquals(nothingSql.size, managerSql.size, "a managed team adds no statement:\n${managerSql.joinToString("\n")}")
+            assertEquals(nothingSql.size, worstSql.size, "nor do fifteen managed teams:\n${worstSql.joinToString("\n")}")
 
             // The gated figures on their own lines first, so a CI log carries them even when a gate fails.
             ScaleFigures.printBytes("home worst case (gated) size", w.bytes)
@@ -442,8 +441,6 @@ class HomeViewSizeTest {
         /** The actor that may do nothing: what Home hands the roadmap loader. */
         val NEUTRAL_ACTOR = PlanActor(isAdmin = false, personId = null, roadmapEditor = false, managedTeamIds = emptySet())
 
-        /** The seam's team half per managed team: Flow's at most six reads (one while no connection exists, as here). */
-        const val SEAM_STATEMENTS_PER_TEAM = 6
         const val NANOS_PER_MILLI = 1_000_000.0
     }
 }

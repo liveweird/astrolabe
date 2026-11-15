@@ -112,6 +112,20 @@ class CompositeExternalFlagSourceTest {
     }
 
     @Test
+    fun `an every-team answer merges the teams of every source and keeps the request`() {
+        val everyTeam = ExternalFlagRequest(null, null, WorkingCalendar.MON_FRI, everyTeam = true)
+        fun team(id: UInt, severity: FlagSeverity, count: Int) =
+            ExternalFlags(teams = mapOf(id to TeamExternal(listOf(flag(FlagKind.FLOW_CAPACITY, severity, count)), emptyList())))
+        val a = Fake(team(1u, FlagSeverity.INFO, 1))
+        val b = Fake(team(2u, FlagSeverity.WARNING, 3))
+        val merged = runBlocking { CompositeExternalFlagSource(listOf(a, b)).flagsInTransaction(everyTeam) }
+        assertSame(everyTeam, a.asked)
+        assertSame(everyTeam, b.asked)
+        assertEquals(setOf(1u, 2u), merged.teams.keys)
+        assertEquals(3, merged.team(2u).flags.single().count)
+    }
+
+    @Test
     fun `the sites are the union, one per connection, sorted by id`() {
         fun site(id: UInt, url: String) = JiraSite(id, url, JiraSiteState.CURRENT, mappingOk = true)
         val a = Fake(ExternalFlags(sites = listOf(site(7u, "https://a.example"), site(3u, "https://b.example"))))

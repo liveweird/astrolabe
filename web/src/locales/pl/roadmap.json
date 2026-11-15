@@ -134,6 +134,10 @@
     "flowCapacity_few": "Przepustowość różni się od Flow: {{count}} otwarte różnice",
     "flowCapacity_many": "Przepustowość różni się od Flow: {{count}} otwartych różnic",
     "flowCapacity_other": "Przepustowość różni się od Flow: {{count}} otwartej różnicy",
+    "flowCapacityMilestones_one": "{{count}} kamień milowy zespołu {{team}} przypada na sprint, w którym przepustowość różni się od Flow",
+    "flowCapacityMilestones_few": "{{count}} kamienie milowe zespołu {{team}} przypadają na sprinty, w których przepustowość różni się od Flow",
+    "flowCapacityMilestones_many": "{{count}} kamieni milowych zespołu {{team}} przypada na sprinty, w których przepustowość różni się od Flow",
+    "flowCapacityMilestones_other": "{{count}} kamienia milowego zespołu {{team}} przypada na sprinty, w których przepustowość różni się od Flow",
     "show": "Pokaż na osi czasu",
     "showAria": "Pokaż na osi czasu: {{name}}"
   },

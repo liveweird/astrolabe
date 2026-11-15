@@ -12,6 +12,7 @@ import kotlinx.serialization.json.Json
 import java.time.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -81,6 +82,16 @@ class ExternalFlagsTest {
         assertEquals(7u, team.teamId)
         val plan = ExternalFlagRequest(null, null, calendar)
         assertFalse(plan.namesNoNode)
+    }
+
+    @Test
+    fun `everyTeam asks for all teams, defaults to false and refuses a team id`() {
+        val calendar = WorkingCalendar.MON_FRI
+        assertFalse(ExternalFlagRequest(null, null, calendar).everyTeam)
+        assertFalse(ExternalFlagRequest(emptyList(), emptyList(), calendar, teamId = 7u).everyTeam)
+        val every = ExternalFlagRequest(null, null, calendar, everyTeam = true)
+        assertTrue(every.everyTeam && every.teamId == null && !every.namesNoNode, "the whole plan, every team")
+        assertFailsWith<IllegalArgumentException> { ExternalFlagRequest(null, null, calendar, teamId = 7u, everyTeam = true) }
     }
 
     @Test

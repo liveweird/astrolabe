@@ -1199,7 +1199,7 @@ export interface paths {
          *     the caller's login is linked to owns directly (a work stream's owner gets the stream, not the projects below it) and the
          *     teams that person manages, looked up for an administrator too; `null` when the login has no active linked person. Each list of
          *     `me` holds at most 100 rows in the order of the Plan and Programs pages (`truncated` says one was cut). A row's figures are the
-         *     page's own (the project's Roadmap flags, the team page's header figures); nothing here is new to a login. `revision` is the plan
+         *     page's own (the project's Roadmap flags, which since 1.23 include the Flow capacity flag, the team page's header figures); nothing here is new to a login. `revision` is the plan
          *     revision read before the rows (informational: Home offers no write, so there is no `can`).
          */
         get: operations["getHomeView"];
@@ -1436,6 +1436,8 @@ export interface paths {
          *
          *     Jira (1.3): the project rows carry the roadmap's `jira` and Jira flags (so a program's and work stream's `flags` counts include
          *     them) and the document carries `jiraSites` (each connection with its sync `state` and `mappingOk`), all as `GET /views/roadmap` describes.
+         *     Flow (1.23): the project rows carry the roadmap's `FLOW_CAPACITY_MILESTONES` flags too, and the programs' and work streams' `flags`
+         *     counts include them.
          *
          *     With `?baseline=N` the document gains `baseline` (the baseline's identity), every project row gains its `baseline` block (as
          *     `GET /views/roadmap`'s) and a program (work stream) with at least one project the baseline froze gains `baseline`: the span
@@ -1491,6 +1493,14 @@ export interface paths {
          *     `ESTIMATE_NOT_COMPARABLE` never raises a flag. A disabled connection's rows keep their `jira` (so the node reads as linked and can be unlinked) with null dates, no flag and no roll-up contribution.
          *     `jiraSites` lists the connections the document links to (the client builds `siteUrl + "/browse/" + issueKey`), each with its derived sync `state` and `mappingOk` (1.16: the values `GET /views/deviations` gives the same connection); an unbound plan
          *     answers `jira: null`, no Jira flag and `jiraSites: []`. Read inside the same snapshot; `?baseline=` leaves all of it as it is.
+         *
+         *     Flow (1.23): a project carries ONE `FLOW_CAPACITY_MILESTONES` flag per team (`teamId`, and `count` = its milestones on that
+         *     team) when at least one of its SCHEDULED milestones on that team lies in days that an OPEN capacity difference of the team
+         *     covers (the days of the very ranges whose weeks the team page marks on its weeks strip; a calendar day shared, both ends inclusive). It is a WARNING when
+         *     the plan holds more capacity than Flow in a sprint such a milestone meets, an INFO otherwise (the worst severity among the
+         *     differences they meet). An acknowledged difference (one whose acknowledgement is current) and a DISABLED Flow connection raise
+         *     nothing, nor do an unscheduled milestone or a team whose Flow team is gone (that team's header, on `GET /views/team/{id}`,
+         *     says so). The same flags for every caller; the team page, `GET /views/project/{id}` and the Deviations documents are unchanged.
          *
          *     With `?baseline=N` the document gains `baseline` (the baseline's identity and the projects it froze that are gone) and every
          *     project the baseline also froze gains a `baseline` block: the derived span, rank position and target window it had and the
@@ -5397,7 +5407,7 @@ export interface components {
             span: components["schemas"]["DateSpan"] | null;
             /** @description `span` against the target window; null unless both exist. */
             drift: components["schemas"]["Drift"] | null;
-            /** @description The flags raised on this project: the drift and rank-inversion flags and (1.3) the Jira ones - `JIRA_DEVIATION` per open deviation of its own binding, one `JIRA_MILESTONES` roll-up of its milestones' (never one flag per milestone); WARNING first, then by kind, team and other project. */
+            /** @description The flags raised on this project: the drift and rank-inversion flags, (1.3) the Jira ones - `JIRA_DEVIATION` per open deviation of its own binding, one `JIRA_MILESTONES` roll-up of its milestones' (never one flag per milestone) - and (1.23) one `FLOW_CAPACITY_MILESTONES` per team whose open Flow capacity difference covers days of a scheduled milestone of the project; WARNING first, then by kind, team and other project. */
             flags: components["schemas"]["PlanFlag"][];
             can: {
                 /** @description The caller may `PUT /projects/{id}/target-window`: ADMIN, an owner above the project, or a ROADMAP_EDITOR holder. */
@@ -5407,13 +5417,13 @@ export interface components {
             jira: components["schemas"]["JiraLink"] | null;
             baseline?: components["schemas"]["RoadmapProjectBaseline"];
         };
-        /** @description One flag raised on a project or, for `JIRA_DEVIATION`, a milestone, or (1.9) on a team: `FLOW_CAPACITY`, in `GET /views/team/{id}`'s `team.flags`. Warnings only - nothing is ever moved. Only `kind` and `severity` are always present; every other member is ABSENT (never `null`) when it does not apply to the kind (1.15, the timeline documents' size). */
+        /** @description One flag raised on a project or, for `JIRA_DEVIATION`, a milestone, or (1.9) on a team: `FLOW_CAPACITY`, in `GET /views/team/{id}`'s `team.flags`; (1.23) a project's `FLOW_CAPACITY_MILESTONES`, one per team. Warnings only - nothing is ever moved. Only `kind` and `severity` are always present; every other member is ABSENT (never `null`) when it does not apply to the kind (1.15, the timeline documents' size). */
         PlanFlag: {
             /**
-             * @description `JIRA_DEVIATION` is one open deviation between a node and its Jira item (a binding through an enabled connection that is not currently acknowledged; `ESTIMATE_NOT_COMPARABLE` never raises one), `JIRA_MILESTONES` a project's roll-up of its milestones', `FLOW_CAPACITY` (1.9, only in `GET /views/team/{id}`'s `team.flags`) the team's roll-up of its open Flow capacity deviations. `NO_WORKING_DAY` (the project and team views' milestone rows) the scheduled span holds no working day on the current calendar: a holiday added after the schedule was written (decision D2); it carries no other member.
+             * @description `JIRA_DEVIATION` is one open deviation between a node and its Jira item (a binding through an enabled connection that is not currently acknowledged; `ESTIMATE_NOT_COMPARABLE` never raises one), `JIRA_MILESTONES` a project's roll-up of its milestones', `FLOW_CAPACITY` (1.9, only in `GET /views/team/{id}`'s `team.flags`) the team's roll-up of its open Flow capacity deviations, `FLOW_CAPACITY_MILESTONES` (1.23, only on a project row of the roadmap and programs views) one team's share of a project: `teamId` names the team and `count` how many of the project's scheduled milestones on it lie in days an open capacity difference of that team covers; WARNING when the plan holds more capacity than Flow in such a sprint, INFO otherwise. `NO_WORKING_DAY` (the project and team views' milestone rows) the scheduled span holds no working day on the current calendar: a holiday added after the schedule was written (decision D2); it carries no other member.
              * @enum {string}
              */
-            kind: "DRIFT_END_LATE" | "DRIFT_START_LATE" | "DRIFT_END_EARLY" | "RANK_INVERSION" | "NO_WORKING_DAY" | "JIRA_DEVIATION" | "JIRA_MILESTONES" | "FLOW_CAPACITY";
+            kind: "DRIFT_END_LATE" | "DRIFT_START_LATE" | "DRIFT_END_EARLY" | "RANK_INVERSION" | "NO_WORKING_DAY" | "JIRA_DEVIATION" | "JIRA_MILESTONES" | "FLOW_CAPACITY" | "FLOW_CAPACITY_MILESTONES";
             /** @enum {string} */
             severity: "WARNING" | "INFO";
             /**
@@ -5423,7 +5433,7 @@ export interface components {
             days?: number;
             /**
              * Format: int32
-             * @description The shared team of a per-team rank inversion; absent for drift, for the no-shared-team INFO and on every other kind.
+             * @description The shared team of a per-team rank inversion, or the team of a `FLOW_CAPACITY_MILESTONES` flag; absent for drift, for the no-shared-team INFO and on every other kind.
              */
             teamId?: number;
             /**
@@ -5435,7 +5445,7 @@ export interface components {
             deviation?: components["schemas"]["FlagDeviation"];
             /**
              * Format: int32
-             * @description The milestones of the project that raised a Jira flag, for `JIRA_MILESTONES` (the flag's severity is the worst among them), or the open sprint rows for `FLOW_CAPACITY`; absent on every other kind.
+             * @description The milestones of the project that raised a Jira flag, for `JIRA_MILESTONES` (the flag's severity is the worst among them), the open sprint rows for `FLOW_CAPACITY`, or the project's milestones on the team in disputed days for `FLOW_CAPACITY_MILESTONES`; absent on every other kind.
              */
             count?: number;
         };

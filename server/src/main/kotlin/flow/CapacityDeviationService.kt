@@ -135,10 +135,43 @@ class CapacityDeviationService(
         return TeamCapacityFacts(connection[registry.enabled], rows)
     }
 
-    /** Each binding's rows with their stored acknowledgement: ONE read of the table and ONE of the acknowledging logins' names. */
-    private suspend fun withAcknowledgements(rows: Map<UInt, List<CapacityDeviation>>): Map<UInt, List<CapacityDeviation>> {
+    /**
+     * [computeTeamInTransaction] for EVERY team in five statements, whatever the number of teams (the roadmap loader's every-team flag,
+     * inside its snapshot): the ACTIVE connections (the single path's own select; the ENABLED ones are kept - a DISABLED connection
+     * raises no flag, so its teams are not read at all), their bindings of ACTIVE teams, those teams' capacity periods, the bound Flow
+     * teams with their sprints ([FlowMirrorStore.teamsSprintsOf]) and the stored acknowledgements. The acknowledging logins' names are
+     * not read ([isOpen] needs only the fingerprint). The map holds exactly the teams the single path would give facts for through an
+     * enabled connection (a team with nothing to compare has no entry), by team id.
+     */
+    internal suspend fun computeEveryTeamInTransaction(calendar: WorkingCalendar, at: Long = now()): Map<UInt, TeamCapacityFacts> {
+        val registry = FlowConnectionService.Connections
+        val connections = registry.select(registry.id, registry.enabled, registry.timeZone, registry.teamsAt)
+            .where { registry.active() }.limit(MAX_PANEL_CONNECTIONS).toList().associateBy { it[registry.id].value }
+            .filterValues { it[registry.enabled] }
+        val bound = bindings.activeBindingsWithTeams(connections.keys, null).map { it.binding }
+        if (bound.isEmpty()) return emptyMap()
+        val periods = capacity.importRowsOfTeams(bound.map { it.teamId }.distinct())
+        val teams = mirror.teamsSprintsOf(bound.map { it.connectionId to it.flowTeamId })
+        val computed = bound.mapNotNull { binding ->
+            val connection = connections.getValue(binding.connectionId)
+            val team = teams[binding.connectionId to binding.flowTeamId]
+            computeFrom(team, connection[registry.timeZone], connection[registry.teamsAt], periods[binding.teamId].orEmpty(), calendar, at)
+                ?.let { binding to it }
+        }
+        val rows = withAcknowledgements(computed.associate { (binding, c) -> binding.id to c.deviations }, withNames = false)
+        return computed.associate { (binding, _) -> binding.teamId to TeamCapacityFacts(true, rows.getValue(binding.id)) }
+    }
+
+    /**
+     * Each binding's rows with their stored acknowledgement: ONE read of the table and ONE of the acknowledging logins' names
+     * ([withNames] false skips it: the every-team flag needs only whether a row is open, never who acknowledged it).
+     */
+    private suspend fun withAcknowledgements(
+        rows: Map<UInt, List<CapacityDeviation>>,
+        withNames: Boolean = true,
+    ): Map<UInt, List<CapacityDeviation>> {
         val stored = CapacityAcknowledgeService.Acknowledgements.storedOf(rows.filterValues { it.isNotEmpty() }.keys)
-        val names = creatorsOf(stored.values.map { it.byUserId }.distinct())
+        val names = if (withNames) creatorsOf(stored.values.map { it.byUserId }.distinct()) else emptyMap()
         return rows.mapValues { (bindingId, deviations) ->
             deviations.map { row ->
                 val ack = stored[bindingId to row.detail.sprintId]
@@ -202,8 +235,20 @@ class CapacityDeviationService(
         periods: List<CapacityPeriodRow>,
         calendar: WorkingCalendar,
         at: Long,
+    ): Computed? = computeFrom(mirror.teamSprintsOf(binding.connectionId, binding.flowTeamId), timeZone, teamsAt, periods, calendar, at)
+
+    /**
+     * [computeOf]'s arithmetic over a [team] the caller already read (null = absent from the mirror), the ONE function the single-team
+     * and the every-team paths share, so the two cannot word a team differently.
+     */
+    private fun computeFrom(
+        team: FlowMirrorTeamSprints?,
+        timeZone: String,
+        teamsAt: Long?,
+        periods: List<CapacityPeriodRow>,
+        calendar: WorkingCalendar,
+        at: Long,
     ): Computed? {
-        val team = mirror.teamSprintsOf(binding.connectionId, binding.flowTeamId)
         if (team == null && teamsAt == null) return null
         val deviations = if (team == null) {
             CapacityDeviationKernels.deviations(CapacityPlan(emptyList(), emptyList()), periods, calendar, gone = true)

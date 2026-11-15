@@ -87,10 +87,13 @@ data class RoadmapProjectCan(val editTargetWindow: Boolean)
  * (the project and team views, from the view's calendar: [MilestoneFlagKernels]). The Jira kinds come last (1.3):
  * [JIRA_DEVIATION] is one open deviation between a node and its Jira item, [JIRA_MILESTONES] a project's roll-up of its milestones'.
  * [FLOW_CAPACITY] (1.9) is the team view's roll-up of its open Flow capacity deviations: `count` = the open rows, the worst severity.
+ * [FLOW_CAPACITY_MILESTONES] (1.23) is a PROJECT's flag, one per team: `teamId`, and `count` = the project's scheduled milestones on that
+ * team that lie in days an open capacity difference of the team covers; the severity is the worst among the differences they meet.
  */
 @Serializable
 enum class FlagKind {
     DRIFT_END_LATE, DRIFT_START_LATE, DRIFT_END_EARLY, RANK_INVERSION, NO_WORKING_DAY, JIRA_DEVIATION, JIRA_MILESTONES, FLOW_CAPACITY,
+    FLOW_CAPACITY_MILESTONES,
 }
 
 /** WARNING sorts before INFO. */
@@ -104,7 +107,8 @@ enum class FlagSeverity { WARNING, INFO }
  * per-team inversion (absent for the no-shared-team INFO and for drift); [otherProjectId] is the higher-ranked project of an
  * inversion. A [FlagKind.JIRA_DEVIATION] carries its [deviation] (the evidence; [days] stays absent, the detail holds them) and a
  * [FlagKind.JIRA_MILESTONES] its [count] of milestones with an open deviation (the severity is the worst among them); both members
- * are absent on every other kind. A [FlagKind.FLOW_CAPACITY] carries its [count] too (the open sprint rows). A
+ * are absent on every other kind. A [FlagKind.FLOW_CAPACITY] carries its [count] too (the open sprint rows), and a
+ * [FlagKind.FLOW_CAPACITY_MILESTONES] its [teamId] and its [count] (the project's milestones on that team in disputed days). A
  * [FlagKind.NO_WORKING_DAY] carries nothing else.
  */
 @Serializable

@@ -84,6 +84,34 @@ class FlowMirrorStoreTest {
     }
 
     @Test
+    fun `teamsSprintsOf equals teamSprintsOf key by key across connections, an absent pair has no entry and no key reads nothing`() =
+        runBlocking {
+            PostgresTestSupport.ensureMigrated()
+            val first = connection()
+            val second = connection()
+            val sprints = listOf(
+                flowSprint(31, start = 3_000, end = 4_000, md = "20.50", name = "Later"),
+                flowSprint(30, start = 1_000, end = 2_000, md = "40.00", name = "Earlier"),
+                flowSprint(32, start = null, end = null, md = null, name = "Undated"),
+            )
+            store.replace(first, listOf(flowTeam(1, "Alpha", sprints), flowTeam(2, "Bare"), flowTeam(3, "Other")), at = 11L)
+            val again = flowTeam(1, "Alpha again", listOf(flowSprint(40, start = 5, end = 6)))
+            store.replace(second, listOf(again, flowTeam(4, "Four")), at = 22L)
+
+            val keys = listOf(first to 1, first to 2, second to 1, second to 4, first to 99, second to 3)
+            val batch = store.teamsSprintsOf(keys)
+            assertEquals(setOf(first to 1, first to 2, second to 1, second to 4), batch.keys, "(second, 3) and (first, 99) are absent")
+            for ((connection, flowTeam) in batch.keys) {
+                assertEquals(store.teamSprintsOf(connection, flowTeam), batch[connection to flowTeam], "$connection/$flowTeam")
+            }
+            assertEquals(listOf(30L, 31L, 32L), batch.getValue(first to 1).sprints.map { it.sprintId }, "by start, undated last")
+            assertEquals(emptyList(), batch.getValue(first to 2).sprints, "present, no sprints")
+            assertEquals(22L, batch.getValue(second to 1).observedAt)
+            assertEquals(setOf(first to 3), store.teamsSprintsOf(listOf(first to 3)).keys, "only the asked pair is answered")
+            assertEquals(emptyMap(), store.teamsSprintsOf(emptyList()))
+        }
+
+    @Test
     fun `a second replace swaps the whole document - nothing of the first survives`() = runBlocking {
         PostgresTestSupport.ensureMigrated()
         val id = connection()

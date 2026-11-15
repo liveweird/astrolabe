@@ -47,6 +47,28 @@ class FlowFlagSourceTest {
         }
     }
 
+    /** The every-team form, the way the roadmap loader asks it: the whole plan, no team named. */
+    private suspend fun ApplicationTestBuilder.askEvery(): ExternalFlags {
+        val source = FlowFlagSource(application.attributes[CapacityDeviationServiceKey])
+        return suspendTransaction(sharedDatabaseForTests(), SNAPSHOT, readOnly = true) {
+            source.flagsInTransaction(ExternalFlagRequest(null, null, loadWorkingCalendar(), everyTeam = true))
+        }
+    }
+
+    /**
+     * The every-team answer equals the single-team answers, team by team (flags AND ranges, the same fold): the linked team, the other
+     * linked team (its Flow team is gone) and an unlinked one; a team the single answer leaves empty has no entry in the every-team one.
+     */
+    private suspend fun ApplicationTestBuilder.assertEveryEqualsSingle(world: CapAckWorld) = with(world) {
+        val unlinked = TestTeams.seed(planName("flowflag-every-unlinked"))
+        val every = askEvery()
+        for (team in listOf(teamId, w.requireTeams().otherTeamId, unlinked)) {
+            val single = ask(team).teams[team]
+            assertEquals(single, every.teams[team], "team $team")
+        }
+        assertTrue(every.projects.isEmpty() && every.milestones.isEmpty() && every.sites.isEmpty(), "the node half is the Jira source's")
+    }
+
     private fun range(from: String, to: String, severity: FlagSeverity) = FlaggedRange(LocalDate.parse(from), LocalDate.parse(to), severity)
 
     private val warningRange = range("2049-03-15", "2049-03-26", FlagSeverity.WARNING)
@@ -148,6 +170,58 @@ class FlowFlagSourceTest {
             val both = ask(teamId, milestones = listOf(w.projectId))
             assertEquals(setOf(teamId), both.teams.keys)
             assertTrue(both.projects.isEmpty() && both.milestones.isEmpty() && both.sites.isEmpty(), "the node half is the Jira source's")
+        }
+    }
+
+    @Test
+    fun `the every-team answer equals the single-team answer for two open rows and a gone Flow team`() = testApplication {
+        val world = dayTwo("flowflag8")
+        assertEveryEqualsSingle(world)
+        with(world) {
+            val every = askEvery()
+            assertEquals(listOf(warningRange, infoRange), every.team(teamId).ranges)
+            assertEquals(2, every.team(teamId).flags.single().count)
+            assertEquals(1, every.team(w.requireTeams().otherTeamId).flags.single().count, "the gone Flow team flags too, with no range")
+        }
+    }
+
+    @Test
+    fun `the every-team answer equals the single-team answer after one, then both rows are acknowledged, and when one goes stale`() =
+        testApplication {
+            val world = dayTwo("flowflag9")
+            with(world) {
+                manager.client.capAck(bindingId, 2, w.admin.client.rowOf(2).fingerprint).capAcknowledgement()
+                assertEveryEqualsSingle(world)
+                assertEquals(listOf(infoRange), askEvery().team(teamId).ranges)
+
+                manager.client.capAck(bindingId, 3, w.admin.client.rowOf(3).fingerprint).capAcknowledgement()
+                assertEveryEqualsSingle(world)
+                assertTrue(teamId !in askEvery().teams, "an all-acknowledged team has no entry")
+
+                jbSql("UPDATE team_capacity_periods SET md_per_week = 17 WHERE team_id = ? AND flow_sprint_id = 2", teamId.toInt())
+                assertEveryEqualsSingle(world)
+                assertEquals(listOf(warningRange), askEvery().team(teamId).ranges, "the stale acknowledgement flags again")
+            }
+        }
+
+    @Test
+    fun `the every-team answer leaves a disabled connection out and a connection that never mirrored a document`() = testApplication {
+        val world = dayTwo("flowflag10")
+        with(world) {
+            jbSql("UPDATE flow_connections SET enabled = FALSE WHERE id = ?", mirror.connectionId.toInt())
+            assertEveryEqualsSingle(world)
+            assertTrue(askEvery().teams.keys.none { it == teamId || it == w.requireTeams().otherTeamId }, "disabled: nothing")
+            jbSql("UPDATE flow_connections SET enabled = TRUE WHERE id = ?", mirror.connectionId.toInt())
+            assertEquals(2, askEvery().team(teamId).flags.single().count, "enabling it flags again")
+
+            // A binding whose connection never mirrored a document: no Flow team in the mirror and no stamp - nothing to compare.
+            val connection = mirror.connectionId.toInt()
+            jbSql("DELETE FROM flow_members WHERE connection_id = ?", connection)
+            jbSql("DELETE FROM flow_sprints WHERE connection_id = ?", connection)
+            jbSql("DELETE FROM flow_teams WHERE connection_id = ?", connection)
+            jbSql("UPDATE flow_connections SET teams_at = NULL WHERE id = ?", connection)
+            assertEveryEqualsSingle(world)
+            assertTrue(askEvery().teams.keys.none { it == teamId || it == w.requireTeams().otherTeamId }, "never mirrored: nothing")
         }
     }
 }

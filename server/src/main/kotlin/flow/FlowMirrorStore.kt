@@ -184,6 +184,34 @@ class FlowMirrorStore(private val database: R2dbcDatabase) {
         }
     }
 
+    /**
+     * [teamSprintsOf] for many (connection, Flow team) pairs in ONE statement (the every-team capacity flag's read, inside its caller's
+     * snapshot): the same LEFT JOIN and sprint order, grouped by pair. A pair that is not in the mirror has no entry. The statement
+     * names the pairs' connections and Flow teams (a superset of the pairs when several connections are asked for) and the exact pairs
+     * are kept in memory. Nests into the caller's transaction; no key reads nothing.
+     */
+    suspend fun teamsSprintsOf(keys: Collection<Pair<UInt, Int>>): Map<Pair<UInt, Int>, FlowMirrorTeamSprints> {
+        if (keys.isEmpty()) return emptyMap()
+        val wanted = keys.toSet()
+        val connectionIds = wanted.map { it.first }.distinct()
+        val flowTeamIds = wanted.map { it.second }.distinct()
+        return suspendTransaction(database) {
+            val sprints = FlowSprints
+            val sameTeam = { (FlowTeams.connectionId eq sprints.connectionId) and (FlowTeams.flowTeamId eq sprints.flowTeamId) }
+            FlowTeams.join(sprints, JoinType.LEFT, additionalConstraint = sameTeam)
+                .selectAll().where { (FlowTeams.connectionId inList connectionIds) and (FlowTeams.flowTeamId inList flowTeamIds) }
+                .orderBy(sprints.startAt to SortOrder.ASC_NULLS_LAST, sprints.sprintId to SortOrder.ASC).toList()
+                .groupBy { (it[FlowTeams.connectionId].value) to it[FlowTeams.flowTeamId] }
+                .filterKeys { it in wanted }
+                .mapValues { (_, rows) ->
+                    FlowMirrorTeamSprints(
+                        rows.first()[FlowTeams.observedAt],
+                        rows.filter { it.getOrNull(sprints.sprintId) != null }.map { it.toSprint() },
+                    )
+                }
+        }
+    }
+
     private fun ResultRow.toSprint() = FlowMirrorSprint(
         sprintId = this[FlowSprints.sprintId],
         sourceConnectionId = this[FlowSprints.sourceConnectionId],

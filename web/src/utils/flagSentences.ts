@@ -43,6 +43,11 @@ export function flagSentence(t: TFunction, flag: PlanFlag, names: FlagNames, jir
     // The team page's roll-up of its open Flow capacity deviations (1.9); the rows live on the page's Flow section.
     case "FLOW_CAPACITY":
       return t("roadmap.flag.flowCapacity", { count: flag.count ?? 0 });
+    // A project's share of one team's open Flow capacity differences (1.23): its scheduled milestones on the team that lie in the disputed days.
+    case "FLOW_CAPACITY_MILESTONES": {
+      const team = flag.teamId === undefined ? "" : names.team(flag.teamId);
+      return t("roadmap.flag.flowCapacityMilestones", { count: flag.count ?? 0, team });
+    }
   }
 }
 

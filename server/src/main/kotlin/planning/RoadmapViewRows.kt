@@ -36,6 +36,11 @@ internal class RoadmapSnapshot(
     val checkedLinks: List<CheckedLink> = emptyList(),
     /** The external flags of the milestones the source answered for, by milestone id (empty without a source or a binding). */
     val milestoneFlags: Map<UInt, List<PlanFlag>> = emptyMap(),
+    /**
+     * Each team's own flags from the same answer ([TeamExternal.flags]: the Flow capacity roll-up, the team view's header flag), by team
+     * id; a team with nothing to say has no entry. Home's managed teams read it instead of asking the source per team (1.23).
+     */
+    val teamFlags: Map<UInt, List<PlanFlag>> = emptyMap(),
 )
 
 /** A project row with the owner chain `can.editTargetWindow` needs; [loadRoadmapSnapshot] completes it into a [RoadmapProject]. */
@@ -54,7 +59,10 @@ internal class MilestoneFactRow(val fact: PlanMilestoneFact, val teamName: Strin
  * names, the rank entries, the milestones, the links - bounded by the plan's scale (about 100 projects, 1,000 milestones). The
  * comparison view needs no links ([withLinks] false: `links` is then empty and the link statement is skipped). [external] (1.3) is asked
  * about EVERY project and milestone right after the calendar, in the same snapshot, and its links and flags are folded into the project
- * rows ([withExternal]); the baseline capture and comparison pass none, a baseline freezes spans and ranks, never flags.
+ * rows ([withExternal]); the baseline capture and comparison pass none, a baseline freezes spans and ranks, never flags. The request
+ * also asks for EVERY team ([ExternalFlagRequest.everyTeam], 1.23, one batched read): the days the teams' open Flow capacity differences
+ * cover are folded into the project rows' own flags by [RoadmapKernels.capacityFlags], and the teams' own flags ride in
+ * [RoadmapSnapshot.teamFlags].
  */
 internal suspend fun loadRoadmapSnapshot(
     actor: PlanActor,
@@ -63,7 +71,9 @@ internal suspend fun loadRoadmapSnapshot(
 ): RoadmapSnapshot {
     // Right after the caller's readPlanRevision(): the revision, the rows and the calendar are one snapshot.
     val calendar = loadWorkingCalendar()
-    val outside = external.flagsInTransaction(ExternalFlagRequest(projectIds = null, milestoneIds = null, calendar = calendar))
+    val outside = external.flagsInTransaction(
+        ExternalFlagRequest(projectIds = null, milestoneIds = null, calendar = calendar, everyTeam = true),
+    )
     val rows = projectRows()
     val ranks = rankPositions()
     val milestones = milestoneFacts()
@@ -74,6 +84,7 @@ internal suspend fun loadRoadmapSnapshot(
     }
     val spans = RoadmapKernels.projectSpans(facts)
     val inversions = RoadmapKernels.inversionFlags(projectFacts, facts)
+    val capacity = RoadmapKernels.capacityFlags(facts, outside.teams.mapValues { it.value.ranges })
     val teamIds = facts.groupBy({ it.projectId }) { it.teamId }.mapValues { (_, ids) -> ids.distinct().sorted() }
     val projects = rows.values.map { row ->
         val p = row.project
@@ -83,7 +94,8 @@ internal suspend fun loadRoadmapSnapshot(
             teamIds = teamIds[p.id].orEmpty(),
             span = span?.let { DateSpan(it.start.toString(), it.end.toString()) },
             drift = SpanKernels.drift(span, row.target),
-            flags = (RoadmapKernels.driftFlags(span, row.target) + inversions[p.id].orEmpty()).sortedWith(FLAG_ORDER),
+            flags = (RoadmapKernels.driftFlags(span, row.target) + inversions[p.id].orEmpty() + capacity[p.id].orEmpty())
+                .sortedWith(FLAG_ORDER),
             can = RoadmapProjectCan(PlanPermissions.canEditTargetWindow(actor, row.chain)),
         ).withExternal(outside.project(p.id))
     }
@@ -94,7 +106,8 @@ internal suspend fun loadRoadmapSnapshot(
     val checked = if (withLinks) RoadmapKernels.checkedLinks(linkRows, projectFacts, facts, spans, calendar) else emptyList()
     val links = RoadmapKernels.aggregate(checked)
     val milestoneFlags = outside.milestones.mapValues { it.value.flags }
-    return RoadmapSnapshot(projects, teams, links, spans, calendar, facts, linkRows, outside.sites, checked, milestoneFlags)
+    val teamFlags = outside.teams.mapValues { it.value.flags }.filterValues { it.isNotEmpty() }
+    return RoadmapSnapshot(projects, teams, links, spans, calendar, facts, linkRows, outside.sites, checked, milestoneFlags, teamFlags)
 }
 
 /**

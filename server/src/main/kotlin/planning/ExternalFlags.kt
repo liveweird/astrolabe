@@ -12,6 +12,9 @@ import java.time.LocalDate
  * [NoExternalFlags]: no link, no flag, no site. Since 1.9 the seam also carries a TEAM half (the team view's header flag and the weeks
  * strip's marked days, the Flow capacity deviation: `flow/FlowFlagSource`), and the views read every source through
  * [CompositeExternalFlagSource]. A milestone row's own calendar flag (`NO_WORKING_DAY`) is merged with the external ones, never replaced.
+ * Since 1.23 the team half has a second form, [ExternalFlagRequest.everyTeam]: the roadmap loader asks for EVERY team at once and folds
+ * the teams' day ranges into its project rows ([RoadmapKernels.capacityFlags]), and Home reads its managed teams' flags from the same
+ * answer.
  */
 
 /**
@@ -98,16 +101,20 @@ class ExternalFlags(
  * project and ALL its milestones; the team view: no project, its milestones). A project's `JIRA_MILESTONES` roll-up is exact only when
  * the request names ALL of that project's milestones, so a source raises it only for the projects the request names. [calendar] is the
  * working calendar the view already read in its snapshot. [teamId] (1.9) is the one team the view is about (the team view only; null in
- * the other three): a source answers its [TeamExternal] under that id.
+ * the other three): a source answers its [TeamExternal] under that id. [everyTeam] (1.23) is the whole-plan form of the same half: the
+ * roadmap loader (the roadmap, programs and Home views) asks for the [TeamExternal] of EVERY team that has something to say, in ONE
+ * batched read, so a project row can be flagged by the days its milestones share with a team's open rows; it excludes [teamId].
  */
 class ExternalFlagRequest(
     val projectIds: Collection<UInt>?,
     val milestoneIds: Collection<UInt>?,
     val calendar: WorkingCalendar,
     val teamId: UInt? = null,
+    val everyTeam: Boolean = false,
 ) {
     init {
         require((projectIds == null) == (milestoneIds == null)) { "Either both id sets are named or neither is (the whole plan)" }
+        require(!everyTeam || teamId == null) { "everyTeam asks about all teams, so it names none" }
     }
 
     /** No plan node is asked about (a node source answers without reading), whatever the team half says. */
