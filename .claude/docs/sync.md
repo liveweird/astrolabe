@@ -6,7 +6,7 @@ Owns: the connector-agnostic machinery of `sync/`: the run registry and its clai
 
 The rules that bind every change in this area. The sections below hold the mechanics and the pinning tests.
 
-- `sync/` is the connector-agnostic run registry (`SyncRunService`, V21 `sync_runs`) and its background executor (`SyncRunner`); it names no connector. `jira/JiraObserver` is the first connector and `flow/FlowObserver.kt` the second, each registered by its own module (`configureJira`, `configureFlow`) before `configureSync`.
+- `sync/` is the connector-agnostic run registry (`SyncRunService`, V21 `sync_runs`) and its background executor (`SyncRunner`); it names no connector. The request rules both connection registries share (the poll bound, the credential's presence) are `sync/ConnectionRules.kt`. `jira/JiraObserver` is the first connector and `flow/FlowObserver.kt` the second, each registered by its own module (`configureJira`, `configureFlow`) before `configureSync`.
 - A run starts from a manual request (claims the run, answers `202`) or from the scheduler; either way it executes on an application-scoped `SupervisorJob` scope.
 - The claim IS the unique index: the partial unique index `uq_sync_runs_running` (one unfinished row per kind and connection) is the lock, not the process. There is no leader and no advisory lock, and a run is never cancelled across replicas, only abandoned by age.
 - Every way a run ends writes its row or leaves it to the age-based abandonment ("The runner").

@@ -7,6 +7,8 @@ import ch.nokillswit.infra.validation.requireNameAndDescription
 import ch.nokillswit.infra.validation.sanitizeSingleLine
 import ch.nokillswit.sync.SyncLastRun
 import ch.nokillswit.sync.SyncStatus
+import ch.nokillswit.sync.requirePollInterval
+import ch.nokillswit.sync.requireSecret
 import io.ktor.server.plugins.BadRequestException
 import kotlinx.serialization.Serializable
 import java.time.ZoneId
@@ -22,8 +24,6 @@ import java.time.ZoneId
 const val MAX_FLOW_CONNECTION_NAME_LENGTH = 100
 const val MAX_FLOW_BASE_URL_LENGTH = 255
 const val MAX_FLOW_TIME_ZONE_LENGTH = 64
-const val MIN_FLOW_POLL_INTERVAL_MINUTES = 5
-const val MAX_FLOW_POLL_INTERVAL_MINUTES = 1440
 const val DEFAULT_FLOW_POLL_INTERVAL_MINUTES = 60
 
 /** Flow's service token (Flow 1.57.0): `flow_int_` and 43 base64url characters (256 bits). A Jira token pasted here fails fast. */
@@ -151,18 +151,11 @@ fun validateFlowConnection(request: FlowConnectionRequest, apiTokenRequired: Boo
     if (request.timeZone.length > MAX_FLOW_TIME_ZONE_LENGTH || !isRegionZone(request.timeZone)) {
         throw BadRequestException("timeZone must be an IANA time zone id such as Europe/Warsaw")
     }
-    if (apiTokenRequired && request.apiToken.isNullOrBlank()) throw BadRequestException("apiToken is required")
+    requireSecret(request.apiToken, apiTokenRequired, "apiToken")
     if (request.apiToken != null && !FLOW_TOKEN_PATTERN.matches(request.apiToken)) {
         throw BadRequestException("apiToken must be a Flow service token (flow_int_ followed by 43 characters)")
     }
-    if (request.pollIntervalMinutes != null &&
-        request.pollIntervalMinutes !in MIN_FLOW_POLL_INTERVAL_MINUTES..MAX_FLOW_POLL_INTERVAL_MINUTES
-    ) {
-        throw BadRequestException(
-            "Polling interval must be between $MIN_FLOW_POLL_INTERVAL_MINUTES and $MAX_FLOW_POLL_INTERVAL_MINUTES minutes, " +
-                "or null for manual only",
-        )
-    }
+    requirePollInterval(request.pollIntervalMinutes)
 }
 
 private fun requireBaseUrl(baseUrl: String, baseUrlVerdict: (String) -> FlowBaseUrlVerdict) {

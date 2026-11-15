@@ -1,6 +1,6 @@
 import type { TFunction } from "i18next";
 
-/** The polling interval's bounds, in minutes (`MIN/MAX_*_POLL_INTERVAL_MINUTES` in `JiraConnection.kt` and `FlowConnection.kt`: one rule for every connector). */
+/** The polling interval's bounds, in minutes (`MIN/MAX_POLL_INTERVAL_MINUTES` in `sync/ConnectionRules.kt`: one rule for every connector). */
 export const MIN_POLL_INTERVAL_MINUTES = 5;
 export const MAX_POLL_INTERVAL_MINUTES = 1440;
 

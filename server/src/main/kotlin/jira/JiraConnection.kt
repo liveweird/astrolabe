@@ -9,6 +9,8 @@ import ch.nokillswit.infra.validation.requireNameAndDescription
 import ch.nokillswit.infra.validation.sanitizeSingleLine
 import ch.nokillswit.sync.SyncLastRun
 import ch.nokillswit.sync.SyncStatus
+import ch.nokillswit.sync.requirePollInterval
+import ch.nokillswit.sync.requireSecret
 import io.ktor.server.plugins.BadRequestException
 import kotlinx.serialization.Serializable
 
@@ -24,8 +26,6 @@ const val MAX_JIRA_EMAIL_LENGTH = 254
 const val MAX_API_TOKEN_LENGTH = 1000
 const val MIN_PROJECT_KEYS = 1
 const val MAX_PROJECT_KEYS = 50
-const val MIN_POLL_INTERVAL_MINUTES = 5
-const val MAX_POLL_INTERVAL_MINUTES = 1440
 const val DEFAULT_POLL_INTERVAL_MINUTES = 15
 
 /** How much of a rejected project key a 400 quotes back (a pasted blob must not be echoed whole). */
@@ -143,7 +143,7 @@ fun validateJiraConnection(request: JiraConnectionRequest, apiTokenRequired: Boo
     if (request.email.isBlank() || request.email.length > MAX_JIRA_EMAIL_LENGTH || '@' !in request.email) {
         throw BadRequestException("email must be a valid address of at most $MAX_JIRA_EMAIL_LENGTH characters")
     }
-    if (apiTokenRequired && request.apiToken.isNullOrBlank()) throw BadRequestException("apiToken is required")
+    requireSecret(request.apiToken, apiTokenRequired, "apiToken")
     if (request.apiToken != null && (request.apiToken.isBlank() || request.apiToken.length > MAX_API_TOKEN_LENGTH)) {
         throw BadRequestException("apiToken must be 1-$MAX_API_TOKEN_LENGTH characters")
     }
@@ -156,9 +156,5 @@ fun validateJiraConnection(request: JiraConnectionRequest, apiTokenRequired: Boo
         }
     }
     if (request.projectKeys.distinct().size != request.projectKeys.size) throw BadRequestException("projectKeys must be distinct")
-    if (request.pollIntervalMinutes != null && request.pollIntervalMinutes !in MIN_POLL_INTERVAL_MINUTES..MAX_POLL_INTERVAL_MINUTES) {
-        throw BadRequestException(
-            "Polling interval must be between $MIN_POLL_INTERVAL_MINUTES and $MAX_POLL_INTERVAL_MINUTES minutes, or null for manual only",
-        )
-    }
+    requirePollInterval(request.pollIntervalMinutes)
 }
