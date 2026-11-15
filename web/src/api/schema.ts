@@ -907,7 +907,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The plan's figures and the caller's own items, for the Home page
+         * The plan's figures and the caller's own items
          * @description Answers the plan's figures (`plan`, the same for every caller, each figure another view's own) and the caller's own items (`me`). Any authenticated user; no parameter (an unknown query name is ignored). `me` is what the active person linked to the caller's login may manage through the owner chain, plus the teams that person manages, administrators included; it is `null` when the login has no active linked person. Each list of `me` holds at most 100 rows (`truncated` says one was cut). `revision` is the plan revision read before the rows; the view offers no write, so there is no `can`.
          */
         get: operations["getHomeView"];
@@ -927,7 +927,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Every team with its milestones and the weeks its page flags, for the Team load page
+         * Every team with its milestones and the weeks it flags
          * @description Answers every active team with its milestone counts and the weeks the team view flags, the same for every caller. Any authenticated user; no parameter (an unknown query name is ignored). Teams come by name (case-insensitive, then id), at most 200 (`truncated`); `totals` always count every team, and `totals.overloadedTeams` and `totals.wipExceededTeams` are `plan.overloadedTeams` and `plan.wipExceededTeams` of `GET /views/home`. Every figure is the team view's own (`GET /views/team/{id}`). Each row lists its `warningWeeks`; the document lists at most 2,000 in all, handed out from `currentWeekStart` on first (`warningWeeksTruncated`), and the counts never change with the cut. `revision` is the plan revision read before the rows; there is no `can`.
          */
         get: operations["getTeamLoadView"];
@@ -947,7 +947,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Every dependency of the plan, the ones that do not hold first, for the Dependencies page
+         * Every dependency of the plan, the ones that do not hold first
          * @description Answers every active dependency whose two ends resolve to a project, the ones that do not hold first, the same for every caller except each row's `can`. Any authenticated user; no parameter (an unknown query name is ignored). Rows come in the project view's order (violated first, the largest shortfall first, then OK, then unscheduled; the successor's name, the predecessor's name case-insensitively, then id), at most 1,000 (`truncated`; the cut drops the tail of that order). `totals` always count every link, and `totals.violated` is `plan.conflicts` of `GET /views/home`. A row names its ends by kind and id; `projects`, `teams` and `milestones` hold exactly what the listed rows name, once each, so every reference resolves. The check is the project view's, on working days. `revision` is the plan revision read before the rows; there is no document-level `can`.
          */
         get: operations["getDependencyListView"];
@@ -1674,7 +1674,7 @@ export interface paths {
         put?: never;
         /**
          * Apply an import from Jira into one work stream
-         * @description Creates the ticked programs, projects and milestones under the picked work stream and binds each to its Jira item, or binds an existing unbound same-name node, in one plan write with exactly one revision bump (also when every item is skipped). It never updates an existing node; nothing is written to Jira. ADMIN, or an owner of the target of every ticked CREATE or BIND row; a ticked row whose target the caller does not own is `403` for the whole request, nothing written (the preview, by contrast, is refused when any row of the scope targets a node the caller does not own). The checks and their order are the preview's through the browse; the items join the `400`s (1 to 2,000, each `jiraId` numeric and named once, every override team and owner active), and a browse cut at its caps is `400`. The write re-runs the guards and the connection's state: deleted `404`, disabled or out of scope `400`, mapping or discovery changed `409`, ownership revoked `403`. Each item is compared with `expected`; a difference, or an item the site no longer holds, is skipped `CHANGED`, never re-homed. A uniqueness violation is `409`. `revision` is the plan revision after the bump.
+         * @description Creates the ticked programs, projects and milestones under the picked work stream and binds each to its Jira item, or binds an existing unbound same-name node, in one plan write with exactly one revision bump (also when every item is skipped). It never updates an existing node; nothing is written to Jira. Rides the preview's per-user bucket (5 a minute, shared with it, spent first). ADMIN, or an owner of the target of every ticked CREATE or BIND row; a ticked row whose target the caller does not own is `403` for the whole request, nothing written. The checks and their order are the preview's through the browse; the items join the `400`s (1 to 2,000, each `jiraId` numeric and named once, every override team and owner active), and a browse cut at its caps is `400`. The write re-runs the guards and the connection's state: deleted `404`, disabled or out of scope `400`, mapping or discovery changed `409`, ownership revoked `403`. Each item is compared with `expected`; a difference, or an item the site no longer holds, is skipped `CHANGED`, never re-homed. A uniqueness violation is `409`. `revision` is the plan revision after the bump.
          */
         post: operations["applyJiraImport"];
         delete?: never;
@@ -1768,24 +1768,13 @@ export interface paths {
         };
         /**
          * List Flow connections
-         * @description ADMIN only (guarded before anything is read).
-         *
-         *     - Sortable fields: `id`, `name`, `createdAt`. Default `id` ascending.
-         *     - Filters: none.
-         *     - The service token is never returned; each row carries `hasApiToken`.
+         * @description Lists Flow connections. ADMIN only, checked before anything is read. Sortable: `id`, `name`, `createdAt`; default `id` ascending; no filters. The service token is never returned; each row carries `hasApiToken`.
          */
         get: operations["listFlowConnections"];
         put?: never;
         /**
          * Create a Flow connection
-         * @description ADMIN only (guarded before the body decodes - a non-admin's malformed body is still `403`). The `apiToken` is required and must be a
-         *     Flow service token (`flow_int_` followed by 43 characters); it is encrypted before it is stored and never returned or logged.
-         *     `baseUrl` must be exactly one of the origins the OPERATOR configured for this server (`FLOW_ALLOWED_HOSTS`, and in development
-         *     `FLOW_INSECURE_ORIGINS`) in its canonical form - an admin can never widen that list. A refused `baseUrl` is a `400` that says
-         *     which rule refused it: not the canonical spelling of an origin (lowercase, no default port, path, trailing slash, query or
-         *     credentials), or a well-formed origin that is not on the list (`GET /integrations/flow/origins`); a port is never the reason, and the
-         *     value is never quoted. `timeZone` is an IANA region id. A
-         *     case-insensitive name clash with an active connection is `409`.
+         * @description Creates a connection. ADMIN only, checked before the body decodes, so a non-admin's malformed body is still `403`. `apiToken` is required, stored encrypted and never returned or logged. `baseUrl` must be one of the origins the server's operator allows (`GET /integrations/flow/origins`), in canonical form; a refused `baseUrl` is a `400` that says which rule refused it (not canonical: lowercase scheme and host, no default port, path, trailing slash, query or credentials; or a well-formed origin that is not on the list) and never quotes the value. `timeZone` is an IANA region id. A case-insensitive name clash with an active connection is `409`.
          */
         post: operations["createFlowConnection"];
         delete?: never;
@@ -1805,22 +1794,18 @@ export interface paths {
         };
         /**
          * Get a Flow connection
-         * @description ADMIN only, guard before the id lookup (a non-admin gets a uniform `403`). The service token is never returned.
+         * @description Returns one connection. ADMIN only, checked before the id lookup, so a non-admin gets `403` whether or not the id exists. The service token is never returned.
          */
         get: operations["getFlowConnection"];
         /**
          * Update a Flow connection
-         * @description ADMIN only, guard before the id lookup. A full replace of the name, time zone, `enabled` and the polling interval; an omitted or
-         *     blank `apiToken` keeps the stored token, a present one rotates it. The origin is the connection's identity: a different `baseUrl`
-         *     is `409` (create a new connection), and an unchanged origin the operator has since delisted does not stop an update. A changed
-         *     token or time zone clears the last test verdict. A case-insensitive name clash with another active connection is `409` too.
+         * @description Replaces a connection's name, time zone, `enabled` and polling interval. ADMIN only, checked before the id lookup. An omitted or blank `apiToken` keeps the stored token; a present one rotates it. The origin is the connection's identity: a different `baseUrl` is `409` (create a new connection), and an origin the operator has since delisted does not stop an update. A changed token or time zone clears the last test verdict. A case-insensitive name clash with another active connection is `409`.
          */
         put: operations["updateFlowConnection"];
         post?: never;
         /**
          * Delete a Flow connection (soft)
-         * @description ADMIN only, guard before the id lookup. Soft delete - the name is freed for reuse, the stored token is destroyed, and the
-         *     connection's runs, its mirror of Flow's teams, sprints and members and its team bindings go with it in the same transaction.
+         * @description Soft-deletes a connection and frees its name. ADMIN only, checked before the id lookup. The stored token is destroyed, and the connection's runs, its mirror of Flow's teams, sprints and members and its team bindings go with it.
          */
         delete: operations["deleteFlowConnection"];
         options?: never;
@@ -1839,10 +1824,7 @@ export interface paths {
         put?: never;
         /**
          * Test a Flow connection that is not (yet) stored
-         * @description ADMIN only (guarded before the body decodes), rate limited per IP (`flow-test`, 10 a minute by default, its own bucket). Probes Flow with
-         *     the credentials in the body - the same shape as a create (`apiToken` required, `baseUrl` one of the operator's origins) - and answers one
-         *     row per endpoint probed (`me`, then `teams`). Never `502`: a failed probe, an upstream failure and a timeout are rows in a `200`.
-         *     Nothing is stored. The token travels only in the body and is never logged, audited or echoed.
+         * @description Probes Flow with the credentials in the body (the shape of a create: `apiToken` required, `baseUrl` one of the operator's origins) and answers one row per endpoint probed (`me`, then `teams`). Nothing is stored. ADMIN only, checked before the body decodes; rate limited per IP (10 a minute by default), in ONE bucket shared with the stored-connection test. Never `502`: a failed probe, an upstream failure and a timeout are rows in a `200`. The token travels only in the body and is never logged or echoed.
          */
         post: operations["testFlowConnectionAdHoc"];
         delete?: never;
@@ -1864,12 +1846,7 @@ export interface paths {
         put?: never;
         /**
          * Test a stored Flow connection
-         * @description ADMIN only (guard before the id lookup), rate limited per IP (`flow-test`, 10 a minute by default, its own bucket). Probes Flow with the
-         *     STORED token (decrypted in memory for the call only) and answers one row per endpoint probed. Never `502`; a stored token that cannot
-         *     be decrypted (a changed `DATA_ENCRYPTION_KEY`) is one failed `stored_token` row with code `TOKEN_UNREADABLE` - re-enter the token. The
-         *     verdict is recorded on the connection (`lastTestedAt`, `lastTestOk` - the real one); a passing test is what makes the connection
-         *     pollable. `recorded` is false when an edit of the connection raced the test and the result was dropped. The test writes nothing of
-         *     Flow's data: the run is the only writer of the mirror.
+         * @description Probes Flow with the stored token and answers one row per endpoint probed. ADMIN only, checked before the id lookup; rate limited per IP (10 a minute by default), in ONE bucket shared with the ad-hoc test. Never `502`; a stored token that cannot be decrypted is one failed `stored_token` row with code `TOKEN_UNREADABLE` (enter the token again). The verdict is recorded on the connection (`lastTestedAt`, `lastTestOk`), and a passing test is what makes the connection pollable; `recorded` is false when an edit of the connection raced the test and the result was dropped. A test never writes Flow's data to the mirror; only a run does.
          */
         post: operations["testFlowConnection"];
         delete?: never;
@@ -1887,12 +1864,7 @@ export interface paths {
         };
         /**
          * The Flow origins a connection may name
-         * @description ADMIN only (guarded first). The OPERATOR's list a Flow connection's `baseUrl` must be one of, so the connection form can show it
-         *     before a save is refused: `FLOW_ALLOWED_HOSTS` as `https://host[:port]` (443 omitted) and, in development mode only,
-         *     `FLOW_INSECURE_ORIGINS` as `http://host[:port]` (80 omitted), distinct and sorted. Operator configuration validated host-shaped at
-         *     boot (no credential, no path); disclosed to ADMIN, the role that already reads every connection URL, and it widens nothing: the
-         *     transport judges every call. A small operator-curated set (a handful of entries in practice), so the plain `{items}` wrapper and no paging. An empty list means no
-         *     Flow origin is configured (every Flow connection would be refused).
+         * @description Lists the origins a Flow connection's `baseUrl` may name, so a client can show them before a save is refused: the operator's allowed hosts as `https://host[:port]` (443 omitted) and, in development mode only, the insecure origins as `http://host[:port]` (80 omitted), distinct and sorted. ADMIN only, checked first. A small operator-curated set, so the plain `{items}` wrapper and no paging. An empty list means no Flow origin is configured and every Flow connection would be refused.
          */
         get: operations["listFlowOrigins"];
         put?: never;
@@ -1912,14 +1884,7 @@ export interface paths {
         };
         /**
          * List the Flow teams a connection has mirrored
-         * @description Any authenticated user (the Deviations view's disclosure class): the Flow team names of an ACTIVE connection - enabled or not - with
-         *     their binding, the unique suggestion for an unbound one, and counts. Never a token, a base URL, an account id or a person's name.
-         *     It feeds the connection page's Teams section (ADMIN) and the team page's link dialog (the team's manager).
-         *
-         *     **Unpaged, by decision (`flow-sync.md` "Bindings"):** the document is the mirror of ONE Flow document, which Flow itself caps at 1,000
-         *     teams (the real figure is about 15-100), and the suggestion needs every unbound team at once, so it is a bounded document like the
-         *     view endpoints and not a `{items, page, total}` envelope. Teams come by name (case-insensitive), then id. `404` for an unknown or
-         *     deleted connection; `400` for a missing, repeated or malformed `connectionId`.
+         * @description Lists the Flow teams an ACTIVE connection (enabled or not) has mirrored, each with its binding, the unique suggestion for an unbound one, and counts. Any authenticated user; never a token, a base URL, an account id or a person's name. One unpaged document, because Flow itself caps its document at 1,000 teams and the suggestions need every unbound team at once; teams come by name (case-insensitive), then id. `404` for an unknown or deleted connection; `400` for a missing, repeated or malformed `connectionId`.
          */
         get: operations["listFlowTeams"];
         put?: never;
@@ -1941,16 +1906,7 @@ export interface paths {
         put?: never;
         /**
          * Link a team to a Flow team
-         * @description The team's ACTIVE manager or ADMIN, **read-before-guard**: the team is in the body, so the body is decoded first (a body that does not
-         *     decode is a `400` before any guard - no team was addressed); then the team (`404` for an unknown or deleted team, for every caller),
-         *     then the guard (`403`: another team's manager, a project owner and a stranger are refused; a forbidden caller's bad `flowTeamId` is
-         *     still `403`), then the rest: the connection (unknown, deleted or disabled: `400`) and the Flow team in its mirror (`400` "Unknown
-         *     Flow team: refresh the connection"). The write runs in one transaction with the guard re-run under the team row lock.
-         *
-         *     Links are 1:1 both ways: `409` `urn:astrolabe:problem:already-bound` when the team is already linked to a Flow team (on any
-         *     connection), or the Flow team is already linked to another team - unless that team was deleted, in which case its link is released
-         *     (soft-deleted, audited `flow.team_unbound` with reason `TEAM_GONE`) and the new one goes through. The link calls Flow never and is
-         *     not plan state. Audited `flow.team_bound`.
+         * @description Links a team to a Flow team of a connection's mirror. The link calls Flow never and is not plan state. The team's ACTIVE manager or ADMIN. Order: the body decodes first, because the team is in it (an undecodable body is `400` before any guard); `404` for an unknown or deleted team, for every caller; `403` (another team's manager, a project owner and a stranger are refused, whatever the rest of the body holds); then `400` for an unknown, deleted or disabled connection and for a Flow team that is not in its mirror. Links are 1:1 both ways: `409` `urn:astrolabe:problem:already-bound` when the team is already linked to a Flow team (on any connection) or the Flow team is already linked to another team, unless that team was deleted, in which case its link is released and the new one goes through.
          */
         post: operations["createFlowTeamBinding"];
         delete?: never;
@@ -1973,10 +1929,7 @@ export interface paths {
         post?: never;
         /**
          * Unlink a team from its Flow team
-         * @description The binding's team's ACTIVE manager or ADMIN, read-before-guard: `404` for an unknown or already unlinked binding and for one whose
-         *     team was deleted (for every caller), then `403`. A soft delete: the row stays as history and both the team and the Flow team are free
-         *     to be linked again. The capacity periods the team imported from Flow stay (they are the manager's data now). Audited
-         *     `flow.team_unbound` with reason `UNLINKED`.
+         * @description Unlinks a team from its Flow team. The binding's team's ACTIVE manager or ADMIN. Order: `404` for every caller when the binding is unknown or already unlinked or its team was deleted; then `403`. A soft delete: the team and the Flow team are free to be linked again. The capacity periods the team imported from Flow stay, now the manager's data.
          */
         delete: operations["deleteFlowTeamBinding"];
         options?: never;
@@ -1997,42 +1950,7 @@ export interface paths {
         put?: never;
         /**
          * Preview importing a bound Flow team's sprint capacity
-         * @description The binding's team's ACTIVE manager or ADMIN, **read-before-guard**: the binding is resolved first (`404` for an unknown or unlinked
-         *     binding and for one whose team was deleted, for every caller), then the guard (`403`: another team's manager, a project owner, an editor
-         *     and a stranger are refused), then the body (`400`: an undecodable body, a malformed or out-of-range `from`). The import itself is
-         *     `POST …/capacity-import`; this is a COMPUTATION over the mirror: nothing is stored, locked or audited, Flow is never called, and the document is one
-         *     `READ ONLY REPEATABLE READ` snapshot of the holiday calendar, the Flow team's mirrored sprints and the team's ACTIVE capacity periods.
-         *
-         *     **The rule.** A sprint's man-days are spread over the sprint's WORKING days on Astrolabe's calendar (public holidays off), so
-         *     `mdPerWeek = round2(5 x flowMd / workingDays)` (half up) and the weekly capacity Astrolabe then computes over the sprint adds up to
-         *     Flow's figure within rounding. One period per sprint, starting on its `effectiveFrom`; the dates are the sprint's instants in the
-         *     connection's time zone (`zone`). The sprint's span is Flow's own (`metrics.md` A42, `DeriveSprintStep`): it ends at
-         *     `endAt` (the PLANNED end first, even when the sprint was completed earlier), a completion standing in only for a missing `endAt`,
-         *     and `end` is the day of `max(startAt, thatInstant - 1 ms)`, so an end at local midnight adds no day. **A day belongs to the first
-         *     sprint holding it** (Flow's rule; consecutive sprints usually share the day one ends and the next starts): every sprint with a
-         *     start holds at least its start day and one with a usable end holds `[start, end]`, whatever its figure (a sprint with a start but
-         *     no usable end - none, or one before the start - is `NO_DATES` yet still holds its start day), and a later sprint takes the days no earlier sprint holds, from
-         *     `effectiveFrom = max(start, the last day an earlier sprint holds + 1 day)`. A sprint is skipped
-         *     (`action` `SKIP`) with a `reason`, in this order: `NO_DATES` (no start, no end or completion, or an end before the start), `NO_CAPACITY` (Flow has no
-         *     figure), `OVERLAPS` (it lies wholly inside earlier sprints: Flow counts no day for it), `NO_WORKING_DAY` (none from `effectiveFrom` to `end`), `OUT_OF_RANGE` (the figure is beyond
-         *     a period's man-day bounds). **A sprint whose `capacitySource` is `TEAM_DEFAULT` (or the legacy `CONFIGURED`)** carries a fixed per-sprint figure in Flow that claims
-         *     do not reduce, so its `mdPerWeek` spreads `flowMd` over the working days of its OWN window `[start, end]`, while `workingDays` still
-         *     counts the days from `effectiveFrom` (the days it holds); the row then carries the info `FIXED_FIGURE` with the window's working days. A sprint spanning more than 60 calendar days (Flow's calendar cap) is listed with the info `LONG_WINDOW`
-         *     and is never ticked; every sprint within the 60-day cap claims first (Flow 1.57.1), so it holds only the days no other sprint holds and the sprints inside it keep theirs (a long sprint with no day left is `OVERLAPS`); its figure spreads Flow's total over those days but its one period holds only until the next period starts. A sprint that is not skipped is planned against the team's ACTIVE periods: none starts on `effectiveFrom` - `CREATE`; a Flow-sourced
-         *     one does - `UPDATE` when its figure, its sprint or its name differ (its WIP limit is kept) else `UNCHANGED`; a hand-entered one
-         *     does - `MANUAL_PERIOD`: **a hand-entered period is never changed**, the sprint is left alone. A hand-entered period that starts
-         *     inside a sprint (after `effectiveFrom`, up to its `end`) adds the info `MANUAL_PERIOD_INSIDE` with its date: the sprint's figure
-         *     will not hold from then. A sprint whose Flow figure is 0 (Flow's default for a team without members) is listed as a `CREATE` or
-         *     `UPDATE` with the info `ZERO_CAPACITY` and is never ticked.
-         *
-         *     **Closed sprints.** `from` (default: today in the connection's time zone; the resolved date and `includeClosed` are echoed in the
-         *     response so the apply can re-run the same plan) is the first day the import is about; a sprint whose `end` is before it is closed
-         *     and is listed only when `includeClosed` is true, never ticked. `ticked` is the default selection: not closed, not zero-capacity, not a long window,
-         *     and a `CREATE` or an `UPDATE`. `removals` are the team's Flow-sourced periods that no listed sprint reuses and that belong to a sprint
-         *     missing from Flow's document (dated `from` or later, or any date with `includeClosed`), start inside a sprint the import covers
-         *     (not closed, not a long window; `CREATE`, `UPDATE` or `UNCHANGED`), or belong to a listed sprint (closed or not, whatever its action
-         *     or skip reason) without being the period it reuses (a sprint moved later, or one that now holds no day); a sprint that is skipped but still holds days (`NO_CAPACITY`, `OUT_OF_RANGE`, `NO_WORKING_DAY`, `NO_DATES`) keeps the Flow period at its own `effectiveFrom` as the last good figure. **A removal is never preselected**: a client lists it and the person ticks it. A Flow team that is not in the mirror answers
-         *     an empty plan with `observedAt` null. A disabled connection still previews (it reads the mirror).
+         * @description Computes what importing the bound Flow team's mirrored sprints would do to the team's capacity periods, from one read-only snapshot of the holiday calendar, the mirror and the team's ACTIVE periods. Nothing is stored and Flow is never called. The binding's team's ACTIVE manager or ADMIN. Order: `404` for every caller when the binding is unknown or unlinked or its team was deleted; `403`; then `400` for an undecodable body or a malformed or out-of-range `from`. A sprint's man-days are spread over its working days (public holidays off), so the weekly capacity adds up to Flow's figure within rounding: `mdPerWeek = round2(5 x flowMd / workingDays)`, one period per sprint from its `effectiveFrom`. Each sprint is `CREATE`, `UPDATE`, `UNCHANGED`, `MANUAL_PERIOD` (a hand-entered period starts on that day and is never changed) or `SKIP` with a `reason`. `from` (default: today in the connection's time zone) is the first day the import is about: a sprint that ended before it is closed, listed only with `includeClosed` and never ticked. A Flow team missing from the mirror answers an empty plan with `observedAt` null; a disabled connection still previews.
          */
         post: operations["previewFlowCapacityImport"];
         delete?: never;
@@ -2054,27 +1972,7 @@ export interface paths {
         put?: never;
         /**
          * Apply the ticked rows of a capacity-import preview
-         * @description The binding's team's ACTIVE manager or ADMIN, **read-before-guard** exactly like the preview: the binding is resolved first (`404` for
-         *     an unknown or unlinked binding and for one whose team was deleted, for every caller), then the guard (`403`), then the body (`400`).
-         *     **Team data, not plan state**: no plan lock, no plan revision; Flow is never called.
-         *
-         *     The body is what the person ticked in the preview: `items` (each `sprintId` with the `expected` `action` - `CREATE` or `UPDATE` -,
-         *     `effectiveFrom` and `mdPerWeek` the preview showed), `removals` (the ticked period ids), and the `from` and `includeClosed` the preview
-         *     echoed. At most 2,000 rows each; a sprint or a period named twice is a `400`.
-         *
-         *     **One transaction.** The team row is locked (`404` if the team was deleted meanwhile), the manager guard is re-run against the locked
-         *     state (`403` if the manager was cleared while the request waited; nothing is written), the team's ACTIVE periods are re-read under the
-         *     lock, and the plan is RE-COMPUTED from the mirror as it is now with the echoed `from` and `includeClosed`. A requested row is written
-         *     only when that plan still says what `expected` says; otherwise it is `skipped` with the reason `CHANGED` (the sprint's start date was
-         *     taken over by a hand-entered period meanwhile, the figure or the dates moved, the sprint left Flow, or the row was never in the plan).
-         *     A removal is applied only when its period is a Flow-sourced removal of the re-computed plan now; otherwise it is `skipped` `CHANGED`
-         *     (a hand-entered period, a deleted one and an unknown id included). **A hand-entered (`MANUAL`) period is never changed or removed by
-         *     any row of this request.** Order of the writes: removals first, then the updates, then the creates (a freed date can be taken again).
-         *     A `CREATE` writes a `FLOW` period on `effectiveFrom`; an `UPDATE` sets the figure, the sprint id and the sprint name of the sprint's
-         *     existing Flow period and KEEPS its WIP limit; a removal is a soft delete.
-         *
-         *     Audited after the commit: `team.capacity_period_created/updated/deleted` per period (with `sourceTo`/`sourceFrom` `FLOW`) and ONE
-         *     `team.capacity_imported` summary (also when every row was skipped).
+         * @description Applies the rows ticked in a capacity-import preview to the team's capacity periods. The binding's team's ACTIVE manager or ADMIN; the order is the preview's: `404` for every caller when the binding is unknown or unlinked or its team was deleted, `403`, then `400` for the body (at most 2,000 `items` and 2,000 `removals`; a sprint or a period named twice is refused). The guard is re-run under the team's lock, so a manager cleared while the request waited is `403` and nothing is written (`404` if the team was deleted meanwhile). Team data, not plan state: no plan revision moves, and Flow is never called. The plan is recomputed from the mirror as it is now, with the echoed `from` and `includeClosed`. An item is written only when that plan still says what its `expected` says, a removal only when its period is a Flow-sourced removal of that plan; otherwise the row is `skipped` with the reason `CHANGED` (data in a `200`). A hand-entered (`MANUAL`) period is never changed or removed. Writes run removals first (soft delete), then updates (the figure, sprint id and sprint name; the WIP limit is kept), then creates (a `FLOW` period on `effectiveFrom`).
          */
         post: operations["applyFlowCapacityImport"];
         delete?: never;
@@ -2096,34 +1994,12 @@ export interface paths {
         put?: never;
         /**
          * Acknowledge ONE sprint's capacity deviation until its figures change
-         * @description "Known, leave it" for one row of `GET /views/capacity-deviations`: a sprint's `CAPACITY_DIFFERS` or `CAPACITY_MISSING` row, or - with
-         *     `sprintId: null` - the team's own `TEAM_GONE` row. The binding's team's ACTIVE manager or ADMIN (the capacity import's guard); a
-         *     project owner, a roadmap editor, another team's manager, a person-less login and a stranger are `403`. **Read-before-guard**: the
-         *     binding is in the PATH, so it is resolved first and an unknown or unlinked binding, or one whose team was deleted, is `404` for EVERY
-         *     caller (team ids are public); then the guard (`403`, whatever the body is); then the body (`400`: `sprintId` is REQUIRED - an absent
-         *     key is refused, `null` names the team's own row - and is a positive number otherwise; `fingerprint` is 64 lower-case hexadecimal
-         *     characters). The write runs in ONE short transaction: the binding row is locked, the binding and its team re-read ACTIVE and the
-         *     guard run AGAIN against the stored team (a request can be held open, so only this verdict authorizes the write), and the binding's
-         *     rows are RECOMPUTED in that transaction: `409` `urn:astrolabe:problem:stale-deviations` when the binding has no such row now (the
-         *     sprint is in line, closed or not in the window; the team is not gone; the connection never mirrored a document) or the row's
-         *     fingerprint is not the one sent (a figure moved in the plan or in Flow since the client read); otherwise the fingerprint, the time and
-         *     the login are stored for that sprint. Acknowledging again restamps. An acknowledgement lasts while THAT sprint's row is
-         *     unchanged: a change of its dates, held days, working days, either figure, the gap or the severity reopens it
-         *     (`acknowledgement.current` false); a rename in Flow does not and a new sprint arrives open. **An acknowledgement lives only while
-         *     its row is listed (1.10):** the same transaction deletes this binding's other stored acknowledgements whose row is no longer listed
-         *     (a sprint that is in line, closed or skipped; a sprint merely missing from Flow's document is left to the refresh), and a
-         *     connection's refresh does the same for every binding of it (a document Flow cut at its sprint cap judges no sprint), so a
-         *     difference that returns is open. A team missing from Flow keeps its sprint acknowledgements. Not plan state: no plan lock, no
-         *     revision bump, no rate bucket (nothing calls Flow, nothing is written to Flow). Audited `flow.capacity_deviation_acknowledged`,
-         *     then `flow.capacity_acknowledgements_cleared` when rows were pruned.
+         * @description Acknowledges ONE sprint's capacity deviation until its figures change; `sprintId: null` names the team's own `TEAM_GONE` row. The binding's team's ACTIVE manager or ADMIN, as for the import; any other caller (a project owner, a roadmap editor, another team's manager) is `403`. Order: `404` for every caller when the binding is unknown or unlinked or its team was deleted; `403`, whatever the body; `400` unless `sprintId` is present (`null` allowed, else a positive number) and `fingerprint` is 64 lower-case hexadecimal characters. `409` `urn:astrolabe:problem:stale-deviations` when the binding has no such row now (the sprint is in line, closed or outside the window; the team is not gone; the connection never mirrored a document) or the row's fingerprint is not the one sent. Otherwise the fingerprint, time and login are stored (again: restamped). A change of the row reopens it (`acknowledgement.current` false); a new sprint arrives open. This call also deletes the binding's acknowledgements whose row is no longer listed, as a connection's refresh does; a team missing from Flow keeps its sprint acknowledgements. Moves no plan revision.
          */
         post: operations["acknowledgeCapacityDeviation"];
         /**
          * Withdraw ONE sprint's capacity acknowledgement
-         * @description The same audience and order as the acknowledge (`404` for every caller when the binding is unknown, unlinked or its team is gone,
-         *     then `403`, then the query parameter `400`; the binding row is locked and the guard run again in the transaction). Clears the
-         *     acknowledgement of the row named by `sprintId` (absent = the team's own `TEAM_GONE` row), current or stale; `404` when none is stored
-         *     (decided under the lock, after the guard). Audited `flow.capacity_deviation_unacknowledged`.
+         * @description Withdraws the acknowledgement of the row named by `sprintId` (absent = the team's own `TEAM_GONE` row), current or stale. The same audience and order as the acknowledge: `404` for every caller when the binding is unknown, unlinked or its team is gone, then `403`, then the query parameter `400`; then `404` when no acknowledgement is stored for that row.
          */
         delete: operations["unacknowledgeCapacityDeviation"];
         options?: never;
@@ -2144,17 +2020,7 @@ export interface paths {
         put?: never;
         /**
          * Acknowledge several of a team's capacity deviations at once, all or nothing
-         * @description The batch of the single acknowledge, for "Acknowledge all": `items` are the rows the client lists as open, each the `sprintId`
-         *     (`null` = the team's own `TEAM_GONE` row) and the `fingerprint` it read, 1 to 2,000 of them, no row named twice (`400`). The
-         *     audience, the order and the lock are the single acknowledge's: `404` for EVERY caller when the binding is unknown, unlinked or its
-         *     team was deleted, then `403` (the binding's team's ACTIVE manager or ADMIN; whatever the body is), then the body (`400`); the write
-         *     locks the binding row ONCE, re-reads the binding and its team ACTIVE, runs the guard AGAIN and recomputes the binding's rows ONCE.
-         *     **All or nothing:** a named row that is not listed now, or whose fingerprint is not the one sent, is `409`
-         *     `urn:astrolabe:problem:stale-deviations` and NOTHING is stored (the client reads the view again). Otherwise every named row is
-         *     stamped with the same time and login (acknowledging again restamps), and only the named rows: an open row the request does not name
-         *     stays open. The single acknowledge's cleanup of rows that are no longer listed applies once. Not plan state: no plan lock, no
-         *     revision bump, no rate bucket (nothing calls Flow, nothing is written to Flow). Audited `flow.capacity_deviations_acknowledged`
-         *     (the batch), `flow.capacity_deviation_acknowledged` per row, then `flow.capacity_acknowledgements_cleared` when rows were pruned.
+         * @description Acknowledges several of a team's capacity deviations at once. `items` are the rows the client lists as open, each the `sprintId` (`null` = the team's own `TEAM_GONE` row) and the `fingerprint` it read: 1 to 2,000, no row named twice (`400`). The audience and the order are the single acknowledge's: `404` for EVERY caller when the binding is unknown, unlinked or its team was deleted, then `403` (the binding's team's ACTIVE manager or ADMIN, whatever the body), then the body `400`. All or nothing: a named row that is not listed now, or whose fingerprint is not the one sent, is `409` `urn:astrolabe:problem:stale-deviations` and nothing is stored (read the view again). Otherwise every named row is stamped with the same time and login, and only the named rows: an open row the request does not name stays open. Rows no longer listed are pruned as in the single acknowledge. Moves no plan revision.
          */
         post: operations["acknowledgeCapacityDeviations"];
         delete?: never;
@@ -2176,17 +2042,7 @@ export interface paths {
         put?: never;
         /**
          * Withdraw several of a team's capacity acknowledgements at once, all or nothing
-         * @description The batch of the single withdrawal (`DELETE …/acknowledge`), for "Withdraw all": `items` are the rows the client lists as
-         *     acknowledged, each by its `sprintId` (`null` = the team's own `TEAM_GONE` row), 1 to 2,000 of them, no row named twice (`400`).
-         *     The audience, the order and the lock are the batch acknowledge's: `404` for EVERY caller when the binding is unknown, unlinked or
-         *     its team was deleted, then `403` (the binding's team's ACTIVE manager or ADMIN; whatever the body is), then the body (`400`); the
-         *     write locks the binding row ONCE, re-reads the binding and its team ACTIVE and runs the guard AGAIN. **All or nothing:** a named
-         *     row that has no stored acknowledgement (never acknowledged, or already withdrawn or pruned since the client read the list) is
-         *     `409` `urn:astrolabe:problem:stale-deviations` and NOTHING is deleted (the client reads the view again). Otherwise every named
-         *     row's acknowledgement is deleted, current or stale, and only the named rows: another acknowledged row stays acknowledged.
-         *     Nothing is recomputed and nothing pruned. Not plan state: no plan lock, no revision bump, no rate bucket (nothing calls Flow,
-         *     nothing is written to Flow). Audited `flow.capacity_deviations_unacknowledged` (the batch), then
-         *     `flow.capacity_deviation_unacknowledged` per row.
+         * @description Withdraws the acknowledgements of several rows at once. `items` are the rows the client lists as acknowledged, each by its `sprintId` (`null` = the team's own `TEAM_GONE` row): 1 to 2,000, no row named twice (`400`). The audience and the order are the batch acknowledge's: `404` for EVERY caller when the binding is unknown, unlinked or its team was deleted, then `403`, then the body `400`. All or nothing: a named row with no stored acknowledgement (never acknowledged, or withdrawn or pruned since the client read the list) is `409` `urn:astrolabe:problem:stale-deviations` and nothing is deleted. Otherwise every named row's acknowledgement is deleted, current or stale, and only the named rows. Moves no plan revision.
          */
         post: operations["unacknowledgeCapacityDeviations"];
         delete?: never;
@@ -2208,12 +2064,7 @@ export interface paths {
         put?: never;
         /**
          * Link every Flow team whose name matches exactly one unbound team ("Link all suggested")
-         * @description ADMIN only, `requireAdmin` FIRST (a non-admin gets a uniform `403` whether or not the connection exists), then `404` for an unknown or
-         *     deleted connection and `400` for a disabled one. No request body. In ONE transaction every Flow team of the connection's mirror that
-         *     is not linked, and whose name - trimmed, whitespace collapsed, lowercased; accents count - equals the name of exactly ONE unbound
-         *     active team (and of no other unlinked Flow team), is linked to it. The rest is reported: `ALREADY_BOUND` (linked already) or
-         *     `NO_MATCH`. A call with nothing to link is a `200` with an empty `bound`. Audited `flow.teams_matched` (counts and binding ids) and
-         *     `flow.team_bound` per link.
+         * @description Links every Flow team of the connection's mirror whose name matches exactly one unbound active team. ADMIN only, checked first, so a non-admin gets `403` whether or not the connection exists; then `404` for an unknown or deleted connection and `400` for a disabled one. No request body. A Flow team is linked when it is not linked yet, and its name (trimmed, whitespace collapsed, lowercased; accents count) equals the name of exactly one unbound active team and of no other unlinked Flow team; all links are made in one transaction. The rest is reported: `ALREADY_BOUND` or `NO_MATCH`. Nothing to link is a `200` with an empty `bound`.
          */
         post: operations["matchFlowTeams"];
         delete?: never;
@@ -2232,14 +2083,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * A team's Flow panel
-         * @description Any authenticated user (the roster's display names included - decided, `flow-sync.md` "Bindings"); `404` for an unknown or deleted team.
-         *     The team's link to its Flow team with the connection's name and sync status, the roster read from the mirror (members now and former
-         *     ones, dates in the connection's time zone, a half-open `[validFrom, validTo)` interval) and the sprint summary. `binding`, `roster` and
-         *     `sprints` are null for an unlinked team; `roster` and `sprints` are also null when the Flow team is gone from the mirror
-         *     (`binding.gone`). `can` says whether the CALLER may link, unlink and import (ADMIN or the team's manager). The panel is its own read,
-         *     not a member of the team view, and calls Flow never. `connections` lists every active connection (id, name, enabled; at most 100) for
-         *     the link dialog. No account id, email, token or base URL is ever returned.
+         * A team's Flow link, roster and sprints
+         * @description Returns a team's Flow link: the binding with the connection's name and sync status, the roster read from the mirror (members now and former ones, dates in the connection's time zone, half-open `[validFrom, validTo)` intervals) and the sprint summary. Any authenticated user, the roster's display names included; `404` for an unknown or deleted team. `binding`, `roster` and `sprints` are null for an unlinked team; `roster` and `sprints` are also null when the Flow team is gone from the mirror (`binding.gone`). `can` says whether the CALLER may link, unlink and import (ADMIN or the team's manager). It is its own read, not a member of the team view, and calls Flow never. `connections` lists every active connection (id, name, enabled; at most 100) so a manager can pick one to link through. No account id, email, token or base URL is ever returned.
          */
         get: operations["getTeamFlow"];
         put?: never;
@@ -2259,33 +2104,13 @@ export interface paths {
         };
         /**
          * List sync runs
-         * @description Any authenticated user (a run names no secret, and the Deviations page shows the last one). The newest runs first, a bounded
-         *     `{items}` list of at most 50 (the registry keeps the last 50 finished runs per connection and kind; with no `connectionId` the
-         *     50 newest over all of them). A run still in flight has no `finishedAt` or `outcome`.
-         *
-         *     - Filters: `kind` (equality, by name: `JIRA` or `FLOW`) and `connectionId` (equality; an id belongs to one kind's registry, so pair
-         *       it with `kind`). A repeated key is a `400`.
-         *     - `errorCode` is the run's failure code (`SyncFailureCode`). For a `FLOW` run `observedCount` is the Flow teams the document
-         *       carried, `goneCount` the bound Flow teams missing from it, and `callCount` is 1. `errorDetail` is a short hint of at most 500 characters and never holds a URL, a query string
-         *       or a credential.
+         * @description Lists sync runs, newest first, as a bounded `{items}` list of at most 50 (the registry keeps the last 50 finished runs per connection and kind; with no `connectionId`, the 50 newest over all of them). Any authenticated user, since a run names no secret. A run still in flight has no `finishedAt` or `outcome`. Filters: `kind` (equality by name, `JIRA` or `FLOW`) and `connectionId` (equality; an id belongs to one kind's registry, so pair it with `kind`); a repeated key is a `400`.
          */
         get: operations["listSyncRuns"];
         put?: never;
         /**
          * Start a sync run now
-         * @description ADMIN only, guarded before the body decodes (a non-admin's malformed body is still `403`). The per-USER `sync-run` bucket
-         *     allows 10 presses per fixed 60-second window per account, both kinds together (Ktor refills the whole window at once, so a burst
-         *     across a window edge can admit up to 20): the eleventh answers `429` with `Retry-After`, before the guard, and a refused press
-         *     spends a token too. Each press is one run, bounded by its page ceilings, the probe cap and the one-unfinished-run-per-connection
-         *     claim. Scheduled runs and the list below are not limited. Claims the run (an unfinished row in
-         *     the registry), then answers `202` with that row while the run executes in the background: poll `GET /integrations/sync/runs`.
-         *     The run OBSERVES - a `JIRA` run reads the bound issues from Jira and records what they look like, a `FLOW` run reads Flow's teams,
-         *     members and sprints into the mirror; it writes nothing upstream, takes no plan lock and bumps no plan revision. A connection that is
-         *     unknown, deleted or disabled for the `kind` is a `400` on `connectionId`.
-         *
-         *     One run per connection and kind at a time: `409` `urn:astrolabe:problem:run-in-progress` while one is unfinished. A run that
-         *     crashed with the process is abandoned (`ABANDONED`) by the first claim after `sync.maxRunMinutes` (default 10), so the `409` lasts
-         *     at most that long. Audited `jira.sync_requested` or `flow.sync_requested`, by the request's `kind`.
+         * @description Starts a sync run now for one connection of the request's `kind` (`JIRA` or `FLOW`). ADMIN only, checked before the body decodes, so a non-admin's malformed body is still `403`. The per-USER bucket allows 10 presses per fixed 60-second window per account, both kinds together (a burst across a window edge can admit up to 20): the eleventh answers `429` with `Retry-After`, before the guard, and a refused press spends a token too. Scheduled runs and the list are not limited. The run is claimed, then `202` answers with its unfinished row while it executes in the background: poll `GET /integrations/sync/runs`. A connection that is unknown, deleted or disabled for the `kind` is a `400` on `connectionId`. One run per connection and kind at a time: `409` `urn:astrolabe:problem:run-in-progress` while one is unfinished; a run that crashed with the process is abandoned (`ABANDONED`) by the first claim after the maximum run time (10 minutes by default), so the `409` lasts at most that long. A run only observes: it writes nothing upstream, takes no plan lock and moves no plan revision.
          */
         post: operations["requestSyncRun"];
         delete?: never;
@@ -4015,10 +3840,10 @@ export interface components {
             outcome: components["schemas"]["SyncOutcome"];
             errorCode: components["schemas"]["SyncFailureCode"];
             trigger: components["schemas"]["SyncTrigger"];
-            /** @description True only for an unfinished run younger than `sync.maxRunMinutes`; an older unfinished run was interrupted. */
+            /** @description True only for an unfinished run younger than the maximum run time (10 minutes by default); an older unfinished run was interrupted. */
             running: boolean;
         };
-        /** @description A connection's derived sync state (1.3; nothing is stored). In order: disabled is DISABLED; the newest FINISHED run failed or was abandoned, or the newest run was interrupted (unfinished and older than the claim window), is FAILED; no run ever succeeded is NEVER_SYNCED; a polling interval and a last success that started more than three intervals ago is STALE; else CURRENT (a manual-only connection stays CURRENT after any success). */
+        /** @description A connection's derived sync state (nothing is stored). In order: disabled is DISABLED; the newest FINISHED run failed or was abandoned, or the newest run was interrupted (unfinished and older than the claim window), is FAILED; no run ever succeeded is NEVER_SYNCED; a polling interval and a last success that started more than three intervals ago is STALE; else CURRENT (a manual-only connection stays CURRENT after any success). */
         SyncStatus: {
             state: components["schemas"]["SyncState"];
             lastRun: components["schemas"]["SyncLastRun"] | null;
@@ -6150,7 +5975,7 @@ export interface components {
         };
         FlowConnectionRequest: {
             name: string;
-            /** @description Flow's origin, exactly one the operator listed (`FLOW_ALLOWED_HOSTS`, in development `FLOW_INSECURE_ORIGINS`), in canonical form: lowercase scheme and host, the scheme's default port omitted, no path (a trailing slash included), query, fragment or credentials. An origin that is not listed is a `400`; the registry can never widen the list. */
+            /** @description Flow's origin, exactly one the operator allows (`GET /integrations/flow/origins`), in canonical form: lowercase scheme and host, the scheme's default port omitted, no path (a trailing slash included), query, fragment or credentials. An origin that is not allowed is a `400`; the registry can never widen the list. */
             baseUrl: string;
             /** @description An IANA region id (`Europe/Warsaw`, Flow's own metrics zone by default): Flow's sprint and membership instants become dates in it. A bare offset such as `+02:00` is refused. */
             timeZone: string;
@@ -6284,7 +6109,7 @@ export interface components {
         };
         CapacityInfo: {
             /**
-             * @description `MANUAL_PERIOD_INSIDE`: a hand-entered period starts inside the sprint; its figure will not hold from `date`. `ZERO_CAPACITY`: Flow's figure is 0. `LONG_WINDOW`: the sprint spans more than Flow's 60 calendar days (check its dates in Jira); every sprint within the 60-day cap claims first, so it counts only the days no other sprint holds (its figure holds only until the next period) and it is never ticked. `FIXED_FIGURE`: Flow's figure is a fixed per-sprint total (the team's default), spread over the working days of the sprint's own window (`days`), more than the days the row holds.
+             * @description `MANUAL_PERIOD_INSIDE`: a hand-entered period starts inside the sprint, so its figure will not hold from `date`. `ZERO_CAPACITY`: Flow's figure is 0. `LONG_WINDOW`: the sprint spans more than 60 calendar days, claims only the days no other sprint holds, and is never ticked. `FIXED_FIGURE`: Flow's figure is a fixed per-sprint total, spread over the working days of the sprint's own window (`days`).
              * @enum {string}
              */
             code: "MANUAL_PERIOD_INSIDE" | "ZERO_CAPACITY" | "LONG_WINDOW" | "FIXED_FIGURE";
@@ -6325,7 +6150,7 @@ export interface components {
             end: string | null;
             /**
              * Format: date
-             * @description The day the sprint's period starts: `max(start, the last day an earlier sprint holds + 1 day)`; null when the sprint has no dates or lies wholly inside earlier sprints.
+             * @description The day the sprint's period starts: `max(start, the last day an earlier sprint holds + 1 day)`. A sprint with a start holds at least that day, even without a usable end; a `LONG_WINDOW` sprint claims last, so its day is the first one no other sprint holds. Null when the sprint has no dates or lies wholly inside earlier sprints.
              */
             effectiveFrom: string | null;
             /**
@@ -6340,16 +6165,16 @@ export interface components {
             flowMd: number | null;
             /**
              * Format: double
-             * @description `round2(5 x flowMd / workingDays)`, except for a `TEAM_DEFAULT` (or legacy `CONFIGURED`) sprint (a fixed per-sprint figure in Flow), which divides by the working days of its own window `[start, end]`; null when the sprint is skipped before a figure exists or the figure is out of range.
+             * @description `round2(5 x flowMd / workingDays)`, rounded half up, except for a `TEAM_DEFAULT` (or legacy `CONFIGURED`) sprint (a fixed per-sprint figure in Flow), which divides by the working days of its own window `[start, end]`; null when the sprint is skipped before a figure exists or the figure is out of range.
              */
             mdPerWeek: number | null;
             /**
-             * @description What the import would do. `MANUAL_PERIOD` means a hand-entered period starts on `start` and is never changed.
+             * @description What the import would do. `MANUAL_PERIOD`: a hand-entered period starts on `effectiveFrom`, and it is never changed.
              * @enum {string}
              */
             action: "CREATE" | "UPDATE" | "UNCHANGED" | "MANUAL_PERIOD" | "SKIP";
             /**
-             * @description Why the sprint is skipped; set exactly when `action` is `SKIP`.
+             * @description Why the sprint is skipped; set exactly when `action` is `SKIP`. The first rule that fires, in this order: `NO_DATES` (no start, no end or completion, or an end before the start), `NO_CAPACITY` (Flow has no figure), `OVERLAPS` (wholly inside earlier sprints), `NO_WORKING_DAY` (none from `effectiveFrom` to `end`), `OUT_OF_RANGE` (the figure is beyond a period's man-day bounds).
              * @enum {string|null}
              */
             reason: "NO_DATES" | "NO_CAPACITY" | "NO_WORKING_DAY" | "OVERLAPS" | "OUT_OF_RANGE" | null;
@@ -6386,6 +6211,7 @@ export interface components {
             /** Format: int32 */
             removals: number;
         };
+        /** @description What importing a bound Flow team's mirrored sprints would do to its capacity periods. A sprint is covered when it is not closed, not a long window (`LONG_WINDOW`) and a `CREATE`, `UPDATE` or `UNCHANGED`. */
         CapacityPreview: {
             /** Format: int32 */
             bindingId: number;
@@ -6408,7 +6234,7 @@ export interface components {
             totals: components["schemas"]["CapacityImportTotals"];
             /** @description The listed sprints in start order (undated last); at most Flow's own cap of 2,000 sprints per document. */
             items: components["schemas"]["CapacityImportItem"][];
-            /** @description The team's Flow-sourced periods the import would remove, by date. Bounded by the team's own periods. */
+            /** @description Flow-sourced periods the import would remove, by date; never preselected; a hand-entered one is never listed. Those no listed sprint reuses that belong to a sprint missing from Flow's document (dated `from` or later, or any date with `includeClosed`), start inside a covered sprint, or belong to a listed sprint without being its period. A refused sprint that still holds days keeps its period. */
             removals: components["schemas"]["CapacityImportRemoval"][];
         };
         /** @description What the preview showed for a ticked row; the apply imports the row only while its re-computed plan says the same. */
@@ -6466,7 +6292,7 @@ export interface components {
             /** Format: int32 */
             periodId: number | null;
             /**
-             * @description The plan, re-computed under the team lock, no longer says what the preview did (or the row was never in it).
+             * @description The plan, recomputed at the apply, no longer says what the preview did (or the row was never in it).
              * @enum {string}
              */
             reason: "CHANGED";
@@ -6608,7 +6434,7 @@ export interface components {
              */
             to: string;
         };
-        /** @description Memberships by half-open instant interval `[validFrom, validTo)`: current when `validFrom <= now < validTo` (an open end never ends), former when `validTo <= now`; a membership that has not started is in neither list. A person with two intervals appears once per interval. `current` and `former` have no `maxItems`: the server does not cap them. They are bounded only by what the mirror holds for ONE team, i.e. by the single Flow document (at most 1 MiB, `flow.maxResponseBytes`, for every team together) - in practice a few dozen rows. */
+        /** @description Memberships by half-open instant interval `[validFrom, validTo)`: current when `validFrom <= now < validTo` (an open end never ends), former when `validTo <= now`; a membership that has not started is in neither list. A person with two intervals appears once per interval. `current` and `former` have no `maxItems`; they hold what the mirror has for ONE team. */
         FlowRoster: {
             current: components["schemas"]["FlowRosterCurrent"][];
             former: components["schemas"]["FlowRosterFormer"][];
@@ -6622,7 +6448,7 @@ export interface components {
              */
             nextStart: string | null;
         };
-        /** @description One ACTIVE Flow connection, as much as the link dialog needs and no more - never a base URL, token, time zone, poll interval or test detail (the registry is ADMIN-only). */
+        /** @description One ACTIVE Flow connection, as much as a client needs to pick one to link through and no more - never a base URL, token, time zone, poll interval or test detail (the registry is ADMIN-only). */
         FlowPanelConnection: {
             /** Format: int32 */
             id: number;
@@ -6636,12 +6462,7 @@ export interface components {
             binding: components["schemas"]["FlowPanelBinding"] | null;
             roster: components["schemas"]["FlowRoster"] | null;
             sprints: components["schemas"]["FlowSprintSummary"] | null;
-            /**
-             * @description Always present, whoever asks: every ACTIVE (not deleted) Flow connection, enabled or not, by name then id, so a team's manager, who may
-             *     not read the ADMIN-only connection registry, can pick the connection to link the team through. The registry has no row cap of its own,
-             *     so the list is cut at 100 (the first 100 by name); a deployment has a handful. The `id` and `name` are already shown to every login
-             *     (`binding.connectionName`, the teams list's `connectionId`).
-             */
+            /** @description Always present, whoever asks: every ACTIVE Flow connection, enabled or not, by name then id, so a manager who cannot read the ADMIN-only registry can pick one to link through. Cut at 100 (the first 100 by name). */
             connections: components["schemas"]["FlowPanelConnection"][];
         };
         /**
@@ -6713,7 +6534,7 @@ export interface components {
             at: number;
             /** @description The acknowledging login's ACTIVE person's name, else its display name; never the email; null once that login is deleted. */
             by: string | null;
-            /** @description True while the stored fingerprint equals the row's now. False = acknowledged, then changed since, so the row is open again. */
+            /** @description True while the stored fingerprint equals the row's now. False = acknowledged, then changed since (its dates, held days, working days, either figure, the gap or the severity; a rename in Flow changes nothing), so the row is open again. */
             current: boolean;
         };
         CapacityAcknowledgeRequest: {
@@ -6872,22 +6693,23 @@ export interface components {
             /** @description `ABANDONED` is written by a later claim for a run that never finished. */
             outcome?: components["schemas"]["SyncOutcome"] | null;
             errorCode?: components["schemas"]["SyncFailureCode"];
+            /** @description A short hint of at most 500 characters; never a URL, a query string or a credential. */
             errorDetail?: string | null;
-            /** @description The server's verdict: true only for an unfinished run younger than `sync.maxRunMinutes`. An unfinished run that is not running was interrupted; no client judges a run's age by its own clock. */
+            /** @description The server's verdict: true only for an unfinished run younger than the maximum run time (10 minutes by default). An unfinished run that is not running was interrupted; no client judges a run's age by its own clock. */
             running: boolean;
             /**
              * Format: int32
-             * @description Bound issues whose observation this run wrote.
+             * @description Bound issues whose observation this run wrote (`JIRA`); the Flow teams the document carried (`FLOW`).
              */
             observedCount: number;
             /**
              * Format: int32
-             * @description Bound issues the run's sweep found out of scope (flagged `gone`).
+             * @description Bound issues the run's sweep found out of scope, flagged `gone` (`JIRA`); the bound Flow teams missing from the document (`FLOW`).
              */
             goneCount: number;
             /**
              * Format: int32
-             * @description Requests the run issued to the upstream (a retry is not counted).
+             * @description Requests the run issued to the upstream (a retry is not counted); 1 for a `FLOW` run.
              */
             callCount: number;
             /**
@@ -6970,7 +6792,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetail"];
             };
         };
-        /** @description Throttled — either the per-IP rate-limit bucket is exhausted (generic detail), on a telemetry read (`/api/v1/telemetry/**`) the per-USER telemetry bucket is exhausted (30/min), on a Jira bind or import the per-USER `jira-bind` (30/min) or `jira-import` (5/min) bucket is exhausted, on Refresh now (`POST /api/v1/integrations/sync/runs`) the per-USER `sync-run` bucket is exhausted (10/min, both kinds together), on a password change (`PUT /api/v1/users/{id}/password`) the per-USER password-change bucket is exhausted (10/min), or, on /login, the per-account lockout is active (account-specific detail), or, on the self password change, the per-user wrong-current-password lock is active. All carry a ProblemDetail body. Every rate-bucket 429 (the per-IP buckets and the per-user buckets) carries `Retry-After`; the account-lockout and password-change-lock 429s do not (the wait is not a bucket window). */
+        /** @description Throttled: a per-IP rate-limit bucket or a per-user one (telemetry reads, Jira bind and import, sync runs, password change) is exhausted, the account is locked out on `/login`, or the wrong-current-password lock of a password change is active. The body is a `ProblemDetail`. Every rate-bucket `429` carries `Retry-After`; the lockout and lock `429`s do not (the wait is not a bucket window). */
         TooManyRequests: {
             headers: {
                 "Retry-After": components["headers"]["RetryAfter"];
@@ -6980,7 +6802,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetail"];
             };
         };
-        /** @description Request body exceeds the global 10 MiB ceiling — a memory-DoS backstop shared by every endpoint, so declared on every operation that takes a body (field-level maxLength rules reject oversized values far earlier on ordinary payloads). Cross-cutting for the coverage gate: pinned once by `PayloadValidationTest`, never once per operation. */
+        /** @description Request body exceeds the global 10 MiB ceiling, shared by every endpoint (field-level `maxLength` rules reject oversized values far earlier on ordinary payloads). Declared on every operation that takes a body. */
         PayloadTooLarge: {
             headers: {
                 [name: string]: unknown;
@@ -6998,7 +6820,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetail"];
             };
         };
-        /** @description Unexpected server error. One case has a type of its own: a statement the database did not finish within its time limit (`postgres.statementTimeoutSeconds`, 15 s by default) is cancelled and answers `type: urn:astrolabe:problem:database-timeout`; the transaction whose statement was cancelled is rolled back (no row, no revision move, no audit event from it), but an earlier committed step of the same request stays (a create's re-read for its response, say), so a retry may meet a `409`. */
+        /** @description Unexpected server error. One case has a type of its own: a statement the database did not finish within its time limit (15 seconds by default) is cancelled and answers `type` `urn:astrolabe:problem:database-timeout`. That statement's transaction is rolled back, but an earlier committed step of the same request stays, so a retry may meet a `409`. */
         InternalServerError: {
             headers: {
                 [name: string]: unknown;
@@ -7012,15 +6834,9 @@ export interface components {
         /** @description A previously received view `ETag` (or a list of them, or `*`). A weak match answers `304` with no body. Evaluated only after authentication, request validation and the view's own `404`/`400`: a refused request is never `304`. The view itself is still computed; the `304` saves the transfer. */
         IfNoneMatch: string;
         ResourceId: number;
-        /**
-         * @description The id of an ACTIVE baseline to compare the view with (`baselines` registry). Absent: no comparison, and the document is exactly
-         *     what it was before baselines existed. A repeated key or a value that is not a non-negative integer is a `400`; an id that is
-         *     unknown or soft-deleted is a `400` whose `type` is `urn:astrolabe:problem:unknown-baseline` (the caller held the id, e.g. a
-         *     remembered pick: it clears the pick and asks again) - answered AFTER the view's own rules, so a deleted project or team is
-         *     still `404`. The comparison is computed in the same snapshot as the view, so its figures are consistent with the rows.
-         */
+        /** @description The id of an ACTIVE baseline to compare the view with; absent: no comparison. A repeated key or a value that is not a non-negative integer is a `400`, as is an id that is unknown or soft-deleted (`type` `urn:astrolabe:problem:unknown-baseline`), answered after the view's own rules, so a deleted project or team is still `404`. The comparison is computed in the view's snapshot. */
         BaselineQuery: number;
-        /** @description The id of an ACTIVE project to show the critical chain toward (the page's pick; the roadmap's and, since 1.16, the programs page's). Absent: no `criticalPath` block, and the document is byte-identical to the one without the parameter; a blank value (`?criticalPath=`) means absent. A repeated key or a value that is not a non-negative integer is a `400`, as is an id that is unknown or soft-deleted (a plain `400`: plan ids are no secret and the page clears its own pick). When `baseline` is also given, the baseline's own errors are answered first (malformed: `400`; unknown or deleted: the typed `unknown-baseline` `400`), then the project id is checked. */
+        /** @description The id of an ACTIVE project to show the critical chain toward; absent, or blank (`?criticalPath=`): no `criticalPath` block. A repeated key, a value that is not a non-negative integer and an id that is unknown or soft-deleted are a plain `400`. With `baseline` also given, its errors come first (malformed `400`; unknown or deleted: the typed `unknown-baseline` `400`). */
         CriticalPathQuery: number;
         /** @description 1-based page index. Defaults to 1. */
         Page: number;
@@ -7031,10 +6847,7 @@ export interface components {
         ConnectionIdQuery: number;
         TeamIdQuery: number;
         LevelQuery: components["schemas"]["PlanLevel"];
-        /**
-         * @description Free-text search (API-LIST-005): a case- and accent-insensitive substring of the resource's own name, at most 100 characters.
-         *     A blank value is no filter; a repeated key is a `400`.
-         */
+        /** @description Free-text search: a case- and accent-insensitive substring of the resource's own name, at most 100 characters. A blank value is no filter; a repeated key is a `400`. */
         Q: string;
         /**
          * @description Sort spec. Format: `field` (ascending) or `-field` (descending). Multiple fields are
@@ -7048,7 +6861,7 @@ export interface components {
     headers: {
         /** @description Whole seconds to wait before retrying. Sent by the rate-bucket 429s only, never by an account-lockout 429. */
         RetryAfter: number;
-        /** @description The weak validator (`W/"..."`) of this view answer: a hash of the caller's user id and the document exactly as it is sent, so it changes whenever the document does and means nothing to another login. Send it back as `If-None-Match`. See the server's caching policy. */
+        /** @description The weak validator (`W/"..."`) of this view answer: a hash of the caller's user id and the document exactly as it is sent, so it changes whenever the document does and means nothing to another login. Send it back as `If-None-Match`. */
         ViewETag: string;
         /** @description Always `no-store`: no browser or proxy cache may keep the answer. The `ETag` serves a client that sends `If-None-Match` itself and keeps the document in its own memory. */
         ViewCacheControl: string;
@@ -9089,13 +8902,7 @@ export interface operations {
     getProjectView: {
         parameters: {
             query?: {
-                /**
-                 * @description The id of an ACTIVE baseline to compare the view with (`baselines` registry). Absent: no comparison, and the document is exactly
-                 *     what it was before baselines existed. A repeated key or a value that is not a non-negative integer is a `400`; an id that is
-                 *     unknown or soft-deleted is a `400` whose `type` is `urn:astrolabe:problem:unknown-baseline` (the caller held the id, e.g. a
-                 *     remembered pick: it clears the pick and asks again) - answered AFTER the view's own rules, so a deleted project or team is
-                 *     still `404`. The comparison is computed in the same snapshot as the view, so its figures are consistent with the rows.
-                 */
+                /** @description The id of an ACTIVE baseline to compare the view with; absent: no comparison. A repeated key or a value that is not a non-negative integer is a `400`, as is an id that is unknown or soft-deleted (`type` `urn:astrolabe:problem:unknown-baseline`), answered after the view's own rules, so a deleted project or team is still `404`. The comparison is computed in the view's snapshot. */
                 baseline?: components["parameters"]["BaselineQuery"];
             };
             header?: {
@@ -9138,13 +8945,7 @@ export interface operations {
     getTeamView: {
         parameters: {
             query?: {
-                /**
-                 * @description The id of an ACTIVE baseline to compare the view with (`baselines` registry). Absent: no comparison, and the document is exactly
-                 *     what it was before baselines existed. A repeated key or a value that is not a non-negative integer is a `400`; an id that is
-                 *     unknown or soft-deleted is a `400` whose `type` is `urn:astrolabe:problem:unknown-baseline` (the caller held the id, e.g. a
-                 *     remembered pick: it clears the pick and asks again) - answered AFTER the view's own rules, so a deleted project or team is
-                 *     still `404`. The comparison is computed in the same snapshot as the view, so its figures are consistent with the rows.
-                 */
+                /** @description The id of an ACTIVE baseline to compare the view with; absent: no comparison. A repeated key or a value that is not a non-negative integer is a `400`, as is an id that is unknown or soft-deleted (`type` `urn:astrolabe:problem:unknown-baseline`), answered after the view's own rules, so a deleted project or team is still `404`. The comparison is computed in the view's snapshot. */
                 baseline?: components["parameters"]["BaselineQuery"];
             };
             header?: {
@@ -9187,15 +8988,9 @@ export interface operations {
     getProgramsView: {
         parameters: {
             query?: {
-                /**
-                 * @description The id of an ACTIVE baseline to compare the view with (`baselines` registry). Absent: no comparison, and the document is exactly
-                 *     what it was before baselines existed. A repeated key or a value that is not a non-negative integer is a `400`; an id that is
-                 *     unknown or soft-deleted is a `400` whose `type` is `urn:astrolabe:problem:unknown-baseline` (the caller held the id, e.g. a
-                 *     remembered pick: it clears the pick and asks again) - answered AFTER the view's own rules, so a deleted project or team is
-                 *     still `404`. The comparison is computed in the same snapshot as the view, so its figures are consistent with the rows.
-                 */
+                /** @description The id of an ACTIVE baseline to compare the view with; absent: no comparison. A repeated key or a value that is not a non-negative integer is a `400`, as is an id that is unknown or soft-deleted (`type` `urn:astrolabe:problem:unknown-baseline`), answered after the view's own rules, so a deleted project or team is still `404`. The comparison is computed in the view's snapshot. */
                 baseline?: components["parameters"]["BaselineQuery"];
-                /** @description The id of an ACTIVE project to show the critical chain toward (the page's pick; the roadmap's and, since 1.16, the programs page's). Absent: no `criticalPath` block, and the document is byte-identical to the one without the parameter; a blank value (`?criticalPath=`) means absent. A repeated key or a value that is not a non-negative integer is a `400`, as is an id that is unknown or soft-deleted (a plain `400`: plan ids are no secret and the page clears its own pick). When `baseline` is also given, the baseline's own errors are answered first (malformed: `400`; unknown or deleted: the typed `unknown-baseline` `400`), then the project id is checked. */
+                /** @description The id of an ACTIVE project to show the critical chain toward; absent, or blank (`?criticalPath=`): no `criticalPath` block. A repeated key, a value that is not a non-negative integer and an id that is unknown or soft-deleted are a plain `400`. With `baseline` also given, its errors come first (malformed `400`; unknown or deleted: the typed `unknown-baseline` `400`). */
                 criticalPath?: components["parameters"]["CriticalPathQuery"];
             };
             header?: {
@@ -9235,15 +9030,9 @@ export interface operations {
     getRoadmapView: {
         parameters: {
             query?: {
-                /**
-                 * @description The id of an ACTIVE baseline to compare the view with (`baselines` registry). Absent: no comparison, and the document is exactly
-                 *     what it was before baselines existed. A repeated key or a value that is not a non-negative integer is a `400`; an id that is
-                 *     unknown or soft-deleted is a `400` whose `type` is `urn:astrolabe:problem:unknown-baseline` (the caller held the id, e.g. a
-                 *     remembered pick: it clears the pick and asks again) - answered AFTER the view's own rules, so a deleted project or team is
-                 *     still `404`. The comparison is computed in the same snapshot as the view, so its figures are consistent with the rows.
-                 */
+                /** @description The id of an ACTIVE baseline to compare the view with; absent: no comparison. A repeated key or a value that is not a non-negative integer is a `400`, as is an id that is unknown or soft-deleted (`type` `urn:astrolabe:problem:unknown-baseline`), answered after the view's own rules, so a deleted project or team is still `404`. The comparison is computed in the view's snapshot. */
                 baseline?: components["parameters"]["BaselineQuery"];
-                /** @description The id of an ACTIVE project to show the critical chain toward (the page's pick; the roadmap's and, since 1.16, the programs page's). Absent: no `criticalPath` block, and the document is byte-identical to the one without the parameter; a blank value (`?criticalPath=`) means absent. A repeated key or a value that is not a non-negative integer is a `400`, as is an id that is unknown or soft-deleted (a plain `400`: plan ids are no secret and the page clears its own pick). When `baseline` is also given, the baseline's own errors are answered first (malformed: `400`; unknown or deleted: the typed `unknown-baseline` `400`), then the project id is checked. */
+                /** @description The id of an ACTIVE project to show the critical chain toward; absent, or blank (`?criticalPath=`): no `criticalPath` block. A repeated key, a value that is not a non-negative integer and an id that is unknown or soft-deleted are a plain `400`. With `baseline` also given, its errors come first (malformed `400`; unknown or deleted: the typed `unknown-baseline` `400`). */
                 criticalPath?: components["parameters"]["CriticalPathQuery"];
             };
             header?: {
@@ -10453,10 +10242,7 @@ export interface operations {
                 sort?: components["parameters"]["Sort"];
                 connectionId?: components["parameters"]["ConnectionIdQuery"];
                 level?: components["parameters"]["LevelQuery"];
-                /**
-                 * @description Free-text search (API-LIST-005): a case- and accent-insensitive substring of the resource's own name, at most 100 characters.
-                 *     A blank value is no filter; a repeated key is a `400`.
-                 */
+                /** @description Free-text search: a case- and accent-insensitive substring of the resource's own name, at most 100 characters. A blank value is no filter; a repeated key is a `400`. */
                 q?: components["parameters"]["Q"];
             };
             header?: never;

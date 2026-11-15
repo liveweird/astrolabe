@@ -1,5 +1,7 @@
 package ch.nokillswit
 
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper
 import io.swagger.v3.parser.OpenAPIV3Parser
 import io.swagger.v3.parser.core.models.ParseOptions
 import java.io.File
@@ -190,5 +192,104 @@ class OpenApiSpecTest {
         val type = assertNotNull(OpenApiSpec.parsed.components.schemas["ProblemDetail"]?.properties?.get("type"), "ProblemDetail.type")
         val listed = slug.findAll(type.description.orEmpty()).map { it.value.trimEnd('-') }.toSortedSet()
         assertEquals(declared.toList(), listed.toList(), "ProblemDetail.type must list exactly the slugs the server declares")
+    }
+
+    /**
+     * A description states the contract and stays short: an operation's at most [OPERATION_LIMIT] characters, a schema's [SCHEMA_LIMIT],
+     * every other one (a property, parameter, response, header, tag, request body) [MEMBER_LIMIT], `info` [INFO_LIMIT]. The two
+     * [catalogues] are lists on purpose (one line an entry) and have a ceiling and a line length of their own. A longer text
+     * moves its reasoning to the docs and its wire detail to the members it describes.
+     */
+    @Test
+    fun `every description stays within the length limit of its kind`() {
+        val over = specDescriptions().mapNotNull { description ->
+            val catalogue = description.path in catalogues
+            val longestLine = description.text.lines().maxOf { it.length }
+            when {
+                catalogue && description.text.length > CATALOGUE_LIMIT ->
+                    "${description.location}: catalogue of ${description.text.length} characters, limit $CATALOGUE_LIMIT"
+                catalogue && longestLine > MEMBER_LIMIT ->
+                    "${description.location}: catalogue line of $longestLine characters, limit $MEMBER_LIMIT"
+                !catalogue && description.text.length > description.limit ->
+                    "${description.location}: ${description.text.length} characters, limit ${description.limit}"
+                else -> null
+            }
+        }
+        assertEquals(emptyList(), over, "descriptions over their limit in documentation.yaml")
+    }
+
+    /** No description (nor operation summary) carries a release tag, a migration id or a doc file name: they age, the contract stays. */
+    @Test
+    fun `no description names a release, a migration or a doc file`() {
+        val offenders = specDescriptions().flatMap { description ->
+            forbiddenInDescriptions.mapNotNull { (what, pattern) ->
+                pattern.find(description.text)?.let { "${description.location}: $what `${it.value}`" }
+            }
+        }
+        assertEquals(emptyList(), offenders, "descriptions that name a release, a migration id or a doc file in documentation.yaml")
+    }
+
+    /** The walks above mean something only while they reach every kind of description; a refactor cannot silently empty them. */
+    @Test
+    fun `the description walk reaches operations, schemas and members`() {
+        val found = specDescriptions()
+        assertTrue(found.count { it.limit == OPERATION_LIMIT } > 100, "operation descriptions found")
+        assertTrue(found.count { it.limit == SCHEMA_LIMIT } > 100, "schema descriptions found")
+        assertTrue(found.count { it.limit == MEMBER_LIMIT } > 500, "member, parameter and response descriptions found")
+    }
+
+    /** One description (or summary) of the spec: [path] is where it sits, [limit] the length its kind may have. */
+    private class SpecDescription(val path: List<String>, val text: String, val limit: Int) {
+        val location: String get() = path.joinToString(" > ")
+    }
+
+    /** Every textual `description` and `summary` of the committed spec, read from the raw YAML tree (no `$ref` is followed). */
+    private fun specDescriptions(): List<SpecDescription> {
+        val found = mutableListOf<SpecDescription>()
+        fun walk(node: JsonNode, path: List<String>) {
+            if (node.isArray) {
+                node.forEachIndexed { index, child -> walk(child, path + "[$index]") }
+            } else if (node.isObject) {
+                for (key in node.fieldNames().asSequence().toList()) {
+                    val child = node[key]
+                    when {
+                        (key == "description" || key == "summary") && child.isTextual ->
+                            found += SpecDescription(path + key, child.asText(), if (key == "summary") SUMMARY_LIMIT else limitOf(path))
+                        key != "example" && key != "examples" -> walk(child, path + key)
+                    }
+                }
+            }
+        }
+        walk(YAMLMapper().readTree(OpenApiSpec.rawYaml), emptyList())
+        return found
+    }
+
+    /** The limit of the description in the node at [path]: `info`, an operation (`paths > p > method`), a schema, else a member. */
+    private fun limitOf(path: List<String>): Int = when {
+        path == listOf("info") -> INFO_LIMIT
+        path.size == 3 && path[0] == "paths" -> OPERATION_LIMIT
+        path.size == 3 && path[0] == "components" && path[1] == "schemas" -> SCHEMA_LIMIT
+        else -> MEMBER_LIMIT
+    }
+
+    private companion object {
+        const val INFO_LIMIT = 1_500
+        const val OPERATION_LIMIT = 1_200
+        const val SCHEMA_LIMIT = 600
+        const val MEMBER_LIMIT = 400
+        const val SUMMARY_LIMIT = 200
+        const val CATALOGUE_LIMIT = 3_500
+
+        /** The descriptions that are lists on purpose: the problem types and the failure codes, one line each. */
+        val catalogues = setOf(
+            listOf("components", "schemas", "ProblemDetail", "properties", "type", "description"),
+            listOf("components", "schemas", "SyncFailureCode", "description"),
+        )
+
+        val forbiddenInDescriptions = mapOf(
+            "a release tag" to Regex("""\(\s*1\.\d+|\b(since|until|before|in|from|after|as of) 1\.\d+""", RegexOption.IGNORE_CASE),
+            "a migration id" to Regex("""\bV\d{1,2}\b"""),
+            "a doc file name" to Regex("""\.md\b"""),
+        )
     }
 }
