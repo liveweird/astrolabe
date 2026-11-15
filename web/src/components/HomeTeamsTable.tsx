@@ -2,9 +2,11 @@ import { Anchor, Badge, Group, Table } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import type { HomeMe } from "../api/home";
+import { violatedDependenciesPath } from "../utils/dependencyListLinks";
 import { deviationsForTeamPath } from "../utils/deviationLinks";
 import { unscheduledMilestonesPath } from "../utils/milestoneLinks";
 import { teamPath } from "../utils/teamLinks";
+import BadgeLink from "./BadgeLink";
 import { DeviationCount } from "./JiraChips";
 import ScrollRegion from "./ScrollRegion";
 import TeamFlags from "./TeamFlags";
@@ -71,9 +73,13 @@ export default function HomeTeamsTable({ teams }: { teams: HomeMe["teams"] }) {
               </Table.Td>
               <Table.Td>
                 {team.conflicts > 0 && (
-                  <Badge color="red" variant="light" tt="none">
+                  <BadgeLink
+                    to={violatedDependenciesPath({ teamId: team.id })}
+                    color="red"
+                    ariaLabel={t("home.mine.conflictsAria", { figure: t("project.conflicts", { count: team.conflicts }), name: team.name })}
+                  >
                     {t("project.conflicts", { count: team.conflicts })}
-                  </Badge>
+                  </BadgeLink>
                 )}
               </Table.Td>
               <Table.Td>

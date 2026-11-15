@@ -91,7 +91,9 @@ describe("HomeMine: Yours", () => {
     expect(table.getByText("10")).toBeInTheDocument();
     expect(table.getByText("2 warnings")).toBeInTheDocument();
     expect(table.getByText("1 info")).toBeInTheDocument();
-    expect(table.getByText("4 conflicts")).toBeInTheDocument();
+    const conflicts = table.getByRole("link", { name: "4 conflicts: Ledger" });
+    expect(conflicts).toHaveAttribute("href", "/dependencies?status=violated&projectId=7");
+    expect(conflicts).toHaveTextContent("4 conflicts");
   });
 
   test("an unranked project reads 'Unranked'; a zero badge is absent, a zero figure is shown", () => {
@@ -100,6 +102,7 @@ describe("HomeMine: Yours", () => {
     expect(table.getByText("Unranked")).toBeInTheDocument();
     expect(table.getByText("0")).toBeInTheDocument();
     expect(table.queryByText(/warning|info|conflict/)).not.toBeInTheDocument();
+    expect(table.queryByRole("link", { name: /conflict/ })).not.toBeInTheDocument();
   });
 
   test("a team row: its name links to its page; capacity, conflicts, the Jira count (a link into the filtered Deviations page) and the Flow sentence", () => {
@@ -110,7 +113,9 @@ describe("HomeMine: Yours", () => {
     expect(table.getByText("67")).toBeInTheDocument();
     expect(table.getByText("3 weeks overloaded")).toBeInTheDocument();
     expect(table.getByText("1 week over WIP limit")).toBeInTheDocument();
-    expect(table.getByText("2 conflicts")).toBeInTheDocument();
+    const conflicts = table.getByRole("link", { name: "2 conflicts: Payments" });
+    expect(conflicts).toHaveAttribute("href", "/dependencies?status=violated&teamId=4");
+    expect(conflicts).toHaveTextContent("2 conflicts");
     expect(table.getByRole("link", { name: "4 Jira deviations: team Payments" })).toHaveAttribute("href", "/deviations?teamId=4");
     const flow = table.getByText("Capacity differs from Flow: 2 open differences");
     expect(flow.closest("[data-team-flag]")).toHaveAttribute("data-team-flag", "FLOW_CAPACITY");

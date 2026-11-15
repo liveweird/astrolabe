@@ -1,9 +1,11 @@
-import { Anchor, Badge, Table } from "@mantine/core";
+import { Anchor, Table } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import type { HomeMe } from "../api/home";
+import { violatedDependenciesPath } from "../utils/dependencyListLinks";
 import { unscheduledMilestonesPath } from "../utils/milestoneLinks";
 import { projectPath } from "../utils/planLinks";
+import BadgeLink from "./BadgeLink";
 import HomeFlagBadges from "./HomeFlagBadges";
 import ScrollRegion from "./ScrollRegion";
 
@@ -58,9 +60,13 @@ export default function HomeProjectsTable({ projects }: { projects: HomeMe["proj
               </Table.Td>
               <Table.Td>
                 {project.conflicts > 0 && (
-                  <Badge color="red" variant="light" tt="none">
+                  <BadgeLink
+                    to={violatedDependenciesPath({ projectId: project.id })}
+                    color="red"
+                    ariaLabel={t("home.mine.conflictsAria", { figure: t("project.conflicts", { count: project.conflicts }), name: project.name })}
+                  >
                     {t("project.conflicts", { count: project.conflicts })}
-                  </Badge>
+                  </BadgeLink>
                 )}
               </Table.Td>
             </Table.Tr>

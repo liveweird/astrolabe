@@ -173,18 +173,17 @@ describe("Home", () => {
       expect(group.queryByText(/out of date/)).not.toBeInTheDocument();
     });
 
-    test("the capacity badges read in the plural, and the conflicts are not worded as a Roadmap figure or linked", async () => {
+    test("the capacity badges read in the plural, and the conflicts are worded as dependencies, not as a Roadmap figure", async () => {
       stubViews({ home: homeWith({ plan: { ...homeView().plan, overloadedTeams: 3, wipExceededTeams: 2 } }) });
       renderWithProviders(<Home />);
       const group = within(await screen.findByRole("group", { name: "The roadmap in figures" }));
       expect(await group.findByText("3 teams with an overloaded week")).toBeInTheDocument();
       expect(group.getByText("2 teams over the WIP limit")).toBeInTheDocument();
-      expect(group.queryByRole("link", { name: /violated|conflict/ })).not.toBeInTheDocument();
-      expect(group.getByText("9 violated dependencies").closest("a")).toBeNull();
+      expect(group.getByRole("link", { name: "9 violated dependencies" })).toHaveAttribute("href", "/dependencies?status=violated");
       expect(screen.queryByText(/arrow|conflict/i)).not.toBeInTheDocument();
     });
 
-    test("five figures are links with their href and a name that contains their visible text; the violated dependencies and the counts are not", async () => {
+    test("six figures are links with their href and a name that contains their visible text; the counts are not", async () => {
       stubViews();
       renderWithProviders(<Home />);
       const roadmap = within(await screen.findByRole("group", { name: "The roadmap in figures" }));
@@ -199,14 +198,16 @@ describe("Home", () => {
       expect(infos).toHaveTextContent("52 infos");
       expect(roadmap.getByRole("link", { name: "3 teams with an overloaded week" })).toHaveAttribute("href", "/team-load?warning=overloaded");
       expect(roadmap.getByRole("link", { name: "1 team over the WIP limit" })).toHaveAttribute("href", "/team-load?warning=wip");
-      expect(roadmap.getAllByRole("link")).toHaveLength(4);
-      expect(roadmap.getByText("9 violated dependencies").closest("a")).toBeNull();
+      const violated = roadmap.getByRole("link", { name: "9 violated dependencies" });
+      expect(violated).toHaveAttribute("href", "/dependencies?status=violated");
+      expect(violated).toHaveTextContent("9 violated dependencies");
+      expect(roadmap.getAllByRole("link")).toHaveLength(5);
       expect(roadmap.getByText("80 ranked").closest("a")).toBeNull();
       expect(plan.getAllByRole("link")).toHaveLength(1);
     });
 
     test("a zero figure is neither a badge nor a link", async () => {
-      stubViews({ home: homeWith({ plan: { ...homeView().plan, unscheduledMilestones: 0, flags: { warnings: 0, infos: 0 }, overloadedTeams: 0, wipExceededTeams: 0 } }) });
+      stubViews({ home: homeWith({ plan: { ...homeView().plan, unscheduledMilestones: 0, flags: { warnings: 0, infos: 0 }, conflicts: 0, overloadedTeams: 0, wipExceededTeams: 0 } }) });
       renderWithProviders(<Home />);
       const plan = within(await screen.findByRole("group", { name: "The plan in figures" }));
       expect(await plan.findByText("0 not scheduled yet")).toBeInTheDocument();

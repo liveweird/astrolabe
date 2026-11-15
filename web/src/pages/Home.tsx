@@ -12,6 +12,7 @@ import HomeMine from "../components/HomeMine";
 import { JiraStaleNote } from "../components/JiraChips";
 import PageHeader from "../components/PageHeader";
 import { useOpenDeviationCounts, type OpenCounts } from "../hooks/useOpenDeviationCounts";
+import { violatedDependenciesPath } from "../utils/dependencyListLinks";
 import { deviationsPath } from "../utils/deviationLinks";
 import { unscheduledMilestonesPath } from "../utils/milestoneLinks";
 import { planPath, roadmapFilteredPath, roadmapPath } from "../utils/planLinks";
@@ -104,7 +105,7 @@ function PlanFigures({ plan }: { plan: HomePlan | undefined }) {
  * The Roadmap card's figures: the ranked and unranked counts and the warnings and infos of the Roadmap's facts line, then what else needs attention
  * (a badge only when positive). Warnings and infos link to the Roadmap with "flagged only" (a link is shown as written, so no remembered filter narrows
  * it) and the two capacity figures to the Team load page filtered to them. Violated dependencies count every link once, a link inside one project included, so
- * they are worded as dependencies, not as the arrows the Roadmap draws between projects; no page lists them, so that badge stays plain.
+ * they are worded as dependencies, not as the arrows the Roadmap draws between projects; the red badge opens the Dependencies page narrowed to the violated ones.
  */
 function RoadmapFigures({ plan, jiraStale }: { plan: HomePlan | undefined; jiraStale: boolean }) {
   const { t } = useTranslation();
@@ -129,9 +130,9 @@ function RoadmapFigures({ plan, jiraStale }: { plan: HomePlan | undefined; jiraS
               </BadgeLink>
             )}
             {plan.conflicts > 0 && (
-              <Badge color="red" variant="light" tt="none">
+              <BadgeLink to={violatedDependenciesPath()} color="red">
                 {t("home.roadmap.conflicts", { count: plan.conflicts })}
-              </Badge>
+              </BadgeLink>
             )}
             {plan.overloadedTeams > 0 && (
               <BadgeLink to={teamLoadWarningPath("overloaded")} color="orange">

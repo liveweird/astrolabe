@@ -70,6 +70,7 @@
     },
     "jiraAria": "{{deviations}}: zespół {{name}}",
     "notScheduledAria": "Niezaplanowane ({{count}}): {{name}}",
+    "conflictsAria": "{{figure}}: {{name}}",
     "nodeOnRoadmapAria": "Otwórz {{name}} na roadmapie"
   }
 }
