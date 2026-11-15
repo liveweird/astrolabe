@@ -52,10 +52,6 @@ export async function listBaselines(): Promise<BaselineList> {
   return jsonRequest<BaselineList>("/api/v1/baselines");
 }
 
-export async function getBaseline(id: number): Promise<Baseline> {
-  return jsonRequest<Baseline>(`/api/v1/baselines/${id}`);
-}
-
 /** Copies the plan as it is now (under the plan lock); a name clash and the cap are both `409`. */
 export async function createBaseline(body: BaselineCreateBody): Promise<Baseline> {
   return jsonRequest<Baseline>("/api/v1/baselines", { method: "POST", body: JSON.stringify(body) });

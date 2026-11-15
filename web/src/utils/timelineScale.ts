@@ -10,9 +10,6 @@ import { DAY_MS, epochMillisToIsoDate, isoDateToEpochMillis } from "./isoDate";
 
 export type Zoom = "week" | "month" | "quarter" | "year";
 
-/** Every zoom the scale knows. A page offers a subset of it: the two lists below. */
-export const ZOOMS: readonly Zoom[] = ["week", "month", "quarter", "year"];
-
 /** The zooms of the milestone pages (the project and the team view): week / month / quarter, exactly as before the Year zoom existed. */
 export const MILESTONE_ZOOMS: readonly Zoom[] = ["week", "month", "quarter"];
 

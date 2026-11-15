@@ -25,7 +25,7 @@ import {
   isAdmin,
   persistSession,
 } from "./session";
-import { getDisabledFeatures, hasFeature } from "./session";
+import { getDisabledFeatures } from "./session";
 import i18n from "../i18n";
 
 const SESSION = {
@@ -78,18 +78,16 @@ describe("session", () => {
     expect(getUserId()).toBeNull();
   });
 
-  test("disabled features persist with the session and drive hasFeature", () => {
+  test("disabled features persist with the session", () => {
     persistSession({ ...SESSION, disabledFeatures: ["MFA"] });
     expect(getDisabledFeatures()).toEqual(["MFA"]);
-    expect(hasFeature("MFA")).toBe(false);
 
     persistSession(SESSION); // empty set = full access
-    expect(hasFeature("MFA")).toBe(true);
+    expect(getDisabledFeatures()).toEqual([]);
 
     // Corrupt storage degrades to the safe default (everything enabled).
     localStorage.setItem("astrolabe.auth.disabledFeatures", "{not json");
     expect(getDisabledFeatures()).toEqual([]);
-    expect(hasFeature("MFA")).toBe(true);
   });
 
   test("unknown role names are filtered out", () => {

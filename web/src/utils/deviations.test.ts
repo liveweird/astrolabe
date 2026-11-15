@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import i18n from "../i18n";
 import type { Deviation, DeviationKind } from "../api/deviations";
 import { connectionIn, detail, endLater, item, renamed, startEarlier, stamped } from "../test/deviations";
-import { ageText, countDeviations, deviationAckAllKey, deviationAckKey, deviationKindLabel, deviationSentence, formatPoints, goneBadge, hasStaleSource, isLineOpen, itemAckKeys, rollupSentence, rollupText, splitLines, staleConnection, verifiedAt } from "./deviations";
+import { ageText, deviationAckAllKey, deviationAckKey, deviationKindLabel, deviationSentence, formatPoints, goneBadge, hasStaleSource, isLineOpen, itemAckKeys, rollupSentence, rollupText, splitLines, staleConnection, verifiedAt } from "./deviations";
 
 const en = i18n.getFixedT("en");
 const pl = i18n.getFixedT("pl");
@@ -244,18 +244,6 @@ describe("rollupText and rollupSentence - Jira's own figures, never converted", 
     expect(formatPoints(13.0)).toBe("13");
     expect(formatPoints(0.125)).toBe("0.13");
     expect(rollupText({ ...base, points: 0 }, en)).toBe("5/12 · 0 pt");
-  });
-});
-
-describe("countDeviations", () => {
-  test("counts warnings and infos, and never an estimate that cannot be compared", () => {
-    const list: Deviation[] = [
-      { kind: "END_DIFFERS", severity: "WARNING", detail: detail() },
-      { kind: "RENAMED", severity: "INFO", detail: detail() },
-      { kind: "ESTIMATE_NOT_COMPARABLE", severity: "INFO", detail: detail() },
-    ];
-    expect(countDeviations(list)).toEqual({ warnings: 1, infos: 1 });
-    expect(countDeviations([])).toEqual({ warnings: 0, infos: 0 });
   });
 });
 

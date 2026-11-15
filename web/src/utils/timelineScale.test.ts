@@ -18,10 +18,10 @@ import {
   trackBackground,
   weekdayOf,
   weekendBackground,
-  ZOOMS,
   type Zoom,
 } from "./timelineScale";
 
+const ALL_ZOOMS: readonly Zoom[] = ["week", "month", "quarter", "year"];
 const day = toEpochDay;
 const rangeOf = (from: string, to: string) => ({ from: day(from), to: day(to) });
 
@@ -48,15 +48,14 @@ describe("epoch days and weekdays", () => {
 });
 
 describe("the zoom lists", () => {
-  test("the milestone pages keep week / month / quarter, the plan pages get month / quarter / year, ZOOMS holds all four", () => {
+  test("the milestone pages keep week / month / quarter, the plan pages get month / quarter / year, together they cover all four", () => {
     expect(MILESTONE_ZOOMS).toEqual(["week", "month", "quarter"]);
     expect(PLAN_ZOOMS).toEqual(["month", "quarter", "year"]);
-    expect(ZOOMS).toEqual(["week", "month", "quarter", "year"]);
-    expect(new Set([...MILESTONE_ZOOMS, ...PLAN_ZOOMS])).toEqual(new Set(ZOOMS));
+    expect(new Set([...MILESTONE_ZOOMS, ...PLAN_ZOOMS])).toEqual(new Set(ALL_ZOOMS));
   });
 
   test("a day is 28 / 8 / 3 / 1 px", () => {
-    expect(ZOOMS.map((zoom) => DAY_WIDTH[zoom])).toEqual([28, 8, 3, 1]);
+    expect(ALL_ZOOMS.map((zoom) => DAY_WIDTH[zoom])).toEqual([28, 8, 3, 1]);
   });
 });
 
@@ -142,7 +141,7 @@ describe("headerRows", () => {
   });
 
   test("the cells of every zoom partition the range exactly", () => {
-    for (const zoom of ZOOMS as Zoom[]) {
+    for (const zoom of ALL_ZOOMS) {
       const scale = makeScale(zoom, rangeOf("2026-02-17", "2026-12-03"));
       const { groups, cells } = headerRows(scale);
       for (const row of [groups, cells]) {

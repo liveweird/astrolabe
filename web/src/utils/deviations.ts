@@ -174,21 +174,6 @@ export function deviationKindLabel(kind: DeviationKind, t: TFunction): string {
   return t(`deviations.kind.${kind}`);
 }
 
-/**
- * The deviations a chip or a row marker counts: WARNING and INFO items of the server's list. `ESTIMATE_NOT_COMPARABLE` is never in a project's
- * or team's list unless asked for explicitly (the server's rule), and is not counted here either way.
- */
-export function countDeviations(deviations: readonly Deviation[]): { warnings: number; infos: number } {
-  let warnings = 0;
-  let infos = 0;
-  for (const deviation of deviations) {
-    if (deviation.kind === "ESTIMATE_NOT_COMPARABLE") continue;
-    if (deviation.severity === "WARNING") warnings += 1;
-    else infos += 1;
-  }
-  return { warnings, infos };
-}
-
 /** A Jira epic's children as the last census holds them (`JiraLink.rollup`, `DeviationJira.rollup`), never null here. */
 type Rollup = NonNullable<JiraLink["rollup"]>;
 

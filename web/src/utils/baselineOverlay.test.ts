@@ -10,7 +10,6 @@ import {
   movementStatus,
   movementTotalsOf,
   movementTotalsParts,
-  movementTotalsSentence,
   newSince,
   projectTotals,
   rankTotals,
@@ -97,13 +96,12 @@ describe("movementTotals", () => {
       ["added", false],
       ["removed", false],
     ]);
-    expect(movementTotalsSentence(sample, t)).toBe("14 end later, 3 end earlier, 3 moved, end unchanged, 2 new, 1 removed");
+    expect(movementTotalsParts(sample, t).map((p) => p.label)).toEqual(["14 end later", "3 end earlier", "3 moved, end unchanged", "2 new", "1 removed"]);
   });
 
-  test("scheduled and unscheduled flips are listed; nothing changed says so", () => {
-    expect(movementTotalsSentence(totals({ scheduled: 4, unscheduled: 1 }), t)).toBe("4 newly scheduled, 1 unscheduled");
-    expect(movementTotalsSentence(totals({ unchanged: 12 }), t)).toBe("No schedule changes");
-    expect(movementTotalsSentence(totals({ unchanged: 12 }), pl)).toBe("Brak zmian w harmonogramie");
+  test("scheduled and unscheduled flips are listed; nothing changed lists nothing", () => {
+    expect(movementTotalsParts(totals({ scheduled: 4, unscheduled: 1 }), t).map((p) => p.label)).toEqual(["4 newly scheduled", "1 unscheduled"]);
+    expect(movementTotalsParts(totals({ unchanged: 12 }), t)).toEqual([]);
   });
 });
 

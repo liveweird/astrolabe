@@ -98,10 +98,6 @@ export function getDisabledFeatures(): Feature[] {
   }
 }
 
-export function hasFeature(feature: Feature): boolean {
-  return !getDisabledFeatures().includes(feature);
-}
-
 export function isAdmin(): boolean {
   return getRoles().includes("ADMIN");
 }

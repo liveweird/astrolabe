@@ -78,12 +78,6 @@ export function movementTotalsParts(totals: MovementTotals, t: TFunction): Total
   return figures.filter((figure) => figure.count > 0).map((figure) => ({ key: figure.key, label: t(figure.label, { count: figure.count }), late: figure.late }));
 }
 
-/** The totals as one sentence: "14 end later, 3 end earlier, 2 new, 1 removed", or "No schedule changes". */
-export function movementTotalsSentence(totals: MovementTotals, t: TFunction): string {
-  const parts = movementTotalsParts(totals, t);
-  return parts.length === 0 ? t("baselines.totals.none") : parts.map((part) => part.label).join(", ");
-}
-
 /** A figure in the working days of a Start/End column: "+5", "−2", "0"; "—" for a row not dated on both sides. */
 export function signedDays(days: number | null): string {
   if (days === null) return "—";
