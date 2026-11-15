@@ -224,7 +224,7 @@ the address bar and history (`navigate(…, { replace: true })`), keeps it in me
 plain `fetch`, never `authedFetch`, so it can never refresh or retry a session). Loading the page consumes nothing; the form shows for any well-formed
 43-character token and an unusable one is learned at submit (401: the token is dropped and "Request another reset link" shows; 429, 400 and network failures
 keep it for a retry). The new-password rule is `newPasswordValidation` (`utils/userForm.ts`), shared with `ChangePassword.tsx`. On success the page runs
-`clearSession()`, `queryClient.clear()` and `notifyAuthChange()` and shows the teal notice: no `/logout` call (the reset bumped the credential revision, so
+`clearSession()`, `queryClient.clear()` and `notifyAuthChange()` and shows the green notice: no `/logout` call (the reset bumped the credential revision, so
 nothing is left to revoke) and no return destination.
 
 ### `auth.ts`
@@ -1233,7 +1233,7 @@ the children, `detail.plan` = the plan's end) with its mirror `CHILDREN_OPEN` (1
 figure parsed from `detail.jira` = `open/children`; PL "Otwartych zgłoszeń podrzędnych w Jirze: 3 z 12, a plan zakończył się …"; unreadable members degrade to the label "Children open"); **the "+N more" rule**: the server lists at most 10 keys/names and `detail.count` is the full figure, so the
 sentence appends "and {N} more" (PL "i jeszcze {N}") when `count` exceeds 10 - the listed figure is `min(count, 10)`, never a split of the joined text (a plan
 name may contain ", "); a missing list, count or date degrades to the plain kind label. The roadmap panel phrases these through the same function. Severity is
-spelled in a visually hidden word before each kind badge (`components/SeverityBadge.tsx`: orange warning / gray info; the Deviations table, the Flow capacity lines and the team page's fact use it, the roadmap flag panel with `hiddenPrefix={false}`). `ageText`/`countDeviations` are in the same file; the table is `components/DeviationsTable.tsx` (plan
+spelled in a visually hidden word before each kind badge (`components/SeverityBadge.tsx`: orange warning / gray info; the Deviations table, the Flow capacity lines and the team page's fact use it, the roadmap flag panel with `hiddenPrefix={false}`). `ageText` is in the same file; the table is `components/DeviationsTable.tsx` (plan
 item with its link into `/projects/:id` - a milestone's through its project -, the Jira key through `JiraKeyLink`, both sides' dates, the sentences, the age)
 in a `ScrollRegion` (1,080 px minimum: a phone scrolls it); the acknowledgement is per line inside the Deviations cell (above). Tests: `Deviations.test.tsx`,
 `utils/deviations|deviationFilters|jiraMarks|jiraBind.test.ts`, `hooks/useDeviations.test.tsx`, `api/deviations.test.ts`.
@@ -1725,8 +1725,8 @@ another row action starts. The person 409 is told from the user 409 by the probl
 
 ### Feature flags (`pages/FeatureFlags.tsx`, `pages/UserFeatures.tsx`)
 
-Lettuce's per-user flag surfaces, ported with the MFA feature: `hasFeature()` (`api/session.ts`, reading the `astrolabe.auth.disabledFeatures` localStorage set
-— currently awaiting its first area-gating consumer; MFA gates only the login flow server-side), the per-user editor at `/users/:id/features` (the Users table's
+Lettuce's per-user flag surfaces, ported with the MFA feature: `getDisabledFeatures()` (`api/session.ts`, reading the `astrolabe.auth.disabledFeatures` localStorage set;
+no area gates on it yet, MFA gates only the login flow server-side), the per-user editor at `/users/:id/features` (the Users table's
 Features button — a checkbox per `Feature`, wholesale- replace PUT), and the ADMIN per-feature screen at `/feature-flags` (`adminOnly` nav leaf; state filter +
 bulk enable/disable over every row matching the current filters behind a count-stating confirm — `hooks/useBulkFeatureUpdate.ts` loops the same per-user
 wholesale PUTs client-side via `ConfirmActionModal`). The page itself is only the query, the table and the single-row toggle; the rest sits in co-located
@@ -1863,7 +1863,7 @@ dropped; a path, query or credentials are NEVER cut, the form refuses them; whet
 own sentence under the fix (two sentences since 1.5.1: `NOT_CANONICAL` "the origin alone, in lowercase…" and `NOT_LISTED` "not one of the Flow origins this
 server is configured to allow…"; a port is never the reason); the create form reads `GET /integrations/flow/origins` under `["flow","origins"]` (create only,
 ADMIN) and prints "Allowed on this server: …" after the hint (`allowedOriginsHint`; the plain hint while loading or when the read fails, a "no Flow origin is
-configured" note for an empty list); the **time zone** is a text field pre-filled `Europe/Warsaw` (Flow's metrics zone) checked by `isKnownTimeZone`
+configured" note for an empty list); the **time zone** is a text field pre-filled `Europe/Warsaw` (Flow's metrics zone) checked by `canonicalTimeZone` (`utils/flowForm.ts`)
 (`Intl.supportedValuesOf("timeZone")` when the engine has it, the formatter plus a region's shape otherwise; a bare offset is refused); the **token is
 write-only** (`PasswordInput`, `autoComplete="new-password"`, shape `flow_int_` + 43 characters, a blank one omitted from the PUT and "A token is stored. Leave
 blank to keep…" from `hasApiToken`); **a PUT is a full replace**: `pollIntervalMinutes` (default **60**, or an explicit `null` for manual only) always travels.

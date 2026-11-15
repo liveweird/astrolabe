@@ -177,7 +177,7 @@ Layered RBAC. Implemented in the `server/src/main/kotlin/authz/` package.
     unknown value = 401) and `LoginResponse`/`UserResponse.disabledFeatures`, so a change takes
     effect at the target's next refresh (≤15 min) or login. Users list:
     `feature=<F>&featureEnabled=true|false` filter pair (must come together, 400 otherwise). SPA:
-    `hasFeature()` (`api/session.ts`, localStorage `astrolabe.auth.disabledFeatures`), the per-user
+    `getDisabledFeatures()` (`api/session.ts`, localStorage `astrolabe.auth.disabledFeatures`), the per-user
     editor `/users/:id/features` (the Users table's Features button) and the admin per-feature
     screen `/feature-flags` (state filter + bulk enable/disable over every row matching the
     current filters, behind a count-stating confirm — a client-side loop of the same per-user

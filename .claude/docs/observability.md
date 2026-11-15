@@ -311,6 +311,5 @@ Scheduler log lines, on `ch.nokillswit.sync`: INFO `Scheduler started run {id} f
 
 ### Not yet ported
 
-Flow's sync-job and data-source audit events (`data_source.*`, `sync_job.*`, `outbound.blocked` from the Jira/GitLab clients, `metrics_*`, `team.jira_membership_*`,
-`team.capacity_*`, `team.work_category_targets_updated`) were dropped with their features; if the Jira/Flow deviation sync is built it re-ports the
-job-lifecycle pattern (a per-stream progress counter is an operational signal, NOT an audit event). New planning events are added above in the commit that adds the route.
+Flow's sync-job and data-source audit events (`data_source.*`, `sync_job.*`, `metrics_*`, `team.jira_membership_*`,
+`team.capacity_*`, `team.work_category_targets_updated`) were dropped with their features; the Jira/Flow sync is built and keeps its own events (listed above), and a per-stream progress counter is an operational signal, NOT an audit event. `outbound.blocked` is NOT dropped: `infra/outbound/OutboundGuard.kt` emits it for every refused server-initiated call (`auditBlockedOutbound`, above). New planning events are added above in the commit that adds the route.
