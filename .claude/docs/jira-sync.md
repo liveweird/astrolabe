@@ -75,7 +75,7 @@ The bind and the run share one resolution (`resolveEffectiveMapping`): stored-or
 run with `MAPPING_INVALID`; an undecodable document is `MAPPING_UNREADABLE`.
 
 **Peek** (`GET …/{id}/peek?key=ABC-12`, `jira-test` bucket): one `GET /issue/{key}` for the mapped and system fields, answered as `{issue, resolved{level, start, end, estimate, unit, teamName}, raw}` where `raw`
-holds only the mapped fields' values. Nothing stored, no audit; the key must be in the connection's project keys; an upstream failure is a `502 jira-upstream` carrying only the code.
+holds only the mapped fields' values and `resolved.estimate` is read as a sync reads it (`estimateOf`: two decimals half up; absent for a figure the observer drops). Nothing stored, no audit; the key must be in the connection's project keys; an upstream failure is a `502 jira-upstream` carrying only the code.
 
 ## Bindings (1:1)
 

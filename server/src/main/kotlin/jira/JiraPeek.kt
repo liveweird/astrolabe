@@ -7,7 +7,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 
 /** An issue's status category (Jira's `statusCategory.key` `new | indeterminate | done`, assumption A6); anything else is `UNKNOWN`. */
@@ -31,7 +30,10 @@ data class JiraPeekIssue(
     val parentKey: String?,
 )
 
-/** What the mapping reads: the plan [level] the issue's hierarchy level maps to (null = unmapped) and that level's start, end, estimate. */
+/**
+ * What the mapping reads: the plan [level] the issue's hierarchy level maps to (null = unmapped) and that level's start, end, estimate
+ * (read as a sync reads it, [estimateOf]: two decimals half up, null for a figure a sync would not observe).
+ */
 @Serializable
 data class JiraPeekResolved(
     val level: JiraLevel?,
@@ -95,7 +97,7 @@ fun peekResponse(issue: JsonObject, mapping: JiraMapping, discovery: JiraDiscove
             level = level,
             start = mapped?.start?.let { isoDateOrNull(fields[it]) },
             end = mapped?.end?.let { isoDateOrNull(fields[it]) },
-            estimate = mapped?.estimate?.let { (fields[it] as? JsonPrimitive)?.takeIf { p -> !p.isString }?.doubleOrNull },
+            estimate = mapped?.estimate?.let { estimateOf(fields[it]) }?.toDouble(),
             unit = mapping.estimate.unit,
             teamName = mapping.teamFieldId?.let { teamNameOf(fields[it]) },
         ),

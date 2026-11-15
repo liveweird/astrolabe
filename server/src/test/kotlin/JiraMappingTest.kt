@@ -3,6 +3,9 @@ package ch.nokillswit
 import ch.nokillswit.authz.ConflictException
 import ch.nokillswit.infra.crypto.FieldCipher
 import ch.nokillswit.infra.json.sha256Hex
+import ch.nokillswit.jira.DiscoveredField
+import ch.nokillswit.jira.DiscoveredFields
+import ch.nokillswit.jira.DiscoveredIssueType
 import ch.nokillswit.jira.JiraAuthScheme
 import ch.nokillswit.jira.JiraConnectionRequest
 import ch.nokillswit.jira.JiraConnectionResponse
@@ -22,7 +25,9 @@ import ch.nokillswit.jira.JiraPeekResponse
 import ch.nokillswit.jira.JiraStatusCategory
 import ch.nokillswit.jira.JiraTestRecorderKey
 import ch.nokillswit.jira.StoredMapping
+import ch.nokillswit.jira.buildDiscovery
 import ch.nokillswit.jira.parseStoredMapping
+import ch.nokillswit.jira.peekResponse
 import ch.nokillswit.jira.sha256
 import ch.nokillswit.jira.toStoredJson
 import ch.nokillswit.plugins.ProblemDetail
@@ -446,6 +451,37 @@ class JiraMappingTest {
         assertEquals(JsonPrimitive(8), peek.raw["customfield_10026"])
         val text = response.bodyAsText()
         assertTrue("customfield_10019" !in text && "\"created\"" !in text && "0|i90005" !in text, "nothing beyond the declared fields")
+    }
+
+    @Test
+    fun `Peek reads the estimate the way a sync observes it - two decimals half up, a figure the sync drops is absent`() {
+        val discovery = buildDiscovery(
+            DiscoveredFields(1, listOf(DiscoveredField("customfield_10022", "Target start", "date", null))),
+            listOf(DiscoveredIssueType("10000", "Epic", 1, false)),
+            1L,
+        )
+        val mapping = JiraMapping(
+            JiraMappingLevels(
+                milestone = JiraLevelMapping(1, JiraLevelFields("customfield_10022", "customfield_10023", "customfield_10026")),
+            ),
+            JiraEstimateMapping(JiraEstimateUnit.POINTS, 0.5),
+            null,
+        )
+        fun estimateOf(literal: String): Double? {
+            val issue = Json.parseToJsonElement(
+                """{"id":"90005","key":"E2E-5","fields":{"issuetype":{"id":"10000","name":"Epic","hierarchyLevel":1},
+                    "customfield_10026":$literal}}""",
+            ).jsonObject
+            return peekResponse(issue, mapping, discovery).resolved.estimate
+        }
+        assertEquals(3.14, estimateOf("3.14159"))
+        assertEquals(0.13, estimateOf("0.125"), "half up at two decimals")
+        assertEquals(5.0, estimateOf("5"))
+        assertEquals(-3.0, estimateOf("-3"))
+        assertNull(estimateOf("\"8\""), "a string is not a figure")
+        assertNull(estimateOf("1e12"), "|x| >= 1E10 is out of range")
+        assertNull(estimateOf("0." + "1".repeat(39)), "a 41-character literal is refused before any arithmetic")
+        assertNull(estimateOf("null"))
     }
 
     @Test

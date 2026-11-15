@@ -6759,7 +6759,7 @@ export interface components {
             end?: string | null;
             /**
              * Format: double
-             * @description The mapped estimate field as the site sent it, in `unit`.
+             * @description The mapped estimate field in `unit`, read the way a sync reads it: at two decimals, half up; null for a figure a sync would not observe (a string, a non-number, 10 billion or more, or a literal over 40 characters).
              */
             estimate?: number | null;
             /** @enum {string} */

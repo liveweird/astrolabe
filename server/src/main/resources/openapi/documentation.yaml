@@ -8324,7 +8324,7 @@ components:
         level: { type: string, enum: [PROGRAM, PROJECT, MILESTONE], nullable: true, description: "The Astrolabe level the issue's hierarchy level maps to; null when it maps to none (then start, end and estimate are null too)." }
         start: { type: string, format: date, nullable: true }
         end: { type: string, format: date, nullable: true }
-        estimate: { type: number, format: double, nullable: true, description: "The mapped estimate field as the site sent it, in `unit`." }
+        estimate: { type: number, format: double, nullable: true, description: "The mapped estimate field in `unit`, read the way a sync reads it: at two decimals, half up; null for a figure a sync would not observe (a string, a non-number, 10 billion or more, or a literal over 40 characters)." }
         unit: { type: string, enum: [POINTS, HOURS, DAYS] }
         teamName: { type: string, nullable: true, maxLength: 100 }
     JiraPeekResponse:
