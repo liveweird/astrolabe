@@ -10,7 +10,7 @@
   retries a ranking change that the server refuses as stale (another spec wrote the ranking meanwhile; plan writes elsewhere no longer stale it).
   The page lists EVERY project, so each test sets the **program pick** (the browser setting
   `astrolabe.viewSettings.planning.programPick`, the one key the plan pages share) to its own program before opening the page: only its own rows
-  (and the "Unranked" divider) are on screen, whatever other specs or a loaded sample plan hold, and the grid stays on its plain (non-virtual) path. 1.19: the fourth scenario seeds its own person, team, work stream, program, a flagged and a plain project and one milestone (`e2e-rm-flag*` names), removed by the afterEach through the API; it writes no ranking.
+  (and the "Unranked" divider) are on screen, whatever other specs or a loaded sample plan hold, and the grid stays on its plain (non-virtual) path. 1.19: the fourth scenario seeds its own person, team, work stream, program, a flagged and a plain project and one milestone (`e2e-rm-flag*` names), removed by the afterEach through the API; it writes no ranking. 1.21: the fifth scenario seeds the same world again (its own copy, same name prefixes); it too writes no ranking.
 
 ## Scenario: an admin grants the roadmap editor right; the editor ranks two projects from the row menu, moves and drags them, unranks by drag, and meets the stale notice
 
@@ -92,6 +92,15 @@
 2. They open **Roadmap** from the Planning section of the sidebar.
    - *Expected*: the address now carries `programId=<the program>` (the remembered pick), and both projects are listed.
 
+## Scenario: Home's unranked figure opens the Roadmap with the unranked projects only, and a link that names a flag severity lists the projects that have one
+
+1. Through the API a program is seeded with a FLAGGED project (target window 2027-06-07 to 2027-06-11 and a milestone 2027-06-14 to 2027-06-18, a warning) and a plain one, both unranked (the same world as the previous scenario). The administrator signs in (Home) and clicks "N unranked" in the Roadmap card (N is plan-wide and never asserted).
+   - *Expected*: the heading is "Roadmap"; the address is `/roadmap?unranked=true`; the facts line reads "0 ranked" (no ranked row is shown under the filter: a property of the filter, not of the plan); in the filter panel "Unranked projects only" is on.
+2. They pick the spec's program in the Programs field.
+   - *Expected*: exactly the spec's two projects are rows (both unranked); the address names `unranked=true` and `programId=<the program>`.
+3. They open `/roadmap?severity=WARNING&programId=<the program>`.
+   - *Expected*: exactly one row, the flagged project (the plain one has no flag); in the filter panel "Flag severity" shows "Warning" and "Unranked projects only" is off (a link is shown as written, so the filter just used is not carried over).
+
 ## Not covered here (and why)
 
 - **The optimistic rollback on a non-409 failure, the 400 and 403 sentences, the refusal of a change made while a save runs, the filters
@@ -106,3 +115,4 @@
   `Programs.window.test.tsx` and `targetWindowUpdate.test.ts`; the draw and the move run here against the real layout (the pointer going
   through the span bar is the part a unit test cannot show), the real handle resize is the project view's scenario.
 - **Flags with real data** - the flag icons and panel are scanned with a drifting fixture project and a violated link by `accessibility.spec.ts`.
+- **The clicks on Home's two flag badges** (`severity=WARNING` / `INFO`) - vitest (`Home.test.tsx`) pins the hrefs; step 3 opens the address a badge writes. The focus after Rank under "Unranked projects only", the Info severity, the filter chain's combinations and the remembered keys - pinned by `Roadmap.test.tsx`, `roadmapRows.test.ts`, `roadmapFilterParams.test.ts` and `useRoadmapFilters.test.tsx`; the Polish text (vitest).

@@ -1,7 +1,7 @@
 # Programs (the plan as a tree on a timeline)
 
 - **Spec**: [tests/programs.spec.ts](../tests/programs.spec.ts)
-- **Actors**: the seed administrator (`admin@astrolabe.local`) in the first two tests; in the third one a throwaway user with no right (the
+- **Actors**: the seed administrator (`admin@astrolabe.local`) in the first, second and fourth tests; in the third one a throwaway user with no right (the
   admin creates it through the Users page and deletes it at the end)
 - **Owns** (exclusive server-side state): its throwaway person, team, work stream, two programs (A and B), three projects and their
   milestones, one project-to-project link, and the throwaway user (unique `e2e-pg-*` names), all seeded through the API and removed by the
@@ -63,6 +63,13 @@
 3. They open **Operations for <late>**.
    - *Expected*: the menu offers exactly three items, in this order: **Show critical path to this project: <late>** (1.16), **Dependencies of <late>** (1.20) and **Open project <late>**.
 4. The user signs out; the admin signs back in and deletes the user.
+
+## Scenario: a Programs link that names a program shows it without changing what the browser remembers
+
+1. The administrator signs in; the browser remembers program B (the stored program pick is set to B); they open `/programs?programId=<A>` (a link, 1.21).
+   - *Expected*: the heading is "Programs"; program A's chevron button is in the tree and program B's is not; in the filter panel the Programs field holds exactly one program, A; the stored pick is still B (looking at a link wrote nothing).
+2. They open **Programs** from the Planning section of the sidebar.
+   - *Expected*: the address names `programId=<B>` (the remembered pick is brought back); program B's chevron button is in the tree and program A's is not.
 
 ## Not covered here (and why)
 

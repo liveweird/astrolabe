@@ -11,7 +11,8 @@
 // each test and, if a step fails first, by the afterEach below (the plan nodes, team and people, children first - deleting a project also removes
 // it from the ranking and takes its milestones along; the users through the Users page or, for the API-seeded ones, the API). The window test
 // never writes the ranking. The fourth test (1.19, the filters in the URL) seeds its own program with a flagged and a plain project and one team
-// (unique `e2e-rm-flag*` names, removed by the afterEach) and writes no ranking.
+// (unique `e2e-rm-flag*` names, removed by the afterEach) and writes no ranking; the fifth (1.21) uses the same world: Home's unranked figure opens the
+// Roadmap with the unranked projects only, and a link that names a flag severity lists the projects that have one.
 import { randomUUID } from "node:crypto";
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import { apiAsAdmin, createUserViaUi, deleteUserRow, deleteViaApi, expect, login, openFilters, rowOperation, signOut, test, uniqueText, updateRankingViaApi } from "./helpers";
@@ -464,19 +465,20 @@ test("a roadmap editor who owns nothing drags the band, draws a window, sets one
 // ---- the filters in the URL (1.19): a link that names a filter is shown as written and leaves the browser's memory alone ------------------------
 
 /** A program with a FLAGGED project (a window 2027-06-07..11 and a milestone 2027-06-14..18: its end runs 7 days past the window, a warning) and a plain one (no window, no milestone, no flag). */
-async function seedFlaggedWorld(): Promise<{ programId: number; flagged: string; plain: string }> {
+async function seedFlaggedWorld(): Promise<{ programId: number; program: string; flagged: string; plain: string }> {
   const { api } = await apiAsAdmin();
   try {
     const person = await seed(api, "/api/v1/people", { name: uniqueText("e2e-rm-flagowner") }, "/api/v1/people");
     const teamId = await seed(api, "/api/v1/teams", { name: uniqueText("e2e-rm-flagteam") }, "/api/v1/teams");
     const streamId = await seed(api, "/api/v1/work-streams", { name: uniqueText("e2e-rm-flagstream"), ownerPersonId: person, startDate: "2026-01-05" }, "/api/v1/work-streams");
-    const programId = await seed(api, `/api/v1/work-streams/${streamId}/programs`, { name: uniqueText("e2e-rm-flagprogram"), ownerPersonId: person }, "/api/v1/programs");
+    const program = uniqueText("e2e-rm-flagprogram");
+    const programId = await seed(api, `/api/v1/work-streams/${streamId}/programs`, { name: program, ownerPersonId: person }, "/api/v1/programs");
     const flagged = uniqueText("e2e-rm-flagged");
     const plain = uniqueText("e2e-rm-plain");
     const flaggedId = await seed(api, `/api/v1/programs/${programId}/projects`, { name: flagged, ownerPersonId: person, targetStart: "2027-06-07", targetEnd: "2027-06-11" }, "/api/v1/projects");
     await seed(api, `/api/v1/programs/${programId}/projects`, { name: plain, ownerPersonId: person }, "/api/v1/projects");
     await scheduled(api, flaggedId, teamId, "2027-06-14", "2027-06-18");
-    return { programId, flagged, plain };
+    return { programId, program, flagged, plain };
   } finally {
     await api.dispose();
   }
@@ -501,4 +503,41 @@ test("a link that names a filter shows it without changing what the browser reme
   await expect(page).toHaveURL(new RegExp(`[?&]programId=${programId}(&|$)`));
   await expect(rowOf(page, flagged)).toHaveCount(1);
   await expect(rowOf(page, plain)).toHaveCount(1);
+});
+
+// Home's "N unranked" opens the Roadmap with only the unranked projects (N is plan-wide, so never asserted); the facts line then counts the rows shown, which
+// holds no ranked row, so "0 ranked" is a property of the filter, not of the plan. The spec's two projects are both unranked, so narrowing to its program lists both.
+test("Home's unranked figure opens the Roadmap with the unranked projects only, and a link that names a flag severity lists the projects that have one", async ({ page }) => {
+  const { programId, program, flagged, plain } = await seedFlaggedWorld();
+  await login(page);
+
+  const card = page.getByRole("group", { name: "The roadmap in figures", exact: true });
+  await card.getByRole("link", { name: /^\d+ unranked$/ }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Roadmap", exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/roadmap\?unranked=true$/);
+  await expect(page.getByRole("group", { name: "Roadmap facts", exact: true }).getByText("0 ranked", { exact: true })).toBeVisible();
+  await openFilters(page);
+  await expect(page.getByRole("switch", { name: "Unranked projects only", exact: true })).toBeChecked();
+
+  // The spec's program joins the filter: its two (unranked) projects are the rows, and the address names both filters.
+  const field = page.getByRole("combobox", { name: "Programs", exact: true });
+  await field.click();
+  await field.fill(program);
+  await page.getByRole("option", { name: program, exact: true }).click();
+  await page.keyboard.press("Escape");
+  await expect(grid(page).getByRole("link", { name: /^Open / })).toHaveCount(2);
+  await expect(rowOf(page, flagged)).toHaveCount(1);
+  await expect(rowOf(page, plain)).toHaveCount(1);
+  await expect(page).toHaveURL(/[?&]unranked=true(&|$)/);
+  await expect(page).toHaveURL(new RegExp(`[?&]programId=${programId}(&|$)`));
+
+  // A link naming a flag severity is shown as written: only the project with a warning, the severity select says so and the unranked switch (just used) is off.
+  await page.goto(`/roadmap?severity=WARNING&programId=${programId}`);
+  await expect(page.getByRole("heading", { level: 2, name: "Roadmap", exact: true })).toBeVisible();
+  await expect(grid(page).getByRole("link", { name: /^Open / })).toHaveCount(1);
+  await expect(rowOf(page, flagged)).toHaveCount(1);
+  await expect(rowOf(page, plain)).toHaveCount(0);
+  await openFilters(page);
+  await expect(page.getByRole("combobox", { name: "Flag severity", exact: true })).toHaveValue("Warning");
+  await expect(page.getByRole("switch", { name: "Unranked projects only", exact: true })).not.toBeChecked();
 });

@@ -3,7 +3,8 @@
 // counts add up the flags of its projects, sees the project link as ONE arrow between the rows that stand for its two projects (the two folded programs'
 // rows, a project row and a folded program's row, the two project rows; none inside a folded work stream), and switches to Year zoom; the program pick set on
 // this page narrows the Roadmap (after a reload) and the one set there narrows this page; a user without any right reads the same tree with
-// read-only bars and a row menu that opens the project or shows its critical path. The pick (a browser setting, `astrolabe.viewSettings.planning.programPick`)
+// read-only bars and a row menu that opens the project or shows its critical path; the pick is also in the address (1.21): a link that names a program
+// shows exactly it and leaves the remembered pick alone, and the menu brings the remembered one back. The pick (a browser setting, `astrolabe.viewSettings.planning.programPick`)
 // narrows every assertion to this spec's own program(s): the compose stack may hold the loaded sample plan, whatever other specs add, and an
 // unfolded grid over 80 rows virtualises. Owns: its throwaway person, team, work stream, two programs, three projects with scheduled milestones,
 // the link between two of them (unique `e2e-pg-*` names) and users, all seeded through the API and removed by the afterEach through the API,
@@ -252,4 +253,29 @@ test("a user without any right reads the tree with read-only bars and a row menu
   await signOut(page);
   await login(page);
   await deleteUserRow(page, account.name);
+});
+
+test("a Programs link that names a program shows it without changing what the browser remembers", async ({ page }) => {
+  const plan = await seedPlan();
+  await login(page);
+  // The browser remembers program B; the link names program A. It is shown exactly as written: A in the tree, B not, A in the Programs field.
+  await page.evaluate(([key, value]) => localStorage.setItem(key, value), [PICK_KEY, JSON.stringify([plan.bId])]);
+  await page.goto(`/programs?programId=${plan.aId}`);
+  await expect(page.getByRole("heading", { level: 2, name: "Programs" })).toBeVisible();
+  await expect(grid(page)).toBeVisible();
+  await expect(nodeButton(page, `Program ${plan.a}`)).toBeVisible();
+  await expect(nodeButton(page, `Program ${plan.b}`)).toHaveCount(0);
+  await openFilters(page);
+  // A MultiSelect pill has no accessible role, so the picked value is read by Mantine's pill class (the one class selector in e2e).
+  const picked = page.locator(".mantine-MultiSelect-pill");
+  await expect(picked).toHaveCount(1);
+  await expect(picked.filter({ hasText: plan.a })).toHaveCount(1);
+  // Looking at a link wrote nothing: the remembered pick is still program B.
+  expect(await page.evaluate((key) => localStorage.getItem(key), PICK_KEY)).toBe(JSON.stringify([plan.bId]));
+
+  // Opened from the menu, the page brings the remembered pick back: the address says program B, and B's row is in the tree and A's is not.
+  await page.getByRole("group", { name: "Planning" }).getByRole("link", { name: "Programs" }).click();
+  await expect(page).toHaveURL(new RegExp(`[?&]programId=${plan.bId}(&|$)`));
+  await expect(nodeButton(page, `Program ${plan.b}`)).toBeVisible();
+  await expect(nodeButton(page, `Program ${plan.a}`)).toHaveCount(0);
 });

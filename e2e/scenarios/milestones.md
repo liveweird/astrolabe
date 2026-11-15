@@ -13,7 +13,15 @@
 3. They click the project's name in a row.
    - *Expected*: the project page's heading (h2) is the project's name.
 
+## Scenario: the Milestones page's Project select narrows the list to one project and shows it as a chip
+
+1. The administrator signs in, opens **Milestones** from the Planning section of the sidebar, opens the filter panel and chooses the spec's project in the Project select (click, type its name, pick the option).
+   - *Expected*: the address carries `projectId=<the project's id>`; the chip "Project: <name>" shows beside the Filters button; exactly the project's three milestones are rows (the scheduled one and the two not scheduled).
+2. They remove the chip (its "Remove the project filter" button).
+   - *Expected*: the address has no `projectId`, the chip is gone and the Project select is empty.
+
 ## Not covered here (and why)
 
-- The plan-wide count and values, the name search, the project chip, the sort and the paging: four workers share the plan; vitest and `MilestoneListTest` pin them (Home's link to this page is `home.md`'s last scenario).
+- The plan-wide count and values, the name search, the sort and the paging: four workers share the plan; vitest and `MilestoneListTest` pin them (Home's link to this page is `home.md`'s last scenario).
+- The Dependencies page's Project select (the same component; vitest) and a team beyond the first hundred (the Team select reads every team; vitest, because an e2e would need 101 teams on a shared stack).
 - The Polish text (vitest).

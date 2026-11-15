@@ -4,8 +4,8 @@
 // all seeded through the API in the test and removed through the API (the project first - its milestones go with it - then program, work stream,
 // team, person), even after a failure. Dated May 2027 on purpose (no holiday, no far-off year: nothing here depends on working days); it writes no
 // ranking, no holiday and no connection, and needs no lock.
-// The Team select lists the first 100 teams by name (MilestonesFilters), so the spec needs fewer than 100 teams sorting before its own;
-// a fresh throwaway stack holds a few tens at most (test-fixtures.md, the 1.19 worlds).
+// The Team and Project selects list every team and every project of the plan (read to the end, 1.21), so no count of other specs' rows can hide this
+// spec's own from them (test-fixtures.md, the 1.19 worlds). The second test (1.21) picks the spec's project in the Project select.
 import type { APIRequestContext, Page } from "@playwright/test";
 import { apiAsAdmin, deleteViaApi, expect, login, openFilters, test, uniqueText } from "./helpers";
 
@@ -27,6 +27,7 @@ interface World {
   team: string;
   teamId: number;
   project: string;
+  projectId: number;
   scheduled: string;
   unscheduled: string[];
 }
@@ -50,7 +51,7 @@ async function seedWorld(): Promise<World> {
     const view = (await (await api.get(`/api/v1/views/project/${projectId}`)).json()) as { revision: number };
     const put = await api.put(`/api/v1/milestones/${scheduledId}/schedule`, { data: { expectedRevision: view.revision, startDate: "2027-05-03", endDate: "2027-05-07" } });
     expect(put.status(), await put.text()).toBe(200);
-    return { team, teamId, project, scheduled, unscheduled };
+    return { team, teamId, project, projectId, scheduled, unscheduled };
   } finally {
     await api.dispose();
   }
@@ -97,4 +98,30 @@ test("the Milestones page lists a team's milestones, and the schedule filter nar
   // A project's name is the way into its page.
   await rows(page).first().getByRole("link", { name: `Open ${world.project}`, exact: true }).click();
   await expect(page.getByRole("heading", { level: 2, name: world.project, exact: true })).toBeVisible();
+});
+
+test("the Milestones page's Project select narrows the list to one project and shows it as a chip", async ({ page }) => {
+  const world = await seedWorld();
+  await login(page);
+
+  // From the menu, then the Project select of the filter panel (searched by the project's unique name): the address, the chip and exactly the project's milestones.
+  await page.getByRole("group", { name: "Planning" }).getByRole("link", { name: "Milestones", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Milestones", exact: true })).toBeVisible();
+  await openFilters(page);
+  const project = page.getByRole("combobox", { name: "Project", exact: true });
+  await project.click();
+  await project.fill(world.project);
+  await page.getByRole("option", { name: world.project, exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`[?&]projectId=${world.projectId}(&|$)`));
+  await expect(page.getByText(`Project: ${world.project}`, { exact: true })).toBeVisible();
+  await expect(rows(page)).toHaveCount(3);
+  for (const name of [world.scheduled, ...world.unscheduled]) {
+    await expect(rows(page).filter({ hasText: name })).toHaveCount(1);
+  }
+
+  // Removing the chip lifts the filter: no projectId in the address, and the select is empty again.
+  await page.getByRole("button", { name: "Remove the project filter", exact: true }).click();
+  await expect(page).not.toHaveURL(/[?&]projectId=/);
+  await expect(page.getByText(`Project: ${world.project}`, { exact: true })).toHaveCount(0);
+  await expect(project).toHaveValue("");
 });

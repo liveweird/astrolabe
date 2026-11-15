@@ -6,8 +6,8 @@
 // the links are A -> B (finish-to-start: B ends long before A does, violated by weeks whatever a holiday does), A -> C (kept with a week to spare)
 // and D -> C (D is not scheduled). All seeded through the API in the test and removed through the API (the projects first - their milestones and
 // links go with them - then program, work stream, team, person), even after a failure. It writes no ranking, no holiday and no connection, and needs
-// no lock. The shortfall is matched by a pattern, never a number. The Team select lists the first 100 teams by name, so the spec needs fewer than
-// 100 teams sorting before its own (a fresh throwaway stack holds a few tens at most).
+// no lock. The shortfall is matched by a pattern, never a number. The Team select lists every team of the plan (read to the end, 1.21), so the number
+// of other specs' teams cannot hide this spec's own from it.
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import { apiAsAdmin, deleteViaApi, expect, login, openFilters, test, uniqueText } from "./helpers";
 
