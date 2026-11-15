@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
 import i18n from "../i18n";
 import type { HomeMe, HomeView } from "../api/home";
 import { homeMe, homeView } from "../test/home";
@@ -33,6 +34,11 @@ const TEAM: HomeMe["teams"][number] = {
 };
 const STREAM: HomeMe["workStreams"][number] = { id: 1, name: "Platform", endDate: null, programs: 4, projects: 20, flags: { warnings: 42, infos: 0 } };
 const PROGRAM: HomeMe["programs"][number] = { id: 3, name: "Core", workStreamName: "Platform", ownerName: "Alex Example", direct: true, projects: 5, flags: { warnings: 0, infos: 3 } };
+
+const INHERITED_PROJECT: HomeMe["projects"][number] = { ...PROJECT, id: 8, name: "Audit", programName: "Billing", ownerName: "Sam Other", direct: false, rankPosition: null };
+const INHERITED_PROGRAM: HomeMe["programs"][number] = { ...PROGRAM, id: 4, name: "Billing", ownerName: "Sam Other", direct: false, projects: 2 };
+const OWN_ONLY = "Only what I own myself";
+const OWN_ONLY_KEY = "astrolabe.viewSettings.home.mine.ownOnly";
 
 const viewWith = (me: HomeMe | null, over: Partial<HomeView> = {}) => homeView({ me, ...over });
 const renderMine = (view: HomeView | undefined, flowStale = false) => renderWithProviders(<HomeMine view={view} flowStale={flowStale} />);
@@ -86,7 +92,7 @@ describe("HomeMine: Yours", () => {
   test("a project row: its name links to its page, the rank, the figures, the worded badges", () => {
     renderMine(viewWith(homeMe({ projects: [PROJECT] })));
     const table = within(screen.getByRole("table", { name: "Your projects" }));
-    expect(table.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Project", "Program", "Rank", "Milestones", "Not scheduled", "Flags", "Conflicts"]);
+    expect(table.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Project", "Program", "Owner", "Rank", "Milestones", "Not scheduled", "Flags", "Conflicts"]);
     expect(table.getByRole("link", { name: "Open Ledger" })).toHaveAttribute("href", "/projects/7");
     expect(table.getByText("Core")).toBeInTheDocument();
     expect(table.getByText("3")).toBeInTheDocument();
@@ -133,8 +139,9 @@ describe("HomeMine: Yours", () => {
   test("programs and work streams link to the Roadmap filtered to them; a closed work stream says so; one link follows the table", () => {
     renderMine(viewWith(homeMe({ workStreams: [STREAM, { ...STREAM, id: 2, name: "Legacy", endDate: "2026-01-31" }], programs: [PROGRAM] })));
     const table = within(screen.getByRole("table", { name: "Your programs and work streams" }));
-    expect(table.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Name", "Level", "In", "Programs", "Projects", "Flags"]);
+    expect(table.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Name", "Level", "In", "Owner", "Programs", "Projects", "Flags"]);
     expect(table.getAllByText("Platform")).toHaveLength(2); // the stream's name, and the program's "In"
+    expect(table.getAllByText("Alex Example")).toHaveLength(3); // each work stream's Owner is the person (two streams); the program's is its own ownerName
     expect(table.getByText("Legacy (closed)")).toBeInTheDocument();
     expect(table.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/roadmap?workStreamId=1", "/roadmap?workStreamId=2", "/roadmap?programId=3"]);
     expect(table.getAllByText("Work stream")).toHaveLength(2);
@@ -143,6 +150,136 @@ describe("HomeMine: Yours", () => {
     expect(programRow.getByText("Platform")).toBeInTheDocument();
     expect(programRow.getByText("3 infos")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open the programs" })).toHaveAttribute("href", "/programs");
+  });
+
+  describe("the owner of each row", () => {
+    test("the projects table names each row's owner: the person's own name on a direct row, the owner's on an inherited one", () => {
+      renderMine(viewWith(homeMe({ projects: [PROJECT, INHERITED_PROJECT] })));
+      const rows = within(screen.getByRole("table", { name: "Your projects" })).getAllByRole("row");
+      expect(within(rows[1]).getAllByRole("cell")[2]).toHaveTextContent("Alex Example");
+      expect(within(rows[2]).getAllByRole("cell")[2]).toHaveTextContent("Sam Other");
+    });
+
+    test("the nodes table: a work stream's Owner is the person, a program's is its own owner", () => {
+      renderMine(viewWith(homeMe({ workStreams: [STREAM], programs: [INHERITED_PROGRAM] })));
+      const rows = within(screen.getByRole("table", { name: "Your programs and work streams" })).getAllByRole("row");
+      expect(within(rows[1]).getAllByRole("cell")[3]).toHaveTextContent("Alex Example");
+      expect(within(rows[2]).getAllByRole("cell")[3]).toHaveTextContent("Sam Other");
+    });
+
+    test("one dimmed sentence says what is listed, under the person line, only when there is a row", () => {
+      const scope = "Listed below: what you own, everything under a work stream or program you own, and the teams you manage.";
+      const first = renderMine(viewWith(homeMe({ teams: [TEAM] })));
+      expect(screen.getByText(scope)).toBeInTheDocument();
+      first.unmount();
+      const second = renderMine(viewWith(homeMe()));
+      expect(screen.queryByText(/Listed below/)).not.toBeInTheDocument();
+      second.unmount();
+      renderMine(viewWith(null));
+      expect(screen.queryByText(/Listed below/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("the 'Only what I own myself' switch", () => {
+    const mixed = () => viewWith(homeMe({ workStreams: [STREAM], programs: [PROGRAM, INHERITED_PROGRAM], projects: [PROJECT, INHERITED_PROJECT], teams: [TEAM] }));
+    const names = (table: string) => within(screen.getByRole("table", { name: table })).getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell")[0].textContent);
+
+    test("off by default: every row is listed, and the switch sits above the tables", () => {
+      renderMine(mixed());
+      const toggle = screen.getByRole("switch", { name: OWN_ONLY });
+      expect(toggle).not.toBeChecked();
+      expect(names("Your projects")).toEqual(["Ledger", "Audit"]);
+      expect(names("Your programs and work streams")).toEqual(["Platform", "Core", "Billing"]);
+      expect(toggle.compareDocumentPosition(screen.getByRole("table", { name: "Your projects" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    test("on: both tables keep the direct rows (a work stream is always the person's), the teams are untouched, the sentence follows", async () => {
+      const user = userEvent.setup();
+      renderMine(mixed());
+      await user.click(screen.getByRole("switch", { name: OWN_ONLY }));
+      expect(screen.getByRole("switch", { name: OWN_ONLY })).toBeChecked();
+      expect(names("Your projects")).toEqual(["Ledger"]);
+      expect(names("Your programs and work streams")).toEqual(["Platform", "Core"]);
+      expect(names("Your teams")).toEqual(["Payments"]);
+      expect(screen.getByText("Listed below: what you own yourself and the teams you manage.")).toBeInTheDocument();
+      expect(screen.queryByText(/everything under a work stream/)).not.toBeInTheDocument();
+      await user.click(screen.getByRole("switch", { name: OWN_ONLY }));
+      expect(names("Your projects")).toEqual(["Ledger", "Audit"]);
+    });
+
+    test("the choice is remembered in this browser under an astrolabe. key", async () => {
+      const user = userEvent.setup();
+      const first = renderMine(mixed());
+      await user.click(screen.getByRole("switch", { name: OWN_ONLY }));
+      expect(JSON.parse(localStorage.getItem(OWN_ONLY_KEY) ?? "null")).toBe(true);
+      first.unmount();
+      renderMine(mixed());
+      expect(screen.getByRole("switch", { name: OWN_ONLY })).toBeChecked();
+      expect(names("Your projects")).toEqual(["Ledger"]);
+    });
+
+    test("a corrupt stored value is ignored (off), and storage that throws never breaks the page", async () => {
+      localStorage.setItem(OWN_ONLY_KEY, "not json");
+      const first = renderMine(mixed());
+      expect(screen.getByRole("switch", { name: OWN_ONLY })).not.toBeChecked();
+      first.unmount();
+      const user = userEvent.setup();
+      const get = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+        throw new Error("blocked");
+      });
+      const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+        throw new Error("blocked");
+      });
+      try {
+        renderMine(mixed());
+        await user.click(screen.getByRole("switch", { name: OWN_ONLY }));
+        expect(names("Your projects")).toEqual(["Ledger"]);
+      } finally {
+        get.mockRestore();
+        set.mockRestore();
+      }
+    });
+
+    test("a table the switch empties keeps its heading and says so; it never claims 'nothing' and the unfiltered list still has rows", async () => {
+      const user = userEvent.setup();
+      localStorage.setItem(OWN_ONLY_KEY, "true");
+      renderMine(viewWith(homeMe({ programs: [INHERITED_PROGRAM], projects: [INHERITED_PROJECT], teams: [TEAM], truncated: true })));
+      expect(headingOutline()).toEqual([
+        [3, "Yours"],
+        [4, "Your projects"],
+        [4, "Your teams"],
+        [4, "Your programs and work streams"],
+      ]);
+      expect(screen.queryByRole("table", { name: "Your projects" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("table", { name: "Your programs and work streams" })).not.toBeInTheDocument();
+      expect(screen.getByText("You do not own any of the listed projects yourself.")).toBeInTheDocument();
+      expect(screen.getByText("You do not own any of the listed programs yourself.")).toBeInTheDocument();
+      expect(screen.queryByText(/owns no work stream, program or project/)).not.toBeInTheDocument();
+      // The document cut its lists, so the empty sentence is about the listed rows only and the cut line stays beside it.
+      expect(screen.getByText("Each list shows its first 100 rows.")).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Open the projects you own yourself on the roadmap" })).not.toBeInTheDocument();
+      await user.click(screen.getByRole("switch", { name: OWN_ONLY }));
+      expect(names("Your projects")).toEqual(["Audit"]);
+    });
+
+    test("the switch is absent when no project or program is listed, and a stored 'on' then filters nothing", () => {
+      localStorage.setItem(OWN_ONLY_KEY, "true");
+      renderMine(viewWith(homeMe({ workStreams: [STREAM], teams: [TEAM] })));
+      expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+      expect(screen.getByRole("table", { name: "Your teams" })).toBeInTheDocument();
+      expect(screen.getByRole("table", { name: "Your programs and work streams" })).toBeInTheDocument();
+      expect(screen.getByText(/Listed below: what you own, everything under/)).toBeInTheDocument();
+    });
+
+    test("it speaks Polish", async () => {
+      await i18n.changeLanguage("pl");
+      localStorage.setItem(OWN_ONLY_KEY, "true");
+      renderMine(viewWith(homeMe({ programs: [INHERITED_PROGRAM], projects: [INHERITED_PROJECT] })));
+      expect(screen.getByRole("switch", { name: "Tylko to, czego jestem osobiście właścicielem/ką" })).toBeChecked();
+      expect(screen.getByText("Poniżej: to, czego jesteś osobiście właścicielem/ką, oraz zespoły, którymi zarządzasz.")).toBeInTheDocument();
+      expect(screen.getByText("Nie jesteś osobiście właścicielem/ką żadnego z wymienionych projektów.")).toBeInTheDocument();
+      expect(screen.getByText("Nie jesteś osobiście właścicielem/ką żadnego z wymienionych programów.")).toBeInTheDocument();
+    });
   });
 
   describe("the figures and names that lead somewhere", () => {
@@ -175,12 +312,17 @@ describe("HomeMine: Yours", () => {
       expect(table.getByText("Core")).toBeInTheDocument();
     });
 
-    test("'Open your projects on the roadmap' carries the person's id and shows only with a project row", () => {
-      const first = renderMine(viewWith(homeMe({ personId: 12, projects: [PROJECT] })));
-      expect(screen.getByRole("link", { name: "Open your projects on the roadmap" })).toHaveAttribute("href", "/roadmap?ownerPersonId=12");
+    test("'Open the projects you own yourself on the roadmap' carries the person's id and shows only beside a listed project that is direct", () => {
+      const link = { name: "Open the projects you own yourself on the roadmap" };
+      const first = renderMine(viewWith(homeMe({ personId: 12, projects: [PROJECT, INHERITED_PROJECT] })));
+      expect(screen.getByRole("link", link)).toHaveAttribute("href", "/roadmap?ownerPersonId=12");
       first.unmount();
+      const inherited = renderMine(viewWith(homeMe({ personId: 12, projects: [INHERITED_PROJECT] })));
+      expect(screen.getByRole("table", { name: "Your projects" })).toBeInTheDocument();
+      expect(screen.queryByRole("link", link)).not.toBeInTheDocument();
+      inherited.unmount();
       renderMine(viewWith(homeMe({ teams: [TEAM], workStreams: [STREAM] })));
-      expect(screen.queryByRole("link", { name: "Open your projects on the roadmap" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", link)).not.toBeInTheDocument();
     });
   });
 
@@ -264,7 +406,7 @@ describe("HomeMine: Yours", () => {
     ]);
     expect(screen.getByText("Twój login jest powiązany z osobą Alex Example.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Otwórz programy" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Otwórz Twoje projekty na roadmapie" })).toHaveAttribute("href", "/roadmap?ownerPersonId=12");
+    expect(screen.getByRole("link", { name: "Otwórz na roadmapie projekty, których jesteś osobiście właścicielem/ką" })).toHaveAttribute("href", "/roadmap?ownerPersonId=12");
     expect(screen.getByRole("link", { name: "Niezaplanowane (2): Ledger" })).toHaveAttribute("href", "/milestones?scheduled=false&projectId=7");
     expect(screen.getByRole("link", { name: "Otwórz Platform na roadmapie" })).toHaveAttribute("href", "/roadmap?workStreamId=1");
     expect(within(screen.getByRole("table", { name: "Twoje zespoły" })).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([

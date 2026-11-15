@@ -7,11 +7,20 @@ import HomeFlagBadges from "./HomeFlagBadges";
 import ScrollRegion from "./ScrollRegion";
 
 /**
- * "Your programs and work streams": what the person owns directly, work streams first. Neither has a page of its own, so the name is the link to the
- * Roadmap filtered to it (the Work stream filter, the program pick with one program); the flags are the Programs page's roll-up over the projects below
- * (a work stream's owner sees its row, not every project under it).
+ * "Your programs and work streams": the work streams the person owns and the programs they may manage (owned, or under a work stream they own), work
+ * streams first, each row naming its owner: a work stream's is the person (`personName`, a work stream is listed only when they own it), a program's its
+ * own `ownerName`. Neither has a page of its own, so the name is the link to the Roadmap filtered to it (the Work stream filter, the program pick with one
+ * program); the flags are the Programs page's roll-up over the projects below.
  */
-export default function HomeNodesTable({ workStreams, programs }: { workStreams: HomeMe["workStreams"]; programs: HomeMe["programs"] }) {
+export default function HomeNodesTable({
+  workStreams,
+  programs,
+  personName,
+}: {
+  workStreams: HomeMe["workStreams"];
+  programs: HomeMe["programs"];
+  personName: string;
+}) {
   const { t } = useTranslation();
   // A node with no project has nothing on the Roadmap: its id is no filter option there, so the link would open the whole Roadmap unfiltered.
   const onRoadmap = (to: string, name: string, projects: number) =>
@@ -26,13 +35,14 @@ export default function HomeNodesTable({ workStreams, programs }: { workStreams:
     );
   const label = t("home.mine.nodes");
   return (
-    <ScrollRegion label={label} minWidth={720}>
+    <ScrollRegion label={label} minWidth={820}>
       <Table aria-label={label}>
         <Table.Thead>
           <Table.Tr>
             <Table.Th>{t("home.mine.column.name")}</Table.Th>
             <Table.Th>{t("home.mine.column.level")}</Table.Th>
             <Table.Th>{t("home.mine.column.in")}</Table.Th>
+            <Table.Th>{t("home.mine.column.owner")}</Table.Th>
             <Table.Th ta="right">{t("home.mine.column.programs")}</Table.Th>
             <Table.Th ta="right">{t("home.mine.column.projects")}</Table.Th>
             <Table.Th>{t("roadmap.column.flags")}</Table.Th>
@@ -50,6 +60,7 @@ export default function HomeNodesTable({ workStreams, programs }: { workStreams:
               </Table.Td>
               <Table.Td>{t("home.mine.level.workStream")}</Table.Td>
               <Table.Td />
+              <Table.Td>{personName}</Table.Td>
               <Table.Td ta="right">{stream.programs}</Table.Td>
               <Table.Td ta="right">{stream.projects}</Table.Td>
               <Table.Td>
@@ -62,6 +73,7 @@ export default function HomeNodesTable({ workStreams, programs }: { workStreams:
               <Table.Td>{onRoadmap(roadmapFilteredPath({ pick: [program.id] }), program.name, program.projects)}</Table.Td>
               <Table.Td>{t("home.mine.level.program")}</Table.Td>
               <Table.Td>{program.workStreamName}</Table.Td>
+              <Table.Td>{program.ownerName}</Table.Td>
               <Table.Td />
               <Table.Td ta="right">{program.projects}</Table.Td>
               <Table.Td>
