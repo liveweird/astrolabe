@@ -170,6 +170,44 @@ Local (`local-times.mjs report`): `server-build` last five median 2m05s (previou
 
 **Outcome.** No harness change. `StubPortGuardTest` pins the premise (the shared stub takes `dynamicPort()`, no other test source builds a WireMock server, no `ServerSocket` on a literal port other than 0), and `testing.md`, `test-fixtures.md` and `ci.md` say the gate runs beside the stack. A next unexplained red run gets its failing classes and first exception lines recorded here at once.
 
+### Astrolabe WHY 3: why CI is over its budgets (status check, 2026-11-15)
+
+**Symptom.** At `d4e3c74` (the 1.23.0 release; `ci` run #237) `node scripts/timings/ci-times.mjs --branch master --limit 12 --steps web` flags `server` OVER ALARM (last-five median 14m16s against 6m00s / 10m00s) and `web` OVER ALARM (5m00s against 2m00s / 4m00s); `e2e-static` is over target (1m08s against 1m00s) and the nightly `e2e` over target (13m38s against 8m00s / 15m00s).
+The rows are the 1.0.0 re-baseline of "Astrolabe WHY 1" (2026-11-05), set when the server suite held 1,109 tests; the rule above ("never just a raised budget") makes this entry due. WHY 1 explained one slow `web` run by a cold cache; the breaches since were not investigated.
+
+**Evidence.** The sample is the fourteen successful `ci` runs on master, #224 to #237 (`gh run list --workflow ci.yml --branch master --status success --limit 14`, all 2026-11-15, `cf9e2cd`..`d4e3c74`); step times are `completedAt - startedAt` of `gh run view <id> --json jobs`; run #237's job logs are `gh run view --job <id> --log`.
+
+1. **The server job is its test task.** Run #237: the Gradle step (`check :server:installDist`, `TEST_FORKS: "1"`, `ci.yml:71`) took 12m30s of the job's 12m47s; the test task 9m58s of it (the Test time report step: 321 classes, 2,794 test cases, sum of class times 9m57s, span 9m58s, span / sum 1.002, so one fork is saturated and nothing is unbalanced). The same step took 652 to 1,100 s over the fourteen runs (median 756 s); the job 664 to 1,120 s (median 770 s).
+   The budget row for the test task (`ci.server-tests`, 3 min) was measured at 2m55s for 1,109 tests: the suite has grown 2.5 times in tests and the task 3.4 times in time. The cost per test went up too (0.16 s then, 0.21 s now); that part is not attributed.
+2. **The web job is vitest, and vitest on the runner is CPU-bound, not misconfigured.** Run #237: `Test Files 290 passed`, `Tests 3607 passed`, `Duration 208.86s (tests 83%, environment 14%, transform 1%, setup 1%, import 1%)`: the time is in the test bodies, not in module loading or the DOM. The per-file times of that log (the 290 `✓ src/….test.tsx (N tests) Nms` lines) sum to 580.7 s, so 580.7 / 208.9 = 2.8 workers were busy (a 4 vCPU runner's default pool is 3).
+   The same seed on the dev machine (Apple M5 Max, 2026-11-15, replayed with `npx vitest run --coverage --sequence.shuffle --sequence.seed=268739076`): **22.6 s** with the default pool and **56.7 s** with `--maxWorkers=3` (three workers, the pool a 4 vCPU runner gets), the file times summing to 153.4 s, so the same 2.7 workers were busy there: the shape is identical and the difference is the speed of one thread.
+   File by file (the runner's time for a file over the local `--maxWorkers=3` time of the same file) the runner is **4.7 times slower at the median (p10 1.9, p90 10.3)**; the ratio barely moves over the run (4.0 over the first fifth of the run, 4.9 over the last), so no leak, no cold cache, no growing heap. The files near 1.0 are the ones that wait on real timers (`pages/ScheduleProposals.test.tsx`, `pages/headingOutline.test.tsx` and their kind), which is why the totals (580.7 / 153.4 = 3.8 times) sit under the median file (4.7 times).
+   Flow measured the same shape twice and rejected the cheap levers (`~/Sources/flow/.claude/docs/build-times.md` WHY 6 and WHY 20: a fourth worker, `pool: 'forks'`, a cheaper coverage reporter), so none is tried here. Growth: 1,857 tests at 1.1.0, 3,607 at 1.23.0 (1.9 times).
+3. **The runners come in two speeds, and a job does not say which it got.** The `web` job over the same fourteen runs:
+
+   | Mode | Runs | `web` job | vitest step | `npm ci` | `npm run build` |
+   |---|---|---|---|---|---|
+   | fast | 5 (#225, #230, #232, #233, #235) | 183-210 s | 119-140 s | 31-36 s | 12-14 s |
+   | slow | 9 (the rest) | 272-310 s | 178-213 s | 49-54 s | 18-20 s |
+
+   Every step scales by about 1.5, so a budget set from one mode alarms on the other. The `server` job's Gradle step moves just as much between runs (652 to 1,100 s) and does not follow the web job's mode run for run (each job gets its own runner), so what it varies with is unknown: the logs do not name the CPU, the image is the same (`ubuntu24/20261111.127`), and no step prints `lscpu`.
+4. **`npm ci` takes 31 to 54 s on a cache HIT.** Run #237's log shows `Cache hit for: node-cache-Linux-x64-npm-…` and `npm ci --legacy-peer-deps` still took 49 s (716 packages; the cache is npm's download cache, so `npm ci` unpacks every package and runs the install scripts each time). That is 16 % of the web job, and `e2e-static`'s `npm ci` (35 to 52 s of its 62 to 90 s job over the same runs, the e2e workspace) is more than half of that job.
+   Flow's web job spent 9 to 10 s on its own `npm ci` when it recorded it (`~/Sources/flow/.claude/docs/build-times.md` WHY 6, WHY 20). Nobody has looked at why.
+
+**Cause, as far as measured.**
+- `server` and `ci.server-tests`: the budget is mostly a count. The suite grew 2.5 times in tests (1,109 to 2,794) after the row was set, on one fork. Flow's CI already runs two forks on these runners (`~/Sources/flow/.github/workflows/ci.yml:74`, `TEST_FORKS: "2"`, its WHY 5) and Astrolabe's weight-balanced order is ported (`server/test-weights.tsv`, "Fork balancing" above, which says to try exactly this on CI and keep it only if the job gets faster). The trial was never run.
+  `server/test-weights.tsv` (dated 2026-11-08, 272 rows for 323 classes) has no row for 51 classes, so a two-fork deal today would be only partly weighted.
+- `web`: the suite grew 1.9 times since the row was set, and the runner's thread runs a test file about 4.7 times slower than the dev machine's. Fewer or smaller tests would help, a faster thread is not ours to give, and a fourth worker or a shard is not worth it (Flow's WHY 20; the web job is not on the critical path once `server` is). Over two speeds the job is 3m03s to 5m10s and no single target fits it.
+- `e2e-static` and `web`: `npm ci` is a sixth to a half of each job on a cache hit, for a reason that is not known.
+- The nightly `e2e` (13m38s against 8m00s / 15m00s) grew from 113 tests (when the row was set) to 254 on four workers; it is not investigated further here.
+
+**Outcome.** No budget moves and no workflow changes in this commit: a budget changes only with its measurement in the same commit (below), and the rows are re-baselined once, from a sample taken after the open items. **Open, in the 1.24.0 plan (§2.6):**
+- G2: every budgeted job logs the runner (CPU model, logical CPUs, memory) in a "Runner facts" step; the web job writes vitest's JSON report and a summary (wall, sum of file times, their ratio, the slowest files and tests); the Gradle and `npm ci` steps get names a budget row can carry; and `TEST_FORKS` goes to `"2"` after `server/test-weights.tsv` is refreshed from one green single-fork run.
+  The two-fork trial is judged on the first ten green master runs after it, bucketed by CPU model, and kept only if their median is at least 20 % under 14m16s and no red run is explained by the second fork; otherwise it goes back to one fork, recorded here.
+- G3: one `npm ci --timing` run on the web and e2e workspaces, read beside the history of both lockfiles, ending in one of three outcomes: a dependency or an install script explains it and is fixed there; `node_modules` is restored from an exact-key cache and kept only if the job's median drops by at least 20 s over five runs of each runner speed; or it is runner-bound.
+- G4: the coverage floors, after the last code commit.
+- G5: the re-baseline of every `ci.*` row, the five `ci-steps` rows and the `local.*` rows from at least ten green master runs on the final workflow (target = the median rounded up to 30 s; alarm = the larger of 1.5 x target and 1.2 x the slowest run, rounded up to a minute; the sample bucketed by runner speed), the Budgets table, this entry's closing outcome and the rule in "Review cadence".
+
 ## Review cadence
 
 - Run `node scripts/timings/ci-times.mjs --branch master` at every milestone / PR, and in every
