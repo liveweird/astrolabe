@@ -17,6 +17,16 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.25.1",
+    date: "2026-11-22",
+    en: `**A new Astrolabe logo**
+
+- A mariner’s astrolabe with a wind rose appears in both app themes. The browser tab uses a simpler version that stays legible at small sizes.`,
+    pl: `**Nowe logo Astrolabe**
+
+- Astrolabium żeglarskie z różą wiatrów pojawia się w obu motywach aplikacji. Karta przeglądarki używa uproszczonej ikony, która pozostaje czytelna w małym rozmiarze.`,
+  },
+  {
     version: "1.25.0",
     date: "2026-11-22",
     en: `**Clearer planning and safer updates**

@@ -1,21 +1,88 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-labelledby="t d">
   <title id="t">Astrolabe</title>
-  <desc id="d">A stylised astrolabe: a ring with a tick scale, an off-centre rete with three star pointers, and a pivoted sighting rule.</desc>
-  <circle cx="24" cy="24" r="22" fill="#0b7285"/>
-  <g fill="none" stroke="#ffffff" stroke-linecap="round">
-    <circle cx="24" cy="24" r="17" stroke-width="2.5"/>
-    <path stroke-width="1.2" d="M28.89 5.74L29.33 4.1M33.45 7.63L34.3 6.16M37.36 10.64L38.57 9.43M40.37 14.55L41.84 13.7M42.26 19.11L43.9 18.67M42.26 28.89L43.9 29.33M40.37 33.45L41.84 34.3M37.36 37.36L38.57 38.57M33.45 40.37L34.3 41.84M28.89 42.26L29.33 43.9M19.11 42.26L18.67 43.9M14.55 40.37L13.7 41.84M10.64 37.36L9.43 38.57M7.63 33.45L6.16 34.3M5.74 28.89L4.1 29.33M5.74 19.11L4.1 18.67M7.63 14.55L6.16 13.7M10.64 10.64L9.43 9.43M14.55 7.63L13.7 6.16M19.11 5.74L18.67 4.1"/>
-    <path stroke-width="1.8" d="M24 5.4L24 3M42.6 24L45 24M24 42.6L24 45M5.4 24L3 24"/>
-    <circle cx="24" cy="20.5" r="8" stroke-width="1.6"/>
+  <desc id="d">A mariner’s astrolabe with a suspension loop, a graduated scale, and a pivoting sighting rule over a chart and wind rose.</desc>
+  <defs>
+    <linearGradient id="rim" x2="0%" y2="100%">
+      <stop stop-color="#3bc9db"/>
+      <stop offset=".55" stop-color="#1098ad"/>
+      <stop offset="1" stop-color="#0b7285"/>
+    </linearGradient>
+    <linearGradient id="dial" x2="0%" y2="100%">
+      <stop stop-color="#0c8599"/>
+      <stop offset="1" stop-color="#095c6b"/>
+    </linearGradient>
+    <clipPath id="face">
+      <circle cx="24" cy="26" r="15.7"/>
+    </clipPath>
+  </defs>
+
+  <!-- Suspension ring and cast shoulders -->
+  <circle cx="24" cy="5.4" r="3.35" fill="none" stroke="#095c6b" stroke-width="2.4"/>
+  <circle cx="24" cy="5.4" r="3.35" fill="none" stroke="url(#rim)" stroke-width="1.05"/>
+  <path d="M16.3 10.1Q19.7 9.4 21.2 7.35Q22.3 6.1 24 6.1T26.8 7.35Q28.3 9.4 31.7 10.1L30 12.8H18Z"
+        fill="#15aabf" stroke="#095c6b" stroke-width=".85" stroke-linejoin="round"/>
+  <path d="M22.5 8.6Q24 6.3 25.5 8.6" fill="none" stroke="#c5f6fa" stroke-width=".65" stroke-linecap="round"/>
+
+  <!-- Raised limb, its scale, and the engraved chart -->
+  <circle cx="24" cy="26" r="19.65" fill="#0b7285" stroke="#095c6b" stroke-width="1"/>
+  <circle cx="24" cy="26" r="18.95" fill="url(#rim)"/>
+  <circle cx="24" cy="26" r="17.98" fill="#0b7285" stroke="#99e9f2" stroke-width=".35"/>
+  <circle cx="24" cy="26" r="15.73" fill="url(#dial)" stroke="#99e9f2" stroke-width=".48"/>
+  <path d="M6.643 18.987A18.72 18.72 0 0 1 38.752 14.475" fill="none" stroke="#c5f6fa" stroke-width=".46" stroke-linecap="round"/>
+  <path d="M40.062 27.688L40.857 27.772M39.797 29.358L40.58 29.524M39.36 30.991L40.12 31.238M38.754 32.569L39.485 32.894M37.066 35.493L37.713 35.963M36.002 36.806L36.596 37.342M34.806 38.002L35.342 38.596M33.493 39.066L33.963 39.713M30.569 40.754L30.894 41.485M28.991 41.36L29.238 42.12M27.358 41.797L27.524 42.58M25.688 42.062L25.772 42.857M22.312 42.062L22.228 42.857M20.642 41.797L20.476 42.58M19.009 41.36L18.762 42.12M17.431 40.754L17.106 41.485M14.507 39.066L14.037 39.713M13.194 38.002L12.658 38.596M11.998 36.806L11.404 37.342M10.934 35.493L10.287 35.963M9.246 32.569L8.515 32.894M8.64 30.991L7.88 31.238M8.203 29.358L7.42 29.524M7.938 27.688L7.143 27.772M7.938 24.312L7.143 24.228M8.203 22.642L7.42 22.476M8.64 21.009L7.88 20.762M9.246 19.431L8.515 19.106M10.934 16.507L10.287 16.037M11.998 15.194L11.404 14.658M13.194 13.998L12.658 13.404M14.507 12.934L14.037 12.287M17.431 11.246L17.106 10.515M19.009 10.64L18.762 9.88M20.642 10.203L20.476 9.42M22.312 9.938L22.228 9.143M25.688 9.938L25.772 9.143M27.358 10.203L27.524 9.42M28.991 10.64L29.238 9.88M30.569 11.246L30.894 10.515M33.493 12.934L33.963 12.287M34.806 13.998L35.342 13.404M36.002 15.194L36.596 14.658M37.066 16.507L37.713 16.037M38.754 19.431L39.485 19.106M39.36 21.009L40.12 20.762M39.797 22.642L40.58 22.476M40.062 24.312L40.857 24.228" fill="none" stroke="#66d9e8" stroke-width=".29"/>
+  <path d="M37.986 34.075L39.285 34.825M32.075 39.986L32.825 41.285M15.925 39.986L15.175 41.285M10.014 34.075L8.715 34.825M10.014 17.925L8.715 17.175M15.925 12.014L15.175 10.715M32.075 12.014L32.825 10.715M37.986 17.925L39.285 17.175" fill="none" stroke="#c5f6fa" stroke-width=".53"/>
+  <g fill="#c5f6fa">
+    <polygon points="24 7.85 24.7 9 24 10.15 23.3 9" transform="rotate(0 24.0 9.0)"/>
+    <polygon points="41 24.85 41.7 26 41 27.15 40.3 26" transform="rotate(90 41.0 26.0)"/>
+    <polygon points="24 41.85 24.7 43 24 44.15 23.3 43" transform="rotate(180 24.0 43.0)"/>
+    <polygon points="7 24.85 7.7 26 7 27.15 6.3 26" transform="rotate(270 7.0 26.0)"/>
   </g>
-  <path fill="#ffffff" d="M30.59 22.3 C32.82 21.5 36.12 22.1 39.5 23.3 C37.01 24.5 34.33 25.8 30.59 25.7 Z M23.38 28.47 C22.66 31.32 20.05 34.65 16.86 37.77 C17.4 34.43 17.98 30.83 20.44 26.77 Z M17.41 15.98 C16.06 15.24 15.6 13.26 15.64 10.93 C17.42 11.6 19.34 12.32 20.35 14.28 Z"/>
-  <g transform="rotate(-32 24 24)">
-    <rect x="6.5" y="22.1" width="35" height="3.8" rx="1.9" fill="#0b7285"/>
-    <rect x="5.7" y="20.1" width="2.6" height="7.8" rx="1.3" fill="#0b7285"/>
-    <rect x="39.7" y="20.1" width="2.6" height="7.8" rx="1.3" fill="#0b7285"/>
-    <rect x="7" y="22.6" width="34" height="2.8" rx="1.4" fill="#ffffff"/>
-    <rect x="6.4" y="20.6" width="1.6" height="6.8" rx="0.8" fill="#ffffff"/>
-    <rect x="40" y="20.6" width="1.6" height="6.8" rx="0.8" fill="#ffffff"/>
+  <g clip-path="url(#face)" fill="none" stroke="#1098ad" stroke-width=".42" opacity=".78">
+    <ellipse cx="24" cy="26" rx="16.8" ry="8.6" transform="rotate(-22 24 26)"/>
+    <ellipse cx="24" cy="26" rx="8.4" ry="16.4" transform="rotate(-22 24 26)"/>
+    <circle cx="24" cy="26" r="11.35" stroke-dasharray="1.25 1.1"/>
   </g>
-  <circle cx="24" cy="24" r="2.4" fill="#0b7285" stroke="#ffffff" stroke-width="1.2"/>
+  <g fill="#99e9f2">
+    <polygon points="16 16.55 16.48 18 16 19.45 15.52 18"/>
+    <polygon points="16 17.57 17.2 18 16 18.43 14.8 18"/>
+    <polygon points="33.5 33.6 33.95 34.7 33.5 35.8 33.05 34.7"/>
+    <polygon points="33.5 34.31 34.53 34.7 33.5 35.09 32.47 34.7"/>
+    <circle cx="29.6" cy="16.5" r=".42"/>
+    <circle cx="13.7" cy="29.65" r=".37"/>
+  </g>
+
+  <!-- Faceted wind rose -->
+  <g>
+    <polygon points="24 12.2 20.995 22.995 24 26" fill="#e3fafc"/>
+    <polygon points="24 12.2 27.005 22.995 24 26" fill="#15aabf"/>
+    <polygon points="30.152 19.848 24 21.75 24 26" fill="#3bc9db"/>
+    <polygon points="30.152 19.848 28.25 26 24 26" fill="#0c8599"/>
+    <polygon points="37.8 26 27.005 22.995 24 26" fill="#e3fafc"/>
+    <polygon points="37.8 26 27.005 29.005 24 26" fill="#15aabf"/>
+    <polygon points="30.152 32.152 28.25 26 24 26" fill="#3bc9db"/>
+    <polygon points="30.152 32.152 24 30.25 24 26" fill="#0c8599"/>
+    <polygon points="24 39.8 27.005 29.005 24 26" fill="#e3fafc"/>
+    <polygon points="24 39.8 20.995 29.005 24 26" fill="#15aabf"/>
+    <polygon points="17.848 32.152 24 30.25 24 26" fill="#3bc9db"/>
+    <polygon points="17.848 32.152 19.75 26 24 26" fill="#0c8599"/>
+    <polygon points="10.2 26 20.995 29.005 24 26" fill="#e3fafc"/>
+    <polygon points="10.2 26 20.995 22.995 24 26" fill="#15aabf"/>
+    <polygon points="17.848 19.848 19.75 26 24 26" fill="#3bc9db"/>
+    <polygon points="17.848 19.848 24 21.75 24 26" fill="#0c8599"/>
+  </g>
+
+  <!-- Alidade with pierced sights and a central bearing -->
+  <g transform="rotate(-32 24 26)">
+    <path d="M9.1 24.8H38.9L40 26L38.9 27.2H9.1L8 26Z"
+          fill="#15aabf" stroke="#095c6b" stroke-width="1.05" stroke-linejoin="round"/>
+    <path d="M9.8 25.04H38.2" stroke="#c5f6fa" stroke-width=".8" stroke-linecap="round"/>
+    <path fill-rule="evenodd" fill="#99e9f2" stroke="#095c6b" stroke-width=".56" stroke-linejoin="round"
+          d="M8.85 23.1H11.6V28.9H8.85Z M9.61 24.02H10.83V27.18H9.61Z
+             M36.4 23.1H39.15V28.9H36.4Z M37.17 24.02H38.39V27.18H37.17Z"/>
+    <path d="M13.5 25.2v1m2.1-1v.65m2.1-.65v1m2.1-1v.65m8.4-.65v.65m2.1-.65v1m2.1-1v.65m2.1-.65v1"
+          fill="none" stroke="#095c6b" stroke-width=".36"/>
+  </g>
+  <circle cx="24" cy="26" r="3.1" fill="#66d9e8" stroke="#095c6b" stroke-width=".85"/>
+  <circle cx="24" cy="26" r="1.92" fill="#0b7285"/>
+  <circle cx="23.8" cy="25.8" r="1.12" fill="#c5f6fa"/>
 </svg>
