@@ -2542,9 +2542,9 @@ The rules (restrained cyan, neutral defaults, success green, overlay close names
 
 ### The logo
 
-The logo SVGs (`public/logo-{light,dark}.svg` + `public/favicon.svg`; rendered by `components/BrandLogo.tsx`) are the brand mark: a stylised **astrolabe** on a 48×48 grid (disc, limb ring with ticks,
-off-centre rete ring, alidade, pivot). The favicon is simplified so it survives 16 px; check both in both colour schemes. The geometry is computed (ticks on a circle): change it in a vector editor or
-regenerate it, not by hand-editing path data. Restyle rule: keep aria-labels, roles and real semantic elements stable, since e2e and unit tests locate by role/name.
+`components/BrandLogo.tsx` selects `public/logo-{light,dark}.svg` for the app theme. The marks depict a mariner’s astrolabe with a suspension loop, a graduated rim, and a sighting rule over a wind rose and chart lines.
+`web/index.html` declares `public/favicon.svg` as the single browser-tab icon for both themes. It keeps the loop, rim, and four-point rose legible at 16 px. Check the app logos and favicon in both colour schemes.
+The geometry is computed: change it in a vector editor or regenerate it, not by hand-editing path data. Restyle rule: keep aria-labels, roles and real semantic elements stable, since e2e and unit tests locate by role/name.
 
 ## Not yet ported
 
