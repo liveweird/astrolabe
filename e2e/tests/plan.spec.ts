@@ -23,7 +23,7 @@ async function seed(api: APIRequestContext, path: string, data: object, tear: st
 
 /** Type an ISO date and leave the field by clicking the dialog title: Tab would focus the next date input and open its calendar over the footer. */
 async function fillDate(dialog: Locator, label: string, value: string): Promise<void> {
-  await dialog.getByLabel(label).fill(value);
+  await dialog.getByRole("textbox", { name: label, exact: true }).fill(value);
   await dialog.getByRole("heading").first().click();
 }
 
@@ -95,20 +95,21 @@ test("admin builds a work stream, a program and a project, assigns owners, and d
   await expect(table.getByRole("row", { name: new RegExp(projectName) })).toContainText(ben);
   await expect(table.getByRole("row", { name: new RegExp(projectName) })).toContainText("2026-02-02 – 2026-03-31");
 
-  // Hand the project over to the first person and rename it (the full-replace PUT of the fields).
+  // Hand the project over, rename it and extend the target window in the same save.
   const renamed = `${projectName}-renamed`;
   await rowOperation(page, projectName, `Edit ${projectName}`);
   dialog = page.getByRole("dialog");
   await dialog.getByLabel("Name").fill(renamed);
   await dialog.getByLabel("Clear the owner").click();
   await pickOwner(page, dialog, anna);
+  await fillDate(dialog, "Target end", "2026-04-15");
   await Promise.all([
-    page.waitForResponse((r) => r.request().method() === "PUT" && /\/api\/v1\/projects\/\d+$/.test(r.url()) && r.ok()),
+    page.waitForResponse((r) => r.request().method() === "PUT" && /\/api\/v1\/projects\/\d+\/details$/.test(r.url()) && r.ok()),
     dialog.getByRole("button", { name: "Save", exact: true }).click(),
   ]);
   const row = table.getByRole("row", { name: new RegExp(renamed) });
   await expect(row).toContainText(anna);
-  await expect(row).toContainText("2026-02-02 – 2026-03-31");
+  await expect(row).toContainText("2026-02-02 – 2026-04-15");
 
   // A parent with children refuses to go (the server's 409, said in words); bottom-up deletion works.
   await rowOperation(page, streamName, `Delete ${streamName}`);

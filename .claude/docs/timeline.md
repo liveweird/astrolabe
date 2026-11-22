@@ -33,7 +33,7 @@ Files: all flat under `web/src/`.
 - A read-only tone (`ghost`, `summary`, `proposal`, `baseline`, `jira`) is ignored by an editable bar; `window` is honoured on both.
 - An optimistic step keeps the server-derived figures untouched (`span`, `drift`, `idleGaps`, `slackDays`, `critical`, `criticalPath`, the dependency checks, `weeks`, the `baseline` block); the refetch brings the new ones.
 - With no pick or toggle on, an overlay leaves the DOM exactly as it was (pinned by the pages' tests).
-- Rows virtualise only above `virtualizeFrom` (80), positioned with `top`, never `transform`; the time axis is not virtualised.
+- Rows virtualise only above `virtualizeFrom` (80), positioned with `top`, never `transform`. The track keeps its full coordinate width; only header cells on tracks wider than `HEADER_WINDOW_THRESHOLD_PX` (12,000 px) are windowed to the visible dates plus overscan.
 - Deliberate departures from the bootstrap sketch: a div grid, not a `<table>` (virtual rows are absolutely positioned); `top`, not `translateY`; the tray's and the row's drag handles are pointer-only (the Schedule button and the row menu's Move items are the keyboard paths).
 - One timeline per page: `TIMELINE_DROP_ID`, `TIMELINE_ROW_DROP_ID`, the `DndContext` id and the arrow marker ids are fixed.
 - Measured figures are one-off and NON-BINDING; re-measure rather than quote.
@@ -53,9 +53,11 @@ of its first day to the RIGHT edge of its last: `left = xOf(start)`, `width = (e
 
 **Which zooms a page offers** is its own list: `MILESTONE_ZOOMS` (`week`, `month`, `quarter` — the project and team pages, the `Timeline`'s default `zooms`) and `PLAN_ZOOMS` (`month`, `quarter`, `year` — the roadmap and programs pages). The toolbar renders exactly the `zooms` prop, and a page validates its stored zoom against its own list (`isOneOf(MILESTONE_ZOOMS)`), so a `year` stored by a plan page never reaches a milestone page. The load strip treats `year` like `quarter` (type-complete; the strip is never shown there).
 Labels are language-neutral (`formatDate.ts` rule). Groups and cells each PARTITION the range and are clipped to it (a week or month crossing the range edge is a shorter cell, never dropped); a cell may straddle two groups (a week across a month boundary).
+An ordinary track renders that whole partition exactly as before. A track wider than 12,000 px renders `headerWindow(...)`: the visible track dates plus at least 800 px (or one visible track width) on each side. Cells still use `scale.xOf` against the FULL range, so bars, labels, today and drop arithmetic keep one coordinate system. `TimelineHeader` alone observes horizontal scroll and resize on this wide path; rows and the parent Timeline do not re-render for a header scroll.
 `defaultRange(dates, today, zoom)` is the range a page opens with: min/max of the dates ∪ today, padded and snapped as above. **A date the page does not own never stretches it unbounded:** the Jira dates are external input (the server accepts any date from 1900 to 2999, so a mistyped 2206 would otherwise give every user a track of hundreds of thousands of pixels, and the grow-only range could not be undone by the toggle), so they join the range only inside the Jira window (`jiraWindow`, "The Jira markers").
 **The page owns the range and keeps it stable across edits** (compute it from the first load, only ever grow it):
 a range recomputed from every drag would shift every bar under the pointer. `scrollLeftToCenter` backs the toolbar's Today.
+`hooks/useLocalToday.ts` owns the browser-local day used by every timeline: one timeout rolls it over at the next LOCAL midnight, and focus / return to a visible tab catches up after browser timer throttling. Project and team Schedule buttons read `localIsoDate()` again at the click, so a page cannot submit yesterday even before the rollover render commits; `usePlanScale` uses the same hook for Roadmap and Programs.
 
 ## Data contract
 
@@ -263,8 +265,12 @@ so a classic scrollbar is excluded, and scrolls the difference, never further th
 
 The body is at least `MIN_BODY_ROWS` (3) rows tall even with fewer rows, so an empty or nearly empty timeline still has an area to drop an Unscheduled item on (the drop zone is as tall as the body). Rows are virtualised with `@tanstack/react-virtual` (`useVirtualizer`; fixed 36 px rows, `overscan` 8, the `ScrollRegion` as the scroller, `scrollMargin` = the header's height, `headerHeight()`: 56 px, 92 with a strip) **only when `rows.length > virtualizeFrom`** (default 80). Both paths mount the same `TimelineRow`; the virtual one gives
 each row `position: absolute; top: index × 36` inside a body of `rows × 36` px (`top`, not `transform`: a transform makes a stacking context per row and the sticky left cells could not rise above the today line and overlay). The project view (10–50 rows) never virtualises; the team view (up to ~270 rows)
-and the roadmap (~100 rows) and fully expanded programs tree (~125) do. **↑/↓ and Ctrl+Home/End at an unmounted row** are taken by the Timeline: it `scrollToIndex`es, remembers the wanted cell and focuses it (or the nearest cell to its left) in a layout effect as soon as the row mounts; that wish is dropped by any other key, a focus elsewhere, or a scroll by hand (wheel, touch, pointer, a key on the scroller), so it cannot steal focus later. `scrollToIndex` lands the row below the sticky header (`scrollPaddingStart`). Horizontal (time-axis) virtualisation
-is NOT built: a range is bounded by the project's span plus padding, the hatch is one periodic CSS background per row and the today line one element, so the only per-day DOM is the header's day cells (`BACKLOG.md`: the time-axis item; the plan pages measure 1,826-4,872 px of track, "Measured figures").
+and the roadmap (~100 rows) and fully expanded programs tree (~125) do. **↑/↓ and Ctrl+Home/End at an unmounted row** are taken by the Timeline: it `scrollToIndex`es,
+remembers the wanted cell and focuses it (or the nearest cell to its left) in a layout effect as soon as the row mounts; that wish is dropped by any other key, a focus
+elsewhere, or a scroll by hand (wheel, touch, pointer, a key on the scroller), so it cannot steal focus later. `scrollToIndex` lands the row below the sticky header
+(`scrollPaddingStart`). Horizontal tracks are NOT virtualised: bands, bars, hatch and drop coordinates keep the full scale. The header's date/group cells alone are
+windowed above 12,000 px; the sticky left captions remain mounted, and the decorative date rows follow the scroller with overscan. The 2040–2999 regression in
+`Timeline.test.tsx` pins a bounded cell count and reveals `2999-Q4` after a distant scroll.
 
 ## Hatching and styling
 

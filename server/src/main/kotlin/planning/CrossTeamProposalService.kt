@@ -1,6 +1,7 @@
 package ch.nokillswit.planning
 
 import ch.nokillswit.infra.db.active
+import ch.nokillswit.infra.db.normalizedLower
 import ch.nokillswit.teams.TeamService
 import io.ktor.server.plugins.BadRequestException
 import io.ktor.util.AttributeKey
@@ -12,6 +13,8 @@ import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 import java.time.LocalDate
 
 val CrossTeamProposalServiceKey = AttributeKey<CrossTeamProposalService>("CrossTeamProposalService")
+
+private const val MAX_RUNNABLE_TEAMS = 1_000
 
 /**
  * The cross-team schedule run (1.8.0, `POST /schedule-proposals`) and the teams a caller may include in one: reads, no lock, no audit.
@@ -97,15 +100,23 @@ class CrossTeamProposalService(private val database: R2dbcDatabase) {
      * ones [PlanPermissions.canSchedule] allows (the actor must have been built with its managed teams). The page's multi-select; the
      * server's 403 on `POST /schedule-proposals` stays the rule.
      */
-    suspend fun runnableTeams(actor: PlanActor): ProposalTeamList {
+    suspend fun runnableTeams(actor: PlanActor): ProposalTeamList = runnableTeams(actor, MAX_RUNNABLE_TEAMS)
+
+    internal suspend fun runnableTeams(actor: PlanActor, limit: Int): ProposalTeamList {
+        require(limit in 1..MAX_RUNNABLE_TEAMS)
+        if (!actor.isAdmin && actor.managedTeamIds.isEmpty()) return ProposalTeamList(emptyList(), truncated = false)
         val teams = TeamService.Teams
         val rows = suspendTransaction(database) {
-            teams.select(teams.id, teams.name).where { teams.active() }.toList().map { it[teams.id].value to it[teams.name] }
+            val eligible = if (actor.isAdmin) teams.active() else teams.active() and (teams.id inList actor.managedTeamIds)
+            teams.select(teams.id, teams.name)
+                .where { eligible }
+                .orderBy(teams.name.normalizedLower() to SortOrder.ASC, teams.id to SortOrder.ASC)
+                .limit(limit + 1)
+                .toList()
         }
         return ProposalTeamList(
-            rows.filter { (id, _) -> PlanPermissions.canSchedule(actor, id) }
-                .sortedWith(compareBy<Pair<UInt, String>>({ it.second.lowercase() }, { it.first }))
-                .map { (id, name) -> ProposalTeam(id, name) },
+            items = rows.take(limit).map { row -> ProposalTeam(row[teams.id].value, row[teams.name]) },
+            truncated = rows.size > limit,
         )
     }
 }

@@ -240,7 +240,7 @@
   },
   "empty": {
     "noConnections": "Nie skonfigurowano jeszcze żadnego połączenia z Jirą.",
-    "noConnectionsAdmin": "Dodaj je w sekcji Administracja, Jira.",
+    "noConnectionsAdmin": "Dodaj je w sekcji Integracje, Jira.",
     "noConnectionsUser": "Najpierw musi je dodać administrator/ka.",
     "noBindings": "Nic nie jest jeszcze powiązane z Jirą.",
     "noBindingsHint": "Powiąż projekt lub kamień milowy na stronie projektu (Powiąż z Jirą…).",

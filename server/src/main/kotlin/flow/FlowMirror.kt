@@ -31,8 +31,11 @@ data class FlowMirrorTeam(
     val members: List<FlowMirrorMember>,
 )
 
-/** A Flow team's last-observed instant and its sprints, read together ([FlowMirrorStore.teamSprintsOf]). */
-data class FlowMirrorTeamSprints(val observedAt: Long, val sprints: List<FlowMirrorSprint>)
+/**
+ * A Flow team's last-observed instant and its sprints, read together ([FlowMirrorStore.teamSprintsOf]). [sprintsComplete] is false when
+ * Flow cut the document at its global sprint cap, or when the row predates V31 and no complete refresh has established authority yet.
+ */
+data class FlowMirrorTeamSprints(val observedAt: Long, val sprintsComplete: Boolean, val sprints: List<FlowMirrorSprint>)
 
 /** A sprint of a Flow team. [capacityMd] is a TOTAL for the sprint whatever its [capacitySource]; null = no capacity at all. */
 data class FlowMirrorSprint(

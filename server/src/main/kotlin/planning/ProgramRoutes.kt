@@ -3,7 +3,6 @@ package ch.nokillswit.planning
 import ch.nokillswit.audit.audit
 import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.orNotFound
-import ch.nokillswit.infra.db.orVanished
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource
@@ -95,7 +94,8 @@ internal fun Route.programRoutes(d: PlanRouteDeps) {
         d.requireOwner(caller, d.structure.programs.chain(programId), PROGRAM)
         val request = call.receive<ProjectCreateRequest>().sanitized()
         validateProjectCreate(request)
-        val id = d.structure.projects.create(programId, request, d.ownerGuard(caller))
+        val created = d.structure.projects.createResponse(programId, request, d.ownerGuard(caller))
+        val id = created.id
         audit(
             "project.created",
             "byUserId" to caller.userId.toLong(),
@@ -105,6 +105,6 @@ internal fun Route.programRoutes(d: PlanRouteDeps) {
             "ownerPersonId" to request.ownerPersonId.toLong(),
         )
         call.response.header(HttpHeaders.Location, call.application.href(ProjectsRoute.Id(id = id)))
-        call.respond(HttpStatusCode.Created, d.structure.projects.read(id).orVanished("Project", id))
+        call.respond(HttpStatusCode.Created, created)
     }
 }

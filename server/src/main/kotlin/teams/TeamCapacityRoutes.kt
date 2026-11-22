@@ -6,7 +6,6 @@ import ch.nokillswit.authz.NotFoundException
 import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.authz.requireTeamManagerOrAdmin
-import ch.nokillswit.infra.db.orVanished
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource
@@ -66,7 +65,8 @@ internal fun Route.teamCapacityRoutes(teams: TeamService, capacity: TeamCapacity
         requireTeamManagerOrAdmin(caller, teamId, teams::isActiveManager)
         val values = validateCapacityPeriod(call.receive<CapacityPeriodRequest>())
         val trail = CapacityWriteTrail()
-        val id = capacity.create(teamId, values, trail, guard(caller))
+        val created = capacity.createResponse(teamId, values, trail, guard(caller))
+        val id = created.id
         audit(
             "team.capacity_period_created",
             "byUserId" to caller.userId.toLong(),
@@ -78,7 +78,7 @@ internal fun Route.teamCapacityRoutes(teams: TeamService, capacity: TeamCapacity
         )
         trail.told(caller.userId)
         call.response.header(HttpHeaders.Location, call.application.href(CapacityPeriodsRoute.Id(id = id)))
-        call.respond(HttpStatusCode.Created, capacity.read(id).orVanished(PERIOD, id))
+        call.respond(HttpStatusCode.Created, created)
     }
     get<CapacityPeriodsRoute.Id> { route ->
         call.caller()

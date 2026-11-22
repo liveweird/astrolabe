@@ -164,8 +164,8 @@
     "allLinked": "Every Flow team of this connection is linked already.",
     "loading": "Loading the Flow teams…",
     "notRead": "This connection has not read Flow yet. An administrator refreshes it on the connection page first.",
-    "noConnection": "No Flow connection exists yet. An administrator adds one under Administration, Flow.",
-    "noEnabledConnection": "Every Flow connection is disabled. An administrator enables one under Administration, Flow.",
+    "noConnection": "No Flow connection exists yet. An administrator adds one under Integrations, Flow.",
+    "noEnabledConnection": "Every Flow connection is disabled. An administrator enables one under Integrations, Flow.",
     "submit": "Link"
   },
   "roster": {
@@ -196,6 +196,7 @@
     "includeClosed": "Include closed sprints",
     "loadFailed": "Could not load the import preview",
     "empty": "Nothing to import: Flow lists no sprints for this team in this range.",
+    "incomplete": "Flow's sprint data is incomplete. Refresh the Flow connection, wait for the refresh to finish, then reopen this import.",
     "previewAria": "Capacity import preview",
     "removalsTitle": "Periods that would be removed",
     "removalsIntro": "Flow periods imported earlier that no sprint reuses now. Nothing is removed unless you tick it. Removing a period without importing its sprint's new row leaves the earlier sprint's figure in force over those days.",

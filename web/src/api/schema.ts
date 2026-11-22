@@ -651,8 +651,8 @@ export interface paths {
          */
         get: operations["getProject"];
         /**
-         * Replace a project's fields and owner
-         * @description Replaces a project's name, description and owner. An owner on the project's chain (the project's own owner included) or ADMIN; `404` before `403` before the body. The parent program (`POST /projects/{id}/move`) and the target window (its own operation) never change here. Any caller who may edit may reassign the owner to another active person (`400` otherwise). A name clash within the program is `409`.
+         * Replace a project's fields
+         * @description Replaces a project's name, description and owner. An owner on the project's chain (the project's own owner included) or ADMIN; `404` before `403` before the body. Any caller who may edit may reassign the owner to another active person (`400` otherwise). Use `PUT /projects/{id}/details` to replace the fields and target window together. Move to another program with `POST /projects/{id}/move`. A name clash within the program is `409`.
          */
         put: operations["updateProject"];
         post?: never;
@@ -661,6 +661,28 @@ export interface paths {
          * @description Soft-deletes a project and frees its name. An owner on the project's chain (the project's own owner included) or ADMIN; `404` before `403`. Its active milestones, and every active dependency with an end at the project or at one of its milestones, are deleted with it in the same write (no `409`). The project leaves the roadmap ranking.
          */
         delete: operations["deleteProject"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/details": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace a project's fields and target window together
+         * @description Replaces the project's name, description, owner and target window in one transaction. The caller needs both project field and target-window edit permissions; `404` before `403` before the body. Both date keys are required. Send both as `null` to clear the window. A name clash within the program is `409`.
+         */
+        put: operations["updateProjectDetails"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1280,7 +1302,7 @@ export interface paths {
         };
         /**
          * List the teams the caller may include in a cross-team run
-         * @description Lists the active teams the caller may name in a cross-team run: every active team for an ADMIN, otherwise the teams the caller currently manages (none = an empty list). Any authenticated caller. By name case-insensitively, then id; a bounded `{items}` list, not paged. The run itself still answers `403` for any other team.
+         * @description Lists the active teams the caller may name in a cross-team run: every active team for an ADMIN, otherwise the teams the caller currently manages (none = an empty list). Any authenticated caller. The first 1,000 teams by case-insensitive name, then id. `truncated` indicates more eligible teams. The run itself still answers `403` for any team the caller may not manage.
          */
         get: operations["listScheduleProposalTeams"];
         put?: never;
@@ -1950,7 +1972,7 @@ export interface paths {
         put?: never;
         /**
          * Preview importing a bound Flow team's sprint capacity
-         * @description Computes what importing the bound Flow team's mirrored sprints would do to the team's capacity periods, from one read-only snapshot of the holiday calendar, the mirror and the team's ACTIVE periods. Nothing is stored and Flow is never called. The binding's team's ACTIVE manager or ADMIN. Order: `404` for every caller when the binding is unknown or unlinked or its team was deleted; `403`; then `400` for an undecodable body or a malformed or out-of-range `from`. A sprint's man-days are spread over its working days (public holidays off), so the weekly capacity adds up to Flow's figure within rounding: `mdPerWeek = round2(5 x flowMd / workingDays)`, one period per sprint from its `effectiveFrom`. Each sprint is `CREATE`, `UPDATE`, `UNCHANGED`, `MANUAL_PERIOD` (a hand-entered period starts on that day and is never changed) or `SKIP` with a `reason`. `from` (default: today in the connection's time zone) is the first day the import is about: a sprint that ended before it is closed, listed only with `includeClosed` and never ticked. A Flow team missing from the mirror answers an empty plan with `observedAt` null; a disabled connection still previews.
+         * @description Previews importing mirrored sprints into the bound team's capacity periods from one read-only snapshot. It makes no Flow call. The binding's team's ACTIVE manager or ADMIN. Order: `404` for every caller when the binding is unknown or unlinked or its team was deleted; `403`; then `400` for an undecodable body or a malformed or out-of-range `from`. A sprint's man-days are spread over its working days (public holidays off), so the weekly capacity adds up to Flow's figure within rounding: `mdPerWeek = round2(5 x flowMd / workingDays)`, one period per sprint from its `effectiveFrom`. Each sprint is `CREATE`, `UPDATE`, `UNCHANGED`, `MANUAL_PERIOD` (a hand-entered period starts on that day and is never changed) or `SKIP` with a `reason`. `from` (default: today in the connection's time zone) is the first day the import is about: a sprint that ended before it is closed, listed only with `includeClosed` and never ticked. An absent team (`observedAt` null) or incomplete sprint snapshot answers an empty plan. A disabled connection still previews a complete snapshot.
          */
         post: operations["previewFlowCapacityImport"];
         delete?: never;
@@ -1972,7 +1994,7 @@ export interface paths {
         put?: never;
         /**
          * Apply the ticked rows of a capacity-import preview
-         * @description Applies the rows ticked in a capacity-import preview to the team's capacity periods. The binding's team's ACTIVE manager or ADMIN; the order is the preview's: `404` for every caller when the binding is unknown or unlinked or its team was deleted, `403`, then `400` for the body (at most 2,000 `items` and 2,000 `removals`; a sprint or a period named twice is refused). The guard is re-run under the team's lock, so a manager cleared while the request waited is `403` and nothing is written (`404` if the team was deleted meanwhile). Team data, not plan state: no plan revision moves, and Flow is never called. The plan is recomputed from the mirror as it is now, with the echoed `from` and `includeClosed`. An item is written only when that plan still says what its `expected` says, a removal only when its period is a Flow-sourced removal of that plan; otherwise the row is `skipped` with the reason `CHANGED` (data in a `200`). A hand-entered (`MANUAL`) period is never changed or removed. Writes run removals first (soft delete), then updates (the figure, sprint id and sprint name; the WIP limit is kept), then creates (a `FLOW` period on `effectiveFrom`).
+         * @description Applies the rows ticked in a capacity-import preview to the team's capacity periods. The binding's team's ACTIVE manager or ADMIN; the order is the preview's: `404` for every caller when the binding is unknown or unlinked or its team was deleted, `403`, then `400` for the body (at most 2,000 `items` and 2,000 `removals`; a sprint or a period named twice is refused). The guard is re-run under the team's lock, so a manager cleared while the request waited is `403` and nothing is written (`404` if the team was deleted meanwhile). Team data, not plan state: no plan revision moves, and Flow is never called. The plan is recomputed from the mirror as it is now, with the echoed `from` and `includeClosed`. An item is written only when that plan still says what its `expected` says, a removal only when its period is a Flow-sourced removal of that plan; otherwise the row is `skipped` with the reason `CHANGED`. An incomplete snapshot skips every row. A `MANUAL` period is never changed. Writes run removals first (soft delete), then updates (the figure, sprint id and sprint name; the WIP limit is kept), then creates (a `FLOW` period on `effectiveFrom`).
          */
         post: operations["applyFlowCapacityImport"];
         delete?: never;
@@ -2977,6 +2999,26 @@ export interface components {
              * @description The owner, an active person of the people directory (`400` otherwise).
              */
             ownerPersonId: number;
+        };
+        ProjectDetailsRequest: {
+            name: string;
+            /** @description Omitted on PUT (a full replace) = none. */
+            description?: string | null;
+            /**
+             * Format: int32
+             * @description The owner, an active person of the people directory (`400` otherwise).
+             */
+            ownerPersonId: number;
+            /**
+             * Format: date
+             * @description Both dates or both null.
+             */
+            targetStart: string | null;
+            /**
+             * Format: date
+             * @description Both dates or both null; not before `targetStart`.
+             */
+            targetEnd: string | null;
         };
         ProgramMoveRequest: {
             /**
@@ -4972,9 +5014,11 @@ export interface components {
             /** @description The links touching the team (an end among its milestones, or a project end holding one of them whose span changes) whose verdict is or was VIOLATED - on the stored dates or with the items applied; violated-after first. A link between two listed teams is in both blocks. */
             dependencies: components["schemas"]["ScheduleProposalLink"][];
         };
-        /** @description The teams a cross-team run may include - bounded by the active teams (about 15), not paged. */
+        /** @description The first 1,000 active teams the caller may include in a cross-team run, ordered by name and then id. */
         ProposalTeamList: {
             items: components["schemas"]["TeamRef"][];
+            /** @description True when additional eligible teams were left out. */
+            truncated: boolean;
         };
         /** @description RFC 7807 problem detail. Served as `application/problem+json`; instance is the request path without query parameters. */
         ProblemDetail: {
@@ -6218,6 +6262,8 @@ export interface components {
              * @description Epoch millis the mirror last saw the Flow team; null when the team is not in the mirror (then `items` and `removals` are empty).
              */
             observedAt: number | null;
+            /** @description True when the team's mirrored sprint snapshot is complete. False when the team is absent, the snapshot was truncated or it predates completeness tracking. In that case items and removals are empty and the totals are zero. */
+            sprintsComplete: boolean;
             /** @description The connection's IANA time zone id every date is in. */
             zone: string;
             /**
@@ -8329,6 +8375,38 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    updateProjectDetails: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectDetailsRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
             500: components["responses"]["InternalServerError"];
         };
     };

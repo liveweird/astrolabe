@@ -714,6 +714,18 @@ describe("Team view page: scheduling", () => {
     expect(schedulePuts(mockFetch)[0]).toEqual({ expectedRevision: 10, startDate: "2026-12-01", endDate: "2026-12-07" });
   });
 
+  test("Schedule reads the local day at click time when the page stayed open across midnight", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 11, 1, 23, 59));
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderPage();
+    await screen.findByRole("grid", { name: "Team milestone timeline" });
+    vi.setSystemTime(new Date(2026, 11, 2, 0, 1));
+    await user.click(screen.getByRole("button", { name: "Schedule tv-tray" }));
+    await waitFor(() => expect(schedulePuts(mockFetch)).toHaveLength(1));
+    expect(schedulePuts(mockFetch)[0]).toEqual({ expectedRevision: 10, startDate: "2026-12-02", endDate: "2026-12-08" });
+  });
+
   test("a stale 409 on a schedule write rolls back and says THIS milestone moved", async () => {
     schedulePut = { status: 409, body: STALE };
     renderPage();

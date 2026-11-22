@@ -29,7 +29,7 @@
 ## Scenario: a regular user reads the 2040 holidays but cannot change them
 
 1. The administrator adds a holiday on 2040-05-02 through the API. A throwaway regular user signs in and follows **Public holidays** in the
-   Administration group of the navigation.
+   Teams and capacity group of the navigation.
    - *Expected*: the page opens at `/public-holidays` with the read-only hint "The list is maintained by administrators."
 2. They pick 2040 in the Year picker.
    - *Expected*: the table has the 2040-05-02 row; there is no add strip (no Date textbox, no Add holiday button), no Polish-preset button
@@ -38,13 +38,13 @@
 ## Scenario: a holiday on the Monday after a finish moves the dependency's needed date and tints the header day; deleting it restores both
 
 1. The administrator seeds, through the API, project A with a1 scheduled Monday to Friday 2040-01-30..02-03 and project B with b1 scheduled
-   2040-02-06..10, and the finish-to-start link a1 -> b1 (lag 0): b1 starts the working day after a1 ends. They open project B.
+   2040-02-06..10, and the finish-to-start link a1 -> b1 (lag 0): b1 starts the working day after a1 ends. They open project B and scroll the timeline to b1.
    - *Expected*: the Dependencies row of a1 reads "OK" and "needs 2040-02-06 · is 2040-02-06"; no header day cell is named as a holiday.
-2. They add a holiday on 2040-02-06 (the Monday) through the API and reload the page.
+2. They add a holiday on 2040-02-06 (the Monday) through the API, reload the page and scroll back to b1.
    - *Expected*: the row still reads "OK" but now "needs 2040-02-07" (the next working day after a1's end, the Monday being a day off);
      exactly one week-zoom header day cell has `data-holiday` and the title "Public holiday: <name>"; the visually hidden paragraph
      "Public holidays shown: …" is present (the header and tracks are aria-hidden, so it is the accessible surface; which holidays it names
      depends on how many the stack holds - past a handful it lists only the next few - so only its presence is asserted here and its
      content is pinned in `Timeline.test.tsx`).
-3. They delete the holiday through the API and reload.
+3. They delete the holiday through the API, reload and scroll back to b1.
    - *Expected*: the row reads "needs 2040-02-06 · is 2040-02-06" again and no header day cell is a holiday.

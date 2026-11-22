@@ -1,4 +1,5 @@
 {
+  "teamsTruncated": "Lista pokazuje pierwsze 1000 dostępnych zespołów. Aby zaproponować harmonogram dla innego zespołu, otwórz jego stronę.",
   "title": "Propozycje harmonogramu",
   "intro": "Zaproponuj terminy dla kilku zespołów naraz. Zespoły są układane w kolejności zależności, każdy przy założeniu, że terminy wcześniej ułożonych zespołów są stałe, aż terminy przestaną się zmieniać. Nic się nie zmieni, dopóki nie zaakceptujesz propozycji.",
   "teams": "Zespoły",

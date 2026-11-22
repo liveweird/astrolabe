@@ -13,9 +13,8 @@ import java.time.LocalDate
 /**
  * Projects (V12), the third level: a name (unique among active projects of the SAME program), an optional description, a REQUIRED
  * owner and an optional target window (both dates or neither, end not before start). The parent program is set at create
- * (`POST /programs/{id}/projects`) and changes only through `POST /projects/{id}/move` ([ProjectMoveRequest]). The window is NOT part
- * of the field update: it has its own wider-audience endpoint (`PUT /projects/{id}/target-window` — the owners above the project and
- * the roadmap editors, `authorization.md`); creators are always window editors, so the create body may carry it.
+ * (`POST /programs/{id}/projects`) and changes only through `POST /projects/{id}/move` ([ProjectMoveRequest]). The window has its
+ * own permission and endpoint; an update that includes both fields and a window must pass both guards.
  */
 @Serializable
 data class ProjectCreateRequest(
@@ -27,12 +26,22 @@ data class ProjectCreateRequest(
     val targetEnd: String? = null,
 )
 
-/** The project's own fields — no window (that is [TargetWindowRequest]). PUT is a full replace: an omitted description is unset. */
+/** Replaces the project's fields. An omitted description clears it. */
 @Serializable
 data class ProjectUpdateRequest(
     val name: String,
     val description: String? = null,
     val ownerPersonId: UInt,
+)
+
+/** Replaces the project's fields and target window in one write. */
+@Serializable
+data class ProjectDetailsRequest(
+    val name: String,
+    val description: String? = null,
+    val ownerPersonId: UInt,
+    val targetStart: String?,
+    val targetEnd: String?,
 )
 
 /** PUT is a full replace: omitting both clears the window; one without the other is a 400. */
@@ -89,7 +98,7 @@ data class ProjectListResult(val items: List<ProjectListItem>, val total: Long)
 data class TargetWindow(val start: LocalDate, val end: LocalDate)
 
 /** What a field update replaced, for the audit delta: the STORED owner before the write. */
-data class ProjectUpdateOutcome(val ownerFrom: UInt)
+data class ProjectUpdateOutcome(val ownerFrom: UInt, val windowFrom: TargetWindow?, val windowTo: TargetWindow?)
 
 /** What a project delete cascaded, for the audit: the ACTIVE milestones' count and the ACTIVE dependencies (either end, with ids). */
 data class ProjectDeleteOutcome(val milestoneCount: Int, val dependencies: DeletedDependencies)

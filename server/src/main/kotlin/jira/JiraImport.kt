@@ -44,10 +44,10 @@ enum class JiraImportRootLevel { PROGRAM, PROJECT }
  * picked work stream and hold an ACTIVE binding through this connection. The import then reads only what Jira lists under that item.
  */
 @Serializable
-data class JiraImportRoot(val level: JiraImportRootLevel, val nodeId: UInt) {
-    /** The plan level, for the code that speaks [JiraLevel]. */
-    fun jiraLevel(): JiraLevel = JiraLevel.valueOf(level.name)
-}
+data class JiraImportRoot(val level: JiraImportRootLevel, val nodeId: UInt)
+
+/** The plan level, for the code that speaks [JiraLevel]. Kept outside the serializable DTO so Kover measures the conversion. */
+fun JiraImportRoot.jiraLevel(): JiraLevel = JiraLevel.valueOf(level.name)
 
 /**
  * What both requests share: the picked [workStreamId] (every target lies under it), the [ownerPersonId] of every created program and
@@ -170,13 +170,14 @@ data class JiraImportItem(
     /** A CREATE row that looks like an existing, unlinked plan item (1.15); absent otherwise. Never on a redacted row. */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val suggestion: JiraImportSuggestion? = null,
-) {
-    /**
-     * The Jira key of an unredacted row (every row the kernel and the apply handle). Only the route's redaction of a non-admin's preview
-     * under an active filter withholds it ([issueKey] null, `JiraImportRedaction.kt`), after the guards and never on an apply's row.
-     */
-    fun key(): String = checkNotNull(issueKey) { "a row that is not redacted has its issue key" }
-}
+)
+
+/**
+ * The Jira key of an unredacted row (every row the kernel and the apply handle). Only the route's redaction of a non-admin's preview
+ * under an active filter withholds it ([JiraImportItem.issueKey] null, `JiraImportRedaction.kt`), after the guards and never on an
+ * apply's row. Kept outside the serializable DTO so Kover measures the invariant.
+ */
+fun JiraImportItem.key(): String = checkNotNull(issueKey) { "a row that is not redacted has its issue key" }
 
 /** The plan item a CREATE row looks like (1.15): an unlinked sibling under the same parent whose name has the same words. */
 @Serializable
@@ -244,9 +245,11 @@ data class JiraImportApplyRequest(
     val filter: JiraImportFilter? = null,
     val root: JiraImportRoot? = null,
     val matches: List<JiraImportMatch>? = null,
-) {
-    fun scope(): JiraImportScope = JiraImportScope(workStreamId, ownerPersonId, projectKeys, defaults, copyDates, filter, root, matches)
-}
+)
+
+/** The common import scope represented by this apply request. Kept outside the serializable DTO so Kover measures the conversion. */
+fun JiraImportApplyRequest.scope(): JiraImportScope =
+    JiraImportScope(workStreamId, ownerPersonId, projectKeys, defaults, copyDates, filter, root, matches)
 
 @Serializable
 data class JiraImportCreated(

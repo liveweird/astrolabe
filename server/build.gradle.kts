@@ -106,20 +106,20 @@ kover {
         filters {
             excludes {
                 // @Serializable data classes are wire shapes: kotlinx-serialization synthesizes one branch
-                // per optional property (the default-value mask in the generated constructor and
-                // serializer) that no test can meaningfully exercise — the reader's ~40 view DTOs alone
-                // added a thousand such branches. Behavior never lives in them (services, validators and
-                // renderers are plain classes and stay measured; a DTO's companion object stays measured
-                // too, since the annotation sits on the class).
+                // per optional property (the default-value mask in the generated constructor and serializer)
+                // that no test can meaningfully exercise — the reader's ~40 view DTOs alone added a thousand
+                // such branches. Kover 0.9 filters whole annotated classes, not just generated members, so
+                // SerializableDtoBehaviorTest refuses handwritten behavior there (except independently tested
+                // secret-masking toString overrides). Rules and conversions live in measured top-level extensions.
                 annotatedBy("kotlinx.serialization.Serializable")
             }
         }
         verify {
             rule {
-                // Line-coverage floor (measured 2026-11-15: 99.19; raise once the actual clears 99.2).
+                // Line-coverage floor (measured 2026-11-22: 99.17; raise once the actual clears 99.2).
                 // Re-measure with `:server:koverXmlReport` and RAISE, never lower.
                 minBound(98)
-                // Branch-coverage floor (measured 2026-11-15: 89.58). NOTE: `check` runs only koverVerify -
+                // Branch-coverage floor (measured 2026-11-22: 89.41). NOTE: `check` runs only koverVerify -
                 // run `:server:koverXmlReport` for fresh actuals.
                 minBound(89, coverageUnits = kotlinx.kover.gradle.plugin.dsl.CoverageUnit.BRANCH)
             }

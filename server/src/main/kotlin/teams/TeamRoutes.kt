@@ -4,7 +4,6 @@ import ch.nokillswit.audit.audit
 import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.authz.requireAdmin
-import ch.nokillswit.infra.db.orVanished
 import ch.nokillswit.infra.paging.optionalString
 import ch.nokillswit.infra.paging.parsePaging
 import ch.nokillswit.infra.paging.toPage
@@ -56,7 +55,8 @@ fun Application.configureTeamRoutes() {
                 requireAdmin(caller)
                 val request = sanitizedTeamCreate(call.receive())
                 validateTeamCreate(request)
-                val id = teamService.create(request)
+                val created = teamService.createResponse(request)
+                val id = created.id
                 audit(
                     "team.created",
                     "byUserId" to caller.userId.toLong(),
@@ -65,7 +65,7 @@ fun Application.configureTeamRoutes() {
                     "managerPersonId" to request.managerPersonId?.toLong(),
                 )
                 call.response.header(HttpHeaders.Location, call.application.href(TeamsRoute.Id(id = id)))
-                call.respond(HttpStatusCode.Created, teamService.read(id).orVanished("Team", id))
+                call.respond(HttpStatusCode.Created, created)
             }
             get<TeamsRoute.Id> { route ->
                 call.caller()

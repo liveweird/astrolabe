@@ -4,6 +4,7 @@ import ch.nokillswit.authz.ConflictException
 import ch.nokillswit.infra.db.containsNormalized
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.applyPaging
+import ch.nokillswit.infra.paging.pagedRead
 import ch.nokillswit.people.PersonService
 import ch.nokillswit.planning.hasActiveMilestones
 import ch.nokillswit.users.UserService
@@ -49,7 +50,7 @@ class TeamService(private val database: R2dbcDatabase) {
         override val markedAsDeleted = bool("marked_as_deleted").default(false)
     }
 
-    suspend fun list(filter: TeamListFilter, paging: PageRequest): TeamListResult = suspendTransaction(database) {
+    suspend fun list(filter: TeamListFilter, paging: PageRequest): TeamListResult = pagedRead(database) {
         val predicate = buildPredicate(filter) and Teams.active()
         val total = Teams.selectAll().where { predicate }.count()
         val rows = Teams.selectAll().where { predicate }.applyPaging(paging, SORTABLE_COLUMNS).toList()
@@ -91,11 +92,15 @@ class TeamService(private val database: R2dbcDatabase) {
 
     /** The team, or null when missing/deleted. */
     suspend fun read(id: UInt): TeamResponse? = suspendTransaction(database) {
+        responseInTransaction(id)
+    }
+
+    private suspend fun responseInTransaction(id: UInt): TeamResponse? {
         val row = Teams.selectAll().where { (Teams.id eq id) and Teams.active() }.toList().singleOrNull()
-            ?: return@suspendTransaction null
+            ?: return null
         val managerId = row[Teams.managerPersonId]?.value
         val managerName = managerId?.let { activePersonNames(listOf(it))[it] }
-        TeamResponse(
+        return TeamResponse(
             id = id,
             name = row[Teams.name],
             description = row[Teams.description],
@@ -111,17 +116,24 @@ class TeamService(private val database: R2dbcDatabase) {
      * (client-supplied FK — never a 500 from the constraint). A name clash with an active team rides the V6 partial
      * index into the central 23505 → 409.
      */
-    suspend fun create(request: TeamCreateRequest): UInt = suspendTransaction(database) {
+    suspend fun create(request: TeamCreateRequest): UInt = createResult(request) { it }
+
+    /** The just-inserted row as committed, built before the create transaction can race a delete or update. */
+    internal suspend fun createResponse(request: TeamCreateRequest): TeamResponse =
+        createResult(request) { id -> checkNotNull(responseInTransaction(id)) { "the team just inserted is readable" } }
+
+    private suspend fun <T> createResult(request: TeamCreateRequest, result: suspend (UInt) -> T): T = suspendTransaction(database) {
         validateTeamCreate(request) // re-checked service-side so direct callers stay guarded
         requireActiveManager(request.managerPersonId)
         val stamp = nowMillis()
-        Teams.insert {
+        val id = Teams.insert {
             it[name] = request.name
             it[description] = request.description
             it[managerPersonId] = request.managerPersonId
             it[createdAt] = stamp
             it[updatedAt] = stamp
         }[Teams.id].value
+        result(id)
     }
 
     /**

@@ -71,10 +71,11 @@ data class User(
             "disabledFeatures=$disabledFeatures, passwordChangedAt=$passwordChangedAt, " +
             "credentialRevision=$credentialRevision, language=$language, permissions=$permissions)"
 
-    /** The wire/claim shape: additional roles only — empty for a regular user. */
-    val additionalRoles: Set<UserRole>
-        get() = role.asAdditionalRoles()
 }
+
+/** The wire/claim shape: additional roles only — empty for a regular user. Kept outside the DTO so Kover measures the rule. */
+val User.additionalRoles: Set<UserRole>
+    get() = role.asAdditionalRoles()
 
 /** The wire/audit shape of one stored role: additional roles only — empty for the baseline. */
 fun UserRole.asAdditionalRoles(): Set<UserRole> =

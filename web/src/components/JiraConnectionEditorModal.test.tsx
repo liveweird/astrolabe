@@ -125,7 +125,15 @@ describe("JiraConnectionEditorModal", () => {
     expect(within(table).getAllByText("OK")).toHaveLength(4);
     expect(call(mockFetch, "POST", "/api/v1/integrations/jira/connections/test")).toBeDefined();
     expect(body(mockFetch, "POST", "/api/v1/integrations/jira/connections/test").apiToken).toBe("tok-123");
+    expect(within(dialog).queryByText(/this result was not recorded/)).not.toBeInTheDocument();
     expect(homeReadIsStale(queryClient)).toBe(false);
+  });
+
+  test("a stored test that raced an edit says its verdict was not recorded", async () => {
+    mockFetch.mockResolvedValue(jsonResponse(200, { ...PASSING_TEST, recorded: false }));
+    const { user, dialog } = open(CONNECTION);
+    await user.click(within(dialog).getByRole("button", { name: "Test connection" }));
+    expect(await within(dialog).findByText(/this result was not recorded/)).toBeInTheDocument();
   });
 
   test("Test connection when editing with a blank token probes the STORED connection (no body) and marks Home stale", async () => {

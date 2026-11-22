@@ -160,7 +160,7 @@ describe("JiraBindDialog - a plan owner who is no administrator", () => {
     connections = [];
     const first = renderDialog({ target: { level: "PROJECT", id: 7, name: "Invoices" } });
     const dialog = await screen.findByRole("dialog");
-    expect(await within(dialog).findByRole("link", { name: "Add one under Administration, Jira." })).toHaveAttribute("href", "/integrations/jira");
+    expect(await within(dialog).findByRole("link", { name: "Add one under Integrations, Jira." })).toHaveAttribute("href", "/integrations/jira");
     expect(first.onClose).not.toHaveBeenCalled();
   });
 

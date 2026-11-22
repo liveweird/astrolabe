@@ -1,7 +1,7 @@
-openapi: 3.1.0
+openapi: 3.0.3
 info:
   title: astrolabe-api
-  version: 1.24.0
+  version: 1.25.0
   description: |
     REST API of Astrolabe, a planning and roadmapping app: the plan (work streams, programs, projects, milestones, dependencies, baselines),
     the views over it, teams, people, users with their permissions and the Jira and Flow syncs. It serves the Astrolabe web app and is
@@ -1223,12 +1223,12 @@ paths:
     put:
       tags: [plan]
       operationId: updateProject
-      summary: Replace a project's fields and owner
+      summary: Replace a project's fields
       description: >-
         Replaces a project's name, description and owner. An owner on the project's chain (the project's own owner included) or
-        ADMIN; `404` before `403` before the body. The parent program (`POST /projects/{id}/move`) and the target window (its own
-        operation) never change here. Any caller who may edit may reassign the owner to another active person (`400` otherwise). A
-        name clash within the program is `409`.
+        ADMIN; `404` before `403` before the body. Any caller who may edit may reassign the owner to another active person
+        (`400` otherwise). Use `PUT /projects/{id}/details` to replace the fields and target window together. Move to another
+        program with `POST /projects/{id}/move`. A name clash within the program is `409`.
       requestBody:
         required: true
         content:
@@ -1261,6 +1261,34 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/projects/{id}/details:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    put:
+      tags: [plan]
+      operationId: updateProjectDetails
+      summary: Replace a project's fields and target window together
+      description: >-
+        Replaces the project's name, description, owner and target window in one transaction. The caller needs both project
+        field and target-window edit permissions; `404` before `403` before the body. Both date keys are required. Send both
+        as `null` to clear the window. A name clash within the program is `409`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectDetailsRequest'
+      responses:
+        '204':
+          description: Updated
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/projects/{id}/target-window:
     parameters:
@@ -2407,8 +2435,8 @@ paths:
       summary: List the teams the caller may include in a cross-team run
       description: >-
         Lists the active teams the caller may name in a cross-team run: every active team for an ADMIN, otherwise the teams the
-        caller currently manages (none = an empty list). Any authenticated caller. By name case-insensitively, then id; a bounded
-        `{items}` list, not paged. The run itself still answers `403` for any other team.
+        caller currently manages (none = an empty list). Any authenticated caller. The first 1,000 teams by case-insensitive name,
+        then id. `truncated` indicates more eligible teams. The run itself still answers `403` for any team the caller may not manage.
       responses:
         '200':
           description: The teams
@@ -3550,16 +3578,15 @@ paths:
       operationId: previewFlowCapacityImport
       summary: Preview importing a bound Flow team's sprint capacity
       description: >-
-        Computes what importing the bound Flow team's mirrored sprints would do to the team's capacity periods, from one read-only
-        snapshot of the holiday calendar, the mirror and the team's ACTIVE periods. Nothing is stored and Flow is never called. The
+        Previews importing mirrored sprints into the bound team's capacity periods from one read-only snapshot. It makes no Flow call. The
         binding's team's ACTIVE manager or ADMIN. Order: `404` for every caller when the binding is unknown or unlinked or its team
         was deleted; `403`; then `400` for an undecodable body or a malformed or out-of-range `from`. A sprint's man-days are spread
         over its working days (public holidays off), so the weekly capacity adds up to Flow's figure within rounding: `mdPerWeek =
         round2(5 x flowMd / workingDays)`, one period per sprint from its `effectiveFrom`. Each sprint is `CREATE`, `UPDATE`,
         `UNCHANGED`, `MANUAL_PERIOD` (a hand-entered period starts on that day and is never changed) or `SKIP` with a `reason`.
         `from` (default: today in the connection's time zone) is the first day the import is about: a sprint that ended before it is
-        closed, listed only with `includeClosed` and never ticked. A Flow team missing from the mirror answers an empty plan with
-        `observedAt` null; a disabled connection still previews.
+        closed, listed only with `includeClosed` and never ticked. An absent team (`observedAt` null) or incomplete sprint snapshot
+        answers an empty plan. A disabled connection still previews a complete snapshot.
       requestBody:
         required: true
         content:
@@ -3595,8 +3622,8 @@ paths:
         (`404` if the team was deleted meanwhile). Team data, not plan state: no plan revision moves, and Flow is never called. The
         plan is recomputed from the mirror as it is now, with the echoed `from` and `includeClosed`. An item is written only when
         that plan still says what its `expected` says, a removal only when its period is a Flow-sourced removal of that plan;
-        otherwise the row is `skipped` with the reason `CHANGED` (data in a `200`). A hand-entered (`MANUAL`) period is never
-        changed or removed. Writes run removals first (soft delete), then updates (the figure, sprint id and sprint name; the WIP
+        otherwise the row is `skipped` with the reason `CHANGED`. An incomplete snapshot skips every row. A `MANUAL` period is never
+        changed. Writes run removals first (soft delete), then updates (the figure, sprint id and sprint name; the WIP
         limit is kept), then creates (a `FLOW` period on `effectiveFrom`).
       requestBody:
         required: true
@@ -5074,6 +5101,19 @@ components:
           format: int32
           minimum: 0
           description: The owner, an active person of the people directory (`400` otherwise).
+    ProjectDetailsRequest:
+      type: object
+      required: [name, ownerPersonId, targetStart, targetEnd]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: string, maxLength: 500, nullable: true, description: Omitted on PUT (a full replace) = none. }
+        ownerPersonId:
+          type: integer
+          format: int32
+          minimum: 0
+          description: The owner, an active person of the people directory (`400` otherwise).
+        targetStart: { type: string, format: date, nullable: true, description: Both dates or both null. }
+        targetEnd: { type: string, format: date, nullable: true, description: Both dates or both null; not before `targetStart`. }
     ProgramMoveRequest:
       type: object
       required: [workStreamId]
@@ -7193,13 +7233,14 @@ components:
           items: { $ref: '#/components/schemas/ScheduleProposalLink' }
     ProposalTeamList:
       type: object
-      required: [items]
-      description: The teams a cross-team run may include - bounded by the active teams (about 15), not paged.
+      required: [items, truncated]
+      description: The first 1,000 active teams the caller may include in a cross-team run, ordered by name and then id.
       properties:
         items:
           type: array
           maxItems: 1000
           items: { $ref: '#/components/schemas/TeamRef' }
+        truncated: { type: boolean, description: True when additional eligible teams were left out. }
 
     ProblemDetail:
       type: object
@@ -8341,11 +8382,16 @@ components:
       description: >-
         What importing a bound Flow team's mirrored sprints would do to its capacity periods. A sprint is covered when it is not closed,
         not a long window (`LONG_WINDOW`) and a `CREATE`, `UPDATE` or `UNCHANGED`.
-      required: [bindingId, teamId, observedAt, zone, from, includeClosed, totals, items, removals]
+      required: [bindingId, teamId, observedAt, sprintsComplete, zone, from, includeClosed, totals, items, removals]
       properties:
         bindingId: { type: integer, format: int32, minimum: 0 }
         teamId: { type: integer, format: int32, minimum: 0 }
         observedAt: { type: integer, format: int64, nullable: true, description: "Epoch millis the mirror last saw the Flow team; null when the team is not in the mirror (then `items` and `removals` are empty)." }
+        sprintsComplete:
+          type: boolean
+          description: >-
+            True when the team's mirrored sprint snapshot is complete. False when the team is absent, the snapshot was truncated or
+            it predates completeness tracking. In that case items and removals are empty and the totals are zero.
         zone: { type: string, description: "The connection's IANA time zone id every date is in." }
         from: { type: string, format: date, description: "The resolved `from` the plan was computed with: the request's, else today in `zone`." }
         includeClosed: { type: boolean, description: "Echo of the request; with `from`, what the apply sends back to re-run the same plan." }

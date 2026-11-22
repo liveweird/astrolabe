@@ -1,6 +1,7 @@
+import { useEffect, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { HEADER_ROW_HEIGHT, STRIP_HEIGHT, type TimelineColumn, type TimelineStripData } from "../utils/timelineModel";
-import { headerRows, toEpochDay, type HeaderCell, type TimelineScale } from "../utils/timelineScale";
+import { HEADER_WINDOW_THRESHOLD_PX, headerRows, headerWindow, toEpochDay, type HeaderCell, type TimelineScale } from "../utils/timelineScale";
 import classes from "../theme.module.css";
 
 function HeaderCells({ cells, scale }: { cells: readonly HeaderCell[]; scale: TimelineScale }) {
@@ -11,6 +12,7 @@ function HeaderCells({ cells, scale }: { cells: readonly HeaderCell[]; scale: Ti
       className={`${classes.timelineHeadCell} ${cell.weekend || cell.holiday !== undefined ? classes.timelineHeadWeekend : ""}`}
       title={cell.holiday === undefined ? undefined : t("timeline.holidayTitle", { name: cell.holiday })}
       data-holiday={cell.holiday === undefined ? undefined : "true"}
+      data-timeline-header-cell
       style={{ left: scale.xOf(cell.from), width: scale.widthOf(cell.from, cell.to) }}
     >
       {cell.label}
@@ -31,6 +33,7 @@ export default function TimelineHeader({
   today,
   strip,
   holidays,
+  scrollRef,
 }: {
   scale: TimelineScale;
   columns: readonly TimelineColumn[];
@@ -39,9 +42,32 @@ export default function TimelineHeader({
   strip?: TimelineStripData;
   /** Public holidays by epoch day: a day cell on one is tinted like a weekend and carries the holiday's name as its `title`. */
   holidays?: ReadonlyMap<number, string>;
+  /** The one native Timeline scroller. Only very wide tracks subscribe to its horizontal position and size. */
+  scrollRef: RefObject<HTMLDivElement | null>;
 }) {
   const { t } = useTranslation();
-  const { groups, cells } = headerRows(scale, holidays);
+  const windowed = scale.totalWidth > HEADER_WINDOW_THRESHOLD_PX;
+  const [viewport, setViewport] = useState(() => ({ scrollLeft: 0, width: window.innerWidth }));
+  useEffect(() => {
+    if (!windowed) return;
+    const scroller = scrollRef.current;
+    if (scroller === null) return;
+    const update = () => {
+      const next = { scrollLeft: scroller.scrollLeft, width: scroller.clientWidth };
+      setViewport((current) => current.scrollLeft === next.scrollLeft && current.width === next.width ? current : next);
+    };
+    scroller.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
+    resizeObserver?.observe(scroller);
+    return () => {
+      scroller.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+      resizeObserver?.disconnect();
+    };
+  }, [scrollRef, windowed]);
+  const visibleRange = windowed ? headerWindow(scale, viewport.scrollLeft, viewport.width, leftWidth) : undefined;
+  const { groups, cells } = headerRows(scale, holidays, visibleRange);
   const todayDay = toEpochDay(today);
   const todayVisible = todayDay >= scale.from && todayDay <= scale.to;
   const trackStyle = { width: scale.totalWidth, height: HEADER_ROW_HEIGHT };

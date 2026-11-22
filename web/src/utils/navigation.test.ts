@@ -2,16 +2,18 @@ import { describe, expect, test } from "vitest";
 import { ACCOUNT_NAV, activeNavPath, homePath, visibleSections } from "./navigation";
 
 describe("visibleSections", () => {
-  test("a regular session sees Overview, Planning and Administration — Plan, Roadmap, Programs, Milestones, Team load, Baselines, Schedule proposals, Deviations, Teams, People and Public holidays stay, the admin-only leaves drop", () => {
+  test("a regular session sees the planning, team and integration pages without administrative controls", () => {
     const sections = visibleSections(false);
-    expect(sections.map((s) => s.label)).toEqual(["appShell.section.overview", "appShell.section.planning", "appShell.section.administration"]);
+    expect(sections.map((s) => s.label)).toEqual(["appShell.section.overview", "appShell.section.planning", "appShell.section.teams", "appShell.section.integrations"]);
     const paths = sections.flatMap((s) => s.items.map((l) => l.to));
-    expect(paths).toEqual(["/", "/plan", "/roadmap", "/programs", "/milestones", "/dependencies", "/team-load", "/baselines", "/schedule-proposals", "/deviations", "/teams", "/people", "/public-holidays"]);
+    expect(paths).toEqual(["/", "/plan", "/roadmap", "/programs", "/milestones", "/dependencies", "/baselines", "/teams", "/team-load", "/schedule-proposals", "/people", "/public-holidays", "/deviations"]);
   });
 
-  test("an admin session gets Teams, People, Public holidays, Users, Feature flags, Jira and Flow in the Administration section", () => {
+  test("an admin session gets account controls under Administration and connection settings under Integrations", () => {
     const admin = visibleSections(true).find((s) => s.label === "appShell.section.administration");
-    expect(admin?.items.map((l) => l.to)).toEqual(["/teams", "/people", "/public-holidays", "/users", "/feature-flags", "/integrations/jira", "/integrations/flow"]);
+    expect(admin?.items.map((l) => l.to)).toEqual(["/users", "/feature-flags"]);
+    const integrations = visibleSections(true).find((s) => s.label === "appShell.section.integrations");
+    expect(integrations?.items.map((l) => l.to)).toEqual(["/deviations", "/integrations/jira", "/integrations/flow"]);
     // The Jira and Flow leaves are ADMIN only: a regular session never sees them (the routes sit under RequireAdmin too).
     const regular = visibleSections(false).flatMap((s) => s.items.map((l) => l.to));
     expect(regular).not.toContain("/integrations/jira");
@@ -24,12 +26,10 @@ describe("visibleSections", () => {
     expect(flow?.keywords).toEqual(["flow", "capacity", "roster"]);
   });
 
-  test("Planning sits above Administration and holds the Plan, Roadmap, Programs, Milestones, Dependencies, Team load, Baselines, Schedule proposals and Deviations leaves for everyone", () => {
+  test("Planning groups plan views and lists for every role", () => {
     for (const admin of [false, true]) {
-      const labels = visibleSections(admin).map((s) => s.label);
-      expect(labels.indexOf("appShell.section.planning")).toBeLessThan(labels.indexOf("appShell.section.administration"));
       const planning = visibleSections(admin).find((s) => s.label === "appShell.section.planning");
-      expect(planning?.items.map((l) => l.to)).toEqual(["/plan", "/roadmap", "/programs", "/milestones", "/dependencies", "/team-load", "/baselines", "/schedule-proposals", "/deviations"]);
+      expect(planning?.items.map((l) => l.to)).toEqual(["/plan", "/roadmap", "/programs", "/milestones", "/dependencies", "/baselines"]);
     }
   });
 
@@ -53,6 +53,7 @@ describe("activeNavPath", () => {
     expect(activeNavPath("/people/3", leaves)).toBe("/people");
     expect(activeNavPath("/public-holidays", leaves)).toBe("/public-holidays");
     expect(activeNavPath("/plan", leaves)).toBe("/plan");
+    expect(activeNavPath("/projects/42", leaves)).toBe("/plan");
     expect(activeNavPath("/roadmap", leaves)).toBe("/roadmap");
     expect(activeNavPath("/programs", leaves)).toBe("/programs");
     expect(activeNavPath("/milestones", leaves)).toBe("/milestones");

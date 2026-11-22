@@ -229,10 +229,21 @@ describe("CapacityImportModal", () => {
   });
 
   test("a team that is not in the mirror has nothing to import", async () => {
-    serve(mockFetch, { previews: [{ ...PREVIEW, observedAt: null, items: [], removals: [], totals: { create: 0, update: 0, unchanged: 0, skip: 0, removals: 0 } }] });
+    serve(mockFetch, { previews: [{ ...PREVIEW, observedAt: null, sprintsComplete: false, items: [], removals: [], totals: { create: 0, update: 0, unchanged: 0, skip: 0, removals: 0 } }] });
     renderModal();
     expect(await screen.findByText("Nothing to import: Flow lists no sprints for this team in this range.")).toBeInTheDocument();
+    expect(screen.queryByText(/sprint data is incomplete/)).not.toBeInTheDocument();
     expect(importButton()).toBeDisabled();
+  });
+
+  test("observed but incomplete sprint data asks for a refresh and can never be applied", async () => {
+    serve(mockFetch, { previews: [{ ...PREVIEW, sprintsComplete: false, items: [], removals: [], totals: { create: 0, update: 0, unchanged: 0, skip: 0, removals: 0 } }] });
+    renderModal();
+    const note = await screen.findByRole("note");
+    expect(note).toHaveTextContent("Flow's sprint data is incomplete. Refresh the Flow connection, wait for the refresh to finish, then reopen this import.");
+    expect(importButton()).toBeDisabled();
+    await userEvent.click(importButton());
+    expect(posts(mockFetch, IMPORT_URL)).toHaveLength(0);
   });
 
   test("the status region exists before any import, and after one the focus lands on the outcome note instead of falling to the page", async () => {

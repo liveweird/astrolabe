@@ -5,7 +5,7 @@ import { acknowledgeCapacityDeviation, acknowledgeCapacityDeviations, unacknowle
 import { isStaleDeviations } from "../api/deviations";
 import { ApiError } from "../api/http";
 import { capacityAckAllKey, capacityAckKey } from "../utils/capacityDeviations";
-import { refreshCapacityAcknowledgements, refreshFlowLinks } from "../utils/flowRefresh";
+import { refreshFlowCapacity, refreshFlowLinks } from "../utils/flowRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import { showSuccessToast } from "../utils/toast";
 import { useAckFocus } from "./useAckFocus";
@@ -43,7 +43,7 @@ const withdraws = (request: AckRequest) => request.kind === "unacknowledge" || r
  * instead of the binding; a batch of either kind is keyed by the binding (`<id>:all`). A batch is all or nothing, so its `409 stale-deviations` is the
  * same note (the list is read again, nothing was stored or deleted) and its success the same toast ("withdrawn" for the withdrawal; its 404 can only be the binding).
  *
- * **What is refreshed.** A success re-reads the capacity deviations and the plan's views (`refreshCapacityAcknowledgements`: the team view's flag
+ * **What is refreshed.** A success re-reads the capacity deviations and the plan's views (`refreshFlowCapacity`: the team view's flag
  * and markers follow the open rows). A `409 stale-deviations` is a normal state, not an error: the sprint's figures changed since the list was read (or the
  * row is gone), so it is an inline note in the row (never a toast) and re-reads the same keys. A 403/404 re-reads the Flow links too (the rights or the
  * link changed) and, like every other refusal, is an inline red message in the row. A DELETE's 404 means "no acknowledgement stored".
@@ -83,7 +83,7 @@ export function useCapacityAcknowledge(fallback: RefObject<HTMLElement | null>, 
     onSuccess: async (_result, { request, neighbours, scope: writtenOn }) => {
       if (writtenOn === latestScope.current) focus.arm([keyOf(request), ...neighbours]);
       showSuccessToast(t(withdraws(request) ? "deviations.ack.toast.withdrawn" : "deviations.ack.toast.acknowledged"));
-      await focus.refresh(() => refreshCapacityAcknowledgements(queryClient));
+      await focus.refresh(() => refreshFlowCapacity(queryClient));
     },
     onError: async (err, { request, neighbours, scope: writtenOn }) => {
       const key = keyOf(request);
@@ -93,7 +93,7 @@ export function useCapacityAcknowledge(fallback: RefObject<HTMLElement | null>, 
           setNotice({ key, kind: "stale" });
           focus.arm([key, ...neighbours]);
         }
-        await focus.refresh(() => refreshCapacityAcknowledgements(queryClient));
+        await focus.refresh(() => refreshFlowCapacity(queryClient));
         return;
       }
       const notFound = request.kind === "unacknowledge" ? "deviations.ack.notFoundWithdrawn" : "deviations.ack.notFound";

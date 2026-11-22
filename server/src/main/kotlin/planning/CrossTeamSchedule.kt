@@ -53,9 +53,9 @@ data class CrossTeamProposal(
 @Serializable
 data class ProposalTeam(val id: UInt, val name: String)
 
-/** The teams a run may include: bounded by the active teams (about 15), so a plain `{items}` list, not paged. */
+/** The bounded teams a run may include; [truncated] tells the picker that more eligible teams exist. */
 @Serializable
-data class ProposalTeamList(val items: List<ProposalTeam>)
+data class ProposalTeamList(val items: List<ProposalTeam>, val truncated: Boolean)
 
 /**
  * `POST /schedule-proposals/accept` (1.8.0): the accept of a [CrossTeamProposal], N teams' schedule PUTs in ONE plan write. [teamIds] is

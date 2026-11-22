@@ -3,6 +3,7 @@ import { Anchor, Group, Stack, Text, Title } from "@mantine/core";
 import { IconArrowLeft } from "@tabler/icons-react";
 import { Link as RouterLink } from "react-router-dom";
 import { usePageTitle } from "../hooks/usePageTitle";
+import classes from "../theme.module.css";
 
 /**
  * Every page's first row (v1.19.0): the title (an `order={2}` heading — the name tests and
@@ -33,7 +34,7 @@ export default function PageHeader({
 }) {
   usePageTitle(title);
   return (
-    <Stack gap="sm">
+    <Stack gap="sm" className={classes.pageHeader}>
       <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm">
         <Stack gap={2}>
           {backTo && (
@@ -46,18 +47,18 @@ export default function PageHeader({
           )}
           {titleAddon ? (
             <Group gap="xs" align="center" wrap="wrap">
-              <Title order={2} ref={titleRef} tabIndex={-1}>
+              <Title order={2} ref={titleRef} tabIndex={-1} className={classes.pageHeading}>
                 {title}
               </Title>
               {titleAddon}
             </Group>
           ) : (
-            <Title order={2} ref={titleRef} tabIndex={-1}>
+            <Title order={2} ref={titleRef} tabIndex={-1} className={classes.pageHeading}>
               {title}
             </Title>
           )}
           {description && (
-            <Text c="dimmed" size="sm">
+            <Text c="dimmed" size="sm" className={classes.pageDescription}>
               {description}
             </Text>
           )}

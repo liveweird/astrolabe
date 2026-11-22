@@ -1,4 +1,4 @@
-// The public-holiday dictionary (Administration > Public holidays) and what a holiday does to a project page. An administrator adds a holiday
+// The public-holiday dictionary (Teams and capacity > Public holidays) and what a holiday does to a project page. An administrator adds a holiday
 // in 2040 and finds it under the year picker, meets the duplicate-date message, applies the Polish preset for 2040 (14 more rows; applying it
 // again adds none) and deletes a row behind its confirmation; a regular user reads the list with none of the controls. The calendar half is
 // API-seeded: a project world in 2040 with a finish-to-start link a1 -> b1 (b1 on the Monday after a1's Friday); a holiday on that Monday moves
@@ -135,8 +135,8 @@ test("a regular user reads the 2040 holidays but cannot change them", async ({ p
   }
 
   await login(page, account.email, account.password);
-  // Any signed-in user finds the page in the Administration section.
-  await page.getByRole("group", { name: "Administration" }).getByRole("link", { name: "Public holidays", exact: true }).click();
+  // Any signed-in user finds the page in the Teams and capacity section.
+  await page.getByRole("group", { name: "Teams and capacity" }).getByRole("link", { name: "Public holidays", exact: true }).click();
   await expect(page).toHaveURL(/\/public-holidays$/);
   await expect(page.getByRole("heading", { level: 2, name: "Public holidays", exact: true })).toBeVisible();
   await expect(page.getByText(/The list is maintained by administrators\./)).toBeVisible();
@@ -194,7 +194,9 @@ test("a holiday on the Monday after a finish moves the dependency's needed date 
     await page.goto(`/projects/${b.id}`);
     await expect(page.getByRole("heading", { level: 2, name: b.name })).toBeVisible();
     const row = page.getByRole("table", { name: "Dependencies of the project" }).getByRole("row").filter({ hasText: a.milestone });
+    const milestoneBar = page.getByRole("button", { name: new RegExp(`^${b.milestone}, `) });
     const header = page.locator(`[data-holiday="true"][title="Public holiday: ${holidayName}"]`);
+    await milestoneBar.scrollIntoViewIfNeeded();
     await expect(row).toContainText("OK");
     await expect(row).toContainText(`needs ${monday} · is ${monday}`);
     await expect(header).toHaveCount(0);
@@ -206,6 +208,7 @@ test("a holiday on the Monday after a finish moves the dependency's needed date 
     try {
       await page.reload();
       await expect(page.getByRole("heading", { level: 2, name: b.name })).toBeVisible();
+      await milestoneBar.scrollIntoViewIfNeeded();
       // The Monday is a day off: the link now needs the Tuesday, b1's first working day, and still holds. The header cell of the day is
       // named, and the hidden paragraph (the header and tracks are aria-hidden) is the accessible surface of the dictionary in view.
       await expect(row).toContainText("OK");
@@ -219,6 +222,7 @@ test("a holiday on the Monday after a finish moves the dependency's needed date 
 
     await page.reload();
     await expect(page.getByRole("heading", { level: 2, name: b.name })).toBeVisible();
+    await milestoneBar.scrollIntoViewIfNeeded();
     await expect(row).toContainText(`needs ${monday} · is ${monday}`);
     await expect(header).toHaveCount(0);
   } finally {

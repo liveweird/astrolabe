@@ -249,7 +249,15 @@ describe("FlowConnectionEditorModal", () => {
     expect(within(dialog).getByText("Flow's document · teams: 18 · sprints: 640")).toBeInTheDocument();
     expect(within(dialog).getByText("Test passed. OK: 2 of 2.")).toBeInTheDocument();
     expect(body(mockFetch, "POST", `${LIST}/test`)).toMatchObject({ baseUrl: "https://flow.acme.example", apiToken: TOKEN, name: "Acme Flow" });
+    expect(within(dialog).queryByText(/this result was not recorded/)).not.toBeInTheDocument();
     expect(homeReadIsStale(queryClient)).toBe(false);
+  });
+
+  test("a stored test that raced an edit says its verdict was not recorded", async () => {
+    mockFetch.mockResolvedValue(jsonResponse(200, { ...PASSING_TEST, recorded: false }));
+    const { user, dialog } = open(CONNECTION);
+    await user.click(within(dialog).getByRole("button", { name: "Test connection" }));
+    expect(await within(dialog).findByText(/this result was not recorded/)).toBeInTheDocument();
   });
 
   test("Test connection when editing with a blank token probes the STORED connection (no body) and says a revoked token in Flow's words and marks Home stale", async () => {

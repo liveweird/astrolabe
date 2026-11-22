@@ -261,7 +261,7 @@ export default function Timeline({
             grid.onFocus(event);
           }}
         >
-          <TimelineHeader scale={scale} columns={columns} leftWidth={leftWidth} today={today} strip={strip} holidays={holidayByDay} />
+          <TimelineHeader scale={scale} columns={columns} leftWidth={leftWidth} today={today} strip={strip} holidays={holidayByDay} scrollRef={scrollRef} />
           <div role="rowgroup" style={{ position: "relative", height: bodyHeight }}>
             {bands.map((band) => (
               <div key={band.id} style={{ position: "absolute", top: 0, bottom: 0, ...trackLeft }}>

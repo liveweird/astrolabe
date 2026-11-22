@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { Anchor, Badge, Group, Paper, SimpleGrid, Stack, Text, Title } from "@mantine/core";
-import { IconGitCompare, IconListNumbers, IconSitemap, type Icon } from "@tabler/icons-react";
+import { Anchor, Badge, Group, Paper, Stack, Text, Title } from "@mantine/core";
+import { IconChevronRight, IconGitCompare, IconListNumbers, IconSitemap, type Icon } from "@tabler/icons-react";
 import type { ParseKeys } from "i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -18,6 +18,7 @@ import { unscheduledMilestonesPath } from "../utils/milestoneLinks";
 import { planPath, roadmapFilteredPath, roadmapPath } from "../utils/planLinks";
 import { isStaleSource } from "../utils/staleness";
 import { teamLoadWarningPath } from "../utils/teamLoadLinks";
+import classes from "../theme.module.css";
 
 /** The room a card's figure group keeps while the read has not answered (px, about the lines it will hold), so the card's link stays where it is. */
 const PLAN_FIGURES_MIN_HEIGHT = 120;
@@ -27,10 +28,12 @@ const ROADMAP_FIGURES_MIN_HEIGHT = 148; // two lines plus up to five badges wrap
 function HomeCard({ icon: CardIcon, title, text, open, to, children }: { icon: Icon; title: ParseKeys; text: ParseKeys; open: ParseKeys; to: string; children?: ReactNode }) {
   const { t } = useTranslation();
   return (
-    <Paper withBorder p="md">
-      <Stack gap="xs">
+    <Paper withBorder className={classes.homeCard}>
+      <Stack gap="xs" className={classes.homeCardHeader}>
         <Group gap="xs" wrap="nowrap">
-          <CardIcon size={20} aria-hidden />
+          <span className={classes.homeCardIcon}>
+            <CardIcon size={19} stroke={1.6} aria-hidden />
+          </span>
           <Title order={3} size="h4">
             {t(title)}
           </Title>
@@ -38,11 +41,12 @@ function HomeCard({ icon: CardIcon, title, text, open, to, children }: { icon: I
         <Text size="sm" c="dimmed">
           {t(text)}
         </Text>
-        {children}
-        <Anchor component={RouterLink} to={to} size="sm" fw={500}>
-          {t(open)}
-        </Anchor>
       </Stack>
+      <div className={classes.homeCardBody}>{children}</div>
+      <Anchor component={RouterLink} to={to} size="sm" fw={600} className={classes.homeCardAction}>
+        {t(open)}
+        <IconChevronRight size={16} aria-hidden />
+      </Anchor>
     </Paper>
   );
 }
@@ -81,23 +85,23 @@ function OpenLine({ label, counts, stale }: { label: string; counts: OpenCounts 
 function PlanFigures({ plan }: { plan: HomePlan | undefined }) {
   const { t } = useTranslation();
   return (
-    <Stack gap={2} role="group" aria-label={t("home.plan.factsAria")} mih={PLAN_FIGURES_MIN_HEIGHT}>
+    <div className={classes.homePlanFigures} role="group" aria-label={t("home.plan.factsAria")} style={{ minHeight: PLAN_FIGURES_MIN_HEIGHT }}>
       {plan && (
         <>
-          <Text size="sm">{t("programs.facts.workStreams", { count: plan.workStreams })}</Text>
-          <Text size="sm">{t("programs.facts.programs", { count: plan.programs })}</Text>
-          <Text size="sm">{t("programs.facts.projects", { count: plan.projects })}</Text>
-          <Text size="sm">{t("teams.view.milestones", { count: plan.milestones })}</Text>
+          <Text className={classes.homeMetric}>{t("programs.facts.workStreams", { count: plan.workStreams })}</Text>
+          <Text className={classes.homeMetric}>{t("programs.facts.programs", { count: plan.programs })}</Text>
+          <Text className={classes.homeMetric}>{t("programs.facts.projects", { count: plan.projects })}</Text>
+          <Text className={classes.homeMetric}>{t("teams.view.milestones", { count: plan.milestones })}</Text>
           {plan.unscheduledMilestones > 0 ? (
-            <Anchor component={RouterLink} to={unscheduledMilestonesPath()} size="sm">
+            <Anchor component={RouterLink} to={unscheduledMilestonesPath()} size="sm" className={classes.homePlanAction}>
               {t("home.plan.notScheduled", { count: plan.unscheduledMilestones })}
             </Anchor>
           ) : (
-            <Text size="sm">{t("home.plan.notScheduled", { count: plan.unscheduledMilestones })}</Text>
+            <Text size="sm" className={classes.homePlanAction}>{t("home.plan.notScheduled", { count: plan.unscheduledMilestones })}</Text>
           )}
         </>
       )}
-    </Stack>
+    </div>
   );
 }
 
@@ -167,13 +171,13 @@ function RoadmapFigures({ plan, jiraStale }: { plan: HomePlan | undefined; jiraS
  */
 export default function Home() {
   const { t } = useTranslation();
-  const { jira, flow, jiraStale, flowStale, error } = useOpenDeviationCounts();
+  const { jira, flow, jiraStale, flowStale, ready, error } = useOpenDeviationCounts();
   const home = useQuery({ queryKey: HOME_VIEW_KEY, queryFn: getHomeView, staleTime: HOME_STALE_MS });
   const plan = home.data?.plan;
   return (
-    <Stack gap="md">
+    <Stack gap="lg">
       <PageHeader title={t("home.title")} description={t("home.intro")} />
-      <SimpleGrid cols={{ base: 1, md: 3 }}>
+      <div className={classes.homeOverview}>
         <HomeCard icon={IconSitemap} title="appShell.nav.plan" text="home.plan.text" open="home.plan.open" to={planPath}>
           <PlanFigures plan={plan} />
         </HomeCard>
@@ -182,6 +186,11 @@ export default function Home() {
         </HomeCard>
         <HomeCard icon={IconGitCompare} title="appShell.nav.deviations" text="home.deviations.text" open="home.deviations.open" to={deviationsPath}>
           {error != null && <ErrorAlert error={error} title={t("home.deviations.loadFailed")} />}
+          {ready && jira === null && flow === null && (
+            <Text size="sm" c="dimmed" className={classes.homeEmptyState}>
+              {t("home.deviations.noConnections")}
+            </Text>
+          )}
           <OpenLine label={t("home.deviations.openJira")} counts={jira} stale={jiraStale && <JiraStaleNote />} />
           <OpenLine
             label={t("home.deviations.openFlow")}
@@ -195,7 +204,7 @@ export default function Home() {
             }
           />
         </HomeCard>
-      </SimpleGrid>
+      </div>
       {home.isError && <ErrorAlert error={home.error} title={t("home.figures.loadFailed")} />}
       {(home.data !== undefined || home.isPending) && <HomeMine view={home.data} flowStale={flowStale} />}
     </Stack>

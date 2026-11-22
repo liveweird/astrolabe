@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { deleteCapacityPeriod, type CapacityPeriod, type TeamView } from "../api/teams";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { useDialogFocus } from "../hooks/useDialogFocus";
-import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
+import { refreshFlowCapacity } from "../utils/flowRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import CapacityPeriodModal from "./CapacityPeriodModal";
 import ConfirmDeleteModal from "./ConfirmDeleteModal";
@@ -32,7 +32,7 @@ export default function TeamCapacity({ view, readOnly = false }: { view: TeamVie
   useDialogFocus(editor !== null);
   const { periods } = view.capacity;
   const canEdit = view.team.can.editCapacity;
-  const refresh = () => refreshQueriesAfterMutation(queryClient, ["plan"], ["flow", "deviations"]);
+  const refresh = () => refreshFlowCapacity(queryClient);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const removal = useDeleteConfirm<CapacityPeriod>({
     mutationFn: (period) => deleteCapacityPeriod(period.id),

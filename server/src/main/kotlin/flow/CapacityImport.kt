@@ -96,14 +96,17 @@ data class CapacityImportTotals(val create: Int, val update: Int, val unchanged:
 
 /**
  * The preview document. [observedAt] is when the mirror last saw the Flow team (null when the team is not in the mirror: then there are
- * no items and no removals - nothing is removed because a team vanished). [zone] is the connection's IANA id the dates are in. [from]
- * (resolved: the request's, else today in [zone]) and [includeClosed] echo what the plan was computed with, so the apply can re-run it.
+ * no items and no removals - nothing is removed because a team vanished). [sprintsComplete] is true only when the team's latest mirrored
+ * sprint snapshot was not truncated; false suppresses every candidate and removal until a complete refresh. [zone] is the connection's
+ * IANA id the dates are in. [from] (resolved: the request's, else today in [zone]) and [includeClosed] echo what the plan was computed
+ * with, so the apply can re-run it.
  */
 @Serializable
 data class CapacityPreview(
     val bindingId: UInt,
     val teamId: UInt,
     val observedAt: Long?,
+    val sprintsComplete: Boolean,
     val zone: String,
     val from: String,
     val includeClosed: Boolean,

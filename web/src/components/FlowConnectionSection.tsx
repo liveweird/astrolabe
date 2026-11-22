@@ -10,6 +10,7 @@ import { useSyncRuns, syncRunsKey } from "../hooks/useSyncRuns";
 import { flowReady, flowTestErrorMessage, untestedKey } from "../utils/flowForm";
 import { flowBaseHref } from "../utils/flowLinks";
 import { formatDateTime } from "../utils/formatDate";
+import { refreshFlowConnections } from "../utils/flowRefresh";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import { IDLE_REFRESH_MS } from "../utils/syncRuns";
@@ -89,7 +90,7 @@ export default function FlowConnectionSection({ connection, readAt }: { connecti
   const wasRunning = useRef(false);
   useEffect(() => {
     if (wasRunning.current && !live) {
-      void refreshQueriesAfterMutation(queryClient, ["flow", "connection", connection.id], ["flow", "list"], ["flow", "teams", connection.id], HOME_VIEW_KEY);
+      void refreshFlowConnections(queryClient);
     }
     wasRunning.current = live;
   }, [live, queryClient, connection.id]);

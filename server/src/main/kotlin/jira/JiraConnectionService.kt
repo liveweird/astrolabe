@@ -12,6 +12,7 @@ import ch.nokillswit.infra.json.parseStringArray
 import ch.nokillswit.infra.json.stringArrayJson
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.applyPaging
+import ch.nokillswit.infra.paging.pagedRead
 import ch.nokillswit.sync.ConnectionColumns
 import ch.nokillswit.sync.ConnectorConnection
 import ch.nokillswit.sync.RunnableState
@@ -114,7 +115,7 @@ class JiraConnectionService(
         cipher.reencryptRows(Connections, listOf(Connections.apiToken), reencryptAll)
     }
 
-    suspend fun list(paging: PageRequest): JiraConnectionListResult = suspendTransaction(database) {
+    suspend fun list(paging: PageRequest): JiraConnectionListResult = pagedRead(database) {
         val predicate = Connections.active()
         val total = Connections.selectAll().where { predicate }.count()
         val rows = summary().where { predicate }.applyPaging(paging, SORTABLE_COLUMNS).toList()
@@ -125,16 +126,25 @@ class JiraConnectionService(
 
     /** The connection, or null when missing/deleted. */
     suspend fun read(id: UInt): JiraConnectionResponse? = suspendTransaction(database) {
-        summary().where { (Connections.id eq id) and Connections.active() }.toList().singleOrNull()
-            ?.let { row -> row.toResponse(runs.statusesInTransaction(SyncKind.JIRA, listOf(row.toConnectorConnection())).single()) }
+        responseInTransaction(id)
     }
 
+    private suspend fun responseInTransaction(id: UInt): JiraConnectionResponse? =
+        summary().where { (Connections.id eq id) and Connections.active() }.toList().singleOrNull()
+            ?.let { row -> row.toResponse(runs.statusesInTransaction(SyncKind.JIRA, listOf(row.toConnectorConnection())).single()) }
+
     /** Creates the connection; the token is encrypted before it is bound. A name clash rides the V21 partial index into the central 409. */
-    suspend fun create(request: JiraConnectionRequest): UInt = suspendTransaction(database) {
+    suspend fun create(request: JiraConnectionRequest): UInt = createResult(request) { it }
+
+    /** The just-inserted row as committed, projected before a concurrent registry mutation can change the 201 body. */
+    internal suspend fun createResponse(request: JiraConnectionRequest): JiraConnectionResponse =
+        createResult(request) { id -> checkNotNull(responseInTransaction(id)) { "the Jira connection just inserted is readable" } }
+
+    private suspend fun <T> createResult(request: JiraConnectionRequest, result: suspend (UInt) -> T): T = suspendTransaction(database) {
         validateJiraConnection(request, apiTokenRequired = true) // re-checked service-side so direct callers stay guarded
         val token = checkNotNull(request.apiToken) { "apiToken is validated as required on create" }
         val stamp = nowMillis()
-        Connections.insert {
+        val id = Connections.insert {
             it[name] = request.name
             it[siteUrl] = request.siteUrl
             it[email] = request.email
@@ -147,6 +157,7 @@ class JiraConnectionService(
             it[createdAt] = stamp
             it[updatedAt] = stamp
         }[Connections.id].value
+        result(id)
     }
 
     /**

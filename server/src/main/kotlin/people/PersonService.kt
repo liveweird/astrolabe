@@ -8,6 +8,7 @@ import ch.nokillswit.infra.db.lockActiveForWrite
 import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.applyPaging
+import ch.nokillswit.infra.paging.pagedRead
 import ch.nokillswit.planning.ownsActivePlanNode
 import ch.nokillswit.teams.TeamService
 import ch.nokillswit.users.UserService
@@ -49,7 +50,7 @@ class PersonService(private val database: R2dbcDatabase) {
         override val markedAsDeleted = bool("marked_as_deleted").default(false)
     }
 
-    suspend fun list(filter: PersonListFilter, paging: PageRequest): PersonListResult = suspendTransaction(database) {
+    suspend fun list(filter: PersonListFilter, paging: PageRequest): PersonListResult = pagedRead(database) {
         val predicate = buildPredicate(filter) and People.active()
         val total = People.selectAll().where { predicate }.count()
         val rows = People.selectAll().where { predicate }.applyPaging(paging, SORTABLE_COLUMNS).toList()
@@ -73,11 +74,15 @@ class PersonService(private val database: R2dbcDatabase) {
 
     /** The person, or null when missing/deleted. */
     suspend fun read(id: UInt): PersonResponse? = suspendTransaction(database) {
+        responseInTransaction(id)
+    }
+
+    private suspend fun responseInTransaction(id: UInt): PersonResponse? {
         val row = People.selectAll().where { (People.id eq id) and People.active() }.toList().singleOrNull()
-            ?: return@suspendTransaction null
+            ?: return null
         val storedUserId = row[People.userId]?.value
         val userEmail = storedUserId?.let { activeUserEmails(listOf(it))[it] }
-        PersonResponse(
+        return PersonResponse(
             id = id,
             name = row[People.name],
             email = row[People.email],
@@ -93,17 +98,24 @@ class PersonService(private val database: R2dbcDatabase) {
      * (client-supplied FK — never a 500 from the constraint). An email clash or a second link to the same user rides the
      * V10 partial indexes into the central 23505 → 409.
      */
-    suspend fun create(request: PersonCreateRequest): UInt = suspendTransaction(database) {
+    suspend fun create(request: PersonCreateRequest): UInt = createResult(request) { it }
+
+    /** The just-inserted row as committed, built before the create transaction can race a delete or update. */
+    internal suspend fun createResponse(request: PersonCreateRequest): PersonResponse =
+        createResult(request) { id -> checkNotNull(responseInTransaction(id)) { "the person just inserted is readable" } }
+
+    private suspend fun <T> createResult(request: PersonCreateRequest, result: suspend (UInt) -> T): T = suspendTransaction(database) {
         validatePersonCreate(request) // re-checked service-side so direct callers stay guarded
         requireActiveUser(request.userId)
         val stamp = nowMillis()
-        People.insert {
+        val id = People.insert {
             it[name] = request.name
             it[email] = request.email
             it[userId] = request.userId
             it[createdAt] = stamp
             it[updatedAt] = stamp
         }[People.id].value
+        result(id)
     }
 
     /**

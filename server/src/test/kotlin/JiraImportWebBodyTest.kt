@@ -9,6 +9,7 @@ import ch.nokillswit.jira.JiraImportReason
 import ch.nokillswit.jira.JiraImportRoot
 import ch.nokillswit.jira.JiraImportRootLevel
 import ch.nokillswit.jira.JiraLevel
+import ch.nokillswit.jira.scope
 import io.ktor.serialization.kotlinx.json.DefaultJson
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.decodeFromString

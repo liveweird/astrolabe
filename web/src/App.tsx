@@ -62,6 +62,8 @@ function RouteFallback() {
   );
 }
 
+const SHELL_HEADER_HEIGHT = 56;
+
 function Shell() {
   const { t } = useTranslation();
   const admin = useAdmin();
@@ -127,18 +129,18 @@ function Shell() {
 
   return (
     <AppShell
-      header={{ height: 48 }}
-      navbar={{ width: { base: 240, sm: rail ? 64 : 240 }, breakpoint: "sm", collapsed: { mobile: !opened } }}
+      header={{ height: SHELL_HEADER_HEIGHT }}
+      navbar={{ width: { base: 248, sm: rail ? 64 : 232 }, breakpoint: "sm", collapsed: { mobile: !opened } }}
       // 420 px beside the page from `lg` up (the content gives way: at 1200 px the 240 px navbar and the panel still leave ~540 px);
       // below it the panel covers the page edge to edge, since a pushed 420 px next to the navbar would leave a sliver.
       aside={{ width: 420, breakpoint: "lg", collapsed: { desktop: !showPanel, mobile: !showPanel } }}
-      padding="md"
+      padding={{ base: "md", md: "lg" }}
     >
       <AppShell.Header>
         <a href="#main-content" className="skip-link">
           {t("appShell.skipToContent")}
         </a>
-        <Group h={48} px="md" justify="space-between" wrap="nowrap">
+        <Group h={SHELL_HEADER_HEIGHT} px="md" justify="space-between" wrap="nowrap">
           <Group gap="sm" wrap="nowrap">
             <Burger
               opened={opened}
@@ -147,6 +149,7 @@ function Shell() {
               size="sm"
               aria-label={t("appShell.toggleMobileNav")}
               aria-expanded={opened}
+              aria-controls="primary-navigation"
             />
             {/* Sits beside the Burger, where the nav it toggles lives. */}
             <Tooltip label={t("appShell.toggleNav")} position="right" withinPortal>
@@ -175,7 +178,7 @@ function Shell() {
         </Group>
       </AppShell.Header>
 
-      <AppShell.Navbar p="xs">
+      <AppShell.Navbar id="primary-navigation" p="xs">
         {/* The link list scrolls when it outgrows the viewport; the version stamp stays pinned. */}
         <AppShell.Section grow component={ScrollArea} type="hover" scrollbarSize={6} offsetScrollbars>
           {sections.map((section, index) => (

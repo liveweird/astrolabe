@@ -40,34 +40,23 @@ import java.util.concurrent.ConcurrentHashMap
  *  - `autoHeadResponse` answers HEAD on GET routes but the spec declares no HEAD operations; no
  *    test sends HEAD today — one that does through a validated client will (correctly) trip
  *    `validation.request.operation.notAllowed`.
- *
- * The spec is fed to the validator relabeled as OpenAPI 3.0.3 (in memory only — the committed
- * file stays 3.1 for `web`'s openapi-typescript): swagger-request-validator's 3.1 handling is
- * unreliable (draft-04 schema engine; 3.1 parse mode can drop `nullable:`), and the document uses
- * only 3.0-style constructs — pinned by `OpenApiSpecTest`'s 3.0-compat guard.
  */
 object OpenApiSpec {
-    /** The committed spec text, 3.1-labeled — what `OpenApiSpecTest`'s guards assert on. */
+    /** The published OpenAPI document, used directly by the parser and the validator. */
     val rawYaml: String by lazy {
         checkNotNull(OpenApiSpec::class.java.classLoader.getResource("openapi/documentation.yaml")) {
             "openapi/documentation.yaml not on the test classpath"
         }.readText()
     }
 
-    /** The in-memory 3.0.3 relabel fed to the validator and the parser (see class KDoc). */
-    val validatorYaml: String by lazy {
-        rawYaml.replaceFirst("openapi: 3.1.0", "openapi: 3.0.3")
-            .also { check(it != rawYaml) { "expected 'openapi: 3.1.0' as the spec's version line" } }
-    }
-
     /** Parsed swagger model — drives the coverage report and the static sanity tests. */
     val parsed: OpenAPI by lazy {
-        val result = OpenAPIV3Parser().readContents(validatorYaml, null, ParseOptions().apply { isResolve = true })
+        val result = OpenAPIV3Parser().readContents(rawYaml, null, ParseOptions().apply { isResolve = true })
         checkNotNull(result.openAPI) { "spec failed to parse: ${result.messages}" }
     }
 
     val validator: OpenApiInteractionValidator by lazy {
-        OpenApiInteractionValidator.createForInlineApiSpecification(validatorYaml)
+        OpenApiInteractionValidator.createForInlineApiSpecification(rawYaml)
             .withLevelResolver(
                 LevelResolver.create()
                     // Ignore request-side validation (payload/parameter/security) — tests probe

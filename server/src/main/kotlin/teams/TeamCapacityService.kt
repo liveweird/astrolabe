@@ -79,8 +79,12 @@ class TeamCapacityService(
 
     /** The period, or null when it or its team is deleted. */
     suspend fun read(id: UInt): CapacityPeriodResponse? = suspendTransaction(database) {
+        responseInTransaction(id)
+    }
+
+    private suspend fun responseInTransaction(id: UInt): CapacityPeriodResponse? {
         val teams = TeamService.Teams
-        CapacityPeriods.innerJoin(teams)
+        return CapacityPeriods.innerJoin(teams)
             .selectAll()
             .where { (CapacityPeriods.id eq id) and CapacityPeriods.active() and teams.active() }
             .toList()
@@ -110,7 +114,24 @@ class TeamCapacityService(
         values: CapacityPeriodValues,
         trail: CapacityWriteTrail = CapacityWriteTrail(),
         guard: TeamGuard,
-    ): UInt = suspendTransaction(database) {
+    ): UInt = createResult(teamId, values, trail, guard) { it }
+
+    internal suspend fun createResponse(
+        teamId: UInt,
+        values: CapacityPeriodValues,
+        trail: CapacityWriteTrail = CapacityWriteTrail(),
+        guard: TeamGuard,
+    ): CapacityPeriodResponse = createResult(teamId, values, trail, guard) { id ->
+        checkNotNull(responseInTransaction(id)) { "the capacity period just inserted is readable" }
+    }
+
+    private suspend fun <T> createResult(
+        teamId: UInt,
+        values: CapacityPeriodValues,
+        trail: CapacityWriteTrail,
+        guard: TeamGuard,
+        result: suspend (UInt) -> T,
+    ): T = suspendTransaction(database) {
         requireValidCapacity(values)
         val locks = listeners.lockBeforeTeam(teamId)
         if (!TeamService.Teams.lockActiveForWrite(teamId)) throw NotFoundException(TEAM_NOT_FOUND)
@@ -126,7 +147,7 @@ class TeamCapacityService(
             it[updatedAt] = stamp
         }[CapacityPeriods.id].value
         listeners.settle(teamId, locks, trail)
-        id
+        result(id)
     }
 
     /**

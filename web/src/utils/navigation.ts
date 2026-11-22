@@ -42,10 +42,8 @@ export const homePath = "/";
 /**
  * The navigation model, shared by the sidebar and the command palette. Sections are labelled,
  * always-open blocks (never collapsible groups): every leaf is always in the DOM, so tests and
- * deep links address the links directly, and a static label costs less vertical space than a
- * toggle. Home, Plan, Roadmap, Programs, Milestones, Dependencies, Team load, Baselines, Schedule proposals and Deviations (the Planning section, readable by everyone) are visible to everyone; the Administration section holds Teams, People and Public holidays (everyone reads
- * the flat teams list, the people directory and the holiday dictionary; only their create/edit/delete are ADMIN) alongside the ADMIN-only Users,
- * Feature flags, Jira and Flow (the connections registries) leaves — a non-admin session sees just Teams, People and Public holidays there.
+ * deep links address the links directly. Planning holds plan work, Teams and capacity holds people and scheduling,
+ * Integrations holds the comparison and connection pages, and Administration holds account controls.
  */
 const NAV_SECTIONS: ReadonlyArray<NavSection> = [
   {
@@ -55,27 +53,37 @@ const NAV_SECTIONS: ReadonlyArray<NavSection> = [
   {
     label: "appShell.section.planning",
     items: [
-      { to: planPath, label: "appShell.nav.plan", icon: IconSitemap },
+      { to: planPath, label: "appShell.nav.plan", icon: IconSitemap, activeFor: ["/projects"] },
       { to: roadmapPath, label: "appShell.nav.roadmap", icon: IconListNumbers },
       { to: programsPath, label: "appShell.nav.programs", icon: IconListTree },
       { to: milestonesPath, label: "appShell.nav.milestones", icon: IconTimelineEvent },
       { to: dependenciesPath, label: "appShell.nav.dependencies", icon: IconLink },
-      { to: teamLoadPath, label: "appShell.nav.teamLoad", icon: IconGauge },
       { to: baselinesPath, label: "appShell.nav.baselines", icon: IconCamera },
+    ],
+  },
+  {
+    label: "appShell.section.teams",
+    items: [
+      { to: teamsPath, label: "appShell.nav.teams", icon: IconUsersGroup },
+      { to: teamLoadPath, label: "appShell.nav.teamLoad", icon: IconGauge },
       { to: scheduleProposalsPath, label: "appShell.nav.scheduleProposals", icon: IconCalendarStats, keywords: ["proposal", "schedule", "cross-team"] },
+      { to: peoplePath, label: "appShell.nav.people", icon: IconAddressBook },
+      { to: publicHolidaysPath, label: "appShell.nav.publicHolidays", icon: IconCalendarOff },
+    ],
+  },
+  {
+    label: "appShell.section.integrations",
+    items: [
       { to: deviationsPath, label: "appShell.nav.deviations", icon: IconGitCompare },
+      { to: jiraConnectionsPath, label: "appShell.nav.jira", icon: IconPlugConnected, adminOnly: true },
+      { to: flowConnectionsPath, label: "appShell.nav.flow", icon: IconActivity, adminOnly: true, keywords: ["flow", "capacity", "roster"] },
     ],
   },
   {
     label: "appShell.section.administration",
     items: [
-      { to: teamsPath, label: "appShell.nav.teams", icon: IconUsersGroup },
-      { to: peoplePath, label: "appShell.nav.people", icon: IconAddressBook },
-      { to: publicHolidaysPath, label: "appShell.nav.publicHolidays", icon: IconCalendarOff },
       { to: usersPath, label: "appShell.nav.users", icon: IconUsers, adminOnly: true },
       { to: "/feature-flags", label: "appShell.nav.featureFlags", icon: IconToggleLeft, adminOnly: true },
-      { to: jiraConnectionsPath, label: "appShell.nav.jira", icon: IconPlugConnected, adminOnly: true },
-      { to: flowConnectionsPath, label: "appShell.nav.flow", icon: IconActivity, adminOnly: true, keywords: ["flow", "capacity", "roster"] },
     ],
   },
 ];

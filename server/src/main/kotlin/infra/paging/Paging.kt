@@ -2,9 +2,13 @@ package ch.nokillswit.infra.paging
 
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.plugins.BadRequestException
+import io.r2dbc.spi.IsolationLevel
 import org.jetbrains.exposed.v1.core.Column
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.r2dbc.Query
+import org.jetbrains.exposed.v1.r2dbc.R2dbcDatabase
+import org.jetbrains.exposed.v1.r2dbc.R2dbcTransaction
+import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 
 const val DEFAULT_PAGE_SIZE = 20
 const val MAX_PAGE_SIZE = 100
@@ -16,6 +20,13 @@ data class PageRequest(
     val pageSize: Int,
     val sort: List<SortField>,
 )
+
+/**
+ * One read-only snapshot for a list's count, page rows and any batched projections of those rows.
+ * API-LIST-001 requires the count and items to describe the same committed database state.
+ */
+suspend fun <T> pagedRead(database: R2dbcDatabase, block: suspend R2dbcTransaction.() -> T): T =
+    suspendTransaction(database, IsolationLevel.REPEATABLE_READ, readOnly = true, statement = block)
 
 fun ApplicationCall.parsePaging(
     sortable: Set<String>,

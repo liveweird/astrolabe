@@ -19,17 +19,17 @@ class OpenApiSpecTest {
 
     @Test
     fun `spec parses with no parser messages`() {
-        val result = OpenAPIV3Parser().readContents(OpenApiSpec.validatorYaml, null, ParseOptions().apply { isResolve = true })
+        val result = OpenAPIV3Parser().readContents(OpenApiSpec.rawYaml, null, ParseOptions().apply { isResolve = true })
         assertNotNull(result.openAPI, "spec failed to parse")
         assertEquals(emptyList(), result.messages ?: emptyList(), "spec should parse without warnings/errors")
     }
 
-    /**
-     * The spec declares `openapi: 3.1.0` but is validated at test time as 3.0.3 (in-memory relabel
-     * in [OpenApiSpec] — swagger-request-validator's 3.1 support is unreliable). That relabel is
-     * only sound while the document uses no 3.1-only constructs; this guard pins it. If it fails:
-     * remove the 3.1-only construct, or rework the relabel in OpenApiConformance.kt.
-     */
+    @Test
+    fun `the published spec declares the dialect used by conformance tests`() {
+        assertEquals("3.0.3", YAMLMapper().readTree(OpenApiSpec.rawYaml).path("openapi").asText())
+    }
+
+    /** The same OpenAPI 3.0.3 document drives publication, validation and generation. */
     @Test
     fun `spec uses only 3_0-compatible constructs`() {
         val offenders = listOf(
@@ -44,8 +44,7 @@ class OpenApiSpecTest {
         ).mapNotNull { regex -> regex.find(OpenApiSpec.rawYaml)?.value }
         assertEquals(
             emptyList(), offenders,
-            "documentation.yaml contains OpenAPI 3.1-only constructs, but conformance validation " +
-                "relabels it to 3.0.3 (see OpenApiConformance.kt) — use the 3.0 idiom (e.g. nullable:) instead",
+            "documentation.yaml contains OpenAPI 3.1-only constructs — use the 3.0 idiom (e.g. nullable:) instead",
         )
     }
 

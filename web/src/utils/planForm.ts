@@ -145,7 +145,7 @@ export function toProjectUpdateBody(values: PlanNodeFormValues): ProjectUpdateBo
 }
 
 /** Both dates or neither (validation guarantees it); a null pair clears the window. */
-export function toTargetWindowBody(values: ProjectFormValues): TargetWindowBody {
+export function toTargetWindowBody(values: ProjectFormValues): Required<TargetWindowBody> {
   const set = present(values.targetStart) && present(values.targetEnd);
   return { targetStart: set ? values.targetStart : null, targetEnd: set ? values.targetEnd : null };
 }

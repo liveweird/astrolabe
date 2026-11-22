@@ -17,6 +17,26 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.25.0",
+    date: "2026-11-22",
+    en: `**Clearer planning and safer updates**
+
+- Navigation groups planning, team capacity, integrations, and administration. Home makes plan figures easier to scan and aligns the actions for Plan, Roadmap, and Deviations.
+- Flow capacity import waits for a complete sprint snapshot before offering or applying changes. After upgrading, refresh existing Flow connections before importing capacity. Linking, unlinking, and capacity changes refresh the affected views.
+- Saving a project's fields and target window together commits both in one operation. Registry lists return to an available page after the last row on a page is removed.
+- Long timelines draw only the date headers near the visible range. The server and client tooling use the published OpenAPI dialect.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.
+- Proven against the built-in Flow stub; not yet compared with a real Flow.`,
+    pl: `**Czytelniejsze planowanie i bezpieczniejsze aktualizacje**
+
+- Nawigacja grupuje planowanie, obciążenie zespołów, integracje i administrację. Strona główna ułatwia przegląd liczb i porządkuje przejścia do Planu, Roadmapy i Odchyleń.
+- Import pojemności z Flow wymaga kompletnego zestawu sprintów. Po aktualizacji odśwież istniejące połączenia z Flow przed importem. Łączenie i odłączanie zespołów oraz zmiana pojemności odświeżają powiązane widoki.
+- Dane projektu i okno docelowe zapisujesz razem w jednej operacji. Po usunięciu jedynego wiersza na stronie lista wraca na dostępną stronę.
+- Długie osie czasu wyświetlają nagłówki dat w pobliżu widocznego zakresu. Serwer i narzędzia klienta korzystają z opublikowanej wersji OpenAPI.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.
+- Sprawdzone na wbudowanej atrapie Flow; jeszcze nie porównane z prawdziwym Flow.`,
+  },
+  {
     version: "1.24.0",
     date: "2026-11-15",
     en: `**Astrolabe 1.24.0: a technical release.**

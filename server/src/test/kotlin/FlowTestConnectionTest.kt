@@ -3,6 +3,7 @@ package ch.nokillswit
 import ch.nokillswit.flow.FlowConnectionRequest
 import ch.nokillswit.flow.FlowConnectionResponse
 import ch.nokillswit.flow.FlowTestResult
+import ch.nokillswit.flow.passed
 import ch.nokillswit.infra.crypto.FieldCipher
 import ch.nokillswit.users.UserRole
 import com.github.tomakehurst.wiremock.client.MappingBuilder

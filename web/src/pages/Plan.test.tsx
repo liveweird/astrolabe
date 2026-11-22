@@ -412,8 +412,8 @@ describe("Plan page", () => {
     expect(writes(mockFetch)).toEqual(["PUT /api/v1/projects/102/target-window"]);
   });
 
-  test("changing fields and window saves two PUTs, fields first; unchanged parts are not sent", async () => {
-    serve(mockFetch, { "PUT /api/v1/projects/100": { status: 204 }, "PUT /api/v1/projects/100/target-window": { status: 204 } });
+  test("changing fields and window sends one atomic update", async () => {
+    serve(mockFetch, { "PUT /api/v1/projects/100/details": { status: 204 } });
     const user = userEvent.setup();
     renderWithProviders(<Plan />);
     await openMenu(user, "Invoices", "Edit Invoices");
@@ -425,10 +425,12 @@ describe("Plan page", () => {
     await user.clear(end);
     await user.type(end, "2026-04-15");
     await user.click(within(modal).getByRole("button", { name: /^save$/i }));
-    await waitFor(() => expect(writes(mockFetch)).toHaveLength(2));
-    expect(writes(mockFetch)).toEqual(["PUT /api/v1/projects/100", "PUT /api/v1/projects/100/target-window"]);
-    expect(bodyOf(mockFetch, "PUT", "/api/v1/projects/100")).toEqual({ name: "Invoices 2", description: "Monthly invoicing", ownerPersonId: 5 });
-    expect(bodyOf(mockFetch, "PUT", "/api/v1/projects/100/target-window")).toEqual({ targetStart: "2026-02-01", targetEnd: "2026-04-15" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(writes(mockFetch)).toEqual(["PUT /api/v1/projects/100/details"]);
+    expect(bodyOf(mockFetch, "PUT", "/api/v1/projects/100/details")).toEqual({
+      name: "Invoices 2", description: "Monthly invoicing", ownerPersonId: 5,
+      targetStart: "2026-02-01", targetEnd: "2026-04-15",
+    });
   });
 
   test("only the fields changed: one PUT, no window request", async () => {
@@ -452,10 +454,9 @@ describe("Plan page", () => {
     expect(writes(mockFetch)).toEqual([]);
   });
 
-  test("when the window PUT fails after the fields PUT, a retry sends only the window", async () => {
+  test("a refused combined edit keeps the draft and retries both parts together", async () => {
     serve(mockFetch, {
-      "PUT /api/v1/projects/100": { status: 204 },
-      "PUT /api/v1/projects/100/target-window": { status: 403, body: { title: "Forbidden", status: 403 } },
+      "PUT /api/v1/projects/100/details": { status: 403, body: { title: "Forbidden", status: 403 } },
     });
     const user = userEvent.setup();
     renderWithProviders(<Plan />);
@@ -468,10 +469,13 @@ describe("Plan page", () => {
     await user.click(within(modal).getByRole("button", { name: /^save$/i }));
     expect(await within(modal).findByText("You are not allowed to change this")).toBeInTheDocument();
 
-    serve(mockFetch, { "PUT /api/v1/projects/100/target-window": { status: 204 } });
+    const firstBody = bodyOf(mockFetch, "PUT", "/api/v1/projects/100/details");
+    serve(mockFetch, { "PUT /api/v1/projects/100/details": { status: 204 } });
     mockFetch.mockClear();
     await user.click(within(modal).getByRole("button", { name: /^save$/i }));
-    await waitFor(() => expect(writes(mockFetch)).toEqual(["PUT /api/v1/projects/100/target-window"]));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(writes(mockFetch)).toEqual(["PUT /api/v1/projects/100/details"]);
+    expect(bodyOf(mockFetch, "PUT", "/api/v1/projects/100/details")).toEqual(firstBody);
   });
 
   test("a project name clash (409) marks the name field", async () => {

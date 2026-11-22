@@ -25,6 +25,7 @@ object FlowTeams : Table("flow_teams") {
     val name = varchar("name", length = FLOW_TEAM_NAME_WIDTH)
     val defaultCapacityMd = decimal("default_capacity_md", 8, 2).nullable()
     val observedAt = long("observed_at")
+    val sprintsComplete = bool("sprints_complete")
     override val primaryKey = PrimaryKey(connectionId, flowTeamId)
 }
 
@@ -75,6 +76,8 @@ class FlowMirrorStore(private val database: R2dbcDatabase) {
      * [keepAbsentTeams] is the run's rule for a TRUNCATED document (`teamsTruncated`: Flow cut its answer at the team cap, so a team
      * missing from it was merely not sent): the teams of [teams] are replaced and every other team already mirrored is KEPT with its
      * sprints and members (so a bound team never reads as gone because of a cap). Without it the mirror is exactly [teams].
+     * [sprintsComplete] belongs to each team row: a document cut at the global sprint cap marks every team it carries incomplete. A
+     * retained absent team keeps its own previous flag, because this document supplied no evidence about that team.
      *
      * The row lock is `FOR NO KEY UPDATE` from the start (never upgraded from `FOR SHARE`): concurrent replaces of one connection, the
      * delete and an edit all queue on it, so there is no lock cycle whatever the run claim allows. A team link or "Link all suggested"
@@ -93,6 +96,7 @@ class FlowMirrorStore(private val database: R2dbcDatabase) {
         teams: List<FlowMirrorTeam>,
         at: Long,
         keepAbsentTeams: Boolean = false,
+        sprintsComplete: Boolean = true,
         afterWrite: suspend () -> Unit = {},
     ): FlowMirrorWrite {
         val rows = teams.distinctBy { it.flowTeamId }.map { it.fitted() }
@@ -109,6 +113,7 @@ class FlowMirrorStore(private val database: R2dbcDatabase) {
                 this[FlowTeams.name] = team.name
                 this[FlowTeams.defaultCapacityMd] = team.defaultCapacityMd
                 this[FlowTeams.observedAt] = at
+                this[FlowTeams.sprintsComplete] = sprintsComplete
             }
             FlowSprints.insertRows(rows.flatMap { team -> team.sprints.map { team.flowTeamId to it } }) { (teamId, sprint) ->
                 this[FlowSprints.connectionId] = connectionId
@@ -180,7 +185,11 @@ class FlowMirrorStore(private val database: R2dbcDatabase) {
         ).selectAll().where { (FlowTeams.connectionId eq connectionId) and (FlowTeams.flowTeamId eq flowTeamId) }
             .orderBy(sprints.startAt to SortOrder.ASC_NULLS_LAST, sprints.sprintId to SortOrder.ASC).toList()
         rows.firstOrNull()?.let { first ->
-            FlowMirrorTeamSprints(first[FlowTeams.observedAt], rows.filter { it.getOrNull(sprints.sprintId) != null }.map { it.toSprint() })
+            FlowMirrorTeamSprints(
+                first[FlowTeams.observedAt],
+                first[FlowTeams.sprintsComplete],
+                rows.filter { it.getOrNull(sprints.sprintId) != null }.map { it.toSprint() },
+            )
         }
     }
 
@@ -206,6 +215,7 @@ class FlowMirrorStore(private val database: R2dbcDatabase) {
                 .mapValues { (_, rows) ->
                     FlowMirrorTeamSprints(
                         rows.first()[FlowTeams.observedAt],
+                        rows.first()[FlowTeams.sprintsComplete],
                         rows.filter { it.getOrNull(sprints.sprintId) != null }.map { it.toSprint() },
                     )
                 }

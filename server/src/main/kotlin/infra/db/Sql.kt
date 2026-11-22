@@ -24,12 +24,15 @@ import org.jetbrains.exposed.v1.core.stringParam
 fun Expression<out String?>.containsNormalized(raw: String): Op<Boolean> {
     val pattern = containsPattern(raw)
     return LikeEscapeOp(
-        LowerCase(unaccent(this)),
-        LowerCase(unaccent(stringParam(pattern.pattern))),
+        normalizedLower(),
+        stringParam(pattern.pattern).normalizedLower(),
         like = true,
         escapeChar = pattern.escapeChar,
     )
 }
+
+/** PostgreSQL's C-locale LOWER misses letters such as `Ż`; unaccent first gives sorting and matching one stable fold. */
+internal fun Expression<out String?>.normalizedLower(): Expression<String> = LowerCase(unaccent(this))
 
 // Schema-qualified so resolution never depends on search_path. Accepts nullable string
 // expressions too: a NULL value never LIKE-matches, which is exactly what a substring filter
@@ -49,12 +52,3 @@ internal fun containsPattern(raw: String): LikePattern {
         .replace("_", "\\_")
     return LikePattern("%$escaped%", escapeChar = '\\')
 }
-
-/**
- * Post-commit read-back guard: the create/transition already committed (Location set, audit
- * emitted), so a missing re-read is a server-side anomaly (500 via [error]), never a client
- * 404. Reads `X.read(id).orVanished("Domain", id)`; transitions pass a phase like
- * "after opening".
- */
-fun <T> T?.orVanished(resource: String, id: Any, phase: String = "between create and re-read"): T =
-    this ?: error("$resource $id vanished $phase")

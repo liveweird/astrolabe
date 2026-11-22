@@ -115,8 +115,8 @@ describe("FlowTeamLinkDialog", () => {
   });
 
   test.each([
-    [[], "No Flow connection exists yet. An administrator adds one under Administration, Flow."],
-    [[{ ...ACME, enabled: false }], "Every Flow connection is disabled. An administrator enables one under Administration, Flow."],
+    [[], "No Flow connection exists yet. An administrator adds one under Integrations, Flow."],
+    [[{ ...ACME, enabled: false }], "Every Flow connection is disabled. An administrator enables one under Integrations, Flow."],
   ])("no enabled connection to choose (%#)", async (connections, note) => {
     serve(mockFetch);
     renderDialog(connections);

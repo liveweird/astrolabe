@@ -4,7 +4,6 @@ import ch.nokillswit.audit.audit
 import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.authz.requireAdmin
-import ch.nokillswit.infra.db.orVanished
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource
@@ -45,7 +44,8 @@ internal fun Route.workStreamRoutes(d: PlanRouteDeps) {
         requireAdmin(caller)
         val request = call.receive<WorkStreamCreateRequest>().sanitized()
         validateWorkStream(request)
-        val id = d.structure.workStreams.create(request)
+        val created = d.structure.workStreams.createResponse(request)
+        val id = created.id
         audit(
             "work_stream.created",
             "byUserId" to caller.userId.toLong(),
@@ -54,7 +54,7 @@ internal fun Route.workStreamRoutes(d: PlanRouteDeps) {
             "ownerPersonId" to request.ownerPersonId.toLong(),
         )
         call.response.header(HttpHeaders.Location, call.application.href(WorkStreamsRoute.Id(id = id)))
-        call.respond(HttpStatusCode.Created, d.structure.workStreams.read(id).orVanished(WORK_STREAM, id))
+        call.respond(HttpStatusCode.Created, created)
     }
     get<WorkStreamsRoute.Id> { route ->
         call.caller()
@@ -95,7 +95,8 @@ internal fun Route.workStreamRoutes(d: PlanRouteDeps) {
         d.requireOwner(caller, d.structure.workStreams.chain(streamId), WORK_STREAM)
         val request = call.receive<ProgramCreateRequest>().sanitized()
         validateProgram(request)
-        val id = d.structure.programs.create(streamId, request, d.ownerGuard(caller))
+        val created = d.structure.programs.createResponse(streamId, request, d.ownerGuard(caller))
+        val id = created.id
         audit(
             "program.created",
             "byUserId" to caller.userId.toLong(),
@@ -105,6 +106,6 @@ internal fun Route.workStreamRoutes(d: PlanRouteDeps) {
             "ownerPersonId" to request.ownerPersonId.toLong(),
         )
         call.response.header(HttpHeaders.Location, call.application.href(ProgramsRoute.Id(id = id)))
-        call.respond(HttpStatusCode.Created, d.structure.programs.read(id).orVanished("Program", id))
+        call.respond(HttpStatusCode.Created, created)
     }
 }

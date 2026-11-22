@@ -19,8 +19,8 @@
 4. They click **New project in <the program>**, fill a name, pick the second person as owner, type the target
    window `2026-02-02` to `2026-03-31`, and Create.
    - *Expected*: the program's projects table has a row with the project, the second person and "2026-02-02 – 2026-03-31".
-5. They open the project's row menu, Edit it, rename it and hand it over to the first person (clearing the owner and picking again), and Save.
-   - *Expected*: the row shows the new name and the first person, and the target window is unchanged.
+5. They open the project's row menu, rename it, hand it over to the first person and extend the target window to `2026-04-15`.
+   - *Expected*: Save sends one details update. The row shows the new name, the first person and "2026-02-02 – 2026-04-15".
 6. They try to delete the work stream from its menu.
    - *Expected*: the server refuses (409) and the dialog says "This work stream still has programs. Delete them first."; they cancel.
 7. They delete the project, then the program, then the work stream, each from its own menu after confirming.
@@ -63,7 +63,7 @@
 
 - **The move dialog's error branches (409/400/403/404), the no-target state and the keyboard path** — pinned by `PlanMove.test.tsx`; the journey drives
   the two happy-path moves and the unchanged ranking.
-- **Validation, name clashes, the roadmap editor's window-only modal, the two-PUT save and the close/reopen actions** — pinned by
+- **Validation, name clashes, the roadmap editor's window-only modal and the close/reopen actions** — pinned by
   `Plan.test.tsx`, `planForm.test.ts` and the server's `PlanStructureTest`; the journeys drive the happy paths and the
   role-dependent visibility only.
 - **A stream owner or program owner creating below their node** — the same `can` flags drive it; the server matrix is in

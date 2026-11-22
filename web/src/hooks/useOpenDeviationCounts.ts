@@ -15,7 +15,7 @@ export type OpenCounts = { warnings: number; infos: number };
  * `jiraStale` / `flowStale` (1.18) say the source "may be out of date" by the Deviations page's own folds over the connections the two documents already
  * carry (an ENABLED connection that is stale; `hasStaleSource` / `hasStaleFlowSource`), so Home never disagrees with the page its line links to.
  */
-export function useOpenDeviationCounts(): { jira: OpenCounts | null; flow: OpenCounts | null; jiraStale: boolean; flowStale: boolean; error: unknown } {
+export function useOpenDeviationCounts() {
   const jira = useQuery({ queryKey: ["jira", "deviations", "totals"], queryFn: () => getDeviations({ acknowledged: true }), staleTime: 60_000 });
   const flow = useQuery({ queryKey: ["flow", "deviations", "totals"], queryFn: () => getCapacityDeviations({ acknowledged: true }), staleTime: 60_000 });
   return {
@@ -23,6 +23,7 @@ export function useOpenDeviationCounts(): { jira: OpenCounts | null; flow: OpenC
     flow: flow.data && flow.data.connections.length > 0 ? { warnings: flow.data.totals.warnings, infos: flow.data.totals.infos } : null,
     jiraStale: jira.data ? hasStaleSource(jira.data.connections) : false,
     flowStale: flow.data ? hasStaleFlowSource(flow.data.connections) : false,
+    ready: jira.isSuccess && flow.isSuccess,
     error: jira.error ?? flow.error,
   };
 }

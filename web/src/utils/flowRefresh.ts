@@ -1,23 +1,24 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { HOME_VIEW_KEY } from "../api/home";
 import { refreshQueriesAfterMutation } from "./queryRefresh";
 
 /**
  * After a write that changes which Flow team an Astrolabe team is linked to - a link, an unlink, "Link all suggested": the connection pages'
  * team lists (`["flow","teams"]`), the team pages' Flow panels (`["flow","team"]`, keyed by the team) and the capacity deviations
- * (`["flow","deviations"]`: a link or an unlink changes which teams they compare), and Home's kept read (`HOME_VIEW_KEY`: its Flow sentence follows
- * the links). Nothing of the timeline views moves (a link carries no plan state), so unlike a Jira bind this never touches `["plan"]` or
- * `["roadmap"]`.
+ * (`["flow","deviations"]`: a link or an unlink changes which teams they compare). Plan, team, project, Roadmap and Programs views also derive
+ * Flow-capacity flags from those links, so they must move in the same refresh boundary.
  */
 export function refreshFlowLinks(queryClient: QueryClient): Promise<void> {
-  return refreshQueriesAfterMutation(queryClient, ["flow", "teams"], ["flow", "team"], ["flow", "deviations"], HOME_VIEW_KEY);
+  return refreshQueriesAfterMutation(queryClient, ["flow", "teams"], ["flow", "team"], ["flow", "deviations"], ["plan"], ["roadmap"]);
 }
 
 /**
- * After a per-sprint capacity acknowledge or its withdrawal: the capacity deviations (`["flow","deviations"]`: the Deviations page's section and the
- * team page's lines) and the plan's views (`["plan"]`: the team view's flag and week markers follow the open rows). A link carries no plan state, but
- * an acknowledgement does reach the team view.
+ * After a capacity write or acknowledgement: re-read the source document and every view carrying derived Flow-capacity flags.
  */
-export function refreshCapacityAcknowledgements(queryClient: QueryClient): Promise<void> {
-  return refreshQueriesAfterMutation(queryClient, ["flow", "deviations"], ["plan"]);
+export function refreshFlowCapacity(queryClient: QueryClient): Promise<void> {
+  return refreshQueriesAfterMutation(queryClient, ["flow", "deviations"], ["plan"], ["roadmap"]);
+}
+
+/** A connection create, edit, delete, test or completed run can change availability and the flags derived from its mirror. */
+export function refreshFlowConnections(queryClient: QueryClient): Promise<void> {
+  return refreshQueriesAfterMutation(queryClient, ["flow"], ["plan"], ["roadmap"]);
 }

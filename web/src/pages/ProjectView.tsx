@@ -37,6 +37,7 @@ import { useCriticalPathPick } from "../hooks/useCriticalPathPick";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useJiraLinks } from "../hooks/useDeviations";
 import { useJiraBarsPick } from "../hooks/useJiraBarsPick";
+import { useLocalToday } from "../hooks/useLocalToday";
 import { useJiraUnlink } from "../hooks/useJiraUnlink";
 import { useMilestoneSchedule } from "../hooks/useMilestoneSchedule";
 import { useRowMenuFocus } from "../hooks/useRowMenuFocus";
@@ -145,7 +146,7 @@ function ProjectPage({ id }: { id: number }) {
   // The earliest and latest day this page has shown: the range only ever grows, so a drag never shifts the bars under the pointer.
   const [seen, setSeen] = useState<SeenRange | null>(null);
   // "Today" is the viewer's own calendar day (their local date), not UTC: the today line and the Schedule button agree with their wall calendar.
-  const today = localIsoDate();
+  const today = useLocalToday();
 
   const refreshPlan = () => refreshQueriesAfterMutation(queryClient, ["plan"]);
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -210,7 +211,8 @@ function ProjectPage({ id }: { id: number }) {
 
   /** The Schedule button: one calendar week from the later of today and the project's target start (the tray's pointer drop uses the same week). */
   const scheduleByButton = (milestone: ProjectMilestone) => {
-    const start = project.targetStart !== null && project.targetStart > today ? project.targetStart : today;
+    const clickedToday = localIsoDate();
+    const start = project.targetStart !== null && project.targetStart > clickedToday ? project.targetStart : clickedToday;
     const span = dropOutcome("tray", null, 0, toEpochDay(start));
     if (span !== null) schedule.commit(milestone.id, span.start, span.end, { announce: true });
   };

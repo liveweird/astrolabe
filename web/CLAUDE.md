@@ -134,16 +134,16 @@ Everything is lazy under `RequireAuth` unless noted.
 - `/programs` — Planning, everyone (the target window by `can`; the program pick in the URL, remembered) — "Programs" + `timeline.md`.
 - `/milestones` — Planning, everyone (read-only; filters in the URL) — "Milestones".
 - `/dependencies` — Planning, everyone (edit and delete by the row's `can`; filters in the URL) — "Dependencies".
-- `/team-load` — Planning, everyone (read-only; the warning and past-weeks filters in the URL) — "Team load".
 - `/baselines`, `/baselines/:id` — Planning, everyone (`can.manage` writes) — "Baselines".
-- `/schedule-proposals` — Planning, everyone (the teams offered come from `GET /schedule-proposals/teams`; the server's 403 is the rule) — "Schedule proposals".
-- `/deviations` — Planning, everyone (Refresh now ADMIN, acknowledge by `can`) — "Deviations, bindings and the Jira chips".
-- `/teams` — Administration, everyone reads, ADMIN writes — "Teams and the team page" (the Registries template); `/teams/:id` — everyone (`team.can`) — "Teams and the team page" + `timeline.md`.
-- `/people`, `/people/:id` — Administration, everyone reads, ADMIN writes — "People".
-- `/public-holidays` — Administration, everyone reads, ADMIN writes — "Public holidays".
+- `/teams` — Teams and capacity, everyone reads, ADMIN writes — "Teams and the team page"; `/teams/:id` — everyone (`team.can`) — "Teams and the team page" + `timeline.md`.
+- `/team-load` — Teams and capacity, everyone (read-only; warnings and past-weeks filters) — "Team load".
+- `/schedule-proposals` — Teams and capacity, everyone (teams offered by `GET /schedule-proposals/teams`) — "Schedule proposals".
+- `/people`, `/people/:id` — Teams and capacity, everyone reads, ADMIN writes — "People".
+- `/public-holidays` — Teams and capacity, everyone reads, ADMIN writes — "Public holidays".
+- `/deviations` — Integrations, everyone (Refresh now ADMIN, acknowledge by `can`) — "Deviations, bindings and the Jira chips".
+- `/integrations/jira`, `/integrations/jira/:id` — Integrations, ADMIN — "Jira connections" and "Deviations, bindings and the Jira chips".
+- `/integrations/flow`, `/integrations/flow/:id` — Integrations, ADMIN — "Flow connections".
 - `/users`, `/users/new`, `/users/:id/edit|features|permissions`, `/feature-flags` — Administration, ADMIN (one `RequireAdmin` route) — "Users, feature flags and permissions".
-- `/integrations/jira`, `/integrations/jira/:id` — Administration, ADMIN (`RequireAdmin`, `enabled: isAdmin()`) — "Jira connections" and "Deviations, bindings and the Jira chips".
-- `/integrations/flow`, `/integrations/flow/:id` — Administration, ADMIN — "Flow connections".
 - `/change-password`, `/changelog` — the account menu (`ACCOUNT_NAV`), authenticated — "Users, feature flags and permissions" (the password change) with
   "Transport and session layer" (sign-out), "Changelog and app versioning".
 - `/login`, `/reset-password`, `/reset-password/confirm` — outside the shell, anonymous (`RedirectIfAuthed` except the confirm link) — "Transport and session layer".

@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Button, Modal, PasswordInput, Select, Stack, Switch, TagsInput, Text, TextInput } from "@mantine/core";
+import { Alert, Button, Modal, PasswordInput, Select, Stack, Switch, TagsInput, Text, TextInput } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { HOME_VIEW_KEY } from "../api/home";
 import { ApiError } from "../api/http";
@@ -59,6 +59,7 @@ export default function JiraConnectionEditorModal({
   const [testing, setTesting] = useState(false);
   const [testError, setTestError] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<JiraTestResult | null>(null);
+  const [storedTest, setStoredTest] = useState(false);
 
   const isEdit = target !== null;
   // `hasApiToken` is all the server ever says about the token: "leave blank to keep" only when one is stored.
@@ -119,12 +120,14 @@ export default function JiraConnectionEditorModal({
     // A stale result must never sit under a new attempt (or a new error).
     setTestError(null);
     setTestResult(null);
+    setStoredTest(false);
     if (!probeFieldsValid()) return;
     setTesting(true);
     try {
       // Editing with the token left blank probes the STORED connection with its stored (decrypted) token.
       const stored = target !== null && form.values.apiToken.trim() === "";
       const result = stored ? await testJiraConnection(target.id) : await testJiraConnectionAdHoc(toJiraConnectionRequest(form.values));
+      setStoredTest(stored);
       setTestResult(result);
       // A stored test records the verdict and the discovery on the connection: the pages that show them follow.
       if (stored) {
@@ -198,6 +201,11 @@ export default function JiraConnectionEditorModal({
           )}
           <ConnectionTestStatus result={testResult} />
           {testError && <FormErrorAlert>{testError}</FormErrorAlert>}
+          {storedTest && testResult && !testResult.recorded && (
+            <Alert color="orange" variant="light" role="note">
+              {t("sync.test.notRecorded")}
+            </Alert>
+          )}
           {testResult && <ConnectionTestResults result={testResult} />}
 
           <RegistryEditorActions error={error} submitting={submitting} isEdit={isEdit} onClose={onClose} gap="sm" />

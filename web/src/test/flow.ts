@@ -163,6 +163,7 @@ export const PREVIEW: CapacityPreview = {
   bindingId: 5,
   teamId: 1,
   observedAt: Date.UTC(2026, 10, 8, 9, 40),
+  sprintsComplete: true,
   zone: "Europe/Warsaw",
   from: "2026-11-08",
   includeClosed: false,
