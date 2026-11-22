@@ -44,6 +44,7 @@ import { useScheduleCheck } from "../hooks/useScheduleCheck";
 import { useScheduleProposal } from "../hooks/useScheduleProposal";
 import { useTeamOrder } from "../hooks/useTeamOrder";
 import { useJiraBarsPick } from "../hooks/useJiraBarsPick";
+import { useLocalToday } from "../hooks/useLocalToday";
 import { useTeamSchedule } from "../hooks/useTeamSchedule";
 import { baselineDays } from "../utils/baselineOverlay";
 import { localIsoDate } from "../utils/isoDate";
@@ -110,7 +111,7 @@ function TeamPage({ id }: { id: number }) {
   // The earliest and latest day this page has shown: the range only ever grows, so a drag never shifts the bars under the pointer.
   const [seen, setSeen] = useState<SeenRange | null>(null);
   // "Today" is the viewer's own calendar day (their local date), not UTC: the today line and the Schedule button agree with their wall calendar.
-  const today = localIsoDate();
+  const today = useLocalToday();
 
   if (!view) {
     const notFound = !Number.isInteger(id) || (query.error instanceof ApiError && query.error.status === 404);
@@ -150,7 +151,7 @@ function TeamPage({ id }: { id: number }) {
 
   /** The Schedule button: one calendar week from today (the tray's pointer drop uses the same week; a team has no target window). */
   const scheduleByButton = (milestone: TeamMilestone) => {
-    const span = dropOutcome("tray", null, 0, toEpochDay(today));
+    const span = dropOutcome("tray", null, 0, toEpochDay(localIsoDate()));
     if (span !== null) schedule.commit(milestone.id, span.start, span.end, { announce: true });
   };
 

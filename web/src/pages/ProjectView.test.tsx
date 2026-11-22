@@ -498,7 +498,23 @@ describe("Project view page: schedule writes", () => {
     await waitFor(() => expect(schedulePuts(mockFetch)).toHaveLength(1));
     expect(schedulePuts(mockFetch)[0]).toMatchObject({ startDate: "2027-02-03", endDate: "2027-02-09" });
   });
+});
 
+describe("Project view page: midnight scheduling", () => {
+  test("Schedule reads the local day at click time when the page stayed open across midnight", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2027, 1, 3, 23, 59));
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    vi.setSystemTime(new Date(2027, 1, 4, 0, 1));
+    await user.click(screen.getByRole("button", { name: "Schedule Audit" }));
+    await waitFor(() => expect(schedulePuts(mockFetch)).toHaveLength(1));
+    expect(schedulePuts(mockFetch)[0]).toMatchObject({ startDate: "2027-02-04", endDate: "2027-02-10" });
+  });
+});
+
+describe("Project view page: schedule write outcomes", () => {
   test("a Schedule pressed on a Saturday starts that Saturday (the viewer's local day) and runs the week to the next Friday", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date(2027, 0, 9, 23, 30)); // Saturday 2027-01-09, late in the evening, local time

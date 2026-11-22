@@ -9,6 +9,7 @@ import ch.nokillswit.infra.db.localDate
 import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.applyPaging
+import ch.nokillswit.infra.paging.pagedRead
 import ch.nokillswit.teams.TeamService
 import io.ktor.server.plugins.BadRequestException
 import io.ktor.util.AttributeKey
@@ -79,7 +80,7 @@ class MilestoneService(private val database: R2dbcDatabase) {
      * program and work stream, one predicate (name, schedule, team and project filters, ANDed) for the count and the rows in ONE read
      * transaction (no lock, no revision). The project's and the team's names ride the joins, and are sortable.
      */
-    suspend fun list(filter: MilestoneListFilter, paging: PageRequest): MilestoneListResult = suspendTransaction(database) {
+    suspend fun list(filter: MilestoneListFilter, paging: PageRequest): MilestoneListResult = pagedRead(database) {
         val projects = ProjectService.Projects
         val programs = ProgramService.Programs
         val streams = WorkStreamService.WorkStreams
@@ -127,11 +128,15 @@ class MilestoneService(private val database: R2dbcDatabase) {
 
     /** The milestone, or null when it or its project, program or work stream is missing/deleted. */
     suspend fun read(id: UInt): MilestoneResponse? = suspendTransaction(database) {
-        milestoneChain(id) ?: return@suspendTransaction null
+        responseInTransaction(id)
+    }
+
+    private suspend fun responseInTransaction(id: UInt): MilestoneResponse? {
+        milestoneChain(id) ?: return null
         val row = Milestones.selectAll().where { (Milestones.id eq id) and Milestones.active() }.toList().singleOrNull()
-            ?: return@suspendTransaction null
+            ?: return null
         val teamId = row[Milestones.teamId].value
-        MilestoneResponse(
+        return MilestoneResponse(
             id = id,
             projectId = row[Milestones.projectId].value,
             name = row[Milestones.name],
@@ -151,13 +156,30 @@ class MilestoneService(private val database: R2dbcDatabase) {
      * Creates an UNSCHEDULED milestone under [projectId]; under the lock the project's chain is re-read (missing = 404) and [guard]
      * re-run, then the team must be ACTIVE (400, locked `FOR SHARE`) and a name clash in the project is the partial index's 409.
      */
-    suspend fun create(projectId: UInt, request: MilestoneCreateRequest, guard: PlanGuard): UInt {
+    suspend fun create(projectId: UInt, request: MilestoneCreateRequest, guard: PlanGuard): UInt =
+        createResult(projectId, request, guard) { it }
+
+    internal suspend fun createResponse(
+        projectId: UInt,
+        request: MilestoneCreateRequest,
+        guard: PlanGuard,
+    ): MilestoneResponse = createResult(projectId, request, guard) { id ->
+        checkNotNull(responseInTransaction(id)) { "the milestone just inserted is readable" }
+    }
+
+    private suspend fun <T> createResult(
+        projectId: UInt,
+        request: MilestoneCreateRequest,
+        guard: PlanGuard,
+        result: suspend (UInt) -> T,
+    ): T {
         val estimate = validateMilestoneFields(request.name, request.description, request.estimateMd)
         return database.withPlanWrite { revision ->
             guard(projectChain(projectId).orNotFound("Project"))
             requireActiveTeam(request.teamId)
             val stamp = nowMillis()
-            insertMilestoneRow(projectId, request.teamId, request.name, request.description, estimate, revision + 1, stamp)
+            val id = insertMilestoneRow(projectId, request.teamId, request.name, request.description, estimate, revision + 1, stamp)
+            result(id)
         }.value
     }
 

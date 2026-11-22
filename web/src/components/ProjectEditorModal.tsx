@@ -3,7 +3,7 @@ import { Fieldset, Group, Modal, Stack, Text } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { useTranslation } from "react-i18next";
 import { ApiError } from "../api/http";
-import { createProject, setProjectTargetWindow, updateProject } from "../api/plan";
+import { createProject, setProjectTargetWindow, updateProject, updateProjectDetails } from "../api/plan";
 import PlanDateInput from "./PlanDateInput";
 import PlanNodeFields from "./PlanNodeFields";
 import RegistryEditorActions from "./RegistryEditorActions";
@@ -24,8 +24,7 @@ import { showSuccessToast } from "../utils/toast";
  * Create (target null, under [program]) / edit (target set) a project. The modal has two independently permitted parts, because
  * the server guards them differently: the FIELDS (name, description, owner — `can.edit`, the owner chain) and the TARGET WINDOW
  * (`can.editTargetWindow` — an administrator, an owner ABOVE the project or a roadmap editor, never the project's own owner).
- * Each part is enabled by its own flag and saved by its own PUT, only when changed, fields first. A creator is always a window
- * editor, so a new project carries its window in the create body.
+ * Each part is enabled by its own flag. A combined edit saves both parts in one request. A creator is always a window editor.
  */
 export default function ProjectEditorModal({
   program,
@@ -48,30 +47,28 @@ export default function ProjectEditorModal({
     initialValues: target ? toProjectFormValues(target) : EMPTY_PROJECT_FORM,
     validate: projectFormValidation(t),
   });
-  // What the server last accepted for each part: a retry after the second PUT failed never repeats the first.
-  const [accepted, setAccepted] = useState(() => ({
+  const [initial] = useState(() => ({
     fields: JSON.stringify(toProjectUpdateBody(form.values)),
     window: JSON.stringify(toTargetWindowBody(form.values)),
   }));
 
   async function saveExisting(project: ProjectEditTarget, values: ProjectFormValues): Promise<boolean> {
-    let wrote = false;
-    const fields = JSON.stringify(toProjectUpdateBody(values));
-    if (canEditFields && fields !== accepted.fields) {
-      await updateProject(project.id, toProjectUpdateBody(values));
-      setAccepted((prev) => ({ ...prev, fields }));
-      wrote = true;
+    const fields = toProjectUpdateBody(values);
+    const window = toTargetWindowBody(values);
+    const fieldsChanged = canEditFields && JSON.stringify(fields) !== initial.fields;
+    const windowChanged = canEditWindow && JSON.stringify(window) !== initial.window;
+    if (fieldsChanged && windowChanged) {
+      await updateProjectDetails(project.id, { ...fields, ...window });
+    } else if (fieldsChanged) {
+      await updateProject(project.id, fields);
+    } else if (windowChanged) {
+      await setProjectTargetWindow(project.id, window);
     }
-    const windowKey = JSON.stringify(toTargetWindowBody(values));
-    if (canEditWindow && windowKey !== accepted.window) {
-      await setProjectTargetWindow(project.id, toTargetWindowBody(values));
-      setAccepted((prev) => ({ ...prev, window: windowKey }));
-      wrote = true;
-    }
-    return wrote;
+    return fieldsChanged || windowChanged;
   }
 
   async function save(values: ProjectFormValues) {
+    if (submitting) return;
     setError(null);
     setSubmitting(true);
     try {
@@ -100,6 +97,9 @@ export default function ProjectEditorModal({
   return (
     <Modal
       closeButtonProps={{ "aria-label": t("common.action.close") }}
+      withCloseButton={!submitting}
+      closeOnEscape={!submitting}
+      closeOnClickOutside={!submitting}
       opened
       onClose={onClose}
       title={target ? t("plan.project.editTitle") : t("plan.project.createTitle")}

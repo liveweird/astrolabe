@@ -10,9 +10,8 @@ import { useCapacityDeviations } from "../hooks/useCapacityDeviations";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useNow } from "../hooks/useNow";
-import { refreshFlowLinks } from "../utils/flowRefresh";
+import { refreshFlowCapacity, refreshFlowLinks } from "../utils/flowRefresh";
 import { formatDateTime } from "../utils/formatDate";
-import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import { IDLE_REFRESH_MS } from "../utils/syncRuns";
 import CapacityImportModal from "./CapacityImportModal";
@@ -213,7 +212,7 @@ export default function TeamFlowSection({ teamId, importBlocked = false }: { tea
         />
       )}
       {importing && binding !== null && !importBlocked && (
-        <CapacityImportModal binding={binding} onClose={() => setImporting(false)} onImported={() => refreshQueriesAfterMutation(queryClient, ["plan"], ["flow", "deviations"])} />
+        <CapacityImportModal binding={binding} onClose={() => setImporting(false)} onImported={() => refreshFlowCapacity(queryClient)} />
       )}
       <ConfirmDeleteModal
         confirm={unlink}

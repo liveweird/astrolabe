@@ -106,9 +106,14 @@ function PreviewBody({ preview, busy, onImport }: { preview: CapacityPreview; bu
   const total = selected.items.length + selected.removals.length;
   const label = t("flow.import.previewAria");
   const removalsLabel = t("flow.import.removalsAria");
+  const incomplete = preview.observedAt !== null && !preview.sprintsComplete;
   return (
     <Stack gap="md">
-      {preview.items.length === 0 ? (
+      {incomplete ? (
+        <Alert color="orange" variant="light" role="note">
+          {t("flow.import.incomplete")}
+        </Alert>
+      ) : preview.items.length === 0 ? (
         <Text size="sm" c="dimmed">
           {t("flow.import.empty")}
         </Text>
@@ -135,7 +140,7 @@ function PreviewBody({ preview, busy, onImport }: { preview: CapacityPreview; bu
           </Table>
         </ScrollRegion>
       )}
-      {preview.removals.length > 0 && (
+      {preview.sprintsComplete && preview.removals.length > 0 && (
         <Stack gap="xs">
           <Title order={3} size="h5">
             {t("flow.import.removalsTitle")}
@@ -181,7 +186,7 @@ function PreviewBody({ preview, busy, onImport }: { preview: CapacityPreview; bu
         <Text size="sm" role="status">
           {t("flow.import.summary", { total, create: creating, update: selected.items.length - creating, remove: selected.removals.length })}
         </Text>
-        <Button loading={busy} disabled={total === 0} onClick={() => onImport(ticked, removals)}>
+        <Button loading={busy} disabled={!preview.sprintsComplete || total === 0} onClick={() => onImport(ticked, removals)}>
           {t("flow.import.submit")}
         </Button>
       </Group>
@@ -277,7 +282,14 @@ export default function CapacityImportModal({ binding, onClose, onImported }: { 
         ) : preview.data === undefined ? (
           <LoadingBlock />
         ) : (
-          <PreviewBody key={preview.dataUpdatedAt} preview={preview.data} busy={busy} onImport={(ticked, removals) => apply.mutate(applyRequest(preview.data, ticked, removals))} />
+          <PreviewBody
+            key={preview.dataUpdatedAt}
+            preview={preview.data}
+            busy={busy}
+            onImport={(ticked, removals) => {
+              if (preview.data.sprintsComplete) apply.mutate(applyRequest(preview.data, ticked, removals));
+            }}
+          />
         )}
       </Stack>
     </Modal>

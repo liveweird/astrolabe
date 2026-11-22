@@ -256,7 +256,7 @@
     "loading": "Wczytuję połączenia z Jirą…",
     "loadFailed": "Nie udało się wczytać połączeń z Jirą",
     "noConnections": "Nie skonfigurowano jeszcze żadnego połączenia z Jirą.",
-    "noConnectionsAdmin": "Dodaj je w sekcji Administracja, Jira.",
+    "noConnectionsAdmin": "Dodaj je w sekcji Integracje, Jira.",
     "noConnectionsUser": "Najpierw musi je dodać administrator/ka.",
     "allDisabled": "Wszystkie połączenia z Jirą są wyłączone. Administrator/ka musi włączyć jedno z nich.",
     "connection": "Połączenie z Jirą",

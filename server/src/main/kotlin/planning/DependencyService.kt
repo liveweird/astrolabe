@@ -62,13 +62,17 @@ class DependencyService(private val database: R2dbcDatabase) {
 
     /** The link with both ends resolved, or null when it, or either end's project, program or work stream, is missing/deleted. */
     suspend fun read(id: UInt): DependencyResponse? = suspendTransaction(database) {
+        responseInTransaction(id)
+    }
+
+    private suspend fun responseInTransaction(id: UInt): DependencyResponse? {
         val row = Dependencies.selectAll().where { (Dependencies.id eq id) and Dependencies.active() }.toList().singleOrNull()
-            ?: return@suspendTransaction null
+            ?: return null
         val predecessor = row.predecessorRef()
         val successor = row.successorRef()
-        if (!isActiveEndpoint(predecessor) || !isActiveEndpoint(successor)) return@suspendTransaction null
+        if (!isActiveEndpoint(predecessor) || !isActiveEndpoint(successor)) return null
         val ends = resolveEndpoints(listOf(predecessor, successor))
-        DependencyResponse(
+        return DependencyResponse(
             id = id,
             predecessor = ends.getValue(predecessor),
             successor = ends.getValue(successor),
@@ -88,7 +92,23 @@ class DependencyService(private val database: R2dbcDatabase) {
      * pair is a cycle for most type combinations, but `a SS b` + `b FF a` and `a SF b` + `b SF a` close none) -> the insert, where a
      * second ACTIVE link on the same ordered pair is the partial unique index's 409.
      */
-    suspend fun create(projectId: UInt, request: DependencyCreateRequest, guard: PlanGuard): UInt {
+    suspend fun create(projectId: UInt, request: DependencyCreateRequest, guard: PlanGuard): UInt =
+        createResult(projectId, request, guard) { it }
+
+    internal suspend fun createResponse(
+        projectId: UInt,
+        request: DependencyCreateRequest,
+        guard: PlanGuard,
+    ): DependencyResponse = createResult(projectId, request, guard) { id ->
+        checkNotNull(responseInTransaction(id)) { "the dependency just inserted is readable" }
+    }
+
+    private suspend fun <T> createResult(
+        projectId: UInt,
+        request: DependencyCreateRequest,
+        guard: PlanGuard,
+        result: suspend (UInt) -> T,
+    ): T {
         validateDependencyCreate(request)
         return database.withPlanWrite {
             guard(projectChain(projectId).orNotFound("Project"))
@@ -98,7 +118,7 @@ class DependencyService(private val database: R2dbcDatabase) {
             refuseCycle(edge)
             refuseReversePair(request)
             val stamp = nowMillis()
-            Dependencies.insert {
+            val id = Dependencies.insert {
                 it[predMilestoneId] = request.predecessor.idOf(EndpointKind.MILESTONE)
                 it[predProjectId] = request.predecessor.idOf(EndpointKind.PROJECT)
                 it[succMilestoneId] = request.successor.idOf(EndpointKind.MILESTONE)
@@ -108,6 +128,7 @@ class DependencyService(private val database: R2dbcDatabase) {
                 it[createdAt] = stamp
                 it[updatedAt] = stamp
             }[Dependencies.id].value
+            result(id)
         }.value
     }
 

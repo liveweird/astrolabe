@@ -24,6 +24,7 @@ import ch.nokillswit.jira.buildGuardedJiraHttpClient
 import ch.nokillswit.jira.createJiraHttp
 import ch.nokillswit.jira.jiraAddressRule
 import ch.nokillswit.jira.jiraClientFactory
+import ch.nokillswit.jira.passed
 import ch.nokillswit.jira.validatedStubOrigin
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
 import com.github.tomakehurst.wiremock.client.WireMock.anyRequestedFor

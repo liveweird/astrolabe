@@ -9,6 +9,7 @@ import ch.nokillswit.infra.db.localDate
 import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.applyPaging
+import ch.nokillswit.infra.paging.pagedRead
 import ch.nokillswit.people.PersonService
 import io.ktor.util.AttributeKey
 import kotlinx.coroutines.flow.toList
@@ -55,7 +56,7 @@ class ProjectService(private val database: R2dbcDatabase) {
      * The paged project list (the dependency pickers): ACTIVE projects under an ACTIVE program and work stream, one predicate for the
      * count and the rows in ONE read transaction (no lock, no revision: a picker is not a plan view). The ancestors' names ride the join.
      */
-    suspend fun list(filter: ProjectListFilter, paging: PageRequest): ProjectListResult = suspendTransaction(database) {
+    suspend fun list(filter: ProjectListFilter, paging: PageRequest): ProjectListResult = pagedRead(database) {
         val programs = ProgramService.Programs
         val streams = WorkStreamService.WorkStreams
         var predicate: Op<Boolean> = Projects.active() and programs.active() and streams.active()
@@ -96,14 +97,18 @@ class ProjectService(private val database: R2dbcDatabase) {
 
     /** The project, or null when missing/deleted. */
     suspend fun read(id: UInt): ProjectResponse? = suspendTransaction(database) {
+        responseInTransaction(id)
+    }
+
+    private suspend fun responseInTransaction(id: UInt): ProjectResponse? {
         val programs = ProgramService.Programs
         val row = Projects.innerJoin(programs, { Projects.programId }, { programs.id })
             .select(Projects.columns + programs.workStreamId)
             .where { (Projects.id eq id) and Projects.active() }
             .toList().singleOrNull()
-            ?: return@suspendTransaction null
+            ?: return null
         val ownerId = row[Projects.ownerPersonId].value
-        ProjectResponse(
+        return ProjectResponse(
             id = id,
             programId = row[Projects.programId].value,
             workStreamId = row[programs.workStreamId].value,
@@ -122,34 +127,75 @@ class ProjectService(private val database: R2dbcDatabase) {
      * Creates a project under [programId]; under the lock the program's chain is re-read (missing = 404) and [guard] re-run,
      * then an inactive owner is a 400 and a name clash in the program a 409.
      */
-    suspend fun create(programId: UInt, request: ProjectCreateRequest, guard: PlanGuard): UInt {
+    suspend fun create(programId: UInt, request: ProjectCreateRequest, guard: PlanGuard): UInt =
+        createResult(programId, request, guard) { it }
+
+    internal suspend fun createResponse(
+        programId: UInt,
+        request: ProjectCreateRequest,
+        guard: PlanGuard,
+    ): ProjectResponse = createResult(programId, request, guard) { id ->
+        checkNotNull(responseInTransaction(id)) { "the project just inserted is readable" }
+    }
+
+    private suspend fun <T> createResult(
+        programId: UInt,
+        request: ProjectCreateRequest,
+        guard: PlanGuard,
+        result: suspend (UInt) -> T,
+    ): T {
         val window = validateProjectCreate(request)
         return database.withPlanWrite {
             guard(programChain(programId).orNotFound("Program"))
             requireActiveOwner(request.ownerPersonId)
             val stamp = nowMillis()
-            insertProjectRow(programId, request.name, request.description, request.ownerPersonId, window, stamp)
+            val id = insertProjectRow(programId, request.name, request.description, request.ownerPersonId, window, stamp)
+            result(id)
         }.value
     }
 
-    /**
-     * Field replace under the plan lock (name, description, owner — never the parent or the window); the chain is re-read and
-     * [guard] re-run first (missing = 404).
-     */
-    suspend fun update(id: UInt, request: ProjectUpdateRequest, guard: PlanGuard): ProjectUpdateOutcome {
+    suspend fun update(id: UInt, request: ProjectUpdateRequest, guard: PlanGuard): ProjectUpdateOutcome =
+        updateFields(id, request, null, guard)
+
+    /** Both guards read the original chain under the plan lock, including when the update reassigns the owner. */
+    suspend fun updateDetails(
+        id: UInt,
+        fields: ProjectUpdateRequest,
+        window: TargetWindowRequest,
+        fieldGuard: PlanGuard,
+        windowGuard: PlanGuard,
+    ): ProjectUpdateOutcome =
+        updateFields(id, fields, window) { chain ->
+            fieldGuard(chain)
+            windowGuard(chain)
+        }
+
+    private suspend fun updateFields(
+        id: UInt,
+        request: ProjectUpdateRequest,
+        targetWindow: TargetWindowRequest?,
+        guard: PlanGuard,
+    ): ProjectUpdateOutcome {
         validateProjectFields(request.name, request.description)
         return database.withPlanWrite {
             guard(projectChain(id).orNotFound("Project"))
-            val before = Projects.select(Projects.ownerPersonId).where { (Projects.id eq id) and Projects.active() }
+            val window = targetWindow?.let { validateTargetWindow(it.targetStart, it.targetEnd) }
+            val before = Projects.select(Projects.ownerPersonId, Projects.targetStart, Projects.targetEnd)
+                .where { (Projects.id eq id) and Projects.active() }
                 .toList().singleOrNull().orNotFound("Project")
             requireActiveOwner(request.ownerPersonId)
             Projects.update({ (Projects.id eq id) and Projects.active() }) {
                 it[name] = request.name
                 it[description] = request.description
                 it[ownerPersonId] = request.ownerPersonId
+                if (targetWindow != null) {
+                    it[targetStart] = window?.start
+                    it[targetEnd] = window?.end
+                }
                 it[updatedAt] = nowMillis()
             }
-            ProjectUpdateOutcome(before[Projects.ownerPersonId].value)
+            val windowFrom = before.targetWindow()
+            ProjectUpdateOutcome(before[Projects.ownerPersonId].value, windowFrom, if (targetWindow == null) windowFrom else window)
         }.value
     }
 
@@ -166,9 +212,7 @@ class ProjectService(private val database: R2dbcDatabase) {
                 it[targetEnd] = window?.end
                 it[updatedAt] = nowMillis()
             }
-            val start = before[Projects.targetStart]
-            val end = before[Projects.targetEnd]
-            TargetWindowOutcome(if (start != null && end != null) TargetWindow(start, end) else null)
+            TargetWindowOutcome(before.targetWindow())
         }.value
     }
 
@@ -216,4 +260,10 @@ class ProjectService(private val database: R2dbcDatabase) {
         removeFromRanking(id, revision + 1)
         ProjectDeleteOutcome(milestoneCount, dependencies)
     }.value
+}
+
+private fun ResultRow.targetWindow(): TargetWindow? {
+    val start = this[ProjectService.Projects.targetStart] ?: return null
+    val end = this[ProjectService.Projects.targetEnd] ?: return null
+    return TargetWindow(start, end)
 }

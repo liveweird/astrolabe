@@ -70,6 +70,10 @@ export async function updateProject(id: number, body: ProjectUpdateBody): Promis
   await voidRequest(`/api/v1/projects/${id}`, { method: "PUT", body: JSON.stringify(body) });
 }
 
+export async function updateProjectDetails(id: number, body: Schemas["ProjectDetailsRequest"]): Promise<void> {
+  await voidRequest(`/api/v1/projects/${id}/details`, { method: "PUT", body: JSON.stringify(body) });
+}
+
 /** The target window is its own PUT (its own guard): both dates or neither — a null pair clears it. */
 export async function setProjectTargetWindow(id: number, body: TargetWindowBody): Promise<void> {
   await voidRequest(`/api/v1/projects/${id}/target-window`, { method: "PUT", body: JSON.stringify(body) });

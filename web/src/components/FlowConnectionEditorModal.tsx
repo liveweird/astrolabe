@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Button, Modal, PasswordInput, Stack, Switch, Text, TextInput } from "@mantine/core";
+import { Alert, Button, Modal, PasswordInput, Stack, Switch, Text, TextInput } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { HOME_VIEW_KEY } from "../api/home";
 import { ApiError } from "../api/http";
@@ -64,6 +64,7 @@ export default function FlowConnectionEditorModal({
   const [testing, setTesting] = useState(false);
   const [testError, setTestError] = useState<ReactNode>(null);
   const [testResult, setTestResult] = useState<FlowTestResult | null>(null);
+  const [storedTest, setStoredTest] = useState(false);
 
   const isEdit = target !== null;
   // `hasApiToken` is all the server ever says about the token: "leave blank to keep" only when one is stored.
@@ -126,12 +127,14 @@ export default function FlowConnectionEditorModal({
     // A stale result must never sit under a new attempt (or a new error).
     setTestError(null);
     setTestResult(null);
+    setStoredTest(false);
     if (!probeFieldsValid()) return;
     setTesting(true);
     try {
       // Editing with the token left blank probes the STORED connection with its stored (decrypted) token.
       const stored = target !== null && form.values.apiToken.trim() === "";
       const result = stored ? await testFlowConnection(target.id) : await testFlowConnectionAdHoc(toFlowConnectionRequest(form.values));
+      setStoredTest(stored);
       setTestResult(result);
       // A stored test records the verdict on the connection: the pages that show it follow.
       if (stored) {
@@ -213,6 +216,11 @@ export default function FlowConnectionEditorModal({
           </Button>
           <ConnectionTestStatus result={testResult} />
           {testError && <FormErrorAlert>{testError}</FormErrorAlert>}
+          {storedTest && testResult && !testResult.recorded && (
+            <Alert color="orange" variant="light" role="note">
+              {t("sync.test.notRecorded")}
+            </Alert>
+          )}
           {testResult && <ConnectionTestResults result={testResult} kind="FLOW" />}
 
           <RegistryEditorActions error={error} submitting={submitting} isEdit={isEdit} onClose={onClose} gap="sm" />

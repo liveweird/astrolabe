@@ -202,7 +202,7 @@
   },
   "empty": {
     "noConnections": "No Jira connection has been set up yet.",
-    "noConnectionsAdmin": "Add one under Administration, Jira.",
+    "noConnectionsAdmin": "Add one under Integrations, Jira.",
     "noConnectionsUser": "An administrator has to add one first.",
     "noBindings": "Nothing is linked to Jira yet.",
     "noBindingsHint": "Link a project or a milestone from its project page (Link to Jira…).",

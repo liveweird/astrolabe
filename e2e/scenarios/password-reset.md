@@ -24,8 +24,7 @@
 
 ## Scenario: a reset link preserves the old password until confirmation and cannot be reused
 
-*Skips itself when Mailpit (`E2E_MAILPIT_URL`, the stack's catcher) is
-unreachable — the email roundtrip cannot be observed on a log-transport dev stack.*
+Global setup requires a reachable Mailpit catcher (`E2E_MAILPIT_URL`).
 
 1. The admin creates a throwaway user through the real UI (capturing the one-time revealed
    password) and signs out.

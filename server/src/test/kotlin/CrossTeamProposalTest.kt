@@ -19,6 +19,7 @@ import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
@@ -365,13 +366,16 @@ class CrossTeamProposalTest {
             val listed = "/api/v1/schedule-proposals/teams"
 
             val admin: ProposalTeamList = w.admin.client.get(listed).body()
+            assertFalse(admin.truncated)
             val ids = admin.items.map { it.id }
             assertTrue(listOf(t.teamId, t.otherTeamId, both.first, both.second).all { it in ids }, "every active team")
             assertTrue(deleted !in ids, "a deleted team is not offered")
             assertEquals(admin.items.sortedWith(compareBy({ it.name.lowercase() }, { it.id })), admin.items, "by name, then id")
             assertEquals(ids.size, ids.toSet().size)
 
-            assertEquals(listOf(t.teamId), t.manager.client.get(listed).body<ProposalTeamList>().items.map { it.id })
+            val managed = t.manager.client.get(listed).body<ProposalTeamList>()
+            assertFalse(managed.truncated)
+            assertEquals(listOf(t.teamId), managed.items.map { it.id })
             val theirs = both.caller.client.get(listed).body<ProposalTeamList>().items
             assertEquals(setOf(both.first, both.second), theirs.map { it.id }.toSet(), "their two active teams, not the deleted one")
             assertEquals(theirs.sortedBy { it.name.lowercase() }, theirs)

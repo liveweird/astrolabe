@@ -250,7 +250,7 @@
     "loading": "Loading the Jira connections…",
     "loadFailed": "Could not load the Jira connections",
     "noConnections": "No Jira connection has been set up yet.",
-    "noConnectionsAdmin": "Add one under Administration, Jira.",
+    "noConnectionsAdmin": "Add one under Integrations, Jira.",
     "noConnectionsUser": "An administrator has to add one first.",
     "allDisabled": "Every Jira connection is disabled. An administrator has to enable one.",
     "connection": "Jira connection",

@@ -78,6 +78,9 @@ export default function ScheduleProposals() {
         }
       />
       {teams.isError && <ErrorAlert error={teams.error} title={t("scheduleProposals.loadFailed")} />}
+      {teams.data?.truncated && (
+        <Alert color="orange" role="note">{t("scheduleProposals.teamsTruncated")}</Alert>
+      )}
       {teams.isLoading && <LoadingBlock />}
       {teams.isSuccess && items.length === 0 && <EmptyState icon={IconCalendarStats} label={t(admin ? "scheduleProposals.noTeamsAdmin" : "scheduleProposals.noTeams")} hint={t(admin ? "scheduleProposals.noTeamsAdminHint" : "scheduleProposals.noTeamsHint")} />}
       {items.length > 0 && (

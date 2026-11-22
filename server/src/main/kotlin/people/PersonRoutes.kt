@@ -4,7 +4,6 @@ import ch.nokillswit.audit.audit
 import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.authz.requireAdmin
-import ch.nokillswit.infra.db.orVanished
 import ch.nokillswit.infra.paging.optionalString
 import ch.nokillswit.infra.paging.parsePaging
 import ch.nokillswit.infra.paging.toPage
@@ -56,7 +55,8 @@ fun Application.configurePersonRoutes() {
                 requireAdmin(caller)
                 val request = sanitizedPersonCreate(call.receive())
                 validatePersonCreate(request)
-                val id = personService.create(request)
+                val created = personService.createResponse(request)
+                val id = created.id
                 audit(
                     "person.created",
                     "byUserId" to caller.userId.toLong(),
@@ -65,7 +65,7 @@ fun Application.configurePersonRoutes() {
                     "userId" to request.userId?.toLong(),
                 )
                 call.response.header(HttpHeaders.Location, call.application.href(PeopleRoute.Id(id = id)))
-                call.respond(HttpStatusCode.Created, personService.read(id).orVanished("Person", id))
+                call.respond(HttpStatusCode.Created, created)
             }
             get<PeopleRoute.Id> { route ->
                 call.caller()

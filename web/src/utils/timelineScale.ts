@@ -137,6 +137,26 @@ export interface TimelineHeaderRows {
   cells: HeaderCell[];
 }
 
+/** Tracks wider than this window their header cells; ordinary planning ranges keep the exact full-row path. */
+export const HEADER_WINDOW_THRESHOLD_PX = 12_000;
+const MIN_HEADER_OVERSCAN_PX = 800;
+
+/**
+ * The date range worth mounting in a very wide header. `scrollLeft` is already the track's first visible x because the sticky
+ * columns occupy the same width before the track and over its scrolled part. One visible track width (at least 800 px) is kept
+ * on either side, so a scroll never exposes an empty header while React commits the next window.
+ */
+export function headerWindow(scale: TimelineScale, scrollLeft: number, viewportWidth: number, leftWidth: number): DayRange {
+  const visibleWidth = Math.max(scale.dayWidth, viewportWidth - leftWidth);
+  const overscan = Math.max(MIN_HEADER_OVERSCAN_PX, visibleWidth);
+  const firstX = Math.max(0, Math.min(scale.totalWidth - scale.dayWidth, scrollLeft - overscan));
+  const lastX = Math.max(firstX, Math.min(scale.totalWidth - 1, scrollLeft + visibleWidth + overscan - 1));
+  return {
+    from: Math.max(scale.from, scale.dayAt(firstX)),
+    to: Math.min(scale.to, scale.dayAt(lastX)),
+  };
+}
+
 type Grain = "day" | "week" | "month" | "quarter" | "year";
 
 interface GrainSpec {
@@ -200,8 +220,8 @@ const HEADER_GRAINS: Record<Zoom, { group: Grain; cell: Grain }> = {
  * quarter zoom, and the year row over the quarter row at year zoom. Both PARTITION the range, so a group or cell crossing the range edge is clipped, never dropped.
  * `holidays` (epoch day to name, {@link holidayDayMap}) names the day cells (week zoom) that fall on a public holiday.
  */
-export function headerRows(scale: TimelineScale, holidays?: ReadonlyMap<number, string>): TimelineHeaderRows {
-  const range = { from: scale.from, to: scale.to };
+export function headerRows(scale: TimelineScale, holidays?: ReadonlyMap<number, string>, visibleRange?: DayRange): TimelineHeaderRows {
+  const range = visibleRange ?? { from: scale.from, to: scale.to };
   const grains = HEADER_GRAINS[scale.zoom];
   return { groups: partition(range, grains.group, true), cells: partition(range, grains.cell, false, holidays) };
 }

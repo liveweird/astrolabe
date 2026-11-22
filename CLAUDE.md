@@ -14,7 +14,9 @@ milestones) → milestone (start/end, man-day estimate, exactly one team, no own
 team manager schedules milestones (manual drag/resize, or accept a server proposal); dependencies (FS/SS/FF/SF + lag) and capacity overload only ever **warn**, never move anything.
 
 **Roadmap:** 0.1–0.9 the plan, timelines, dependencies, capacity, auto-proposal, baselines · 1.0.0 checkup · 1.1–1.4 Jira sync, import, polling, coverage · 1.5–1.6 Flow, capacity · 1.7–1.8 planning, cross-team run · 1.9–1.13 follow-ups and fixes · 1.13.3 overnight fixes · 1.13.4 import search · 1.14.0 import under a linked node, coverage · 1.15.0 import entry points, suggested matches · 1.16.0 timeline extras ·
-1.17.0 1.16 follow-ups, deploy notice · 1.18.0 Home figures and "Yours" · 1.19.0 Home links, Milestones, Team load · 1.20.0 Dependencies · 1.21.0 filters, Team load by week · 1.22.0 view ETags, dependencies edited from their list, Team load from this week on · 1.23.0 database time limit, Flow capacity flag on project rows, Home "Yours" by owner chain · **1.24.0 (current)** technical checkup: docs, spec, refactors, CI · next 1.25. Per-version scope, decisions, assumptions: `.claude/docs/product.md`. Open items: `BACKLOG.md`.
+1.17.0 1.16 follow-ups, deploy notice · 1.18.0 Home figures and "Yours" · 1.19.0 Home links, Milestones, Team load · 1.20.0 Dependencies · 1.21.0 filters, Team load by week ·
+1.22.0 view ETags, dependencies edited from their list, Team load from this week on · 1.23.0 database time limit, Flow capacity flag on project rows, Home "Yours" by owner chain ·
+1.24.0 technical checkup: docs, spec, refactors, CI · **1.25.0 (current)** reliability fixes, navigation and Home refresh. Per-version scope, decisions, assumptions: `.claude/docs/product.md`. Open items: `BACKLOG.md`.
 
 Brand: deep cyan (the `astrolabe` colour tuple in `web/src/theme.ts`, `primaryShade: { light: 8, dark: 9 }`); the logo a stylised astrolabe.
 
@@ -131,7 +133,7 @@ Source files sit flat under `server/src/main/kotlin/<area>/` but declare `packag
 `server/src/main/resources/openapi/documentation.yaml` is hand-maintained and authoritative: every endpoint change edits it in
 the same commit. The server suite validates every test-client `/api/` interaction against it (`OpenApiConformance.kt`,
 `-Dopenapi.conformance=fail`); the frontend derives its types from it (`npm run gen:api` → committed `web/src/api/schema.ts`,
-regenerated in the same commit). The file says `openapi: 3.1.0` but must use only 3.0-compatible constructs
+regenerated in the same commit). Both consume the published OpenAPI 3.0.3 document directly
 (`OpenApiSpecTest`). `AnonymousAccessTest` sweeps every operation without `security: []` for a 401 (the "401 sweep"), so a new
 route is covered once its spec entry lands. `info.version` equals `APP_VERSION` (`app-releases.md`).
 
@@ -149,7 +151,7 @@ disagree, the doc wins. The always-loaded set (this file plus the two imports) s
 | Doc | Read before you touch |
 |---|---|
 | `.claude/docs/conventions.md` | adding a feature, route, service, migration or page: the `teams/` feature template (DTO + validator, routes, service, migration + checksum pin, spec paths, `gen:api`, lazy page + nav entry, e2e spec + scenario) |
-| `.claude/docs/persistence.md` | any migration (`db/migration/V*.sql`, V1–V30 today — applied bytes are immutable, `MigrationChecksumTest`), an Exposed table/`*Service.kt`, soft delete, a cross-feature table read/write (the matrix there IS the permission), the connection pool, the `ops` schema |
+| `.claude/docs/persistence.md` | any migration (`db/migration/V*.sql`, applied bytes are immutable, `MigrationChecksumTest`), an Exposed table/`*Service.kt`, soft delete, a cross-feature table read/write (the matrix there IS the permission), the connection pool, the `ops` schema |
 | `.claude/docs/security.md` | auth/JWT/MFA/password reset, rate limits, headers/CSP, outbound HTTP (the SSRF guard), secrets/encryption at rest, production fail-closed startup checks, payload validation |
 | `.claude/docs/authorization.md` | any route: its guard (ADMIN vs any authenticated), 403-before-400/404 ordering, existence disclosure, the error/`ProblemDetail` mapping |
 | `.claude/docs/observability.md` | any mutation or denial path (it needs an `audit(...)` event, listed there), logging, OpenTelemetry, health probes, the telemetry panel's server side |

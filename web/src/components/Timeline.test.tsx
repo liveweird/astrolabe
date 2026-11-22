@@ -183,6 +183,26 @@ describe("Timeline frame", () => {
     expect(screen.getByText("W39")).toBeInTheDocument();
   });
 
+  test("a 2040–2999 track mounts a bounded header window and reveals 2999 after horizontal scrolling", async () => {
+    stubViewport(900, 400);
+    const scale = makeScale("year", { from: toEpochDay("2040-01-01"), to: toEpochDay("2999-12-31") });
+    renderWithProviders(
+      <TimelineDndContext scale={scale} onSchedule={vi.fn()}>
+        <Timeline label="Long timeline" scale={scale} zooms={PLAN_ZOOMS} onZoomChange={vi.fn()} today="2040-01-01" columns={COLUMNS} rows={[]} />
+      </TimelineDndContext>,
+    );
+    const headerCells = () => document.querySelectorAll("[data-timeline-header-cell]");
+    expect(headerCells().length).toBeLessThan(50);
+    expect(screen.getByText("2040")).toBeInTheDocument();
+    expect(screen.queryByText("2999-Q4")).not.toBeInTheDocument();
+
+    const scroller = screen.getByRole("region", { name: "Long timeline" });
+    scroller.scrollLeft = scale.xOf(toEpochDay("2999-10-01"));
+    fireEvent.scroll(scroller);
+    expect(await screen.findByText("2999-Q4")).toBeInTheDocument();
+    expect(headerCells().length).toBeLessThan(50);
+  });
+
   test("the toolbar zooms and scrolls to today", async () => {
     const user = userEvent.setup();
     const onZoomChange = vi.fn();

@@ -174,8 +174,8 @@
     "allLinked": "Wszystkie zespoły Flow z tego połączenia są już powiązane.",
     "loading": "Wczytywanie zespołów Flow…",
     "notRead": "To połączenie nie odczytało jeszcze Flow. Administrator/ka najpierw odświeża je na stronie połączenia.",
-    "noConnection": "Nie ma jeszcze żadnego połączenia z Flow. Administrator/ka dodaje je w sekcji Administracja, Flow.",
-    "noEnabledConnection": "Wszystkie połączenia z Flow są wyłączone. Administrator/ka włącza jedno w sekcji Administracja, Flow.",
+    "noConnection": "Nie ma jeszcze żadnego połączenia z Flow. Administrator/ka dodaje je w sekcji Integracje, Flow.",
+    "noEnabledConnection": "Wszystkie połączenia z Flow są wyłączone. Administrator/ka włącza jedno w sekcji Integracje, Flow.",
     "submit": "Powiąż"
   },
   "roster": {
@@ -204,6 +204,7 @@
     "includeClosed": "Uwzględnij zamknięte sprinty",
     "loadFailed": "Nie udało się wczytać podglądu importu",
     "empty": "Nie ma czego importować: Flow nie podaje dla tego zespołu żadnych sprintów w tym zakresie.",
+    "incomplete": "Dane sprintów z Flow są niepełne. Odśwież połączenie z Flow, poczekaj na zakończenie odświeżania, a następnie ponownie otwórz ten import.",
     "previewAria": "Podgląd importu przepustowości",
     "removalsTitle": "Okresy, które zostałyby usunięte",
     "removalsIntro": "Okresy z Flow zaimportowane wcześniej, których żaden sprint już nie wykorzystuje. Nic nie zostanie usunięte, jeśli tego nie zaznaczysz. Usunięcie okresu bez zaimportowania nowego wiersza jego sprintu pozostawia w tych dniach wartość wcześniejszego sprintu.",

@@ -16,7 +16,7 @@ data class JiraTestResult(
     val recorded: Boolean = false,
     /** Answered by the development Jira stub, not Atlassian (a `stub-` site in development mode: [JiraStubRouting]). */
     val stub: Boolean = false,
-) {
-    /** What the UI calls a pass: every REQUIRED row is ok. */
-    val passed: Boolean get() = rows.none { it.required && !it.ok }
-}
+)
+
+/** What the UI calls a pass: every REQUIRED row is ok. Kept outside the serializable DTO so Kover measures the handwritten rule. */
+val JiraTestResult.passed: Boolean get() = rows.none { it.required && !it.ok }

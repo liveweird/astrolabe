@@ -1,4 +1,5 @@
 {
+  "teamsTruncated": "This list shows the first 1,000 eligible teams. For a team outside the list, open its team page to propose a schedule.",
   "title": "Schedule proposals",
   "intro": "Propose dates for several teams at once. The teams are placed in dependency order, each with the teams placed before it as fixed dates, until the dates stop changing. Nothing changes until you accept.",
   "teams": "Teams",

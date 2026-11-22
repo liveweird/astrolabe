@@ -46,10 +46,10 @@ data class FlowTestResult(
     val truncated: Boolean = false,
     /** Whether the result was stored on the connection: false for an ad-hoc test, or when an edit of the connection raced the test. */
     val recorded: Boolean = false,
-) {
-    /** What the UI calls a pass: every REQUIRED row is ok. */
-    val passed: Boolean get() = rows.none { it.required && !it.ok }
-}
+)
+
+/** What the UI calls a pass: every REQUIRED row is ok. Kept outside the serializable DTO so Kover measures the handwritten rule. */
+val FlowTestResult.passed: Boolean get() = rows.none { it.required && !it.ok }
 
 /**
  * Test connection for Flow: `me` (the token is live) then `teams` (the document decodes), in sequence, each at most 10 s and 30 s in

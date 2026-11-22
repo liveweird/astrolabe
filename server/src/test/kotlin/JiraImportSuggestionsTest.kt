@@ -9,6 +9,7 @@ import ch.nokillswit.jira.JiraImportPreview
 import ch.nokillswit.jira.JiraImportReason
 import ch.nokillswit.jira.JiraImportScope
 import ch.nokillswit.jira.JiraLevel
+import ch.nokillswit.jira.key
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.ApplicationTestBuilder

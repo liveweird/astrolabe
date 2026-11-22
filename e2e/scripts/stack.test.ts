@@ -23,7 +23,7 @@ function neverCalled(): Promise<boolean> {
 test("nothing set refuses, names all four variables, and never probes", async () => {
   const problems = targetProblems({});
   assert.equal(problems.length, TARGET_VARIABLES.length);
-  await assert.rejects(requireReadyTarget(problems, readTarget({}).baseUrl, neverCalled), (error: Error) => {
+  await assert.rejects(requireReadyTarget(problems, readTarget({}), neverCalled), (error: Error) => {
     for (const name of TARGET_VARIABLES) assert.match(error.message, new RegExp(name));
     assert.match(error.message, /default stack is a working stack/);
     return true;
@@ -42,7 +42,7 @@ test("one blank or relative value is named and the others are not", async () => 
     const problems = targetProblems(env);
     assert.equal(problems.length, 1, `${JSON.stringify(bad)} -> ${problems.join("; ")}`);
     assert.match(problems[0], expected);
-    await assert.rejects(requireReadyTarget(problems, env.E2E_BASE_URL, neverCalled), (error: Error) => {
+    await assert.rejects(requireReadyTarget(problems, readTarget(env), neverCalled), (error: Error) => {
       const named = error.message.split("\n").filter((line) => line.startsWith("  - "));
       assert.equal(named.length, 1);
       assert.match(named[0], /E2E_MAILPIT_URL/);
@@ -54,20 +54,30 @@ test("one blank or relative value is named and the others are not", async () => 
 test("four good values and a ready stack pass without a service command", async () => {
   assert.deepEqual(targetProblems(NAMED), []);
   const probed: string[] = [];
-  await requireReadyTarget(targetProblems(NAMED), NAMED.E2E_BASE_URL, async (url) => {
+  await requireReadyTarget(targetProblems(NAMED), readTarget(NAMED), async (url) => {
     probed.push(url);
     return true;
   });
-  assert.deepEqual(probed, [NAMED.E2E_BASE_URL]);
+  assert.deepEqual(probed, [`${NAMED.E2E_BASE_URL}/api/v1/ready`, `${NAMED.E2E_MAILPIT_URL}/api/v1/messages`]);
 });
 
 test("a stack that is not ready fails and nothing is started", async () => {
   const probed: string[] = [];
-  await assert.rejects(requireReadyTarget([], NAMED.E2E_BASE_URL, async (url) => {
+  await assert.rejects(requireReadyTarget([], readTarget(NAMED), async (url) => {
     probed.push(url);
     return false;
   }), /not ready: start that stack first/);
-  assert.deepEqual(probed, [NAMED.E2E_BASE_URL]);
+  assert.deepEqual(probed, [`${NAMED.E2E_BASE_URL}/api/v1/ready`]);
+});
+
+test("an available app with unreachable Mailpit fails before the browser tests run", async () => {
+  const target = readTarget({ ...NAMED, E2E_MAILPIT_URL: `${NAMED.E2E_MAILPIT_URL}/` });
+  const probed: string[] = [];
+  await assert.rejects(requireReadyTarget([], target, async (url) => {
+    probed.push(url);
+    return url.startsWith(NAMED.E2E_BASE_URL);
+  }), /E2E_MAILPIT_URL.*is not ready/);
+  assert.deepEqual(probed, [`${NAMED.E2E_BASE_URL}/api/v1/ready`, `${NAMED.E2E_MAILPIT_URL}/api/v1/messages`]);
 });
 
 test("the suite registers no global teardown: a stack is never torn down", () => {

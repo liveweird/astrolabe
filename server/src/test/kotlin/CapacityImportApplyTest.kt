@@ -277,6 +277,46 @@ class CapacityImportApplyTest {
     }
 
     @Test
+    fun `a truncated sprint snapshot previews no writes and makes a stale apply harmless until a complete refresh`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("capa5truncated", teams = true)
+        val t = w.requireTeams()
+        val flowName = planName("capa-flow")
+        val sprints = threeSprints()
+        val m = mirrorOf(flowName, sprints)
+        val binding = w.admin.client.fbBind(m.connectionId, 1, t.teamId).fbBinding()
+        val retained = ciSeedFlowPeriod(t.teamId, "2049-03-29", "22.00", 3, "S3")
+        val client = t.manager.client
+        val completePreview = client.ciPreviewOf(binding.id)
+        assertEquals("true", completePreview.ciText("sprintsComplete"))
+        val staleRequest = ciBodyOf(completePreview, removals = listOf(retained))
+
+        m.refreshSprintsTruncated(flowTeamDoc(1, flowName, sprints = sprints.take(2)))
+        val before = ciTeamRows(t.teamId)
+        val truncatedPreview = client.ciPreviewOf(binding.id)
+
+        assertEquals("false", truncatedPreview.ciText("sprintsComplete"))
+        assertTrue(truncatedPreview.ciText("observedAt").toLong() > 0)
+        assertEquals(emptyList(), truncatedPreview.ciRows("items"))
+        assertEquals(emptyList(), truncatedPreview.ciRows("removals"))
+        assertEquals(
+            listOf("0", "0", "0", "0", "0"),
+            listOf("create", "update", "unchanged", "skip", "removals")
+                .map { (truncatedPreview.getValue("totals") as JsonObject).ciText(it) },
+        )
+
+        val stale = client.ciApply(binding.id, staleRequest).bodyAsText().fbObject()
+        assertEquals(listOf(0, 0, 0), listOf("created", "updated", "deleted").map { stale.getValue(it).jsonArray.size })
+        assertEquals(3, stale.getValue("skipped").jsonArray.size, "two creates and the removal are all rejected")
+        assertEquals(before, ciTeamRows(t.teamId), "an incomplete snapshot authorizes no capacity write")
+
+        m.refresh(flowTeamDoc(1, flowName, sprints = sprints))
+        val recovered = client.ciPreviewOf(binding.id)
+        assertEquals("true", recovered.ciText("sprintsComplete"))
+        assertEquals(listOf("CREATE", "CREATE", "UNCHANGED"), recovered.ciRows("items").map { it.ciText("action") })
+    }
+
+    @Test
     fun `ADMIN and the team's manager apply - every other caller is 403, even with a body that does not decode`() = testApplication {
         usePostgresTestcontainer()
         val w = planWorld("capa6", teams = true)

@@ -59,16 +59,18 @@ describe("TeamCapacity and Flow-imported periods", () => {
     expect(await screen.findByRole("note")).toHaveTextContent("This period was imported from Flow. Saving a change makes it a hand-entered period");
   });
 
-  test("a saved period re-reads the plan AND the capacity deviations: the comparison with Flow moves with the capacity", async () => {
+  test("a saved period re-reads capacity and every view carrying derived Flow flags", async () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(null, { status: 204 }))));
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     queryClient.setQueryData(["flow", "deviations", "view", { teamId: 1 }], { stale: false });
     queryClient.setQueryData(["plan", "team", 1], { stale: false });
+    queryClient.setQueryData(["roadmap", "view"], { stale: false });
     renderWithProviders(<TeamCapacity view={view([MANUAL])} />, { queryClient });
     await userEvent.click(screen.getByRole("button", { name: "Operations for 2027-02-03" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Edit the period from 2027-02-03" }));
     await userEvent.click(within(await screen.findByRole("dialog", { name: "Edit the capacity period" })).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(queryClient.getQueryState(["flow", "deviations", "view", { teamId: 1 }])?.isInvalidated).toBe(true));
     expect(queryClient.getQueryState(["plan", "team", 1])?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(["roadmap", "view"])?.isInvalidated).toBe(true);
   });
 });

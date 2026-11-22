@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   DAY_WIDTH,
   defaultRange,
+  headerWindow,
   headerRows,
   holidayBackground,
   holidayDayMap,
@@ -150,6 +151,18 @@ describe("headerRows", () => {
         row.slice(1).forEach((cell, i) => expect(cell.from).toBe(row[i].to + 1));
       }
     }
+  });
+
+  test("a header window keeps full-scale coordinates while bounding a distant range", () => {
+    const scale = makeScale("year", rangeOf("2040-01-01", "2999-12-31"));
+    const nearEnd = headerWindow(scale, scale.xOf(day("2999-10-01")), 900, 260);
+    expect(nearEnd.from).toBeGreaterThan(day("2990-01-01"));
+    expect(nearEnd.to).toBe(scale.to);
+    const { groups, cells } = headerRows(scale, undefined, nearEnd);
+    expect(groups.at(-1)?.label).toBe("2999");
+    expect(cells.at(-1)?.label).toBe("2999-Q4");
+    expect(groups.length + cells.length).toBeLessThan(50);
+    expect(scale.xOf(groups[0].from)).toBeGreaterThan(300_000);
   });
 });
 

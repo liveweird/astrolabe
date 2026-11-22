@@ -14,6 +14,7 @@ import ch.nokillswit.jira.JiraImportScope
 import ch.nokillswit.jira.JiraLevel
 import ch.nokillswit.jira.MAX_IMPORT_ITEMS
 import ch.nokillswit.jira.MAX_IMPORT_PROJECT_KEYS
+import ch.nokillswit.jira.scope
 import ch.nokillswit.jira.validateApplyItems
 import ch.nokillswit.jira.validateImportScope
 import io.ktor.server.plugins.BadRequestException

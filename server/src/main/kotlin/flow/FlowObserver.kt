@@ -87,7 +87,12 @@ class FlowObserver internal constructor(
             cleared = acknowledgements.pruneConnectionInTransaction(run.connectionId, sprintsJudgeable = !document.sprintsTruncated)
         }
         val write = mirror.replace(
-            run.connectionId, teams.map { it.toMirrorTeam() }, now(), keepAbsentTeams = document.teamsTruncated, afterWrite = prune,
+            run.connectionId,
+            teams.map { it.toMirrorTeam() },
+            now(),
+            keepAbsentTeams = document.teamsTruncated,
+            sprintsComplete = !document.sprintsTruncated,
+            afterWrite = prune,
         )
         when (write) {
             FlowMirrorWrite.WRITTEN -> reportCleared(run, cleared)

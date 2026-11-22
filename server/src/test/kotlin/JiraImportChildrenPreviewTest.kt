@@ -10,6 +10,7 @@ import ch.nokillswit.jira.JiraImportReason
 import ch.nokillswit.jira.JiraImportRoot
 import ch.nokillswit.jira.JiraImportRootLevel
 import ch.nokillswit.jira.JiraLevel
+import ch.nokillswit.jira.key
 import com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathMatching
 import io.ktor.client.statement.bodyAsText

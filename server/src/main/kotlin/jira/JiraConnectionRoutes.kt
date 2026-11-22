@@ -5,7 +5,6 @@ import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.authz.requireAdmin
 import ch.nokillswit.infra.config.requireConfigLong
-import ch.nokillswit.infra.db.orVanished
 import ch.nokillswit.infra.paging.parsePaging
 import ch.nokillswit.infra.paging.toPage
 import ch.nokillswit.people.PersonServiceKey
@@ -82,7 +81,8 @@ fun Application.configureJiraRoutes() {
                 requireAdmin(caller)
                 val request = sanitizedJiraConnection(call.receive())
                 validateJiraConnection(request, apiTokenRequired = true)
-                val id = connections.create(request)
+                val created = connections.createResponse(request)
+                val id = created.id
                 // Name and host only: the token (and the account email) never reach the trail.
                 audit(
                     "jira.connection_created",
@@ -93,7 +93,7 @@ fun Application.configureJiraRoutes() {
                     "pollIntervalMinutes" to request.pollIntervalMinutes,
                 )
                 call.response.header(HttpHeaders.Location, call.application.href(JiraConnectionsRoute.Id(id = id)))
-                call.respond(HttpStatusCode.Created, connections.read(id).orVanished("Jira connection", id).withStubRouting(routing))
+                call.respond(HttpStatusCode.Created, created.withStubRouting(routing))
             }
             get<JiraConnectionsRoute.Id.Coverage> { route ->
                 requireAdmin(call.caller())

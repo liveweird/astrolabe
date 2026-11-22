@@ -279,7 +279,7 @@ describe("FlowConnectionSection", () => {
       expect(await within(screen.getByRole("table", { name: "Recent runs" })).findByText("Scheduled")).toBeInTheDocument();
     });
 
-    test("when the run that was going ends the connection, the registry and the mirrored teams are read again, and Home is marked stale", async () => {
+    test("when the run that was going ends Flow and every view with derived capacity flags are read again", async () => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
       const world = serve(mockFetch, { runs: [run({ id: 5, outcome: null, finishedAt: null, running: true })] });
       const queryClient = clientWithKeptHome();
@@ -291,7 +291,7 @@ describe("FlowConnectionSection", () => {
       world.runs = [run({ id: 5, outcome: "SUCCEEDED", running: false })];
       await advance(RUN_POLL_MS + 100);
       await waitFor(() => expect(screen.getByRole("button", { name: "Refresh now" })).toBeEnabled());
-      await waitFor(() => expect(keys()).toEqual(expect.arrayContaining([["flow", "connection", 1], ["flow", "list"], ["flow", "teams", 1]])));
+      await waitFor(() => expect(keys()).toEqual(expect.arrayContaining([["flow"], ["plan"], ["roadmap"]])));
       expect(homeReadIsStale(queryClient)).toBe(true);
     });
   });

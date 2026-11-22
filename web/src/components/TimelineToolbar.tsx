@@ -26,6 +26,8 @@ export default function TimelineToolbar({
     <Group gap="sm" role="group" aria-label={t("timeline.toolbarAria")}>
       <SegmentedControl
         size="xs"
+        // Update the label color with the background when the color scheme changes.
+        transitionDuration={0}
         aria-label={t("timeline.zoomAria")}
         value={zoom}
         onChange={(value) => onZoomChange(value as Zoom)}

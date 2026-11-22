@@ -15,7 +15,7 @@ Scale assumed: about 15 teams, 5 work streams, 20 programs, 100 projects, 1,000 
 
 ## Roadmap
 
-Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.24.0.** Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-visible fix between two increments is a patch bump. One row a version (patches ride their minor's row); the scope only, the detail is in "Release history".
+Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.25.0.** Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-visible fix between two increments is a patch bump. One row a version (patches ride their minor's row); the scope only, the detail is in "Release history".
 
 ### 0.1 to 0.9: the plan
 
@@ -65,6 +65,7 @@ Each increment gets its own plan (architect) before implementation; only v0.1.0 
 | **1.22.0 View ETags, dependencies edited from the list** | Ten view reads answer an `ETag` and `304`; "Edit..." and "Delete" on a Dependencies row the caller may change; Team load from this week on (`?past=true` for earlier weeks) |
 | **1.23.0 Database time limit, Flow capacity flag, Home "Yours"** | A 15 s statement limit on the pool (`POSTGRES_STATEMENT_TIMEOUT_SECONDS`), the focus after "edit, then delete", the Flow capacity flag on the Roadmap and Programs, everything you manage on Home (no migration; released 2026-11-15) |
 | **1.24.0 Technical release** | No feature: docs in Rules and sections with a guard, the spec's descriptions as contract, shared Jira and Flow pieces, two CI forks, a named e2e target; the item-level `acknowledgement` leaves `GET /views/deviations` |
+| **1.25.0 Reliability and navigation** | Complete Flow sprint snapshots (V31), atomic project edits, consistent API reads, grouped navigation and refreshed Home |
 
 ## Domain decisions taken with the user
 
@@ -273,7 +274,16 @@ What was ported later, and what was left in Flow on purpose:
 
 ## Release history
 
-Newest first. Each version: its scope, the user's answers, the defaults that still bind and what was not built; the commits, the plans (they live outside the repository) and the test runs are in git. "No migration" means the last one stays the last (V30 since 1.13.0). Every release leaves "nothing is written to Jira or Flow" true.
+Newest first. Each version: its scope, the user's answers, the defaults that still bind and what was not built; the commits, the plans (they live outside the repository) and the test runs are in git. "No migration" means the preceding schema still applies. Every release leaves "nothing is written to Jira or Flow" true.
+
+### v1.25.0 — reliability and navigation
+
+The quality checkup adds V31 to track whether a Flow team's sprint snapshot is complete. Capacity import and comparisons wait for a complete refresh,
+and a partial refresh preserves sprint acknowledgements. Project fields and target dates can be replaced together with `PUT /projects/{id}/details`.
+Paged registry reads share a database snapshot, and successful creates return a projection taken within the write transaction.
+
+The app shell groups work by task and Home separates plan figures, risks and actions. Very wide timelines window their date headers.
+The published OpenAPI 3.0.3 document also drives the conformance tests, and the email browser scenarios require a ready Mailpit.
 
 ### v1.24.0 — what shipped
 

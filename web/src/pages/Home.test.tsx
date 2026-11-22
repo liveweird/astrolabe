@@ -84,7 +84,7 @@ describe("Home", () => {
     const fetchMock = stubViews({ jira: () => jsonResponse(200, jiraView(3, 0)), flow: () => jsonResponse(200, flowView(0, 2)) });
     renderWithProviders(<Home />);
     expect(screen.getByRole("heading", { level: 2, name: "Astrolabe" })).toBeInTheDocument();
-    expect(screen.getByText(/see where the plan differs from Jira and from Flow/)).toBeInTheDocument();
+    expect(screen.getByText("Review the plan, delivery risks, and the work you own.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open the plan" })).toHaveAttribute("href", "/plan");
     expect(screen.getByRole("link", { name: "Open the roadmap" })).toHaveAttribute("href", "/roadmap");
     expect(screen.getByRole("link", { name: "Open the deviations" })).toHaveAttribute("href", "/deviations");

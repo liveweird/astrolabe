@@ -219,7 +219,7 @@ Files: `server/src/test/kotlin/OpenApiConformance.kt`, `OpenApiCoverageMerge`, `
 Every `/api/` interaction the server test suite produces is validated against `documentation.yaml` by the `OpenApiConformance` Ktor client plugin, installed via the shared test-client defaults, so `jsonClient()`/`authedClient()` traffic is checked automatically. Tests that use `testApplication`'s default `client` bypass the plugin: prefer `jsonClient()`.
 
 - Drift (undeclared endpoint/method/status, response-schema or content-type mismatch) fails the exercising test with the validation report. The response side is fully validated; request-side validation is ignored except unknown-path/method (tests deliberately send malformed payloads and missing tokens).
-- The spec is fed to the validator relabelled 3.0.3 in memory (swagger-request-validator's 3.1 support is unreliable). `OpenApiSpecTest` pins that the document stays 3.0-compatible (use `nullable:`, never `type: [..., "null"]`) plus static invariants (unique operationIds, 401/500 declared, paths under `/api/v1/`).
+- The validator reads the published OpenAPI 3.0.3 document directly. `OpenApiSpecTest` pins its dialect (use `nullable:`, never `type: [..., "null"]`) plus static invariants (unique operationIds, 401/500 declared, paths under `/api/v1/`).
 - `-Dopenapi.conformance=warn|off` relaxes enforcement for drift triage only (default `fail`).
 - A coverage report (exercised vs. declared operation/status pairs) is written to `server/build/reports/openapi-conformance/coverage.md` after each test run, and it is a GATE: the sibling `gaps.txt` lists every declared (operation, status) pair the suite never produced.
 - The cross-cutting statuses are excluded: the ones a shared plugin answers for every route alike and one test pins each (`400` malformed id/body, `401`, `413`, `415`, `429`), and `500`/`default`, which the public API offers no honest way to force. `CoverageGapsTest` pins the cross-cutting statuses.
@@ -231,7 +231,11 @@ Every `/api/` interaction the server test suite produces is validated against `d
 
 Backend Kover enforces line- and branch-coverage floors in `server/build.gradle.kts` (the `minBound` line/branch floors, wired into `check` via `koverVerify`).
 
-- The measurement EXCLUDES classes annotated `@kotlinx.serialization.Serializable` (`kover.reports.filters`): kotlinx-serialization synthesizes one branch per optional property in a data class's generated constructor and serializer, noise no test can exercise; behaviour never lives in a wire shape (services, validators and a DTO's companion object stay measured).
+- The measurement EXCLUDES whole classes annotated `@kotlinx.serialization.Serializable` (`kover.reports.filters`): Kover cannot filter only kotlinx-serialization's
+  generated constructor/serializer members, whose optional-property masks add synthetic branches no application test can meaningfully exercise.
+  `SerializableDtoBehaviorTest` therefore refuses handwritten functions, computed properties and initializers in those coverage-hidden DTO bodies; behavior moves to
+  measured top-level extensions. The sole exception is a secret-masking `toString` that must override the data class's generated rendering and is pinned independently by
+  `SecretToStringTest`.
 - The floors sit just below current actuals: the convention is to **re-measure and raise** them as coverage improves, never to lower them for new code. `check` runs only `koverVerify`, so run `./gradlew :server:koverXmlReport` for fresh actuals.
 - Every fork's Kover agent writes into the one shared `test.ic` (if CI ever flakes on Kover, fall back to `-Pforks=1`).
 - Kover stays on everywhere `check` runs: the floors are a gate. There is **no Gradle property to switch it off**; for a timing run or a tight dev loop over `:server:test` alone, temporarily add `kover { currentProject { instrumentation { disabledForTestTasks.add("test") } } }` to `server/build.gradle.kts` and never commit it (no `test.ic` is written, so `koverVerify` would have nothing to check).

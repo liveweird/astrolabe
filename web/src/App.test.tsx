@@ -89,16 +89,15 @@ describe("App shell", () => {
       expect(within(planning).getByRole("link", { name: "Programs" })).toHaveAttribute("href", "/programs");
       expect(within(planning).getByRole("link", { name: "Milestones" })).toHaveAttribute("href", "/milestones");
       expect(within(planning).getByRole("link", { name: "Dependencies" })).toHaveAttribute("href", "/dependencies");
-      expect(within(planning).getByRole("link", { name: "Team load" })).toHaveAttribute("href", "/team-load");
       expect(within(planning).getByRole("link", { name: "Baselines" })).toHaveAttribute("href", "/baselines");
-      expect(within(planning).getByRole("link", { name: "Schedule proposals" })).toHaveAttribute("href", "/schedule-proposals");
-      // A non-admin session still sees Administration — Teams and People are everyone's, only Users and
-      // Feature flags are admin-only and drop out.
-      const admin = screen.getByRole("group", { name: "Administration" });
-      expect(within(admin).getByRole("link", { name: "Teams" })).toHaveAttribute("href", "/teams");
-      expect(within(admin).getByRole("link", { name: "People" })).toHaveAttribute("href", "/people");
-      expect(within(admin).queryByRole("link", { name: "Users" })).not.toBeInTheDocument();
-      expect(within(admin).queryByRole("link", { name: "Feature flags" })).not.toBeInTheDocument();
+      const teams = screen.getByRole("group", { name: "Teams and capacity" });
+      expect(within(teams).getByRole("link", { name: "Team load" })).toHaveAttribute("href", "/team-load");
+      expect(within(teams).getByRole("link", { name: "Schedule proposals" })).toHaveAttribute("href", "/schedule-proposals");
+      expect(within(teams).getByRole("link", { name: "Teams" })).toHaveAttribute("href", "/teams");
+      expect(within(teams).getByRole("link", { name: "People" })).toHaveAttribute("href", "/people");
+      const integrations = screen.getByRole("group", { name: "Integrations" });
+      expect(within(integrations).getByRole("link", { name: "Deviations" })).toHaveAttribute("href", "/deviations");
+      expect(screen.queryByRole("group", { name: "Administration" })).not.toBeInTheDocument();
       // Account items live in the header menu, not the sidebar.
       expect(screen.queryByRole("link", { name: "Change password" })).not.toBeInTheDocument();
     });
@@ -150,7 +149,6 @@ describe("App shell", () => {
       localStorage.setItem("astrolabe.auth.roles", JSON.stringify(["ADMIN"]));
       renderApp("/");
       const admin = await screen.findByRole("group", { name: "Administration" });
-      expect(within(admin).getByRole("link", { name: "Teams" })).toHaveAttribute("href", "/teams");
       expect(within(admin).getByRole("link", { name: "Users" })).toHaveAttribute("href", "/users");
       expect(within(admin).getByRole("link", { name: "Feature flags" })).toHaveAttribute("href", "/feature-flags");
     });

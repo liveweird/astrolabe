@@ -41,13 +41,13 @@ class CapacityImportService(
             val zoneId = zoneIdOf(binding.connectionId) ?: return@suspendTransaction null
             val zone = zoneOrUtc(zoneId)
             val calendar = loadWorkingCalendar()
-            val observedAt = observedAtOf(binding)
+            val mirrored = mirror.teamSprintsOf(binding.connectionId, binding.flowTeamId)
             val today = Instant.ofEpochMilli(now()).atZone(zone).toLocalDate()
-            val plan = if (observedAt == null) {
+            val plan = if (mirrored?.sprintsComplete != true) {
                 CapacityPlan(emptyList(), emptyList())
             } else {
                 CapacityImportKernels.plan(
-                    sprints = mirror.sprintsOf(binding.connectionId, binding.flowTeamId),
+                    sprints = mirrored.sprints,
                     zone = zone,
                     calendar = calendar,
                     today = today,
@@ -57,7 +57,8 @@ class CapacityImportService(
                 )
             }
             CapacityPreview(
-                bindingId, binding.teamId, observedAt, zoneId, (from ?: today).toString(), includeClosed,
+                bindingId, binding.teamId, mirrored?.observedAt, mirrored?.sprintsComplete == true, zoneId,
+                (from ?: today).toString(), includeClosed,
                 plan.totals(), plan.items, plan.removals,
             )
         }
@@ -89,7 +90,7 @@ class CapacityImportService(
             val zone = zoneOrUtc(zoneIdOf(binding.connectionId) ?: throw NotFoundException(BINDING_NOT_FOUND))
             val calendar = loadWorkingCalendar()
             val team = mirror.teamSprintsOf(binding.connectionId, binding.flowTeamId)
-            val plan = if (team == null) {
+            val plan = if (team?.sprintsComplete != true) {
                 CapacityPlan(emptyList(), emptyList())
             } else {
                 val today = Instant.ofEpochMilli(now()).atZone(zone).toLocalDate()
@@ -107,12 +108,6 @@ class CapacityImportService(
         return registry.select(registry.timeZone).where { (registry.id eq connectionId) and registry.active() }
             .toList().singleOrNull()?.get(registry.timeZone)
     }
-
-    /** When the mirror last saw the bound Flow team; null = it is not in the mirror. */
-    private suspend fun observedAtOf(binding: FlowTeamBindingRow): Long? =
-        FlowTeams.select(FlowTeams.observedAt)
-            .where { (FlowTeams.connectionId eq binding.connectionId) and (FlowTeams.flowTeamId eq binding.flowTeamId) }
-            .toList().singleOrNull()?.get(FlowTeams.observedAt)
 }
 
 private const val BINDING_NOT_FOUND = "Flow team binding not found"

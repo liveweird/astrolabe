@@ -9,6 +9,7 @@ import ch.nokillswit.jira.JiraSearchPage
 import ch.nokillswit.jira.JiraStartAtPage
 import ch.nokillswit.jira.JiraTestResult
 import ch.nokillswit.jira.JiraTestTarget
+import ch.nokillswit.jira.passed
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray

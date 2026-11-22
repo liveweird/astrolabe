@@ -9,6 +9,7 @@ import ch.nokillswit.jira.JiraImportPreview
 import ch.nokillswit.jira.JiraImportReason
 import ch.nokillswit.jira.JiraImportScope
 import ch.nokillswit.jira.JiraLevel
+import ch.nokillswit.jira.key
 import com.github.tomakehurst.wiremock.client.MappingBuilder
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
 import com.github.tomakehurst.wiremock.client.WireMock.get

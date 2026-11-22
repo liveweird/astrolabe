@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { localIsoDate } from "../utils/isoDate";
 import { defaultRange, makeScale, PLAN_ZOOMS, type TimelineScale, type Zoom } from "../utils/timelineScale";
 import { isOneOf, useStoredState } from "./useStoredState";
+import { useLocalToday } from "./useLocalToday";
 
 /**
  * The scale of the two plan timelines (the roadmap and the programs tree): the Month / Quarter / Year zoom, remembered under its OWN key
@@ -13,7 +13,7 @@ export function usePlanScale(dates: readonly string[]): { scale: TimelineScale; 
   const [zoom, setZoom] = useStoredState<Zoom>("timeline.planZoom", "quarter", isOneOf(PLAN_ZOOMS));
   // The earliest and latest day this page has shown.
   const [seen, setSeen] = useState<{ min: string; max: string } | null>(null);
-  const today = localIsoDate();
+  const today = useLocalToday();
   if (dates.length > 0) {
     const min = dates.reduce((a, b) => (b < a ? b : a));
     const max = dates.reduce((a, b) => (b > a ? b : a));

@@ -184,6 +184,7 @@ describe("Flow connections page", () => {
     serve(mockFetch, { [`PUT ${LIST}/1`]: { status: 204 } });
     const user = userEvent.setup();
     const queryClient = clientWithKeptHome();
+    queryClient.setQueryData(["roadmap", "view"], { stale: false });
     renderPage(queryClient);
     await user.click(await screen.findByRole("button", { name: "Operations for Acme Flow" }));
     await user.click(await screen.findByRole("menuitem", { name: "Edit Acme Flow" }));
@@ -193,6 +194,7 @@ describe("Flow connections page", () => {
     await waitFor(() => expect(call(mockFetch, "PUT", `${LIST}/1`)).toBeDefined());
     const sent = JSON.parse((call(mockFetch, "PUT", `${LIST}/1`)![1] as RequestInit).body as string);
     await waitFor(() => expect(homeReadIsStale(queryClient)).toBe(true));
+    expect(queryClient.getQueryState(["roadmap", "view"])?.isInvalidated).toBe(true);
     expect(sent).not.toHaveProperty("apiToken");
     expect(sent).toMatchObject({ name: "Acme Flow", baseUrl: "https://flow.acme.example", enabled: true, pollIntervalMinutes: 60 });
   });

@@ -1,6 +1,6 @@
 {
   "title": "Astrolabe",
-  "intro": "Planuj strumienie prac, programy i projekty, ustalaj ich kolejność na roadmapie i sprawdzaj, gdzie plan różni się od Jiry i od Flow.",
+  "intro": "Sprawdź plan, zagrożenia dla realizacji i prace, za które odpowiadasz.",
   "plan": {
     "text": "Strumienie prac, programy i projekty wraz z osobami odpowiedzialnymi.",
     "open": "Otwórz plan",
@@ -32,7 +32,8 @@
     "openJira": "Otwarte różnice względem Jiry:",
     "openFlow": "Otwarte różnice przepustowości względem Flow:",
     "loadFailed": "Nie udało się odczytać otwartych odchyleń",
-    "flowStale": "Dane z Flow mogą być nieaktualne"
+    "flowStale": "Dane z Flow mogą być nieaktualne",
+    "noConnections": "Brak skonfigurowanych połączeń z Jirą i Flow."
   },
   "figures": {
     "loadFailed": "Nie udało się odczytać liczb planu"

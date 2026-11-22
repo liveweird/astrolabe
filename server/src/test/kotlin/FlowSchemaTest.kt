@@ -8,8 +8,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 /**
- * The V24 tables at the database (raw JDBC, no service): every CHECK, the partial unique indexes, the primary and foreign keys and the
- * `team_capacity_periods` provenance columns, by SQLSTATE. Rows are unique per test; the shared tables are never emptied.
+ * The V24 tables and V31 mirror completeness column at the database (raw JDBC, no service): every CHECK, the partial unique indexes,
+ * the primary and foreign keys and the `team_capacity_periods` provenance columns, by SQLSTATE. Rows are unique per test; the shared
+ * tables are never emptied.
  */
 class FlowSchemaTest {
     private companion object {
@@ -87,6 +88,7 @@ class FlowSchemaTest {
         val c = newConnection()
         val team = "INSERT INTO flow_teams (connection_id, flow_team_id, name, observed_at) VALUES ($c, 7, 'T', 1)"
         assertNull(sqlState(team))
+        assertEquals("false", scalar("SELECT sprints_complete::text FROM flow_teams WHERE connection_id = $c AND flow_team_id = 7"))
         assertEquals(UNIQUE, sqlState(team), "one row per (connection, Flow team)")
         assertEquals(FOREIGN_KEY, sqlState(team.replace("($c, 7", "(999999999, 7")), "a team needs its connection")
 

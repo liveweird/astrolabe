@@ -271,7 +271,7 @@ class CapacityAcknowledgePruneTest {
         }
 
     @Test
-    fun `an acknowledge leaves a sprint missing from the mirror to the run - a truncated run keeps it too`() = testApplication {
+    fun `an incomplete snapshot refuses acknowledge and keeps its stored sprint rows`() = testApplication {
         val world = dayTwo("capackp12")
         with(world) {
             val admin = w.admin.client
@@ -279,9 +279,10 @@ class CapacityAcknowledgePruneTest {
             acknowledgeBoth()
             refreshOnly(1, 2, truncated = true) // sprint 3 is not in the mirror now: not sent, not necessarily gone
             assertEquals(2, capAckStored(bindingId), "a truncated run keeps sprint 3's acknowledgement")
+            assertTrue(admin.rowsOf().isEmpty(), "no deviation row is trustworthy until a complete refresh")
             withAuditCapture { audit ->
-                assertEquals(HttpStatusCode.OK, admin.capAck(bindingId, 2, s2.fingerprint).status)
-                assertNotNull(capAckRow(bindingId, 3), "the acknowledge does not judge 'gone from the document': it cannot know why")
+                assertEquals(HttpStatusCode.Conflict, admin.capAck(bindingId, 2, s2.fingerprint).status)
+                assertEquals(2, capAckStored(bindingId), "the refused acknowledge prunes no partial-evidence row")
                 assertTrue(audit.events.none { it.message == "flow.capacity_acknowledgements_cleared" })
             }
             refreshOnly(1, 2) // a COMPLETE document confirms it: sprint 3 is gone
@@ -404,18 +405,34 @@ class CapacityAcknowledgePruneTest {
     }
 
     @Test
-    fun `a sprint missing from the mirror and a team absent from the document lose nothing to a capacity write`() = testApplication {
+    fun `an incomplete sprint snapshot publishes no deviations and a capacity write judges only TEAM_GONE`() = testApplication {
         val world = dayTwo("capackp16")
         with(world) {
             val admin = w.admin.client
             acknowledgeBoth()
             val s2 = capAckPeriod(teamId, 2)
             val s3 = capAckPeriod(teamId, 3)
-            // Sprint 3 is not in the mirror (a truncated run keeps its row): the write judges sprint 2, which IS in the mirror, only.
+            val s2Fingerprint = admin.rowOf(2).fingerprint
+            // Missing earlier/overlapping rows can change a carried sprint's claim, so no row from a partial plan is trustworthy.
             refreshOnly(1, 2, truncated = true)
-            assertEquals(HttpStatusCode.NoContent, manager.client.capAckEdit(s2, 15.0).status)
-            assertNull(capAckRow(bindingId, 2), "in the mirror and in line")
-            assertNotNull(capAckRow(bindingId, 3), "missing from the mirror: 'gone from the document' is the run's call")
+            assertTrue(admin.rowsOf().isEmpty(), "an incomplete snapshot publishes no possibly false deviations")
+            assertEquals(
+                HttpStatusCode.Conflict,
+                admin.capAck(bindingId, 2, s2Fingerprint).status,
+                "an old row cannot be acknowledged against unavailable evidence",
+            )
+            jbSql(
+                "INSERT INTO flow_capacity_acknowledgements (binding_id, sprint_id, fingerprint, ack_at, ack_by_user_id) " +
+                    "VALUES (?, NULL, ?, 1, ?)",
+                bindingId.toInt(), "a".repeat(64), w.admin.userId.toLong(),
+            )
+            withAuditCapture { audit ->
+                assertEquals(HttpStatusCode.NoContent, manager.client.capAckEdit(s2, 15.0).status)
+                assertNotNull(capAckRow(bindingId, 2), "a carried sprint is not judged from a partial plan")
+                assertNotNull(capAckRow(bindingId, 3), "a missing sprint is not judged from a partial document")
+                assertNull(capAckRow(bindingId, null), "team presence is complete evidence, so TEAM_GONE still clears")
+                keyValues(clearedLines(audit).single(), "count" to 1, "sprintIds" to "none", "via" to "capacity")
+            }
 
             refresh()
             assertEquals(HttpStatusCode.NoContent, manager.client.capAckEdit(s2, 18.0).status)

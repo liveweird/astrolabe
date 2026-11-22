@@ -71,7 +71,7 @@ describe("useCapacityAcknowledge", () => {
     mockFetch.mockResolvedValue(jsonResponse(200, { bindingId: 5, sprintId: 90002, fingerprint: ROW_2.fingerprint, acknowledgedAt: 1, acknowledgedBy: "Ada" }));
     renderHarness();
     await userEvent.click(screen.getByRole("button", { name: "ack 2" }));
-    await waitFor(() => expect(invalidated).toEqual([["flow", "deviations"], ["plan"]]));
+    await waitFor(() => expect(invalidated).toEqual([["flow", "deviations"], ["plan"], ["roadmap"]]));
     expect(writes()).toHaveLength(1);
     expect(writes()[0][0]).toBe(URL_5);
     expect(JSON.parse(writes()[0][1].body as string)).toEqual({ sprintId: 90002, fingerprint: ROW_2.fingerprint });
@@ -82,7 +82,7 @@ describe("useCapacityAcknowledge", () => {
     mockFetch.mockImplementation(() => Promise.resolve(new Response(null, { status: 204 })));
     renderHarness();
     await userEvent.click(screen.getByRole("button", { name: "unack 3" }));
-    await waitFor(() => expect(invalidated).toEqual([["flow", "deviations"], ["plan"]]));
+    await waitFor(() => expect(invalidated).toEqual([["flow", "deviations"], ["plan"], ["roadmap"]]));
     expect(writes()[0][0]).toBe(`${URL_5}?sprintId=90003`);
     expect(writes()[0][1].method).toBe("DELETE");
   });
@@ -101,7 +101,7 @@ describe("useCapacityAcknowledge", () => {
     renderHarness();
     await userEvent.click(screen.getByRole("button", { name: "ack 2" }));
     await waitFor(() => expect(screen.getByTestId("notice")).toHaveTextContent("5:90002 stale"));
-    expect(invalidated).toEqual([["flow", "deviations"], ["plan"]]);
+    expect(invalidated).toEqual([["flow", "deviations"], ["plan"], ["roadmap"]]);
   });
 
   test("a 403 is an inline refusal in words and re-reads the links (the rights or the link changed)", async () => {
@@ -109,7 +109,7 @@ describe("useCapacityAcknowledge", () => {
     renderHarness();
     await userEvent.click(screen.getByRole("button", { name: "ack 2" }));
     await waitFor(() => expect(screen.getByTestId("notice")).toHaveTextContent("5:90002 failure: Only the team's manager or an administrator can acknowledge its capacity differences."));
-    expect(invalidated).toEqual([["flow", "teams"], ["flow", "team"], ["flow", "deviations"], ["plan", "home"]]);
+    expect(invalidated).toEqual([["flow", "teams"], ["flow", "team"], ["flow", "deviations"], ["plan"], ["roadmap"]]);
   });
 
   test("a 404 reads as the link being gone when acknowledging and as already withdrawn when withdrawing", async () => {
@@ -190,7 +190,7 @@ describe("useCapacityAcknowledge", () => {
     mockFetch.mockResolvedValue(jsonResponse(200, { acknowledged: [] }));
     renderHarness();
     await userEvent.click(screen.getByRole("button", { name: "ack all" }));
-    await waitFor(() => expect(invalidated).toEqual([["flow", "deviations"], ["plan"]]));
+    await waitFor(() => expect(invalidated).toEqual([["flow", "deviations"], ["plan"], ["roadmap"]]));
     expect(writes()).toHaveLength(1);
     expect(writes()[0][0]).toBe(URL_ALL);
     expect(writes()[0][1].method).toBe("POST");
@@ -220,7 +220,7 @@ describe("useCapacityAcknowledge", () => {
     renderHarness();
     await userEvent.click(screen.getByRole("button", { name: "ack all" }));
     await waitFor(() => expect(screen.getByTestId("notice")).toHaveTextContent("5:all stale"));
-    expect(invalidated).toEqual([["flow", "deviations"], ["plan"]]);
+    expect(invalidated).toEqual([["flow", "deviations"], ["plan"], ["roadmap"]]);
   });
 
   test("a batch's 403 is the capacity refusal in words under the all-key and re-reads the links", async () => {
@@ -228,14 +228,14 @@ describe("useCapacityAcknowledge", () => {
     renderHarness();
     await userEvent.click(screen.getByRole("button", { name: "ack all" }));
     await waitFor(() => expect(screen.getByTestId("notice")).toHaveTextContent("5:all failure: Only the team's manager or an administrator can acknowledge its capacity differences."));
-    expect(invalidated).toEqual([["flow", "teams"], ["flow", "team"], ["flow", "deviations"], ["plan", "home"]]);
+    expect(invalidated).toEqual([["flow", "teams"], ["flow", "team"], ["flow", "deviations"], ["plan"], ["roadmap"]]);
   });
 
   test("withdraw all is ONE POST naming every row by sprint only, keyed by the binding, with the same re-read (the 204 has no body)", async () => {
     mockFetch.mockImplementation(() => Promise.resolve(new Response(null, { status: 204 })));
     renderHarness();
     await userEvent.click(screen.getByRole("button", { name: "unack all" }));
-    await waitFor(() => expect(invalidated).toEqual([["flow", "deviations"], ["plan"]]));
+    await waitFor(() => expect(invalidated).toEqual([["flow", "deviations"], ["plan"], ["roadmap"]]));
     expect(writes()).toHaveLength(1);
     expect(writes()[0][0]).toBe(URL_UNACK_ALL);
     expect(writes()[0][1].method).toBe("POST");
@@ -260,7 +260,7 @@ describe("useCapacityAcknowledge", () => {
     renderHarness();
     await userEvent.click(screen.getByRole("button", { name: "unack all" }));
     await waitFor(() => expect(screen.getByTestId("notice")).toHaveTextContent("5:all stale"));
-    expect(invalidated).toEqual([["flow", "deviations"], ["plan"]]);
+    expect(invalidated).toEqual([["flow", "deviations"], ["plan"], ["roadmap"]]);
     mockFetch.mockResolvedValue(jsonResponse(404, { title: "Not Found", status: 404 }));
     await userEvent.click(screen.getByRole("button", { name: "unack all" }));
     await waitFor(() => expect(screen.getByTestId("notice")).toHaveTextContent("5:all failure: This link no longer exists. The list has been read again."));

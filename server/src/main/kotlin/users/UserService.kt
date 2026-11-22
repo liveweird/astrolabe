@@ -3,6 +3,7 @@ package ch.nokillswit.users
 import ch.nokillswit.infra.db.containsNormalized
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.applyPaging
+import ch.nokillswit.infra.paging.pagedRead
 import ch.nokillswit.infra.validation.canonicalEmail
 import io.ktor.util.AttributeKey
 import kotlinx.coroutines.flow.toList
@@ -84,7 +85,21 @@ class UserService(private val database: R2dbcDatabase) {
     suspend fun create(
         user: User,
         alsoInTransaction: (suspend (id: UInt) -> Unit)? = null,
-    ): UInt = suspendTransaction(database) {
+    ): UInt = createResult(user, alsoInTransaction) { it }
+
+    /** The just-inserted account as committed, including seeded grants and an optional linked person from the same transaction. */
+    internal suspend fun createResponse(
+        user: User,
+        alsoInTransaction: (suspend (id: UInt) -> Unit)? = null,
+    ): UserResponse = createResult(user, alsoInTransaction) { id ->
+        checkNotNull(readInTransaction(id)) { "the user just inserted is readable" }.toResponse(id)
+    }
+
+    private suspend fun <T> createResult(
+        user: User,
+        alsoInTransaction: (suspend (id: UInt) -> Unit)?,
+        result: suspend (UInt) -> T,
+    ): T = suspendTransaction(database) {
         // Re-checked service-side so direct callers stay guarded (the feature-template rule);
         // the plaintext-password rules can't apply here — only the bcrypt hash arrives.
         validateNameAndEmail(user.name, user.email)
@@ -105,10 +120,14 @@ class UserService(private val database: R2dbcDatabase) {
             it[UserDisabledFeatures.feature] = Feature.MFA.name
         }
         alsoInTransaction?.invoke(id)
-        id
+        result(id)
     }
 
     suspend fun read(id: UInt): User? = suspendTransaction(database) {
+        readInTransaction(id)
+    }
+
+    private suspend fun readInTransaction(id: UInt): User? =
         Users.selectAll()
             .where { (Users.id eq id) and Users.active() }
             .toList()
@@ -117,7 +136,6 @@ class UserService(private val database: R2dbcDatabase) {
                 val id = it[Users.id].value
                 it.toUser(UserGrants.featuresOf(id), UserGrants.permissionsOf(id), linkedPersonIds(listOf(id))[id])
             }
-    }
 
     suspend fun findWithIdByEmail(email: String): Pair<UInt, User>? = suspendTransaction(database) {
         // Stored emails are canonical; folding the argument too is defense-in-depth so a
@@ -150,7 +168,7 @@ class UserService(private val database: R2dbcDatabase) {
     }
 
     suspend fun list(filter: UserListFilter, paging: PageRequest): UserListResult =
-        suspendTransaction(database) {
+        pagedRead(database) {
             val predicate: Op<Boolean> = buildPredicate(filter) and Users.active()
             val total = Users.selectAll().where { predicate }.count()
             val rows = Users.selectAll()

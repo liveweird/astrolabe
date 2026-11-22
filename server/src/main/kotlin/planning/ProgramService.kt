@@ -39,10 +39,14 @@ class ProgramService(private val database: R2dbcDatabase) {
 
     /** The program, or null when missing/deleted. */
     suspend fun read(id: UInt): ProgramResponse? = suspendTransaction(database) {
+        responseInTransaction(id)
+    }
+
+    private suspend fun responseInTransaction(id: UInt): ProgramResponse? {
         val row = Programs.selectAll().where { (Programs.id eq id) and Programs.active() }.toList().singleOrNull()
-            ?: return@suspendTransaction null
+            ?: return null
         val ownerId = row[Programs.ownerPersonId].value
-        ProgramResponse(
+        return ProgramResponse(
             id = id,
             workStreamId = row[Programs.workStreamId].value,
             name = row[Programs.name],
@@ -58,13 +62,30 @@ class ProgramService(private val database: R2dbcDatabase) {
      * Creates a program under [workStreamId]; under the lock the stream's chain is re-read (missing = 404) and [guard] re-run,
      * then an inactive owner is a 400 and a name clash a 409.
      */
-    suspend fun create(workStreamId: UInt, request: ProgramCreateRequest, guard: PlanGuard): UInt {
+    suspend fun create(workStreamId: UInt, request: ProgramCreateRequest, guard: PlanGuard): UInt =
+        createResult(workStreamId, request, guard) { it }
+
+    internal suspend fun createResponse(
+        workStreamId: UInt,
+        request: ProgramCreateRequest,
+        guard: PlanGuard,
+    ): ProgramResponse = createResult(workStreamId, request, guard) { id ->
+        checkNotNull(responseInTransaction(id)) { "the program just inserted is readable" }
+    }
+
+    private suspend fun <T> createResult(
+        workStreamId: UInt,
+        request: ProgramCreateRequest,
+        guard: PlanGuard,
+        result: suspend (UInt) -> T,
+    ): T {
         validateProgram(request)
         return database.withPlanWrite {
             guard(workStreamChain(workStreamId).orNotFound("Work stream"))
             requireActiveOwner(request.ownerPersonId)
             val stamp = nowMillis()
-            insertProgramRow(workStreamId, request.name, request.description, request.ownerPersonId, stamp)
+            val id = insertProgramRow(workStreamId, request.name, request.description, request.ownerPersonId, stamp)
+            result(id)
         }.value
     }
 

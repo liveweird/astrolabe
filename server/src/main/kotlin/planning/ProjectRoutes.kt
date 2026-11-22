@@ -4,7 +4,6 @@ import ch.nokillswit.audit.audit
 import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.authz.requireTargetWindowEditorOrAdmin
-import ch.nokillswit.infra.db.orVanished
 import ch.nokillswit.infra.paging.optionalString
 import ch.nokillswit.infra.paging.parsePaging
 import ch.nokillswit.infra.paging.toPage
@@ -34,6 +33,10 @@ class ProjectsRoute {
         class TargetWindow(val parent: Id)
 
         @Serializable
+        @Resource("details")
+        class Details(val parent: Id)
+
+        @Serializable
         @Resource("milestones")
         class Milestones(val parent: Id)
 
@@ -55,8 +58,8 @@ private const val PROJECT = "Project"
  * delete and "create a milestone under it" (`POST /projects/{id}/milestones`, here — the parent id in the path is what the guard needs)
  * need an owner on the project's chain INCLUDING the project's own owner, or ADMIN. A delete cascades the project's milestones.
  * The target window is a separate PUT with a different audience: ADMIN, an owner ABOVE the project, or a `ROADMAP_EDITOR` — the
- * project's own owner alone gets a 403. All read-before-guard. `POST /projects/{id}/move` reparents under another program: the caller must
- * own something ABOVE the project (its own owner alone may not) AND something on the target program's chain (or be ADMIN).
+ * project's own owner alone gets a 403. The details PUT checks both guards. All read-before-guard. `POST /projects/{id}/move` reparents
+ * under another program: the caller must own something ABOVE the project AND something on the target program's chain (or be ADMIN).
  * `POST /projects/{id}/dependencies` creates a link whose SUCCESSOR is this project or one of its milestones: the owner chain of
  * THIS project (its own owner included) or ADMIN — the predecessor's owner is asked nothing (`DependencyRoutes.kt`).
  */
@@ -72,14 +75,22 @@ internal fun Route.projectRoutes(d: PlanRouteDeps) {
         val request = call.receive<ProjectUpdateRequest>().sanitized()
         validateProjectFields(request.name, request.description)
         val outcome = d.structure.projects.update(route.id, request, d.ownerGuard(caller))
-        val base = arrayOf("byUserId" to caller.userId.toLong(), "projectId" to route.id.toLong())
-        audit("project.updated", *base, "name" to request.name)
-        if (outcome.ownerFrom != request.ownerPersonId) {
-            audit(
-                "project.owner_changed", *base,
-                "ownerFrom" to outcome.ownerFrom.toLong(), "ownerTo" to request.ownerPersonId.toLong(),
-            )
-        }
+        auditProjectUpdate(caller.userId, route.id, request, outcome)
+        call.respond(HttpStatusCode.NoContent)
+    }
+    put<ProjectsRoute.Id.Details> { route ->
+        val caller = call.caller()
+        val projectId = route.parent.id
+        val chain = d.structure.projects.chain(projectId).orNotFound(PROJECT)
+        d.requireOwner(caller, chain, PROJECT)
+        requireTargetWindowEditorOrAdmin(caller, d.callerPersonId(caller), chain, d.hasPermission)
+        val body = call.receive<ProjectDetailsRequest>()
+        val fields = ProjectUpdateRequest(body.name, body.description, body.ownerPersonId).sanitized()
+        val window = TargetWindowRequest(body.targetStart, body.targetEnd)
+        validateProjectFields(fields.name, fields.description)
+        val outcome = d.structure.projects.updateDetails(projectId, fields, window, d.ownerGuard(caller), d.windowGuard(caller))
+        auditProjectUpdate(caller.userId, projectId, fields, outcome)
+        auditTargetWindowChange(caller.userId, projectId, outcome.windowFrom, outcome.windowTo)
         call.respond(HttpStatusCode.NoContent)
     }
     put<ProjectsRoute.Id.TargetWindow> { route ->
@@ -90,17 +101,7 @@ internal fun Route.projectRoutes(d: PlanRouteDeps) {
         val request = call.receive<TargetWindowRequest>()
         val window = validateTargetWindow(request.targetStart, request.targetEnd)
         val outcome = d.structure.projects.setTargetWindow(projectId, request, d.windowGuard(caller))
-        if (outcome.from != window) {
-            audit(
-                "project.target_window_changed",
-                "byUserId" to caller.userId.toLong(),
-                "projectId" to projectId.toLong(),
-                "startFrom" to outcome.from?.start?.toString(),
-                "endFrom" to outcome.from?.end?.toString(),
-                "startTo" to window?.start?.toString(),
-                "endTo" to window?.end?.toString(),
-            )
-        }
+        auditTargetWindowChange(caller.userId, projectId, outcome.from, window)
         call.respond(HttpStatusCode.NoContent)
     }
     delete<ProjectsRoute.Id> { route ->
@@ -140,7 +141,8 @@ internal fun Route.projectRoutes(d: PlanRouteDeps) {
         d.requireOwner(caller, d.structure.projects.chain(projectId), PROJECT)
         val request = call.receive<MilestoneCreateRequest>().sanitized()
         validateMilestoneFields(request.name, request.description, request.estimateMd)
-        val id = d.structure.milestones.create(projectId, request, d.ownerGuard(caller))
+        val created = d.structure.milestones.createResponse(projectId, request, d.ownerGuard(caller))
+        val id = created.id
         audit(
             "milestone.created",
             "byUserId" to caller.userId.toLong(),
@@ -151,9 +153,33 @@ internal fun Route.projectRoutes(d: PlanRouteDeps) {
             "estimateMd" to request.estimateMd,
         )
         call.response.header(HttpHeaders.Location, call.application.href(MilestonesRoute.Id(id = id)))
-        call.respond(HttpStatusCode.Created, d.structure.milestones.read(id).orVanished("Milestone", id))
+        call.respond(HttpStatusCode.Created, created)
     }
     createDependencyRoute(d)
+}
+
+private fun auditProjectUpdate(userId: UInt, projectId: UInt, request: ProjectUpdateRequest, outcome: ProjectUpdateOutcome) {
+    val base = arrayOf("byUserId" to userId.toLong(), "projectId" to projectId.toLong())
+    audit("project.updated", *base, "name" to request.name)
+    if (outcome.ownerFrom != request.ownerPersonId) {
+        audit(
+            "project.owner_changed", *base,
+            "ownerFrom" to outcome.ownerFrom.toLong(), "ownerTo" to request.ownerPersonId.toLong(),
+        )
+    }
+}
+
+private fun auditTargetWindowChange(userId: UInt, projectId: UInt, from: TargetWindow?, to: TargetWindow?) {
+    if (from == to) return
+    audit(
+        "project.target_window_changed",
+        "byUserId" to userId.toLong(),
+        "projectId" to projectId.toLong(),
+        "startFrom" to from?.start?.toString(),
+        "endFrom" to from?.end?.toString(),
+        "startTo" to to?.start?.toString(),
+        "endTo" to to?.end?.toString(),
+    )
 }
 
 /** `GET /projects`: the paged picker list, any authenticated user (`list-endpoints.md`). */
@@ -175,7 +201,8 @@ private fun Route.createDependencyRoute(d: PlanRouteDeps) {
         d.requireOwner(caller, d.structure.projects.chain(projectId), PROJECT)
         val request = call.receive<DependencyCreateRequest>()
         validateDependencyCreate(request)
-        val id = d.structure.dependencies.create(projectId, request, d.ownerGuard(caller))
+        val created = d.structure.dependencies.createResponse(projectId, request, d.ownerGuard(caller))
+        val id = created.id
         audit(
             "dependency.created",
             "byUserId" to caller.userId.toLong(),
@@ -189,6 +216,6 @@ private fun Route.createDependencyRoute(d: PlanRouteDeps) {
             "lagDays" to request.lagDays,
         )
         call.response.header(HttpHeaders.Location, call.application.href(DependenciesRoute.Id(id = id)))
-        call.respond(HttpStatusCode.Created, d.structure.dependencies.read(id).orVanished("Dependency", id))
+        call.respond(HttpStatusCode.Created, created)
     }
 }

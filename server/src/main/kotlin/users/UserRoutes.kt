@@ -10,7 +10,6 @@ import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.authz.requireAdmin
 import ch.nokillswit.authz.requireSelfOrAdmin
-import ch.nokillswit.infra.db.orVanished
 import ch.nokillswit.infra.paging.optionalBoolean
 import ch.nokillswit.infra.paging.optionalEnum
 import ch.nokillswit.infra.paging.optionalString
@@ -165,7 +164,8 @@ private fun Route.userCreate(userService: UserService, personService: PersonServ
         val alsoPerson: (suspend (UInt) -> Unit)? = if (req.alsoCreatePerson == true) {
             { newId -> personId = personService.create(PersonCreateRequest(name, email, newId)) }
         } else null
-        val id = userService.create(user, alsoInTransaction = alsoPerson)
+        val created = userService.createResponse(user, alsoInTransaction = alsoPerson)
+        val id = created.id
         audit(
             "user.created",
             *buildList<Pair<String, Any?>> {
@@ -182,10 +182,7 @@ private fun Route.userCreate(userService: UserService, personService: PersonServ
                 "userId" to id.toLong())
         }
         call.response.header(HttpHeaders.Location, call.application.href(Users.Id(id = id)))
-        // Re-read for the response: create() seeds the inverted-default MFA-disabled
-        // row (V5 semantics), which the in-memory `user` object doesn't carry.
-        val stored = userService.read(id).orVanished("user", id)
-        call.respond(HttpStatusCode.Created, stored.toResponse(id))
+        call.respond(HttpStatusCode.Created, created)
     }
 }
 

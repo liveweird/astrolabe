@@ -10,6 +10,7 @@ import ch.nokillswit.jira.JiraDiscovery
 import ch.nokillswit.jira.JiraTestRecorderKey
 import ch.nokillswit.jira.JiraTestResult
 import ch.nokillswit.jira.TestRecording
+import ch.nokillswit.jira.passed
 import ch.nokillswit.plugins.ProblemDetail
 import ch.nokillswit.users.UserRole
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse

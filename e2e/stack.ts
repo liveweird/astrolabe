@@ -1,3 +1,5 @@
+import type { Target } from "./target.ts";
+
 /**
  * The suite starts nothing and stops nothing: it runs against a stack somebody started and named (`target.ts`). The refusal comes
  * BEFORE any request, because the suite writes rows through the API of the stack it is given and flips the scenarios of its stubs;
@@ -15,9 +17,17 @@ function refusal(problems: readonly string[]): string {
 
 export async function requireReadyTarget(
   problems: readonly string[],
-  url: string,
+  target: Target,
   responds: (url: string) => Promise<boolean>,
 ): Promise<void> {
   if (problems.length > 0) throw new Error(refusal(problems));
-  if (!(await responds(url))) throw new Error(`E2E_BASE_URL (${url}) is not ready: start that stack first`);
+  const probes = [
+    ["E2E_BASE_URL", target.baseUrl, "/api/v1/ready"],
+    ["E2E_MAILPIT_URL", target.mailpitUrl, "/api/v1/messages"],
+  ] as const;
+  for (const [name, origin, path] of probes) {
+    if (!(await responds(new URL(path, origin).href))) {
+      throw new Error(`${name} (${origin}) is not ready: start that stack first`);
+    }
+  }
 }

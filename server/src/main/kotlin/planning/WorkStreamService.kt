@@ -43,10 +43,14 @@ class WorkStreamService(private val database: R2dbcDatabase) {
 
     /** The work stream, or null when missing/deleted. */
     suspend fun read(id: UInt): WorkStreamResponse? = suspendTransaction(database) {
+        responseInTransaction(id)
+    }
+
+    private suspend fun responseInTransaction(id: UInt): WorkStreamResponse? {
         val row = WorkStreams.selectAll().where { (WorkStreams.id eq id) and WorkStreams.active() }.toList().singleOrNull()
-            ?: return@suspendTransaction null
+            ?: return null
         val names = ownerNames(listOf(row[WorkStreams.ownerPersonId].value))
-        WorkStreamResponse(
+        return WorkStreamResponse(
             id = id,
             name = row[WorkStreams.name],
             description = row[WorkStreams.description],
@@ -60,12 +64,17 @@ class WorkStreamService(private val database: R2dbcDatabase) {
     }
 
     /** Creates the stream under the plan lock; an inactive owner is a 400, a name clash a 409. */
-    suspend fun create(request: WorkStreamCreateRequest): UInt {
+    suspend fun create(request: WorkStreamCreateRequest): UInt = createResult(request) { it }
+
+    internal suspend fun createResponse(request: WorkStreamCreateRequest): WorkStreamResponse =
+        createResult(request) { id -> checkNotNull(responseInTransaction(id)) { "the work stream just inserted is readable" } }
+
+    private suspend fun <T> createResult(request: WorkStreamCreateRequest, result: suspend (UInt) -> T): T {
         val dates = validateWorkStream(request) // re-checked service-side so direct callers stay guarded
         return database.withPlanWrite {
             requireActiveOwner(request.ownerPersonId)
             val stamp = nowMillis()
-            WorkStreams.insert {
+            val id = WorkStreams.insert {
                 it[name] = request.name
                 it[description] = request.description
                 it[ownerPersonId] = request.ownerPersonId
@@ -74,6 +83,7 @@ class WorkStreamService(private val database: R2dbcDatabase) {
                 it[createdAt] = stamp
                 it[updatedAt] = stamp
             }[WorkStreams.id].value
+            result(id)
         }.value
     }
 

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Group, Pagination, Select, Text } from "@mantine/core";
 import { PAGE_SIZE_OPTIONS } from "../hooks/usePagedSort";
@@ -18,6 +19,9 @@ export default function PaginationBar({
 }) {
   const { t } = useTranslation();
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  useEffect(() => {
+    if (page > totalPages) onPageChange(totalPages);
+  }, [onPageChange, page, totalPages]);
   return (
     <Group justify="space-between" align="center">
       <Text size="sm" c="dimmed">

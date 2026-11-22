@@ -466,7 +466,7 @@ describe("Deviations page - empty states", () => {
     localStorage.setItem(ROLES_KEY, JSON.stringify(["ADMIN"]));
     doc = view({ items: [], connections: [] });
     renderPage();
-    expect(await screen.findByRole("link", { name: "Add one under Administration, Jira." })).toHaveAttribute("href", "/integrations/jira");
+    expect(await screen.findByRole("link", { name: "Add one under Integrations, Jira." })).toHaveAttribute("href", "/integrations/jira");
   });
 
   test("connections but nothing linked: says nothing is linked yet (and does not claim agreement)", async () => {

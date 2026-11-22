@@ -77,6 +77,7 @@ class FlowMirrorStoreTest {
         // null for a team that is not in the mirror.
         val together = assertNotNull(store.teamSprintsOf(id, 1))
         assertEquals(777L, together.observedAt)
+        assertTrue(together.sprintsComplete)
         assertEquals(read, together.sprints)
         assertEquals(emptyList(), assertNotNull(store.teamSprintsOf(id, 2)).sprints, "present, no sprints")
         assertNull(store.teamSprintsOf(id, 99), "absent")
@@ -307,14 +308,27 @@ class FlowMirrorStoreTest {
         assertEquals(Triple("One renamed", 2, 0), Triple(one.name, one.sprintCount, one.memberCount))
         assertEquals(Triple(2, 2, 1L), Triple(two.sprintCount, two.memberCount, two.observedAt), "kept as it was")
         assertEquals(2L, teams.getValue(1).observedAt)
+        assertTrue(assertNotNull(store.teamSprintsOf(id, 1)).sprintsComplete)
+        assertTrue(assertNotNull(store.teamSprintsOf(id, 2)).sprintsComplete)
         assertEquals(2L, assertNotNull(connections.read(id)).teamsAt)
         assertEquals(2, store.teamsOf(other).size, "another connection is untouched")
         assertEquals(3, count("flow_sprints", other))
 
+        // A sprint-truncated document carries team 1, so it replaces that team and records its snapshot as incomplete. Team 2 was not
+        // carried because the document was also team-truncated, so it keeps its own previous completeness evidence.
+        assertEquals(
+            FlowMirrorWrite.WRITTEN,
+            store.replace(id, listOf(renamed), at = 3L, keepAbsentTeams = true, sprintsComplete = false),
+        )
+        assertEquals(false, assertNotNull(store.teamSprintsOf(id, 1)).sprintsComplete)
+        assertTrue(assertNotNull(store.teamSprintsOf(id, 2)).sprintsComplete)
+
         // An empty truncated document deletes nothing at all; without the flag the same call empties the mirror.
-        assertEquals(FlowMirrorWrite.WRITTEN, store.replace(id, emptyList(), at = 3L, keepAbsentTeams = true))
+        assertEquals(FlowMirrorWrite.WRITTEN, store.replace(id, emptyList(), at = 4L, keepAbsentTeams = true, sprintsComplete = false))
         assertEquals(2, store.teamsOf(id).size)
-        assertEquals(FlowMirrorWrite.WRITTEN, store.replace(id, emptyList(), at = 4L))
+        assertEquals(false, assertNotNull(store.teamSprintsOf(id, 1)).sprintsComplete)
+        assertTrue(assertNotNull(store.teamSprintsOf(id, 2)).sprintsComplete)
+        assertEquals(FlowMirrorWrite.WRITTEN, store.replace(id, emptyList(), at = 5L))
         assertEquals(0, store.teamsOf(id).size)
     }
 

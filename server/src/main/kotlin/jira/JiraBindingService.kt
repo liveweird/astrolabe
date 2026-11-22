@@ -9,6 +9,7 @@ import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.infra.json.parseStringArray
 import ch.nokillswit.infra.paging.PageRequest
 import ch.nokillswit.infra.paging.applyPaging
+import ch.nokillswit.infra.paging.pagedRead
 import ch.nokillswit.planning.MilestoneService
 import ch.nokillswit.planning.ProgramService
 import ch.nokillswit.planning.ProjectService
@@ -224,7 +225,7 @@ class JiraBindingService(private val database: R2dbcDatabase) {
     suspend fun read(id: UInt): JiraBindingResponse? = suspendTransaction(database) { readOne(Bindings.id eq id) }
 
     /** The paged list: ACTIVE bindings of LIVE nodes, count and rows on ONE predicate in ONE read transaction. */
-    suspend fun list(filter: JiraBindingFilter, paging: PageRequest): JiraBindingListResult = suspendTransaction(database) {
+    suspend fun list(filter: JiraBindingFilter, paging: PageRequest): JiraBindingListResult = pagedRead(database) {
         var predicate: Op<Boolean> = Bindings.active() and liveNode()
         filter.connectionId?.let { predicate = predicate and (Bindings.connectionId eq it) }
         filter.level?.let { predicate = predicate and (Bindings.level eq it.name) }

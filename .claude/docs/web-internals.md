@@ -47,7 +47,7 @@ section of the page you touch before changing it, and put a new page's mechanics
 
 ## The shell and page chrome
 
-The shell is `Shell` in `App.tsx`: the sidebar (`NAV_SECTIONS`), the 48 px header, `AppShell.Main` around the `<Outlet />` and the telemetry aside.
+The shell is `Shell` in `App.tsx`: grouped navigation, a 56 px header, `AppShell.Main` around the `<Outlet />` and the telemetry aside.
 Rules: `web/CLAUDE.md` "Layout conventions"; the route of every page: its "Pages (the map)".
 
 ### Navigation
@@ -57,15 +57,17 @@ The model is `utils/navigation.ts`, shared by the sidebar and the command palett
 - `NAV_SECTIONS` is the labelled sections of `NavLeaf`s: the `label` is a typed i18n key, `adminOnly?` gates admin leaves, `keywords?` adds raw palette search
   terms (a renamed page's old name), and `visibleSections(isAdmin())` drops an emptied section.
 - `ACCOUNT_NAV` (Change password, Changelog) is rendered by the header `UserMenu` and the palette, never by the sidebar.
-- Leaf clicks close the mobile drawer; `activeNavPath` is the longest-prefix matcher over the leaves.
+- Leaf clicks close mobile navigation. `activeNavPath` picks the longest prefix and highlights Plan on project details.
+- Planning groups plan views and lists. Teams and capacity groups staffing and scheduling. Integrations holds deviations and connection
+  settings. Administration holds account controls and appears for administrators.
 - **The icon rail** (Lettuce's): a header `ActionIcon` beside the Burger (`appShell.toggleNav`, `data-expanded` while expanded) narrows the desktop navbar from
-  240 to 64 px. `rail = navCollapsed && !opened`, remembered under `astrolabe.viewSettings.appShell.navCollapsed`.
+  232 to 64 px. `rail = navCollapsed && !opened`, remembered under `astrolabe.viewSettings.appShell.navCollapsed`.
   In rail mode each leaf is an icon-only `NavLink` (`classes.railLink`) whose `aria-label` IS the label, inside a right-hand `Tooltip`; section captions
   become hairline `Divider`s. The mobile overlay always shows full labels.
 
 ### The header and the palette
 
-- The shell header is 48 px: the brand, the `CommandPalette` trigger and the `UserMenu`.
+- The header holds the brand, `CommandPalette` and `UserMenu`.
 - `UserMenu`: the avatar (identity from `GET /users/{id}` under the `["user", id]` key), language, theme, Change password, Changelog with the what's-new badge,
   for an ADMIN a "Telemetry panel" toggle, Sign out. The version stamp stays in the sidebar footer.
 - Theme is three `Menu.Item`s (Light / Dark / System): the chosen one carries `IconCheck` + `aria-current`, and `closeMenuOnClick={false}` keeps the menu open.
@@ -466,7 +468,7 @@ and `HomeFlagBadges.tsx`; `components/BadgeLink.tsx`.
 
 ### Route and data
 
-The landing at `/`, for everyone: `PageHeader` (title "Astrolabe", the intro as its description) and a `SimpleGrid` of three `Paper withBorder` cards - Plan, Roadmap, Deviations.
+The landing at `/` shows Plan, Roadmap and Deviations in a responsive grid, with each destination at the foot of its card.
 
 - Each card has an h3 (the nav's own label, `appShell.nav.*`), the nav's icon, one dimmed sentence, whatever the card shows live and a real `RouterLink` `Anchor` ("Open the plan",
   "Open the roadmap", "Open the deviations": distinct from the sidebar's names, so a by-name locator never meets two links) to `planPath` / `roadmapPath` / `deviationsPath`.
@@ -486,9 +488,9 @@ Home writes nothing. The user's own write re-reads Home on its next visit becaus
   - the ranking (`hooks/useRoadmapRanking.ts`: ranked, unranked, rank);
   - the Teams registry (`pages/Teams.tsx`: a team's name, manager, deletion);
   - the People pages (`People.tsx`, `PersonDetails.tsx`: the person line and what is owned) and the login-person link (`Users.tsx` "Create a person", `CreateUser.tsx`);
-  - every Jira and Flow write the user makes: a connection's create, edit, delete and stored test (the two connection pages, `ConnectionDetailsPage`, the editor modals' stored test),
-    Refresh now and a run seen to end on the connection sections, the Deviations pages' "Sources" tables, the mapping save, the Flow team links (`refreshFlowLinks`) and the
-    refused acknowledge's re-read (`useAcknowledge`) - those still refresh only their own `["jira"]` / `["flow"]` keys beside it, as they never refreshed the timelines.
+  - Jira connection settings, tests, Refresh now, run completion, mapping saves and refused acknowledgements that only refresh Jira keys.
+- Flow link changes, capacity writes, acknowledgements, connection lifecycle and completed runs refresh `["plan"]` and `["roadmap"]`
+  alongside the affected Flow keys. Those views carry derived capacity flags, and Home follows under `["plan"]`.
 - A new write that moves a Home figure must do the same.
 - What waits up to a minute: another person's change, a scheduled poll, and a run that ends after the user left the page that started it (Home's Jira and Flow sides follow
   within the minute). A cold landing still makes the three requests and computes the Jira side twice (BACKLOG).
@@ -499,7 +501,7 @@ Shown as the server derives them, never recomputed.
 
 - Each is one `role="group"` (`aria-label` "The plan in figures" / "The roadmap in figures") passed as the card's `children`, so the sentence above and the link below keep their
   place. Before the read answers the group is in the DOM EMPTY with a minimum height (`PLAN_FIGURES_MIN_HEIGHT`, `ROADMAP_FIGURES_MIN_HEIGHT`; no skeleton, the app has none).
-- Plan card, in the facts lines' own strings, zero shown (plan state is known exactly): work streams, programs, projects (`programs.facts.*`), milestones (`teams.view.milestones`),
+- Plan card, in a two-column figure grid, zero shown: work streams, programs, projects (`programs.facts.*`), milestones (`teams.view.milestones`),
   `home.plan.notScheduled` (a link when positive).
 - Roadmap card: `roadmap.facts.ranked|unranked`, then badges only when positive - orange warnings, gray infos (`roadmap.facts.*`), red `home.roadmap.conflicts` and the two
   whole-plan capacity badges, orange, `home.roadmap.overloadedTeams|wipTeams` ("N teams with an overloaded week" / "over the WIP limit": the teams the team page flags) - and the Jira sentence.
@@ -626,8 +628,8 @@ Two independently permitted parts, because the server guards them differently: t
 (`PUT /projects/{id}/target-window`, `can.editTargetWindow` - a project's OWN owner is deliberately not enough; a roadmap editor has the window but not the fields).
 
 - A disabled part still shows its current values with a note.
-- Save sends only the parts that are enabled AND differ from what the server last accepted (held in state, updated after each successful PUT, so a retry after the second PUT failed
-  never repeats the first); nothing changed closes the modal without a request.
+- Save sends only enabled parts that changed. An edit to both parts uses `PUT /projects/{id}/details`, so both commit together.
+  A window-only edit uses its own PUT. Nothing changed closes the modal without a request, and a pending save keeps it open.
 - A NEW project carries its window in the create body (the creator is always a window editor).
 - The window is both dates or neither (validated in `utils/planForm.ts`, the server's 400 is the backstop).
 
@@ -1885,7 +1887,7 @@ Per sprint row: every line carries `CapacityAckCell` (the Jira `DeviationAckCell
 it in a fourth "Acknowledgement" column of their table, so a single missing sprint is a sentence with its cell.
 
 - The write is `hooks/useCapacityAcknowledge.ts`, the Jira `useAcknowledge` state machine over the row key: `POST`/`DELETE /integrations/flow/team-bindings/{id}/acknowledge` with the row's
-  `detail.sprintId` (always in the POST body, `null` for the gone team) and `fingerprint`. A success re-reads `["flow","deviations"]` and `["plan"]` (`refreshCapacityAcknowledgements`: the
+  `detail.sprintId` (always in the POST body, `null` for the gone team) and `fingerprint`. A success re-reads `["flow","deviations"]`, `["plan"]` and `["roadmap"]` (`refreshFlowCapacity`: the
   team view's flag and markers follow the open rows); the shared `409 stale-deviations` (`isStaleDeviations`) is an orange note in the row plus the re-read (a note of a row that left the list is
   shown above the list, `CapacityAckOrphanNotice`), a 403/404 a red message and a `refreshFlowLinks`; the focus rule is the Jira one (the same `useAckFocus`; the fallback is the "Differences
   from Flow" heading).
@@ -2123,13 +2125,14 @@ follow the panel's `can:{link, unlink, importCapacity}`, never the session's rol
   flag, so the manager silences it where they plan.
 - **The remedy line**, for whoever `can.importCapacity` (and no proposal is open): "Import capacity… shows what an import would change. Hand-entered periods are left as they are, and a sprint where
   Flow has 0 must be ticked by hand." It never promises the plan will match: a hand-entered period and a ZERO_CAPACITY sprint are not touched by default.
-- **Invalidations.** The import's apply (`onImported`), a link or unlink (`refreshFlowLinks`), a saved/deleted capacity period and a public-holiday write all invalidate `["flow","deviations"]`; an
-  acknowledge or its withdrawal re-reads `["flow","deviations"]` and `["plan"]` (`refreshCapacityAcknowledgements`).
+- **Invalidations.** Links use `refreshFlowLinks`; imports, period changes and acknowledgements use `refreshFlowCapacity`. Both refresh
+  Flow deviations, planning views and the Roadmap family. Public-holiday writes also refresh these views.
 
 ### The capacity import
 
 `CapacityImportModal` (`utils/capacityImport.ts` is its pure half): "Include closed sprints" (re-reads the plan), the preview table (`POST …/capacity-preview`, read once per opening: `gcTime: 0`, no
 refocus refetch, so ticks are never reset).
+An observed snapshot with `sprintsComplete: false` shows refresh guidance and disables Apply. A missing observation still shows the no-mirror note.
 
 - A checkbox only on a CREATE / UPDATE row (`isImportable`), defaulting to the server's `ticked` (closed, `ZERO_CAPACITY` and `LONG_WINDOW` rows start unticked and may be ticked). `infoSentence` words
   each info (`FIXED_FIGURE` with the server's `days`; the long-window one with the row's own `calendarDays`, since Flow's 60-day cap makes a sprint that long a likely Jira date mistake). UNCHANGED,
@@ -2165,7 +2168,7 @@ Pinned by: `People.test.tsx`, `PersonDetails.test.tsx`, `PersonSelect.test.tsx`;
 
 ## Public holidays
 
-`/public-holidays` is a leaf of the Administration section after People (`IconCalendarOff`, palette "Public holidays" / PL "Święta państwowe") that **everyone sees** (reads are open, like Teams and
+`/public-holidays` is a leaf of the Teams and capacity section after People (`IconCalendarOff`, palette "Public holidays" / PL "Święta państwowe") that **everyone sees** (reads are open, like Teams and
 People; the dictionary is global and read by every timeline). The page is a year `Select`, one table per year (date, weekday, name; a plain `Table` in a `ScrollRegion`) and, for an ADMIN only, an add
 strip, a row delete behind `ConfirmDeleteModal` and the Polish preset button (`POST /public-holidays/apply-preset`). The dictionary is handed to `Timeline`'s `holidays` prop.
 
@@ -2417,8 +2420,7 @@ already"), and when the mirror was read; before the first run it reads "Refresh 
 the server answers 400).
 
 - A refused link shows a fixed lead and, for a 409 `already-bound` or a 400, the server's sentence, and re-reads the list.
-- A link or unlink refreshes `["flow","teams"]` and `["flow","team"]` through `utils/flowRefresh.ts` `refreshFlowLinks` (**the team page's Flow panel keys on `["flow","team",id]` and gets the refresh
-  for free**); nothing of the timeline views moves.
+- A link or unlink refreshes the Flow lists, team panel, deviations, plan and Roadmap families through `refreshFlowLinks`.
 
 Pinned by: `Flow*.test.tsx` (the pages, the sections, the editor), `PollingFields.test.tsx`, `utils/flowForm|flowLinks|pollingForm.test.ts`; shared fixtures in `test/flow.ts`.
 

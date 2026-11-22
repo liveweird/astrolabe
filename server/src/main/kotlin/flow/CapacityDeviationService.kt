@@ -57,6 +57,12 @@ class CapacityDeviationActor(val admin: Boolean, val managedTeamIds: Set<UInt>) 
 /** One team's rows with their acknowledgement state, and whether its connection is enabled (the team view's flag source reads both). */
 internal class TeamCapacityFacts(val enabled: Boolean, val deviations: List<CapacityDeviation>)
 
+/** One binding's computed rows plus the exact mirror snapshot they were derived from, so acknowledgement pruning never re-reads it. */
+internal class BindingCapacityFacts(
+    val deviations: List<CapacityDeviation>,
+    val mirror: FlowMirrorTeamSprints?,
+)
+
 /**
  * The capacity deviation document (`GET /views/capacity-deviations`): ONE `READ ONLY REPEATABLE READ` transaction (the capacity import
  * preview's protocol) that reads, in this order: the public-holiday calendar ([loadWorkingCalendar]); every ACTIVE Flow connection (the
@@ -66,9 +72,11 @@ internal class TeamCapacityFacts(val enabled: Boolean, val deviations: List<Capa
  * ([FlowMirrorStore.teamSprintsOf]). The pure [CapacityDeviationKernels] over [CapacityImportKernels.plan] decides each team.
  *
  * A binding whose connection has never mirrored a document (`teamsAt` null) is not a deviation (nothing to compare); one whose
- * connection has and whose Flow team is absent from the mirror is `TEAM_GONE` (the panel's rule, [FlowTeamService.panel]). A DISABLED,
- * FAILED or STALE connection's teams are computed from its last mirrored document; the connection's status qualifies them. Nothing is
- * stored, locked, audited or sent to Flow, and there is no `revision`: capacity periods are team data and no plan revision moves with
+ * connection has and whose Flow team is absent from the mirror is `TEAM_GONE` (the panel's rule, [FlowTeamService.panel]). A present
+ * team with incomplete sprint coverage contributes no rows: even a carried sprint's claim can depend on an omitted earlier sprint. A
+ * DISABLED, FAILED or STALE connection's teams are computed from its latest mirror when sprint coverage is complete; the connection's
+ * status qualifies them. Nothing is stored, locked, audited or sent to Flow, and there is no `revision`: capacity periods are team data
+ * and no plan revision moves with
  * them. The stored acknowledgements are read in the same snapshot, in one statement
  * ([CapacityAcknowledgeService.Acknowledgements.storedOf]), and the acknowledging logins' names in one more ([creatorsOf]). [now] is the
  * view's clock (`asOf` is its UTC date; each connection's "today" is the same instant in its own zone) and [maxItems] the cap on the
@@ -218,13 +226,17 @@ class CapacityDeviationService(
         binding: FlowTeamBindingRow,
         calendar: WorkingCalendar? = null,
         at: Long = now(),
-    ): List<CapacityDeviation>? {
+    ): BindingCapacityFacts? {
         val registry = FlowConnectionService.Connections
         val connection = registry.select(registry.timeZone, registry.teamsAt)
             .where { (registry.id eq binding.connectionId) and registry.active() }.toList().singleOrNull() ?: return null
         val periods = capacity.importRowsOfTeams(listOf(binding.teamId))[binding.teamId].orEmpty()
         val working = calendar ?: loadWorkingCalendar()
-        return computeOf(binding, connection[registry.timeZone], connection[registry.teamsAt], periods, working, at)?.deviations
+        val mirrored = mirror.teamSprintsOf(binding.connectionId, binding.flowTeamId)
+        val computed = computeFrom(
+            mirrored, connection[registry.timeZone], connection[registry.teamsAt], periods, working, at,
+        ) ?: return null
+        return BindingCapacityFacts(computed.deviations, mirrored)
     }
 
     /** The rows of [binding] and when the mirror last saw its Flow team; null = nothing to compare (no document was ever mirrored). */
@@ -239,7 +251,8 @@ class CapacityDeviationService(
 
     /**
      * [computeOf]'s arithmetic over a [team] the caller already read (null = absent from the mirror), the ONE function the single-team
-     * and the every-team paths share, so the two cannot word a team differently.
+     * and the every-team paths share, so the two cannot word a team differently. An incomplete present team returns a known empty result:
+     * no sprint row is safe to publish or acknowledge, while callers can still distinguish it from a gone team by [Computed.observedAt].
      */
     private fun computeFrom(
         team: FlowMirrorTeamSprints?,
@@ -252,6 +265,10 @@ class CapacityDeviationService(
         if (team == null && teamsAt == null) return null
         val deviations = if (team == null) {
             CapacityDeviationKernels.deviations(CapacityPlan(emptyList(), emptyList()), periods, calendar, gone = true)
+        } else if (!team.sprintsComplete) {
+            // A partial list can change a carried sprint's effectiveFrom and divisor when an earlier overlapping sprint was omitted.
+            // It is therefore unavailable evidence, not merely a shorter list: publish and acknowledge no possibly false rows.
+            emptyList()
         } else {
             val zone = zoneOrUtc(timeZone)
             val plan = CapacityImportKernels.plan(
