@@ -54,7 +54,8 @@ npm test                      # checks the named stack answers, runs the specs, 
   run of a connection it made. Against a stack that runs with `SYNC_SCHEDULER_ENABLED=false` its first and third scenarios fail by design (no run ever comes).
 - `E2E_MAILPIT_URL` (the stack's Mailpit; the compose default is host port 8029) is the catcher the two email specs
   (`mfa.spec.ts`, `password-reset.spec.ts`) read; name the Mailpit of the same stack as `E2E_BASE_URL` (an isolated compose
-  project has its own Mailpit port). Reading another stack's catcher makes those two specs fail (or skip).
+  project has its own Mailpit port). Global setup checks its messages endpoint and fails when it is unreachable. A reachable catcher
+  from another stack still fails the email journeys because the expected messages never arrive.
 
 Docker-free gates ride every spec change — run them before merging, like the web
 package's lint/knip:
@@ -150,8 +151,8 @@ One line a spec: what it proves. The design (actors, owned state, numbered steps
 - [`shell.spec.ts`](scenarios/shell.md) — the icon rail collapses and expands the navbar and remembers it across a reload; the account menu's theme items switch and persist the color scheme; the tab title names the page and a navigation moves the focus to `#main-content`; Tab closes the open account menu; Home's three links reach their pages; the deploy notice shows once a newer build is served, survives a navigation and goes after Reload.
 - [`changelog.spec.ts`](scenarios/changelog.md) — the what's-new dot on a fresh device leads to the changelog via the version stamp and clears once read.
 - [`i18n.spec.ts`](scenarios/i18n.md) — the synced per-user language: a throwaway user switches to Polish, the choice survives a reload and a wiped-device re-login (the tab title follows), and the admin's English flips it back.
-- [`mfa.spec.ts`](scenarios/mfa.md) — the `/feature-flags` row switch and per-user editor round-trip a throwaway user's MFA flag; an MFA-enabled account signs in with the revealed generated password and the emailed 6-digit code via Mailpit (skips itself without it).
-- [`password-reset.spec.ts`](scenarios/password-reset.md) — the forgot-password flow: neutral confirmation and per-email throttle; the emailed single-use link keeps the old password until the new one is set, then ends the old session and works once (skips itself without Mailpit).
+- [`mfa.spec.ts`](scenarios/mfa.md) — the `/feature-flags` row switch and per-user editor round-trip a throwaway user's MFA flag; an MFA-enabled account signs in with the revealed generated password and the emailed 6-digit code via Mailpit.
+- [`password-reset.spec.ts`](scenarios/password-reset.md) — the forgot-password flow covers neutral confirmation and per-email throttle. The emailed single-use link keeps the old password until the new one is set, then ends the old session and works once.
 - [`users.spec.ts`](scenarios/users.md) — the account lifecycle: create via the one-time password reveal, the new user's limited view and self password change, promotion, deletion, the dead login; own-row protections; an admin's demotion and deletion reach a signed-in user on their next request; the "Also create a linked person" switch creates a person for the plan's owner picker.
 - [`people.spec.ts`](scenarios/people.md) — the people directory: create through the modal, link a login from the picker and rename, the list shows the login's email, delete from the row; a regular user's read-only list and person page.
 - [`teams.spec.ts`](scenarios/teams.md) — the flat-teams registry: create, rename, assign a manager, delete (the focus lands on the "Teams" heading); Escape on a row's dialogs returns the focus to the row's menu button, Tab in an open row menu moves on from the kebab; a regular user's read-only list and team page.

@@ -63,7 +63,7 @@ jobs:
       # The step split below exists so the nightly's time is attributable: `ci-times.mjs --workflows e2e
       # --steps e2e` shows the image build, the stack start-up and the specs as separate rows, each with
       # a budget in scripts/timings/budgets.json (`ci-steps`). Playwright's global setup starts nothing:
-      # it only checks that the stack named above answers /api/v1/ready.
+      # it checks app readiness and that the named Mailpit serves its messages endpoint.
       - name: Resolve the Playwright version
         id: playwright
         working-directory: e2e

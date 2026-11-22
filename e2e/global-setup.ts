@@ -3,8 +3,7 @@ import { requireReadyTarget } from "./stack.ts";
 
 async function responds(url: string): Promise<boolean> {
   try {
-    // The readiness probe: 200 only once the app answers AND its database round trip works.
-    const res = await fetch(`${url}/api/v1/ready`, { redirect: "manual" });
+    const res = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(5_000) });
     return res.ok;
   } catch {
     return false;
@@ -13,7 +12,7 @@ async function responds(url: string): Promise<boolean> {
 
 export default async function globalSetup(): Promise<void> {
   const target = readTarget(process.env);
-  await requireReadyTarget(targetProblems(process.env), target.baseUrl, responds);
+  await requireReadyTarget(targetProblems(process.env), target, responds);
   console.log(
     `[e2e] Using app ${target.baseUrl}, Mailpit ${target.mailpitUrl}, Jira stub ${target.jiraStubUrl}, Flow stub ${target.flowStubUrl};` +
       " nothing is started or stopped, and the stack's data is left intact.",

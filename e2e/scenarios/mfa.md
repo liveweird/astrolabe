@@ -23,7 +23,7 @@
 
 ## Scenario: an MFA-enabled account signs in with the emailed code
 
-*Skips itself when Mailpit (`E2E_MAILPIT_URL`) is unreachable.*
+Global setup requires a reachable Mailpit catcher (`E2E_MAILPIT_URL`).
 
 1. The admin creates a throwaway user, waits for **Show password** to become **Hide password** and
    captures the non-masked generated password, enables their MFA in the per-user editor, and

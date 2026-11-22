@@ -2,8 +2,7 @@ import { createUserViaUi, deleteUserRow, expect, login, loginViaForm, signOut, t
 import { MAILPIT_URL } from "../playwright.config";
 
 // Self-service password reset: the "Forgot password?" flow on the login screen.
-// The full email roundtrip needs the compose stack's Mailpit catcher (E2E_MAILPIT_URL); when it is unreachable (e.g. a dev stack on the log transport) that
-// one test skips itself. The dev stack lifts the per-IP request bucket (100/min, the login-bucket
+// Global setup checks the Mailpit catcher (E2E_MAILPIT_URL). The dev stack lifts the per-IP request bucket (100/min, the login-bucket
 // idiom) and the confirm bucket, so back-to-back runs never trip them; the per-email throttle is exercised
 // explicitly. The emailed link is followed by path + fragment RELATIVE to the baseURL: the compose stack's
 // MAIL_APP_URL may name another origin than the stack under test (an isolated project on another port).
@@ -38,12 +37,6 @@ test("the forgot-password link leads to the reset form; unknown emails get the n
 });
 
 test("a reset link preserves the old password until confirmation and cannot be reused", async ({ page }) => {
-  const mailpitUp = await fetch(`${MAILPIT_URL}/api/v1/messages`).then(
-    (r) => r.ok,
-    () => false,
-  );
-  test.skip(!mailpitUp, "Mailpit (compose stack) is not reachable — email roundtrip untestable");
-
   await login(page);
   const user = await createUserViaUi(page, "E2E-Reset");
   try {
