@@ -104,7 +104,7 @@ Files: `auth/Tokens.kt`, `plugins/Security.kt`.
   expired, wrong-audience or wrong-`typ` token never reaches the lookup and stays the uniform `401`. Pinned by
   `BlocklistOutageTest`; the `500` is declared on every operation and ignored by the coverage gate (`CROSS_CUTTING_STATUSES`).
 
-Full token, refresh and logout semantics for callers: "Tokens and sessions" in `.claude/docs/authorization.md`.
+Who may call what with a token (guards, the next-request effect of a delete, role or password change): `authorization.md` "Tokens and sessions".
 
 ## Token storage and response headers
 
@@ -192,17 +192,15 @@ deviation views do not: their `connections[].status.nextPollAt` is the read's ow
   answers `304` (no body) when `If-None-Match` lists it (weak comparison, a list, or `*` once the view succeeded), else the very
   text it hashed. It writes `ETag` plus ONE `no-store` only when the call really ends as a `200`/`304`. Nothing lands in a browser
   or proxy cache; the `304` serves a client that sends `If-None-Match` itself and keeps the document in its own memory.
-- **A hash of the answer cannot go stale:** a rename, a grant, a login link, a capacity period, a Jira or Flow observation or an
-  acknowledgement, a holiday or midnight changes the document and therefore the tag, with no list of inputs to keep complete
-  (`ViewValidatorInputsTest` walks the cases). The price: a `304` saves the transfer and its compression, NOT the view's own work
-  (its statements and kernels run on every read; `planning-model.md` "View validators").
+- **A hash of the answer cannot go stale:** whatever changes the document changes the tag, with no list of inputs to keep complete
+  (`ViewValidatorInputsTest` walks the cases; the ledger is `planning-model.md` "View validators"). The price: a `304` saves the
+  transfer and its compression, NOT the view's own work.
 - **Cross-user safety rests on three rules:** authentication, the parameters and the view's own `404`/`400` all run BEFORE any
   validator logic (an unauthenticated or refused request is never a `304` and carries no tag, so a `304` is never a way to probe for
   data); the user id is in the hash (one login's tag matches nothing of another's, even for a document identical for every caller);
   and a `problem+json` response is always `no-store` with no validator.
-- **The SPA is the client** (`web/src/api/revalidate.ts`; its rules are `web-internals.md`'s): memory only, never `localStorage`,
-  `sessionStorage`, IndexedDB or the Cache API; at most 16 documents and 8,000,000 characters; emptied at the session boundary; a
-  `304` is answered with a fresh parse of the text that tag came with, never with query data or an optimistic state.
+- **The SPA is the client** (`web/src/api/revalidate.ts`; its seven rules are `web-internals.md` "`revalidate.ts`"): memory only, a `304`
+  answered with a fresh parse of the text that tag came with, never with query data or an optimistic state.
 - **The rejected alternative** was `private, no-cache` + `Vary: Authorization` + a logout `Clear-Site-Data: "cache"`, which would
   leave response bodies on disk between logins on the same profile (best-effort clearing only).
 - Cross-origin deployments (`CORS_ALLOWED_HOSTS`): the CORS plugin allows `If-None-Match` and exposes `ETag`, both or neither.
@@ -360,14 +358,12 @@ with the generic `429` problem, `Retry-After` and the coalesced `rate_limit.exce
 - **`ready`**: the anonymous `GET /api/v1/ready` (one pooled DB round trip per call): the kubelet probes it every 5 s (12/min) and the
   e2e global setup every 2 s (30/min), so probers stay far under it; `/api/v1/health` does no I/O and has no bucket.
 - **`jira-test`** (Test connection and Peek): blank = the code default 10 in every mode, bounded `1..100` (each call fans out to
-  Jira; anything else refuses boot). The shipped production manifests keep 10; an operator may pin another value in either mode. The
-  e2e stacks pin 30 (`docker-compose.yaml`; the OrbStack overlay `k8s/local/front-door.yaml`, read by the Deployment as an `optional`
-  ConfigMap key and absent from the production ConfigMap, which `k8s-static` pins). Pinned by `RateLimitResponseTest` and
+  Jira; anything else refuses boot). The e2e stacks pin 30 (`docker-compose.yaml`; the OrbStack overlay `k8s/local/front-door.yaml`,
+  an `optional` ConfigMap key absent from the production ConfigMap, which `k8s-static` pins). Pinned by `RateLimitResponseTest` and
   `NumericConfigBoundsTest`.
 - **`flow-test`** (both Flow Test-connection routes; its OWN bucket, so a Flow test never spends a Jira one): the same idiom and the
-  same e2e pin of 30. A test makes two outbound calls with the stored token (`me`, `teams`), so the bound is for a runaway client. The
-  bind, the capacity preview and the capacity apply make no Flow call and ride no bucket. Pinned by `RateLimitResponseTest`,
-  `NumericConfigBoundsTest` and `FlowTestConnectionTest`.
+  same e2e pin of 30. The bind, the capacity preview and the capacity apply make no Flow call and ride no bucket. Pinned by
+  `RateLimitResponseTest`, `NumericConfigBoundsTest` and `FlowTestConnectionTest`.
 
 ### No budget headers
 
@@ -608,23 +604,18 @@ function the tests build their client with) serves every connection, closed on `
   IP-literal URL, a foreign port or plain http to a tenant is refused and audited);
 - no proxy, no redirects, no retry at the OkHttp layer.
 
-**A stored site URL cannot steer the traffic.** The connection's `siteUrl` (validated at write time) is only ever asked for the
-unauthenticated `GET /_edge/tenant_info`; every authenticated call goes to the gateway `https://api.atlassian.com/ex/jira/{cloudId}/…`
-(the stub host in development, same path shape). The cloud id is validated as a UUID before it is stored or spliced into a path; a
-Jira-supplied issue id or key is checked against `^[0-9]{1,20}$` / the key pattern before it joins a path; the key a gone probe's
-200 carries is stored only when the document's `id` equals the probed id and the key matches `ISSUE_KEY_PATTERN`
-(`JiraGoneProbeRunTest`); and a stored site that no longer has the genuine tenant shape is refused (`BLOCKED_HOST` row) before any
-client is built.
+**A stored site URL cannot steer the traffic** (`jira-sync.md` "Rules": only the unauthenticated `GET /_edge/tenant_info` goes to the
+site, every authenticated call to the `api.atlassian.com` gateway, the stub host in development; the cloud id is validated as a UUID before it is
+stored or spliced into a path). A Jira-supplied issue id or key is checked against `^[0-9]{1,20}$` / the key pattern before it joins a
+path (the gone probe's stored key: `jira-sync.md` "The gone probe", `JiraGoneProbeRunTest`), and a stored site that no longer has the
+genuine tenant shape is refused (`BLOCKED_HOST` row) before any client is built.
 
 **`jira.stubBaseUrl`** (`$JIRA_STUB_BASE_URL`, `http(s)://host[:port]` and nothing else - a malformed value refuses boot in any
-mode, naming the key and never the value) reroutes BOTH hosts of a `stub-` site to a Jira stub (`jira/JiraStubRouting.kt`:
-`isJiraStubSite` = the tenant label starts with `stub-`; every other site reaches Atlassian even with a stub configured; the test
-result and the connection response carry `stub`, the audit line `jira.connection_tested` too). A non-blank value outside
-development mode refuses startup, so production can never reach one (`JiraBootTest`: the refusal, and "in production no loopback
-host is reachable, the stub's included").
+mode, naming the key and never the value) reroutes BOTH hosts of a `stub-` site, and no other (`jira/JiraStubRouting.kt`;
+`jira-sync.md` "The stub on each stack"). A non-blank value outside development mode refuses startup, so production can never reach one
+(`JiraBootTest`: the refusal, and "in production no loopback host is reachable, the stub's included").
 
-**The keys** (`jira.requestTimeoutSeconds`, `requestDeadlineSeconds`, `maxResponseBytes` 64 KiB..16 MiB, `maxConcurrentRequests` 1..8, `maxRetries`,
-`pageSize`, `incrementalOverlapMinutes`, `censusHours`; the defaults and bounds are `jira-sync.md` "The transport and the gateway") are boot-validated through
+**The keys** (`jira.*`; defaults and bounds: `jira-sync.md` "The transport and the gateway") are boot-validated through
 `requireConfigInt`/`requireConfigLong`. `jira/JiraHeapFit.kt` refuses the boot when `maxResponseBytes` and `maxConcurrentRequests` do
 not fit the JVM's old generation: one big parsed tree (112 B a node, the node ceiling of the cap) + the other in-flight trees below
 the 1 MiB lock threshold + every in-flight body + a 96 MiB reserve (the defaults need 174 MiB of the shipped `-Xmx256m -Xmn64m`
@@ -632,25 +623,18 @@ JVM's 192 MiB; 16 MiB x 8 is refused; the 112 B and the reserve are measurements
 
 **Response handling.** The client trims each big response INSIDE the transport's transform (`fields()` and `issueTypes()` return
 only the rows the mapping uses), so a parsed tree never outlives its call and the one-big-tree-at-a-time invariant of `SourceHttp`
-holds across the probes. The project probe asks `project/search` for exactly the connection's keys (`keys=A&keys=B`, at most 50,
-assumption A8) instead of paging a site's whole project list.
+holds across the probes.
 
 **The token** exists in memory only inside `HttpJiraClient`'s `Authorization` value and the `JiraTestTarget` the connector is handed
-(both mask it; `toString` pinned by `SecretToStringTest`); the three decrypting readers are listed under "Encryption at rest". A
-`FetchException` message carries the host-and-path endpoint WITHOUT its query string, and the decrypt-failure log names the exception
-class only (`infra/crypto/UnreadableToken.kt`, `decryptOrNull`, shared by both registries). A stored token that cannot be decrypted
-(`AEADBadTagException` after a key change; a non-rotating boot never test-decrypts) is a typed `TOKEN_UNREADABLE` probe row, not a 500.
-
-**No database transaction spans an HTTP call:** the stored target is read in its own transaction, the outcome recorded in another.
-Test connection never answers 502 (every failure is a row) and rides the per-IP `jira-test` bucket.
+(both mask it; `toString` pinned by `SecretToStringTest`); its readers and the decrypt-or-null rule are `sync.md` "A stored token's
+life". A `FetchException` message carries the host-and-path endpoint WITHOUT its query string.
 
 **The outbound permit pool of Jira is one for the process** (`jira.maxConcurrentRequests`, the number the heap-fit check sized the
 heap on; Flow has its own, bounded by its own tight keys: "The Flow consumer"). A call's deadline clock starts BEFORE it queues for
-its first permit, so a saturated pool fails the call `TIMEOUT` instead of parking it for ever. The bind (one of the paths a plain
-USER drives) carries a `PermitWait` of `jira.bindPermitWaitMillis` (`JIRA_BIND_PERMIT_WAIT_MILLIS`, default 5 s): a bind that cannot
-get a permit in that time answers the `502` upstream problem with the code `BUSY` (words in `sync.errorCode.BUSY`), so a burst of
-binds cannot hold an administrator's Test connection behind them. The import preview sets no `PermitWait`; neither does a run or a
-probe, so `BUSY` is not in the run code list. Pinned by `PermitContentionTest` and, at the route, `JiraBindBusyTest`.
+its first permit, so a saturated pool fails the call `TIMEOUT` instead of parking it for ever. Only the bind carries a `PermitWait`
+(`jira.bindPermitWaitMillis`): a bind that cannot get a permit in time answers `502` `BUSY`, so a burst of binds cannot hold an
+administrator's Test connection behind them; a preview, a run and a probe set none, so `BUSY` is not in the run code list. Pinned by
+`PermitContentionTest` and `JiraBindBusyTest`.
 
 Also pinned by `OutboundGuardTest` (the production-wiring cases against the loopback `JiraStubServer`: `BLOCKED_HOST` after exactly one attempt), `JiraBootTest`,
 `JiraClientTest` and `JiraTestConnectionTest` (no log line carries the token or its Basic header).
@@ -658,38 +642,32 @@ Also pinned by `OutboundGuardTest` (the production-wiring cases against the loop
 ### The Flow consumer
 
 `flow/Flow.kt` `configureFlow`, `infra/outbound/FlowOrigins.kt`. Flow (the sibling app) is read through its read-only service token
-(`GET /api/v1/integration/me` and `/teams`, bearer `flow_int_` + 43 base64url characters). It is a PRIVATE address for the Flow of
-this deployment, so "A private host" is wired with a development-only extension, all of it OPERATOR configuration (`flow.*`,
-boot-validated, naming the key and never the value):
-
-- `flow.allowedHosts` / `flow.allowedCidrs` / `flow.caBundle` (`FLOW_ALLOWED_HOSTS` / `FLOW_ALLOWED_CIDRS` / `FLOW_CA_BUNDLE`): the
-  production path for a TLS Flow - https to a listed `host[:port]`, a private range only for a listed host inside a CIDR, an extra
-  CA alongside the JVM defaults;
-- `flow.insecureOrigins` (`FLOW_INSECURE_ORIGINS`, exact `http://host[:port]` origins, no IP literal, default port 80): the Flow
-  stub and a plain-http Flow on OrbStack (`http://flow-app:8084` on compose through the committed `docker-compose.real-flow.yaml`
-  override, which joins Flow's network `flow_default`; `http://app.flow.svc.cluster.local:8084` in the cluster;
-  `host.docker.internal` is NOT usable there, its address `0.250.250.254` is in the never-allowed `0.0.0.0/8`).
+(bearer `flow_int_` + 43 base64url characters). It is a PRIVATE address for the Flow of this deployment, so "A private host" is wired
+with a development-only extension, all of it OPERATOR configuration (`flow.*`, boot-validated, naming the key and never the value;
+the keys and origins: `flow-sync.md` "The transport and origins"): `flow.allowedHosts` / `flow.allowedCidrs` / `flow.caBundle` are the
+production path for a TLS Flow, `flow.insecureOrigins` (exact `http://host[:port]` origins, no IP literal, default port 80) the Flow
+stub and a plain-http Flow on OrbStack.
 
 **A non-blank `flow.insecureOrigins` outside development mode refuses startup** (the `jira.stubBaseUrl` rule: `FlowBootTest`), and
 `FlowOrigins` ignores the list outside development mode as defence in depth.
 
 **An insecure host may resolve to a loopback, private or docker-network address, and to nothing else:** its addresses are refused
-when they are in the `isNeverAllowed` classes minus loopback (link-local - the cloud metadata address `169.254.169.254` included -
+when they are in the `isNeverAllowed` classes minus loopback (link-local - the cloud metadata address `169.254.169.254` included -,
 any-local, multicast, `0.0.0.0/8`, `::/96`, `::ffff:0:0:0/96`, NAT64 to a refused address or in `64:ff9b:1::/48`, 6to4, Teredo;
 `FlowOriginsTest`), and a host that is ALSO a listed TLS host follows the listed-host rule only (never loopback, whatever the CIDRs
 say). The host check still gates WHICH hosts are reachable.
 
-**A connection's `baseUrl` must be exactly one listed origin in its canonical form** (`FlowOrigins.baseUrlVerdict`:
-`scheme://host[:port]`, lowercase scheme and host, the scheme's default port omitted, no path, trailing slash, query or
-credentials; the verdict is `ALLOWED`, `NOT_CANONICAL` or `NOT_LISTED` and the 400 names which, never quoting the value; wired
-through the composition root `infra/db/Database.kt`, which fails closed until `configureFlow` has built the rule), so an admin can
-never widen the list and every origin has one spelling. A stored `baseUrl` is judged AGAIN by the transport on every call, so one
-the operator has since delisted is refused (`BLOCKED_HOST`, audited once, before any DNS lookup, no retry: `FlowBootTest`,
-`OutboundGuardTest`); the guarded client likewise refuses an IP-literal URL, a foreign port, plain http to a TLS host or a
-caller-set `Host` header (`outbound.blocked`).
+**A connection's `baseUrl` must be exactly one listed origin in its canonical form** (`FlowOrigins.baseUrlVerdict`: `ALLOWED`,
+`NOT_CANONICAL` or `NOT_LISTED`; the spelling rules are `flow-sync.md` "The transport and origins"; the 400 names which, never quoting
+the value; wired through the composition root `infra/db/Database.kt`, which fails closed until `configureFlow` has built the rule), so
+an admin can never widen the list and every origin has one spelling. A stored `baseUrl` is judged AGAIN by the transport on every
+call, so one the operator has since delisted is refused (`BLOCKED_HOST`, audited once, before any DNS lookup, no retry:
+`FlowBootTest`, `OutboundGuardTest`); the guarded client likewise refuses an IP-literal URL, a foreign port, plain http to a TLS host
+or a caller-set `Host` header (`outbound.blocked`).
 
-**The list is disclosed to ADMIN** (`GET /api/v1/integrations/flow/origins`, `FlowOrigins.allowedOrigins()`): it is operator configuration validated host-shaped at boot (no credential, no path), shown only to the role that
-already reads every connection URL, and knowing it widens nothing (the guard judges every call).
+**The list is disclosed to ADMIN** (`GET /api/v1/integrations/flow/origins`, `FlowOrigins.allowedOrigins()`): operator configuration
+validated host-shaped at boot (no credential, no path), shown only to the role that already reads every connection URL; it widens
+nothing (the guard judges every call).
 
 The client is the same `guardedOkHttpClient`/`guardedKtorClient` pair (no proxy, no redirects - a 3xx is `REDIRECT` - no
 OkHttp-level retry) with the operator's CA bundle when set, ONE for the process, closed on `ApplicationStopped`, over
@@ -697,15 +675,15 @@ OkHttp-level retry) with the operator's CA bundle when set, ONE for the process,
 
 **The token** exists in memory only inside `HttpFlowClient`'s `Authorization` value (and the decrypted `FlowConnectionTarget`, which
 masks it; both request and target are in the log-hygiene class list), is decrypted by `FlowConnectionService.readForTest` /
-`readForRun` only (through `decryptOrNull`, `infra/crypto/UnreadableToken.kt`), and never reaches a URL, a log line, an audit line,
-a problem body or a failure message (a `FetchException` carries the host and path of the request, never a query).
+`readForRun` only (`sync.md` "A stored token's life") and never reaches a URL, a log line, an audit line, a problem body or a failure
+message (a `FetchException` carries the host and path of the request, never a query).
 
-**The contract has one Kotlin home**, `flow/FlowDocument.kt` (`ignoreUnknownKeys`), twin of the stub's `sample-data/flow/contract.mjs`;
-the decoder is strict where an absence would read as a value (`INVALID_RESPONSE`, never "empty" or "false"). The contract, its caps
-and the failure codes (`AUTHENTICATION_FAILED` for Flow's uniform 401, never retried) are `flow-sync.md`'s.
+**The contract has one Kotlin home**, `flow/FlowDocument.kt` ("The contract and drift" in `flow-sync.md`); the decoder is strict where
+an absence would read as a value (`INVALID_RESPONSE`, never "empty" or "false"). The failure codes (`AUTHENTICATION_FAILED` for Flow's
+uniform 401, never retried) are `flow-sync.md`'s.
 
-In k8s the egress NetworkPolicy still excludes private ranges: `k8s/local/flow-egress.yaml` allows `app` to the `flow` namespace on
-TCP 8084 (the policy is the second layer).
+In k8s the egress NetworkPolicy still excludes private ranges (`ci.md` "Running the full stack" for the Flow egress override); the
+policy is the second layer.
 
 Pinned by `FlowOriginsTest`, `FlowBootTest`, `FlowClientTest` and the Flow cases of `OutboundGuardTest`.
 
@@ -814,9 +792,9 @@ a slow first boot cannot trigger a restart.
   `k8s-app=kube-dns`, 53 UDP/TCP) and to public addresses on 443, 587/465/25 (SMTP) - RFC 1918, link-local (cloud metadata
   `169.254.169.254`) and CGNAT ranges excluded, so a compromised pod cannot reach other namespaces or cluster services.
 - **Things that need their own extra policy:** an in-cluster/private SMTP relay, an OTLP collector (`OTEL_*_EXPORTER=otlp`; the
-  default is console), any private upstream (the OrbStack overlay adds `allow-app-egress-to-jira-stub` and `allow-jira-stub-from-app`
-  in `k8s/local/jira-stub.yaml`, the same pair for `flow-stub:8080` in `k8s/local/flow-stub.yaml`, and `allow-app-egress-to-flow`
-  (app -> namespace `flow` TCP 8084, a real in-cluster Flow) in `k8s/local/flow-egress.yaml`; the base never has any of them).
+  default is console), any private upstream (the OrbStack overlay adds the Jira-stub, Flow-stub and real-Flow pairs in
+  `k8s/local/jira-stub.yaml`, `flow-stub.yaml` and `flow-egress.yaml`, named in `ci.md` "Running the full stack"; the base never has
+  any of them).
 - **Cluster assumptions:** DNS is matched as pods labelled `k8s-app: kube-dns` in `kube-system` (stock CoreDNS); a NodeLocal
   DNSCache or OpenShift (`openshift-dns`, different labels) needs the DNS rule adjusted, or every lookup times out; SMTP submission
   on port 2525 and any IPv6 destination are not covered (the `ipBlock` is IPv4 only). Enforcement needs a CNI that implements
@@ -845,12 +823,11 @@ Kubernetes is a LOCAL deployment target (OrbStack): `k8s/app-service.yaml` is a 
 
 ## Log hygiene
 
-Every data class that carries a password, token, MFA code, password hash or signing key (`LoginRequest`, `LoginResponse`,
-`MfaVerifyRequest`, `RefreshRequest`, `LogoutRequest`, `User`, `UserCreateRequest`, `PasswordUpdateRequest`,
-`PasswordResetConfirmRequest`, `JiraConnectionRequest`, `JiraTestTarget`, `FlowConnectionRequest`, `FlowConnectionTarget`,
-`JwtConfig`, the MFA challenge types, `IssuedToken`) overrides `toString()` and prints each secret through `maskedSecret`
-(`infra/Secrets.kt`: `***`, or `null` when absent), so templating one into a log line or an exception message never reveals it; a
-new secret-bearing class does the same. Pinned by `SecretToStringTest`.
+Every data class that carries a password, token, MFA code, password hash or signing key (the auth requests and responses, `User`,
+`UserCreateRequest`, `PasswordUpdateRequest`, the Jira and Flow connection requests and targets, `JwtConfig`, the MFA challenge types,
+`IssuedToken`) overrides `toString()` and prints each secret through `maskedSecret` (`infra/Secrets.kt`: `***`, or `null` when
+absent), so templating one into a log line or an exception message never reveals it; a new secret-bearing class does the same. Pinned
+by `SecretToStringTest`.
 
 - `infra/db/Flyway.kt`'s startup log line renders the operator-supplied JDBC URL through `jdbcUrlForLogging()` - `host:port/db`
   only, no userinfo or query string - so a `jdbc:postgresql://host/db?user=...&password=...` form never lands a credential in the
@@ -876,10 +853,8 @@ email MFA. The recipient-language content layer (`LocalizedText`) lives beside t
 
 ## Encryption at rest
 
-`infra/crypto/`. The first consumer is `jira_connections.api_token` (V21,
-`jira/JiraConnectionService.kt` - the credential of the Jira deviation sync); the second is `flow_connections.api_token` (V24,
-`flow/FlowConnectionService.kt`: Flow's read-only service token), decrypted by `readForTest` and `readForRun` only; a decrypt
-failure reads as a null token, never an exception.
+`infra/crypto/`. The consumers are `jira_connections.api_token` (V21, `jira/JiraConnectionService.kt`) and `flow_connections.api_token`
+(V24, `flow/FlowConnectionService.kt`); a decrypt failure reads as a null token, never an exception.
 
 ### Keys and rotation
 
@@ -924,36 +899,29 @@ Without printing a value: do NOT change the keys again.
   (`api_token IS NULL OR api_token LIKE 'enc:v1:%'`) and `ck_jira_connections_api_token_live` (`marked_as_deleted OR api_token IS NOT NULL`)
   make the database refuse a plaintext value and a tokenless active row, so the boot backfill's plaintext wrap can no longer fire on
   this table (its code path is proven on a throwaway table and stays for the next encrypted column).
-- **A deleted connection keeps no credential, literally:** `JiraConnectionService.delete` sets `api_token` to NULL in the delete's own
-  transaction, so no envelope under an old key is left for a later rotation to open (`reencryptRows` skips NULLs);
-  `readForTest`/`readForPeek`/`readForBind` read ACTIVE rows only. A run already in flight when the connection is deleted ends
-  `CONNECTION_GONE` before its next page, so a token copy in memory authenticates no further read.
+- **A deleted connection keeps no credential, literally:** the delete sets `api_token` to NULL in its own transaction (no envelope
+  under an old key is left for a rotation to open); the readers read ACTIVE rows only, and a run in flight ends `CONNECTION_GONE`
+  before its next page, so a token copy in memory authenticates no further read.
 - **Jira business text is plaintext by design** (issue summaries, keys, points, observations): only credentials are encrypted. The
-  census mirror `jira_issues` (V23) widens that to every in-scope issue and keeps a summary (control characters replaced by spaces)
-  it never emits: no endpoint exposes mirror summaries (only keys and counts) and no log line names one.
-- **A credential column is write-only end to end:** accepted on create/update, never returned, never in an audit line or a log line
-  (the response carries a `has…` boolean instead), and **never decrypted on a read path**. `JiraConnectionService` encrypts and
-  re-wraps on every write path, and it has exactly THREE decrypting methods (`JiraTestRecorder` and `JiraMappingStore`, split out of
-  it, never select or see the token), each handing the plaintext to the connector that calls Jira and nothing else: `readForTest`
-  (Test connection, ADMIN), `readForPeek` (Peek, ADMIN) and `readForBind` (the bind and the two import routes - the paths a non-ADMIN
-  can trigger, each only after its up-front authorization; the sync run, an ADMIN's manual run or the scheduler, calls this same
-  reader, so it adds a caller, not a decrypting path). The decrypt-or-null rule is `infra/crypto/UnreadableToken.kt`'s
-  `decryptOrNull`.
+  census mirror `jira_issues` (V23) widens that to every in-scope issue and keeps a summary it never emits: no endpoint exposes
+  mirror summaries (only keys and counts) and no log line names one.
+- **A credential column is write-only end to end:** accepted on create/update, never returned (the response carries a `has…` boolean
+  instead), never in an audit line or a log line, and **never decrypted on a read path**. The few decrypting readers (the
+  connection service's three for Jira, two for Flow) and the decrypt-or-null rule are `sync.md` "A stored token's life"; each hands the
+  plaintext to the connector that calls the upstream and nothing else, and `JiraTestRecorder` and `JiraMappingStore` never select or
+  see the token. The paths a non-ADMIN can trigger (the bind and the two import routes, through `readForBind`) decrypt only after
+  their up-front authorization.
 - **`sync/` never names the credential column either:** `ConnectionColumns` (`sync/ConnectionRegistry.kt`) has no token column,
-  `runnableStateOf` selects only `enabled`, and `pollRowsOf` selects the shared columns plus what each connector's `*PollRows` names
-  (`JiraConnectionPolling.kt`, `FlowConnectionPolling.kt`), neither of which includes the token (`CredentialPathTest` pins both, and
+  `runnableStateOf` selects only `enabled`, and each connector's `*PollRows` selection omits it (`CredentialPathTest` pins both, and
   that `decrypt` and `decryptOrNull` have no other caller).
-- **A caller refused by the up-front checks never makes the server decrypt:** the import routes check the connection's existence with
-  the non-decrypting `runnableState` (`404`), and call `readForBind` only after the named-target `404`s and the up-front `403`s
-  (`JiraImportRoutes.admit`), so a login that owns no plan node - or names a default it does not own - gets its `403` with the
-  ciphertext untouched (the preview's resolved-target `403` and the apply's under-the-lock `403` still come after the decrypt and the
-  browse, the deliberate cost `authorization.md` records). `JiraImportDecryptOrderTest`: an undecryptable envelope leaves one
-  "cannot be decrypted" WARN per decrypt, none for a refused caller. The caller learns only what the Jira reads show
-  (`authorization.md`), behind the per-user `jira-bind` / `jira-import` bucket.
-- **A run's stored failure text is URL-free** like it is token-free: `JiraObserver` writes `Jira fetch failed: {code} ({status})`,
-  never the exception message (`clampErrorDetail` is only the backstop; `JiraRunFailureTest`). A decrypt failure reads as a null token
-  and a typed `TOKEN_UNREADABLE` row (Test) or a `409` (Peek, bind, the import routes). An update that omits the token (or sends a
-  blank one) keeps the stored envelope byte for byte; a present one replaces it.
+- **A caller refused by the up-front checks never makes the server decrypt** (the order is `authorization.md` "Jira import" and
+  `jira-sync.md` "Import": the import routes check the connection with the non-decrypting `runnableState` and call `readForBind` only
+  after the named-target `404`s and the up-front `403`s, `JiraImportRoutes.admit`; the preview's resolved-target `403` and the apply's
+  under-the-lock `403` still come after the decrypt, the deliberate cost `authorization.md` records). `JiraImportDecryptOrderTest`: an
+  undecryptable envelope leaves one "cannot be decrypted" WARN per decrypt, none for a refused caller.
+- **A run's stored failure text is URL-free** like it is token-free (`sync.md` "Rules": `{code} ({status})`, never the exception
+  message; `JiraRunFailureTest`). A decrypt failure is a typed `TOKEN_UNREADABLE` row (Test) or a `409` (Peek, bind, the import
+  routes), never a `500`.
 
 ### Pinned by
 
@@ -970,25 +938,23 @@ superuser. A future `btree_gist` (overlap-exclusion constraints, e.g. effective-
 ## Telemetry
 
 `telemetry/` (`observability.md` "Telemetry") records Astrolabe's own vital signs into `ops.*` and serves them to ADMINs only
-(`GET /api/v1/telemetry/current` and `/history`, `authorization.md`; per-user bucket `telemetry`, 30/min). What it discloses, and
-to whom - every ADMIN, nobody else (a USER gets the uniform `403`):
+(`GET /api/v1/telemetry/current` and `/history`, `authorization.md`; per-user bucket `telemetry`, 30/min); a USER gets the uniform
+`403`. What it discloses to an ADMIN:
 
-- **Process identity:** the role (the constant `app`), the pod / host name (`HOSTNAME`, up to 100 control-free characters), the JVM
-  start, the image's build version and commit, the processor count, the heap maximum and the container memory limit - and the live
-  memory, CPU, thread, GC and connection-pool figures. NEVER JVM arguments, environment variables, system properties, request paths
-  with identifiers or any project data (pinned: the `ops` tables hold numbers and these labels only).
-- **Route usage:** the normalised API routes (`/api/v1/users/{id}`, path parameters as written, never an identifier) with their
-  request counts, latencies and 5xx / 429 counts. The telemetry routes themselves and the probes are excluded.
+- **Process identity** (the row, its instance label control-free and ≤ 100 characters: `observability.md` "The process row") and the live memory, CPU, thread, GC and connection-pool
+  figures; NEVER JVM arguments, environment variables, system properties, request paths with identifiers or any project data (pinned:
+  the `ops` tables hold numbers and these labels only).
+- **Route usage:** the normalised API routes (path parameters as written, never an identifier) with their request counts, latencies
+  and 5xx / 429 counts; the telemetry routes themselves and the probes are excluded.
 
 **Metric-name cardinality is bounded.** Ktor's `DropwizardMetrics` (3.6) names a meter after `request.uri` - query string included -
 for every response it could not route and for every second response of a call (the StatusPages re-answer of the RateLimit plugin's
 bodiless `429`, routing's `405`), and a registered instrument is never evicted: an unauthenticated client (`POST /api/v1/login?x=<random>`
-past the login bucket, random unrouted paths or methods) could mint one meter per distinct URI until the heap is gone, and the
-`Slf4jReporter` would print each of them. So `plugins/Monitoring.kt`'s `TelemetryRegistry` registers NO `ktor.calls.` name containing
-a `?` (the caller gets a detached, unregistered instrument), caps the whole `ktor.calls.` family at 2,000 registered names (past it:
-detached instruments and one WARN), and the reporter filters out any name with a `?` as defence in depth. Pinned by
-`TelemetryRegistryTest`.
+past the login bucket, random unrouted paths or methods) could mint one meter per distinct URI until the heap is gone. So
+`plugins/Monitoring.kt`'s `TelemetryRegistry` registers NO `ktor.calls.` name containing a `?` (the caller gets a detached,
+unregistered instrument), caps the whole `ktor.calls.` family at 2,000 registered names (past it: detached instruments and one WARN),
+and the reporter filters out any name with a `?` as defence in depth. Pinned by `TelemetryRegistryTest`.
 
 ## Not yet ported
 
-Nothing remains on the security list beyond the SSRF rules in "Outbound HTTP calls" (a new outbound consumer takes the allow-list, the origin check and the bounded read) and "A private host"; new subsystems arrive with their own section here.
+Nothing remains beyond the SSRF rules in "Outbound HTTP calls" and "A private host" (a new outbound consumer takes the allow-list, the origin check and the bounded read); new subsystems arrive with their own section here.
