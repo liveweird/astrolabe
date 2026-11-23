@@ -3,14 +3,14 @@
 // references resolve. Beside check-docs-budget.mjs (same reason: a Markdown-only PR skips the `server` job, `e2e-static` always runs).
 //
 //   node scripts/check-docs-shape.mjs                          the gate (exit 1 on a violation)
-//   node scripts/check-docs-shape.mjs --only <doc>             limits 1-5 and 7 for one file, ignoring NOT_YET (what a restructure proves itself with)
-//   node scripts/check-docs-shape.mjs --report                 the table of every covered file (exit 0)
+//   node scripts/check-docs-shape.mjs --only <doc>             limits 1-5, 7 and 9 for one file, ignoring NOT_YET (what a restructure proves itself with)
+//   node scripts/check-docs-shape.mjs --report                 the table of every covered file, then every byte ceiling with its headroom (exit 0)
 //   node scripts/check-docs-shape.mjs --refs [--into <doc>]    the section references (the unresolved ones, or every one naming <doc>) (exit 0)
 //
 // Test knobs of the self-test (scripts/check-docs-shape.test.mjs), harmless elsewhere: --root <dir> measures another tree,
-// --not-yet a.md,b.md replaces NOT_YET, --enforce-refs turns ENFORCE_REFS on.
+// --not-yet a.md,b.md replaces NOT_YET, --ceilings "a.md=100;b.md+c.md=200" replaces CEILINGS (a group is `+`-joined), --enforce-refs turns ENFORCE_REFS on.
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,6 +33,29 @@ const RULES_REQUIRED_OVER_BYTES = 30_000;
 const RULES_EXEMPT = new Set([".claude/docs/product.md", ".claude/docs/web-internals.md"]);
 // Limit 5. A parked move (`## To place (from <doc>)`) is emptied by the destination's own commit; a restructured doc keeps none.
 const TO_PLACE = /^to place\b/i;
+// Limit 9. A byte ceiling per named instruction doc (`wc -c`, bytes not characters), so none drifts over its size again; a group is ONE ceiling
+// on the members' sum (the always-loaded set's budget). A doc not named has no ceiling; a ceiling that names no file fails. Raising one is a
+// reviewed exception with its reason in the commit; the numbers sit just above the 1.26 sizes.
+const CEILINGS = [
+  { files: [".claude/docs/web-internals.md"], bytes: 285_000 },
+  { files: [".claude/docs/planning-model.md"], bytes: 145_000 },
+  { files: [".claude/docs/persistence.md"], bytes: 135_000 },
+  { files: [".claude/docs/timeline.md"], bytes: 120_000 },
+  { files: [".claude/docs/product.md"], bytes: 110_000 },
+  { files: [".claude/docs/jira-sync.md"], bytes: 110_000 },
+  { files: [".claude/docs/authorization.md"], bytes: 95_000 },
+  { files: [".claude/docs/security.md"], bytes: 92_000 },
+  { files: [".claude/docs/test-fixtures.md"], bytes: 72_000 },
+  { files: [".claude/docs/observability.md"], bytes: 68_000 },
+  { files: [".claude/docs/flow-sync.md"], bytes: 65_000 },
+  { files: [".claude/docs/scheduling.md"], bytes: 45_000 },
+  { files: ["e2e/README.md"], bytes: 45_000 },
+  { files: [".claude/docs/build-times.md"], bytes: 36_000 },
+  { files: [".claude/docs/sync.md"], bytes: 30_000 },
+  // The always-loaded docs beside CLAUDE.md (AlwaysLoadedDocsBudgetTest): conventions.md + ci.md + testing.md + list-endpoints.md.
+  { files: [".claude/docs/conventions.md", ".claude/docs/ci.md", ".claude/docs/testing.md", ".claude/docs/list-endpoints.md"], bytes: 36_000 },
+];
+
 // Limit 6 (CLAUDE.md's table names exactly the on-demand docs), limit 7 (an in-doc anchor names a heading of that doc) and
 // limit 8 (a section reference resolves) carry no number.
 
@@ -55,7 +78,7 @@ const WALK_SKIP_DIRS = new Set([".git", "node_modules", "build", "dist", ".gradl
 // ---- Arguments ---------------------------------------------------------------------------------------------------------
 
 function parseArgs(argv) {
-  const o = { mode: "gate", root: resolve(dirname(fileURLToPath(import.meta.url)), ".."), notYet: NOT_YET, enforceRefs: ENFORCE_REFS };
+  const o = { mode: "gate", root: resolve(dirname(fileURLToPath(import.meta.url)), ".."), notYet: NOT_YET, enforceRefs: ENFORCE_REFS, ceilings: CEILINGS };
   const need = (i, flag) => {
     if (argv[i + 1] === undefined) fail(`${flag} needs a value`);
     return argv[i + 1];
@@ -68,11 +91,24 @@ function parseArgs(argv) {
     else if (a === "--into") o.into = need(i++, a);
     else if (a === "--root") o.root = resolve(need(i++, a));
     else if (a === "--not-yet") o.notYet = need(i++, a).split(",").filter(Boolean);
+    else if (a === "--ceilings") o.ceilings = parseCeilings(need(i++, a));
     else if (a === "--enforce-refs") o.enforceRefs = true;
     else fail(`unknown argument ${a} (see the header comment)`);
   }
   if (o.into !== undefined && o.mode !== "refs") fail("--into belongs to --refs");
   return o;
+}
+
+/** The `--ceilings` test knob: `a.md=100;b.md+c.md=200` (a group is `+`-joined; an empty string is no ceiling). */
+function parseCeilings(spec) {
+  return spec
+    .split(";")
+    .filter(Boolean)
+    .map((e) => {
+      const m = /^(.+)=(\d+)$/.exec(e);
+      if (!m) fail(`--ceilings entry "${e}" is not <file>[+<file>...]=<bytes>`);
+      return { files: m[1].split("+"), bytes: Number(m[2]) };
+    });
 }
 
 function fail(msg) {
@@ -244,6 +280,32 @@ function anchorViolations(doc) {
   return v;
 }
 
+// ---- Limit 9: byte ceilings --------------------------------------------------------------------------------------------
+
+const fmtBytes = (n) => n.toLocaleString("en-US");
+const ceilingName = (c) => (c.files.length === 1 ? c.files[0] : `group ${c.files.join(" + ")}`);
+
+/** Each ceiling measured: `{name, ceiling, bytes, headroom, missing}` (the file's byte length, not its character count). */
+function ceilingResults(root, ceilings) {
+  return ceilings.map((c) => {
+    const missing = c.files.filter((f) => !existsSync(join(root, f)));
+    const bytes = missing.length > 0 ? null : c.files.reduce((n, f) => n + statSync(join(root, f)).size, 0);
+    return { files: c.files, name: ceilingName(c), ceiling: c.bytes, bytes, headroom: bytes === null ? null : c.bytes - bytes, missing };
+  });
+}
+
+/** Limit 9 for the given results: `[message]` (a breach, or a ceiling that names a missing file). */
+function ceilingViolations(results) {
+  const v = [];
+  for (const r of results) {
+    if (r.missing.length > 0) v.push(`[limit 9] the ceiling of ${r.name} names no file (${r.missing.join(", ")}): remove the entry`);
+    else if (r.bytes > r.ceiling) {
+      v.push(`${r.files.length === 1 ? r.files[0] : r.name}: [limit 9] ${fmtBytes(r.bytes)} bytes, over its ceiling of ${fmtBytes(r.ceiling)} (by ${fmtBytes(r.bytes - r.ceiling)})`);
+    }
+  }
+  return v;
+}
+
 // ---- Limit 6: CLAUDE.md's table ----------------------------------------------------------------------------------------
 
 function tableViolations(root, covered) {
@@ -349,12 +411,14 @@ function main() {
 
   if (o.mode === "only") {
     const rel = resolveDocArg(o.only, covered, o.root);
-    const v = [...shapeViolations(rel, texts.get(rel), docs.get(rel)), ...anchorViolations(docs.get(rel))];
-    v.forEach((x) => console.error(fmt(rel, x)));
+    const v = [...shapeViolations(rel, texts.get(rel), docs.get(rel)), ...anchorViolations(docs.get(rel))].map((x) => fmt(rel, x));
+    // The doc's own ceiling: a doc in a group answers to the group's (its members are named in the message).
+    v.push(...ceilingViolations(ceilingResults(o.root, o.ceilings.filter((c) => c.files.includes(rel)))));
+    v.forEach((x) => console.error(x));
     const refs = collectReferences(o.root, covered, [rel], docs).filter((r) => !r.resolved);
     if (refs.length > 0) console.log(`${rel}: ${refs.length} section reference(s) unresolved (limit 8, not part of --only):`);
     refs.forEach((r) => console.log(`  ${r.file}:${r.line}: ${r.doc} "${r.section}"`));
-    console.log(v.length === 0 ? `${rel}: limits 1-5 and 7 pass` : `${rel}: ${v.length} violation(s)`);
+    console.log(v.length === 0 ? `${rel}: limits 1-5, 7 and 9 pass` : `${rel}: ${v.length} violation(s)`);
     process.exit(v.length === 0 ? 0 : 1);
   }
 
@@ -392,6 +456,11 @@ function main() {
     console.log(`limit 7: ${t7} unresolved anchor(s)`);
     const refs = collectReferences(o.root, covered, referenceFiles(o.root, covered), docs);
     console.log(`limit 8: ${refs.filter((r) => !r.resolved).length} of ${refs.length} section references unresolved`);
+    console.log("limit 9: byte ceilings");
+    for (const r of ceilingResults(o.root, o.ceilings)) {
+      const state = r.bytes === null ? `MISSING ${r.missing.join(", ")}` : `${String(r.bytes).padStart(8)} B of ${String(r.ceiling).padStart(8)} B, headroom ${r.headroom} B${r.headroom < 0 ? "  OVER" : ""}`;
+      console.log(`  ${r.name.padEnd(44)} ${state}`);
+    }
     process.exit(0);
   }
 
@@ -417,6 +486,8 @@ function main() {
     else a.forEach((x) => errors.push(fmt(f, x)));
   }
 
+  ceilingViolations(ceilingResults(o.root, o.ceilings)).forEach((x) => errors.push(x));
+
   const refs = collectReferences(o.root, covered, referenceFiles(o.root, covered), docs);
   const missed = refs.filter((r) => !r.resolved);
   if (o.enforceRefs) missed.forEach((r) => errors.push(`${r.file}:${r.line}: [limit 8] ${r.doc} "${r.section}" resolves to no heading`));
@@ -424,6 +495,7 @@ function main() {
   console.log(
     `docs shape: ${covered.length} files, ${o.notYet.length} still in NOT_YET; ${refs.length} section references, ${missed.length} unresolved` +
       (o.enforceRefs ? "" : " (limit 8 not enforced yet)") +
+      `; ${o.ceilings.length} byte ceilings` +
       (anchorsPending > 0 ? `; ${anchorsPending} stale in-doc anchor(s) in NOT_YET docs` : ""),
   );
   if (!o.enforceRefs && missed.length > 0) {

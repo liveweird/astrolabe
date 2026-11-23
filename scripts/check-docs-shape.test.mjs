@@ -30,7 +30,9 @@ function tree({ docs = {}, extra = {} }) {
 function run(root, ...args) {
   // An empty NOT_YET unless the case names one: the real list describes the real tree.
   const notYet = args.includes("--not-yet") ? [] : ["--not-yet", ""];
-  const r = spawnSync(process.execPath, [script, "--root", root, ...notYet, ...args], { encoding: "utf8" });
+  // No byte ceilings unless the case names them (--ceilings): the real ones describe the real docs.
+  const ceilings = args.includes("--ceilings") ? [] : ["--ceilings", ""];
+  const r = spawnSync(process.execPath, [script, "--root", root, ...notYet, ...ceilings, ...args], { encoding: "utf8" });
   return { code: r.status, out: `${r.stdout}${r.stderr}` };
 }
 
@@ -221,5 +223,67 @@ describe("--report", () => {
     assert.match(r.out, /\.claude\/docs\/a\.md\s+\d+ B\s+L1x1\s+NOT LISTED/);
     assert.match(r.out, /\.claude\/docs\/b\.md\s+\d+ B\s+passes/);
     assert.match(r.out, /1 of 3 covered files fail limits 1-5/);
+  });
+});
+
+describe("limit 9: byte ceilings", () => {
+  const docs = { "a.md": `# A\n\n${bigSection(200)}`, "b.md": `# B\n\n${bigSection(200)}`, "c.md": "# C\n\nfine\n" };
+  const sizeOf = (text) => Buffer.byteLength(text);
+  it("fails a doc over its ceiling, naming the doc, its bytes and the ceiling, and passes at the ceiling", () => {
+    const bytes = sizeOf(docs["a.md"]);
+    const over = run(tree({ docs }), "--ceilings", `.claude/docs/a.md=${bytes - 1}`);
+    assert.equal(over.code, 1);
+    assert.match(over.out, new RegExp(`\\.claude/docs/a\\.md: \\[limit 9\\] ${bytes} bytes, over its ceiling of ${bytes - 1} \\(by 1\\)`));
+    assert.equal(run(tree({ docs }), "--ceilings", `.claude/docs/a.md=${bytes}`).code, 0);
+  });
+  it("measures bytes, not characters", () => {
+    const text = `# A\n\n${"é".repeat(50)}\n`;
+    assert.ok(sizeOf(text) > [...text].length);
+    const r = run(tree({ docs: { "a.md": text } }), "--ceilings", `.claude/docs/a.md=${[...text].length}`);
+    assert.equal(r.code, 1);
+    assert.match(r.out, new RegExp(`${sizeOf(text)} bytes, over its ceiling`));
+  });
+  it("fails a group over its one ceiling, naming the members and the sum", () => {
+    const sum = sizeOf(docs["a.md"]) + sizeOf(docs["b.md"]);
+    const spec = (n) => `.claude/docs/a.md+.claude/docs/b.md=${n}`;
+    assert.equal(run(tree({ docs }), "--ceilings", spec(sum)).code, 0);
+    const r = run(tree({ docs }), "--ceilings", spec(sum - 1));
+    assert.equal(r.code, 1);
+    assert.match(r.out, /group \.claude\/docs\/a\.md \+ \.claude\/docs\/b\.md: \[limit 9\]/);
+    assert.match(r.out, new RegExp(`${sum} bytes, over its ceiling of ${sum - 1}`));
+  });
+  it("fails a ceiling that names no file, alone or inside a group", () => {
+    const one = run(tree({ docs }), "--ceilings", ".claude/docs/gone.md=100");
+    assert.equal(one.code, 1);
+    assert.match(one.out, /ceiling of \.claude\/docs\/gone\.md names no file.*remove the entry/);
+    const grp = run(tree({ docs }), "--ceilings", ".claude/docs/a.md+.claude/docs/gone.md=100000");
+    assert.equal(grp.code, 1);
+    assert.match(grp.out, /names no file \(\.claude\/docs\/gone\.md\)/);
+  });
+  it("covers a file outside .claude/docs (e2e/README.md)", () => {
+    const root = tree({ docs, extra: { "e2e/README.md": `# E\n\n${bigSection(400)}` } });
+    const r = run(root, "--ceilings", "e2e/README.md=100");
+    assert.equal(r.code, 1);
+    assert.match(r.out, /e2e\/README\.md: \[limit 9\]/);
+  });
+  it("leaves an unnamed doc without a ceiling", () => {
+    assert.equal(run(tree({ docs }), "--ceilings", ".claude/docs/c.md=100").code, 0);
+  });
+  it("is applied by --only to the doc's own ceiling only", () => {
+    const root = tree({ docs });
+    const spec = ".claude/docs/a.md=10;.claude/docs/c.md=100";
+    const a = run(root, "--only", "a.md", "--ceilings", spec);
+    assert.equal(a.code, 1);
+    assert.match(a.out, /a\.md: \[limit 9\]/);
+    assert.equal(run(root, "--only", "c.md", "--ceilings", spec).code, 0);
+    assert.equal(run(root, "--only", "b.md", "--ceilings", spec).code, 0);
+  });
+  it("shows each ceiling with its bytes and headroom in --report, and never fails", () => {
+    const bytes = sizeOf(docs["c.md"]);
+    const r = run(tree({ docs }), "--report", "--ceilings", `.claude/docs/c.md=${bytes + 40};.claude/docs/a.md=10;.claude/docs/gone.md=5`);
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, new RegExp(`\\.claude/docs/c\\.md\\s+${bytes} B of\\s+${bytes + 40} B, headroom 40 B`));
+    assert.match(r.out, /\.claude\/docs\/a\.md\s+\d+ B of\s+10 B, headroom -\d+ B\s+OVER/);
+    assert.match(r.out, /\.claude\/docs\/gone\.md\s+MISSING/);
   });
 });

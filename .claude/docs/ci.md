@@ -55,7 +55,7 @@ Nightly e2e plus alerting was chosen over a PR-time e2e subset, to keep PR CI fa
 
 Its limits (constants at the top of the script, each with its reason): a line outside a code fence at most 600 characters; the text between two headings at most 8,000 bytes (`## Rules` with its `###` children too); no release tag in a heading (`product.md` excepted); a doc over 30,000 bytes opens with `## Rules` (`product.md` and `web-internals.md` excepted); no `## To place` heading; `CLAUDE.md`'s table names exactly the on-demand docs; an in-doc anchor names a heading.
 
-The last limit is a section reference (`` `doc.md` "Section" ``) that resolves to a heading of the named doc; counted and listed (`--refs`), not enforced while `ENFORCE_REFS` is false.
+The last limit is a section reference (`` `doc.md` "Section" ``) that resolves to a heading of the named doc; enforced (`ENFORCE_REFS`), listed by `--refs`. Limit 9 is a byte ceiling per named doc (one sum for the always-loaded four; `--report` shows the headroom).
 
 **`NOT_YET`** in the script lists the docs that do not pass the first five limits yet: a listed file is skipped by them, a listed file that passes fails ("remove it from NOT_YET") and so does an entry naming no file, so the list only shrinks (the main session edits it when it commits a restructure). A restructure proves its doc with `--only <file>`; other modes: `--report`, `--refs [--into <doc>]`.
 
