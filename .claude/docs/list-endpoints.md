@@ -43,13 +43,11 @@ theme-level `foldedOptionsFilter` (`web/src/utils/text.ts`).
 **View endpoints are the one shape-exception.** Each answers one unpaged document:
 
 - The plan view (`GET /views/plan`).
-- The home view (`GET /views/home`: a `revision`, no `can`, no parameter).
-- The team-load view (`GET /views/team-load`: a `revision`, `currentWeekStart`, no `can`, no parameter, ≤ 200 rows with `truncated`, ≤ 2,000 listed weeks, from that week on first, with `warningWeeksTruncated`).
-- The dependencies view (`GET /views/dependencies`: the same shape, ≤ 1,000 rows, the ends named once, a `can` on each row).
+- The home view (`GET /views/home`), the team-load view (`/views/team-load`: ≤ 200 rows with `truncated`, ≤ 2,000 listed weeks, from `currentWeekStart` on) and the dependencies view (`/views/dependencies`: ≤ 1,000 rows, the ends named once, a `can` per row): each a `revision`, no parameter.
 - The four timeline views (`/views/roadmap`, `/views/project/{id}`, `/views/team/{id}`, `/views/programs`) and `GET /views/baseline/{id}`.
 - The integration views (`GET /views/deviations`, `GET /views/jira-links`, `GET /integrations/flow/teams`, `GET /views/capacity-deviations`).
 
-Every view has capped sub-lists (the spec documents each cap) and, except the links reads (`GET /views/jira-links`, `GET /integrations/flow/teams`: no plan state), a `revision` and `can` flags; the timeline views take `?baseline=N` (additive `baseline` blocks). Ten of them answer through a validator (`ETag`, `If-None-Match`, `304`; `planning-model.md` "View validators"). Shapes: `planning-model.md` "The view documents", `jira-sync.md`, `flow-sync.md`.
+Every view has capped sub-lists (the spec documents each cap) and, except the links reads (`GET /views/jira-links`, `GET /integrations/flow/teams`: no plan state), a `revision` and `can` flags; the timeline views take `?baseline=N`. Ten of them answer through a validator (`ETag`, `If-None-Match`, `304`; `planning-model.md` "View validators"); shapes: `planning-model.md` "The view documents", `jira-sync.md`, `flow-sync.md`.
 
 Every ordinary resource list keeps the envelope; **projects and milestones have a paged list**, work streams and programs have NONE (the plan view is theirs).
 

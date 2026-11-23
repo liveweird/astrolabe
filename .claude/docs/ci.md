@@ -1,6 +1,6 @@
 # CI and static-analysis gates
 
-Owns: the CI jobs and what each gates, the failure alerting, how the local gate script differs from CI, the docs shape check, the static-analysis configuration, and the full-stack notes (the sibling port table, the two stubs and their carriers, the Kubernetes overlay) and AppCDS. Not here: the commands a session runs (`CLAUDE.md` "Commands"), the binding one-line test rules (`testing.md`), the job time budgets (`build-times.md`), dependency rules (`dependencies.md`, `dependency-reproducibility.md`). Read on demand before changing a CI job, a Dependabot rule or a static-analysis config.
+Owns: the CI jobs and what each gates, the failure alerting, local gates vs CI, the docs shape check, the static-analysis configuration, the full-stack notes (the sibling port table, the two stubs and their carriers, the Kubernetes overlay) and AppCDS. Not here: the commands (`CLAUDE.md` "Commands"), the one-line test rules (`testing.md`), the job time budgets (`build-times.md`), dependency rules (`dependencies.md`, `dependency-reproducibility.md`). Read before changing a CI job, a Dependabot rule or a static-analysis config.
 
 ## CI
 
@@ -10,56 +10,44 @@ Owns: the CI jobs and what each gates, the failure alerting, how the local gate 
 - `server`: includes the OpenAPI coverage gate, strict Gradle dependency verification (`--dependency-verification strict`) plus a lock/verification-metadata drift check.
 - `gradle-vulnerability-scan`: a HIGH/CRITICAL Gradle lockfile vulnerability scan.
 - `web`: includes the API-contract gate (`lint:api` + `check:api`).
-  - `npm run lint` runs over a restored ESLint result cache (`web/.eslintcache` via `actions/cache`, keyed on the lockfile + `eslint.config.js` + the commit with a prefix restore, so a PR re-lints only the files it changed).
-  - The coverage run is in shuffled order (`npm run test:coverage -- --sequence.shuffle --sequence.seed=<seed>`), which is also the `isolate: false` independence proof.
-  - `scripts/gates.sh web` mirrors it with a random seed it prints; CI picks the seed itself and writes it, with the replay command, to the job summary before the run, so a shuffle-order failure can be reproduced.
+  - `npm run lint` runs over a restored ESLint result cache (`web/.eslintcache` via `actions/cache`, keyed on the lockfile + `eslint.config.js` + the commit with a prefix restore).
+  - The coverage run is shuffled (`npm run test:coverage -- --sequence.shuffle --sequence.seed=<seed>`), the `isolate: false` independence proof; CI writes the seed and the replay command to the job summary (`scripts/gates.sh web` prints a random one).
 - `e2e-static`: lint/knip/typecheck/scenario parity/setup, plus these cheap repo checks.
   - The toolchain-pins check.
-  - The always-loaded docs budget (`node scripts/check-docs-budget.mjs`: `CLAUDE.md` plus its `@` imports against `BUDGET_BYTES`, and `web/CLAUDE.md` against `WEB_CLAUDE_BUDGET_BYTES`, both read from `AlwaysLoadedDocsBudgetTest`); it runs here because the `server` job holding that test is skipped on Markdown-only PRs.
-  - The docs shape check (`node scripts/check-docs-shape.mjs`, "Docs shape" below) and its self-test (`scripts/check-docs-shape.test.mjs`).
-  - The sample-plan self-tests: `node --test scripts/sample-plan/generate.test.mjs`, `... load.test.mjs` and the Jira stub generator's `sample-data/jira/generate.test.mjs`, one call per named file (a glob matching nothing exits 0, and with two named files node skips a missing one). They cover the generator's determinism, counts, Zipf sizes, acyclicity, the server's limits and the committed `sample-data/plan` equal to a fresh run; and the loader's development-stack check, reset matching and preflight against http stubs.
+  - The always-loaded docs budget (`node scripts/check-docs-budget.mjs`: `CLAUDE.md` plus its `@` imports against `BUDGET_BYTES`, `web/CLAUDE.md` against `WEB_CLAUDE_BUDGET_BYTES`); it runs here because the `server` job holding `AlwaysLoadedDocsBudgetTest` is skipped on Markdown-only PRs.
+  - The docs shape check (`node scripts/check-docs-shape.mjs`, "Docs shape" below) and its self-test.
+  - The sample-plan self-tests: `node --test scripts/sample-plan/generate.test.mjs`, `... load.test.mjs` and `sample-data/jira/generate.test.mjs`, one call per named file (a glob matching nothing exits 0); determinism, counts, acyclicity, the server's limits, the committed `sample-data/plan` equal to a fresh run, the loader's checks against http stubs.
   - `npm audit` (high+) on `e2e/`, the full tree (the `web` job audits `web/` with `--omit=dev`).
-- `k8s-static`: kubeconform over `k8s/` and `k8s/local/`; the app deployment pinned to one replica with strategy `Recreate` (the in-memory lockout and MFA state assumes one pod); and the front-door ConfigMap pinned (the app Deployment's refs to it as an explicit list of key names, not a count). The base `k8s/front-door.yaml` stays the production posture, `apply-local.sh`'s render carries exactly one `astrolabe-front-door` ConfigMap, and the `k8s/local/` overlay is checked beside it.
-- `images`: an image build plus a Trivy scan of it, on `master` pushes and on every pull request that changes more than Markdown (the `changes` job decides it, as it does `server`).
-- `e2e.yml`, the blackbox Playwright suite, runs nightly and on demand, and re-scans the image it built with the same Trivy gate (its "Build images" step is a plain `docker compose build`, like `images`).
-- Dependabot (`.github/dependabot.yml`) checks every workspace, Actions and container manifests weekly; `dependencies.md` describes grouping, compatibility pins and runtime verification, and `dependency-reproducibility.md` the Gradle lock/checksum mechanism itself.
+- `k8s-static`: kubeconform over `k8s/` and `k8s/local/`; the app deployment pinned to one replica with strategy `Recreate` (the in-memory lockout and MFA state assumes one pod); the front-door ConfigMap pinned (the app Deployment's refs as an explicit list of key names, not a count; the base `k8s/front-door.yaml` stays the production posture and `apply-local.sh`'s render carries exactly one `astrolabe-front-door` ConfigMap).
+- `images`: an image build plus a Trivy scan, on `master` pushes and on every pull request that changes more than Markdown (the `changes` job decides, as for `server`).
+- `e2e.yml`, the blackbox Playwright suite, runs nightly and on demand, and re-scans its image with the same Trivy gate.
+- Dependabot (`.github/dependabot.yml`) checks every workspace, Actions and container manifests weekly (`dependencies.md`, `dependency-reproducibility.md`).
 - The job time budgets: `build-times.md` "Budgets".
 
 ### Forks, runner facts and time reports
 
-- The `server` job runs two test forks (`TEST_FORKS: "2"` in `ci.yml`, passed as `-Pforks`); the fork-balance block of its job summary reads `server/test-weights.tsv`.
-- Every job, and the nightly, opens with a "Runner facts" step (CPU model, logical CPUs, memory), because the same job runs at two speeds.
-- The `web` job also writes vitest's JSON report and ends with a "Vitest time report (job summary)" step (`scripts/timings/vitest-times.mjs`, information only).
-- The Gradle step ("Build and test (Gradle)") and the `npm ci` steps ("Install dependencies") are named so `ci-times.mjs --steps` can carry a budget row. Budgets and the keep rule: `build-times.md` "Astrolabe WHY 3".
+- The `server` job runs two test forks (`TEST_FORKS: "2"`, passed as `-Pforks`; the fork-balance block of its summary reads `server/test-weights.tsv`). Every job opens with a "Runner facts" step (CPU model, logical CPUs, memory), because the same job runs at two speeds. The `web` job ends with a "Vitest time report (job summary)" step (`scripts/timings/vitest-times.mjs`, information only).
+- The Gradle step ("Build and test (Gradle)") and the `npm ci` steps ("Install dependencies") are named so `ci-times.mjs --steps` can carry a budget row (`build-times.md` "Astrolabe WHY 3").
 
 ## Concurrency
 
-`ci.yml` cancels a superseded run only for `pull_request` events (`cancel-in-progress: ${{ github.event_name == 'pull_request' }}`); a push to `master` runs in a group of its own (the run id), because inside one shared group GitHub keeps a single pending run and drops the older pending one even without `cancel-in-progress` — every master commit (so every release commit) is fully verified. `e2e.yml` (nightly/on demand) declares no `concurrency`.
+`ci.yml` cancels a superseded run only for `pull_request` events; a push to `master` runs in a group of its own (the run id), because a shared group keeps one pending run and drops the older one, so every master commit (every release commit) is fully verified. `e2e.yml` declares no `concurrency`.
 
 ## Failure alerting
 
 Nightly e2e plus alerting was chosen over a PR-time e2e subset, to keep PR CI fast.
 
-- **Where and when.** `e2e.yml` job `alert` runs `if: failure() && github.event_name == 'schedule'` (the nightly only; an on-demand `workflow_dispatch` run stays quiet because its author is watching) and `ci.yml` job `images-alert` runs `if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/master'`.
-  - Each `needs` the job it watches, so it is skipped (not run) on every green or cancelled run and adds nothing to a gate's time. No other job is watched.
-- **One reusable piece.** Both call `.github/workflows/ci-alert.yml` (`workflow_call`, input `title`; no third-party action, only the runner's `gh`). The calling job grants `permissions: issues: write` with the built-in `GITHUB_TOKEN`; the workflows' default stays `contents: read` and no secret is involved.
-- **Dedupe.** The label `ci-failure` (created with `gh label create --force`) plus an exact title, one issue per workflow: "Nightly e2e is failing" and "master images job is failing". An OPEN issue with that label and title gets a comment (run URL, date, head SHA, trigger); otherwise the issue is opened with the same body. Every context value reaches the script through `env:` (script-injection rule); no commit message, branch name or PR title is used.
+- **Where and when.** `e2e.yml` job `alert` runs `if: failure() && github.event_name == 'schedule'` (the nightly only; an on-demand run stays quiet because its author is watching) and `ci.yml` job `images-alert` runs `if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/master'`. Each `needs` the job it watches, so it is skipped on every green or cancelled run. No other job is watched.
+- **One reusable piece.** Both call `.github/workflows/ci-alert.yml` (`workflow_call`, input `title`; only the runner's `gh`); the calling job grants `permissions: issues: write` with the built-in `GITHUB_TOKEN`, no secret.
+- **Dedupe.** The label `ci-failure` plus an exact title, one issue per workflow: "Nightly e2e is failing" and "master images job is failing". An OPEN issue with both gets a comment (run URL, date, head SHA, trigger); otherwise one is opened. Every context value reaches the script through `env:` (script-injection rule); no commit message, branch name or PR title is used.
 - **Closing is manual.** Nothing closes the issue automatically, not even a green run: close it once the cause is understood, and the next red run opens a fresh one. A red `alert` job (e.g. a token problem) is itself a failed run.
-- **A green nightly can still hide flaky tests.** `retries` stays 2, so after the "Run E2E" step `e2e.yml` runs `e2e/scripts/flaky-summary.mjs` over the CI-only JSON report (`e2e/test-results/results.json`) into the run's step summary. It lists each test that passed only on a retry (file and line, attempts, first error line) and, apart from them, the failed ones; it always exits 0, so it informs and never gates.
+- **A green nightly can still hide flaky tests.** `retries` stays 2, so after "Run E2E" `e2e.yml` runs `e2e/scripts/flaky-summary.mjs` over the CI-only JSON report into the step summary: each test that passed only on a retry (file and line, attempts, first error line) and the failed ones; it always exits 0 (informs, never gates).
 
 ## Local gates vs CI
 
-`scripts/gates.sh` runs beside the compose stack (the suite binds no fixed port, `StubPortGuardTest`). Its stages:
+`scripts/gates.sh` runs beside the compose stack (`StubPortGuardTest`). Its stages: `server-build` (`cleanTest check :server:installDist :verifySettingsPluginAudit`, then CI's lockfile and verification-metadata `git diff --exit-code`), `web-gates`, and `e2e-static` (the cheap checks of the CI job of that name, the docs budget and shape checks included).
 
-- `server-build`: `cleanTest check :server:installDist :verifySettingsPluginAudit`, then the same lockfile and verification-metadata `git diff --exit-code` CI's server job runs.
-- `web-gates`.
-- `e2e-static`: lint, knip, typecheck, scenario parity, `npm run test:setup` and `node scripts/check-toolchain-pins.mjs`, `node scripts/check-docs-budget.mjs`, `node scripts/check-docs-shape.mjs` (with its self-test) and the sample-plan `node --test` self-tests: the same cheap checks as the CI `e2e-static` job.
-
-**CI-only scans** are deliberately not in the script (the header comment of `gates.sh` lists them too):
-
-- `npm audit` on both workspaces and the HIGH/CRITICAL Gradle lockfile vulnerability scan: they read a live advisory database and the network, and their result changes overnight without a commit.
-- kubeconform in `k8s-static`: a downloaded checksum-pinned binary.
-- The Trivy / AppCDS image checks: they need a built image.
+**CI-only scans** are not in the script (its header comment lists them too): `npm audit` on both workspaces and the Gradle lockfile vulnerability scan (they read a live advisory database, so their result changes overnight without a commit), kubeconform in `k8s-static` (a downloaded checksum-pinned binary), and the Trivy / AppCDS image checks (they need a built image).
 
 ## Docs shape
 
@@ -67,31 +55,29 @@ Nightly e2e plus alerting was chosen over a PR-time e2e subset, to keep PR CI fa
 
 Its limits (constants at the top of the script, each with its reason): a line outside a code fence at most 600 characters; the text between two headings at most 8,000 bytes (`## Rules` with its `###` children too); no release tag in a heading (`product.md` excepted); a doc over 30,000 bytes opens with `## Rules` (`product.md` and `web-internals.md` excepted); no `## To place` heading; `CLAUDE.md`'s table names exactly the on-demand docs; an in-doc anchor names a heading.
 
-The last limit is a section reference (`` `doc.md` "Section" ``) that resolves to a heading of the named doc, or to the beginning of one; it is counted and listed (`--refs`) but not enforced while `ENFORCE_REFS` is false.
+The last limit is a section reference (`` `doc.md` "Section" ``) that resolves to a heading of the named doc; counted and listed (`--refs`), not enforced while `ENFORCE_REFS` is false.
 
-**`NOT_YET`** in the script lists the docs that do not pass the first five limits yet. A listed file is skipped by them; a listed file that passes fails ("remove it from NOT_YET") and so does an entry that names no file, so the list can only shrink. Nothing else is tolerated: no per-file counts. The main session edits it when it commits a restructure; a restructure proves its doc with `--only <file>` (limits 1-5 and 7, ignoring `NOT_YET`). Other modes: `--report` (every file, which limits fail) and `--refs [--into <doc>]`.
+**`NOT_YET`** in the script lists the docs that do not pass the first five limits yet: a listed file is skipped by them, a listed file that passes fails ("remove it from NOT_YET") and so does an entry naming no file, so the list only shrinks (the main session edits it when it commits a restructure). A restructure proves its doc with `--only <file>`; other modes: `--report`, `--refs [--into <doc>]`.
 
 ## Static analysis
 
-`./gradlew detekt` runs detekt over `core` + `server` (plain rule sets, no type resolution) and rides `check`, so `build` fails on any finding — the gate is zero findings with **no baseline file**. Runs in seconds, no Docker — safe to run anytime, unlike the test suite.
+`./gradlew detekt` runs over `core` + `server` (no type resolution) and rides `check`: zero findings, **no baseline file**, seconds, no Docker.
 
-- Repo tuning lives in `config/detekt/detekt.yml`, layered on the bundled defaults; every override there carries a one-line comment naming the deliberate idiom it protects (wildcard Ktor imports, the flat feature-package layout, declarative `*Routes.kt` registrars, the validation-throw convention, guard-clause returns).
+- Repo tuning lives in `config/detekt/detekt.yml` over the bundled defaults; every override carries a one-line comment naming the idiom it protects.
 - Fix new findings in code first; extend the config only for a genuinely deliberate idiom, and prefer a config override over `@Suppress` (a per-site `@Suppress` needs a one-line justifying comment).
 
 ## Frontend static analysis
 
-The SPA's counterpart (sonarjs + jsx-a11y + knip), same zero-findings/no-baseline policy.
+The SPA's counterpart, same zero-findings/no-baseline policy; every override in `web/eslint.config.js` carries its idiom comment.
 
-- `cd web && npm run lint` carries `eslint-plugin-sonarjs` (recommended set), `eslint-plugin-jsx-a11y` (`flatConfigs.recommended`: the static half of the accessibility rules the e2e axe sweep checks at run time; its two overrides are file-scoped — the roving `role="grid"` container and the single-purpose entry pages' `autoFocus`) plus core size/complexity backstops tuned generously for React's one-function-per-page architecture (`cognitive-complexity` 40, `complexity` 35 — backstops against future monsters, not targets).
-- Every override in `web/eslint.config.js` carries the idiom comment.
-- `web/scripts/*.mjs` (the build-time Node scripts, e.g. `check-api.mjs`) are linted too: `js.configs.recommended` + sonarjs with Node globals, a separate block in `web/eslint.config.js`.
-- `cd web && npm run knip` is the dead-code gate (unused files/exports/dependencies; test files count as entries, so a flagged export is unused even by tests); the generated `src/api/schema.ts` is excluded (type-checked by `tsc`, not style-linted).
+- `cd web && npm run lint`: `eslint-plugin-sonarjs` (recommended set), `eslint-plugin-jsx-a11y` (`flatConfigs.recommended`, the static half of the e2e axe sweep; two file-scoped overrides: the roving `role="grid"` container and the entry pages' `autoFocus`) and generous size/complexity backstops (`cognitive-complexity` 40, `complexity` 35); `web/scripts/*.mjs` are linted too (a separate Node block).
+- `cd web && npm run knip` is the dead-code gate (test files count as entries; the generated `src/api/schema.ts` is excluded).
 
 ## Running the full stack
 
 `CLAUDE.md` carries the one-liners and the ports of this repo; this section holds the rest.
 
-`docker compose up --build` serves everything at `http://localhost:8086` (sign in as `admin@astrolabe.local` — see the README for where the initial password comes from); local dev is `docker compose up postgres mailpit` (Postgres on host port **5437**) + `./gradlew :server:run` (API on **8086**) + `cd web && npm run dev` (Vite on **5178**, proxying `/api` to :8086), each in its own terminal.
+`docker compose up --build` serves `http://localhost:8086`; local dev is `docker compose up postgres mailpit` (Postgres on host port **5437**) + `./gradlew :server:run` (**8086**) + `cd web && npm run dev` (Vite **5178**), one terminal each.
 
 The compose stack is postgres + mailpit + app only, and bundles **Mailpit** (`http://localhost:8029`) and wires the app's password-reset and MFA email to it (`MAIL_TRANSPORT=smtp`).
 
@@ -108,40 +94,30 @@ Ports deliberately differ across the sibling repos so every stack can run side b
 
 ### The Jira stub
 
-- A WireMock over `sample-data/jira-stub` (`JIRA_STUB_BASE_URL`) with host port **8096** (the table above carries only app, Postgres, Mailpit and Vite ports; Flow's own stubs sat on 8094/8095). It is the Jira sync's development and test double, served in-JVM by `JiraStubServer` in the server suite and as **one image** on both stacks.
-- Compose: the `jira-stub` service of `docker-compose.yaml` (`astrolabe-jira-stub`, built from `sample-data/jira-stub`, `127.0.0.1:8096:8080`, `mem_limit: 384m` measured at ~125-165 MiB, read-only/non-root/`cap_drop: ALL`, **no `depends_on` from `app`**: the app boots without it). `app` gets `JIRA_STUB_BASE_URL=http://jira-stub:8080`, compose being development mode.
-- Kubernetes (the OrbStack overlay only): `k8s/local/jira-stub.yaml` (Deployment + ClusterIP Service `jira-stub:8080` + the NetworkPolicy pair `allow-jira-stub-from-app` / `allow-app-egress-to-jira-stub`). The app's base egress rule excludes every private range, the pod network included, so without the egress rule a Test connection fails on Kubernetes while passing on compose.
-- ConfigMap keys: `JIRA_STUB_BASE_URL` sits in the overlay `k8s/local/front-door.yaml` ConfigMap, which the base app Deployment reads as an OPTIONAL key, so the production ConfigMap leaves it unset; the other optional key is `JIRA_TEST_RATE_LIMIT_PER_MINUTE`=30, the e2e `jira-test` bucket. The Flow stub below adds two more, so the app Deployment reads seven ConfigMap keys, and `k8s-static` asserts them as an explicit list by name (`expected` in its front-door step: a new connector's key is one more name there, a lost or an extra ref names itself in the failure).
-- `apply-local.sh` builds `astrolabe-jira-stub:<tag>` from `sample-data/jira-stub` (unless `ASTROLABE_SKIP_STUB_BUILD=1`, which `k8s-static` sets: it only validates the render, and pins one rendered stub image, no stub in the base `k8s/*.yaml` and no stub key in `k8s/front-door.yaml`).
-- Production refuses the URL (`security.md` "Outbound HTTP calls").
+- A WireMock over `sample-data/jira-stub` (`JIRA_STUB_BASE_URL`), host port **8096** (the table above carries only app, Postgres, Mailpit and Vite ports; Flow's own stubs sat on 8094/8095): the Jira sync's development and test double, served in-JVM by `JiraStubServer` and as **one image** on both stacks.
+- Compose: the `jira-stub` service (`astrolabe-jira-stub`, `127.0.0.1:8096:8080`, `mem_limit: 384m` against ~125-165 MiB measured, read-only/non-root/`cap_drop: ALL`, **no `depends_on` from `app`**); `app` gets `JIRA_STUB_BASE_URL=http://jira-stub:8080` (development mode).
+- Kubernetes (the OrbStack overlay only): `k8s/local/jira-stub.yaml` (Deployment + Service `jira-stub:8080` + the NetworkPolicy pair `allow-jira-stub-from-app` / `allow-app-egress-to-jira-stub`; the base egress rule excludes every private range, so without the egress rule Test connection fails on Kubernetes while passing on compose).
+- ConfigMap keys: `JIRA_STUB_BASE_URL` in the overlay `k8s/local/front-door.yaml`, an OPTIONAL key of the base Deployment (unset in production); the other optional key is `JIRA_TEST_RATE_LIMIT_PER_MINUTE`=30 (the e2e `jira-test` bucket). With the Flow stub's two, the app Deployment reads seven ConfigMap keys, asserted by `k8s-static` as an explicit list by name (`expected` in its front-door step).
+- `apply-local.sh` builds `astrolabe-jira-stub:<tag>` (unless `ASTROLABE_SKIP_STUB_BUILD=1`, which `k8s-static` sets); `k8s-static` pins one rendered stub image, no stub in the base `k8s/*.yaml`, no stub key in `k8s/front-door.yaml`. Production refuses the URL (`security.md` "Outbound HTTP calls").
 
 ### The Flow stub
 
-- A WireMock over `sample-data/flow-stub`, Flow 1.57.0's `/api/v1/integration/{me,teams}` behind one fake service token (`sample-data/flow/README.md`), with host port **8097** (also not a table column). It is the Flow connection's development and test double, in the same two carriers: served in-JVM by `FlowStubServer` and as **one image** on both stacks, the same pinned WireMock tag and digest as the Jira stub.
-- Compose: the `flow-stub` service (`astrolabe-flow-stub`, built from `sample-data/flow-stub`, `127.0.0.1:8097:8080`, `mem_limit: 256m` against ~115 MiB RSS measured after boot and a walk of every request shape, read-only/non-root/`cap_drop: ALL`, **no `depends_on` from `app`**).
-- `app` gets `FLOW_INSECURE_ORIGINS=http://flow-stub:8080` (the exact `http://host[:port]` origins a Flow connection may name, development mode only; an exported host value wins and an EMPTY one disables the stub, like the Jira key) and `FLOW_TEST_RATE_LIMIT_PER_MINUTE=30` (the e2e `flow-test` bucket). Both are read by the application (`FlowOrigins`, the `flow-test` bucket).
-- Kubernetes (the OrbStack overlay only):
-  - `k8s/local/flow-stub.yaml`: Deployment + ClusterIP Service `flow-stub:8080` + the NetworkPolicy pair `allow-flow-stub-from-app` / `allow-app-egress-to-flow-stub`.
-  - `k8s/local/flow-egress.yaml`: `allow-app-egress-to-flow`, the app to namespace `flow`, TCP 8084 — a REAL Flow on OrbStack, `http://app.flow.svc.cluster.local:8084`, whose origin you add to `FLOW_INSECURE_ORIGINS` in the overlay ConfigMap; harmless when absent.
-  - The two ConfigMap keys in `k8s/local/front-door.yaml`, read as OPTIONAL refs by the base Deployment.
-- A real Flow from compose: the `docker-compose.real-flow.yaml` override (joins Flow's network `flow_default`, lists `http://flow-app:8084`, addresses its own dependencies by container name; development only, not exercised by CI).
-- `apply-local.sh` builds `astrolabe-flow-stub:<tag>` beside the Jira one (same unique tag, so each run resets its scenarios); `k8s-static` pins ONE rendered flow-stub image and one `allow-app-egress-to-flow`, none of either in the base `k8s/*.yaml`, and no Flow key in `k8s/front-door.yaml`.
-- `e2e-static` (`scripts/gates.sh e2e_static`, CI) runs `node --test sample-data/flow/generate.test.mjs` and, locally, generates twice and `diff`s against the committed `flow-stub` and `expected.json`.
+- A WireMock over `sample-data/flow-stub`, Flow 1.57.0's `/api/v1/integration/{me,teams}` behind one fake service token (`sample-data/flow/README.md`), host port **8097** (also not a table column): the Flow connection's development and test double in the same two carriers (`FlowStubServer` in-JVM, **one image** on both stacks, the same pinned WireMock tag and digest as the Jira stub).
+- Compose: the `flow-stub` service (`astrolabe-flow-stub`, `127.0.0.1:8097:8080`, `mem_limit: 256m` against ~115 MiB RSS measured after boot and a walk of every request shape, read-only/non-root/`cap_drop: ALL`, **no `depends_on` from `app`**). `app` gets `FLOW_INSECURE_ORIGINS=http://flow-stub:8080` (the exact origins a Flow connection may name, development mode only; an EMPTY exported value disables the stub, like the Jira key) and `FLOW_TEST_RATE_LIMIT_PER_MINUTE=30` (the e2e `flow-test` bucket).
+- Kubernetes (the OrbStack overlay only): `k8s/local/flow-stub.yaml` (Deployment + Service `flow-stub:8080` + the NetworkPolicy pair `allow-flow-stub-from-app` / `allow-app-egress-to-flow-stub`); `k8s/local/flow-egress.yaml` (`allow-app-egress-to-flow`: the app to namespace `flow`, TCP 8084, a REAL Flow on OrbStack whose origin you add to `FLOW_INSECURE_ORIGINS` in the overlay ConfigMap; harmless when absent); the two ConfigMap keys in `k8s/local/front-door.yaml`, OPTIONAL refs of the base Deployment.
+- A real Flow from compose: the `docker-compose.real-flow.yaml` override (joins Flow's network `flow_default`, lists `http://flow-app:8084`; development only, not exercised by CI).
+- `apply-local.sh` builds `astrolabe-flow-stub:<tag>` beside the Jira one (same unique tag, so each run resets its scenarios); `k8s-static` pins ONE rendered flow-stub image and one `allow-app-egress-to-flow`, none in the base `k8s/*.yaml`, no Flow key in `k8s/front-door.yaml`. `e2e-static` runs `node --test sample-data/flow/generate.test.mjs`.
 
 ### Kubernetes (OrbStack)
 
 - The deployment targets the dedicated `astrolabe` namespace; see `k8s/secret.yaml`'s header for the secret-creation command.
-- The image is `astrolabe-app` and the cluster runs a single `app-deployment.yaml` (one process, no worker; `replicas: 1` + `Recreate`) beside postgres. A second replica would be safe but pointless: both would run the Jira poll scheduler's tick, and the sync run's claim is a unique index, not the process, so only one starts each run (`sync.md` "The run registry and the claim").
+- The image is `astrolabe-app`; a single `app-deployment.yaml` (one process, no worker; `replicas: 1` + `Recreate`) beside postgres. A second replica would be safe but pointless: the sync run's claim is a unique index, not the process, so only one starts each run (`sync.md` "The run registry and the claim").
 - `k8s/apply-local.sh` applies the OrbStack overlay `k8s/local/front-door.yaml` (development mode, no proxy) instead of the production-posture base `k8s/front-door.yaml` (`security.md` "The front door").
 
 ## AppCDS
 
 Class-data sharing for the app image.
 
-- The Docker build dumps `/app/cds/astrolabe.jsa` from the committed `server/cds/classlist.txt` (a few seconds per image build and ~100 MB per image); Trivy scans the same image as before.
-- The `images` job then runs `scripts/check-cds-archive.sh astrolabe-app` (the image's launcher with `-XX:+PrintSharedArchiveAndExit`, under a second, no database). It fails when the archive does not fit the runtime (a changed jar, `-XX:-UseCompressedOops`/`ObjectAlignmentInBytes` added to `applicationDefaultJvmArgs`, another JDK) or is not wired, because such an image starts silently WITHOUT the archive and slower than before.
-- `scripts/cds-classlist.mjs` regenerates the class list from a real run in its own throwaway compose project (own ports 8590/5941/8534/8600/8601, own volume).
-  - Its workload includes the Jira path against a stub of its own (connection, Test connection, a sync run, the deviations view, so the OkHttp/Ktor-client/Jackson classes are archived) and the Flow path against a Flow stub of its own (connection, Test connection, a run, the teams list, a link, the team panel, a capacity preview and import).
-  - It builds its own image (in a worktree pass `--image`, `--stub-image` and `--flow-stub-image` of images built from a scratch copy) and refuses to overwrite the list from an unhealthy run.
-  - After the workload it waits (up to about 120 s, else it fails non-zero) until `GET /api/v1/telemetry/current` shows a sample from a bucket after the workload's, because the sampler's first aligned tick comes up to a 60 s interval after the short run and its ~35 telemetry classes would otherwise drop out of the list.
+- The Docker build dumps `/app/cds/astrolabe.jsa` from the committed `server/cds/classlist.txt` (~100 MB per image). The `images` job runs `scripts/check-cds-archive.sh astrolabe-app` (`-XX:+PrintSharedArchiveAndExit`, no database): it fails when the archive does not fit the runtime (a changed jar, another JDK, `-XX:-UseCompressedOops`/`ObjectAlignmentInBytes` in `applicationDefaultJvmArgs`) or is not wired, because such an image starts silently WITHOUT the archive.
+- `scripts/cds-classlist.mjs` regenerates the class list from a real run in its own throwaway compose project (own ports 8590/5941/8534/8600/8601, own volume), exercising the Jira and Flow paths against stubs of its own; in a worktree pass `--image`, `--stub-image` and `--flow-stub-image`. It refuses to overwrite the list from an unhealthy run and waits (up to about 120 s, else non-zero) for a `GET /api/v1/telemetry/current` sample after the workload, or the telemetry classes would drop out of the list.
 - Regenerate the list whenever the class set changes materially (`CdsClassListTest` guards drift).
