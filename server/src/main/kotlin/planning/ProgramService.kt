@@ -5,7 +5,11 @@ import ch.nokillswit.authz.OwnerChain
 import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.infra.db.SoftDeletable
 import ch.nokillswit.infra.db.active
+import ch.nokillswit.infra.db.containsNormalized
 import ch.nokillswit.infra.db.nowMillis
+import ch.nokillswit.infra.paging.PageRequest
+import ch.nokillswit.infra.paging.applyPaging
+import ch.nokillswit.infra.paging.pagedRead
 import ch.nokillswit.people.PersonService
 import io.ktor.util.AttributeKey
 import kotlinx.coroutines.flow.toList
@@ -15,6 +19,16 @@ import org.jetbrains.exposed.v1.r2dbc.*
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 
 val ProgramServiceKey = AttributeKey<ProgramService>("ProgramService")
+
+private val SORTABLE_COLUMNS: Map<String, Column<*>> = mapOf(
+    "id" to ProgramService.Programs.id,
+    "name" to ProgramService.Programs.name,
+    "createdAt" to ProgramService.Programs.createdAt,
+    "updatedAt" to ProgramService.Programs.updatedAt,
+)
+
+/** The ONE sortable whitelist of `GET /programs`, derived from the column map so the two can never drift. */
+val PROGRAM_SORT_FIELDS: Set<String> = SORTABLE_COLUMNS.keys
 
 /**
  * Programs (V12), under one work stream. Same protocol as [WorkStreamService]: every write under the `plan_state` lock, the
@@ -32,6 +46,42 @@ class ProgramService(private val database: R2dbcDatabase) {
         val createdAt = long("created_at")
         val updatedAt = long("updated_at")
         override val markedAsDeleted = bool("marked_as_deleted").default(false)
+    }
+
+    /**
+     * The paged program list (the bind dialog's picker): ACTIVE programs under an ACTIVE work stream, one predicate for the count and
+     * the rows in ONE read transaction (no lock, no revision). The work stream's name rides the join; an unknown `workStreamId`
+     * matches nothing (an empty page).
+     */
+    suspend fun list(filter: ProgramListFilter, paging: PageRequest): ProgramListResult = pagedRead(database) {
+        val streams = WorkStreamService.WorkStreams
+        var predicate: Op<Boolean> = Programs.active() and streams.active()
+        filter.name?.takeIf { it.isNotBlank() }?.let { predicate = predicate and Programs.name.containsNormalized(it) }
+        filter.workStreamId?.let { predicate = predicate and (Programs.workStreamId eq it) }
+        val joined = Programs.innerJoin(streams, { Programs.workStreamId }, { streams.id })
+        val total = joined.selectAll().where { predicate }.count()
+        val rows = joined.select(Programs.columns + streams.name)
+            .where { predicate }
+            .applyPaging(paging, SORTABLE_COLUMNS)
+            .toList()
+        val owners = ownerNames(rows.map { it[Programs.ownerPersonId].value })
+        ProgramListResult(
+            items = rows.map { row ->
+                val ownerId = row[Programs.ownerPersonId].value
+                ProgramListItem(
+                    id = row[Programs.id].value,
+                    workStreamId = row[Programs.workStreamId].value,
+                    name = row[Programs.name],
+                    description = row[Programs.description],
+                    ownerPersonId = ownerId,
+                    ownerName = owners.getValue(ownerId),
+                    workStreamName = row[streams.name],
+                    createdAt = row[Programs.createdAt],
+                    updatedAt = row[Programs.updatedAt],
+                )
+            },
+            total = total,
+        )
     }
 
     /** The program's owner chain (work stream first), or null when it or its work stream is missing or deleted. */

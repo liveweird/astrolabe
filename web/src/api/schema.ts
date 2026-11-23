@@ -477,7 +477,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List work streams
+         * @description Lists the active work streams. Any authenticated user. Paged; sortable by `id` (default), `name`, `startDate`, `createdAt` and `updatedAt`; filter `name` (case- and accent-insensitive substring). The plan view stays the read surface of the whole tree.
+         */
+        get: operations["listWorkStreams"];
         put?: never;
         /**
          * Create a work stream (ADMIN only)
@@ -536,6 +540,26 @@ export interface paths {
          * @description Creates a program under the work stream. The stream's owner or ADMIN; `404` for a missing stream, then `403`, then the body. `ownerPersonId` must be an active person (`400` otherwise). The name must be unique among active programs, case-insensitively and across work streams (`409`). A closed work stream still accepts programs.
          */
         post: operations["createProgram"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/programs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List programs (the picker list)
+         * @description Lists the active programs whose work stream is active, for pickers; each row carries `workStreamName`. Any authenticated user. Paged; sortable by `id` (default), `name`, `createdAt` and `updatedAt`. Filters, combined with AND: `name` (case- and accent-insensitive substring) and `workStreamId`; an id that names no active work stream matches nothing (an empty page, never `404`). A malformed or repeated filter is `400`.
+         */
+        get: operations["listPrograms"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -625,7 +649,7 @@ export interface paths {
         };
         /**
          * List projects (the picker list)
-         * @description Lists the active projects whose program and work stream are active, for pickers; each row carries `programName` and `workStreamName`. Any authenticated user. Paged; sortable by `id` (default), `name`, `createdAt` and `updatedAt`; filter `name` (case- and accent-insensitive substring). Work streams and programs have no list: the plan view is the read surface of the whole tree.
+         * @description Lists the active projects whose program and work stream are active, for pickers; each row carries `programName` and `workStreamName`. Any authenticated user. Paged; sortable by `id` (default), `name`, `createdAt` and `updatedAt`; filter `name` (case- and accent-insensitive substring). Work streams and programs have their own paged lists.
          */
         get: operations["listProjects"];
         put?: never;
@@ -2931,6 +2955,13 @@ export interface components {
              */
             updatedAt: number;
         };
+        WorkStreamPage: {
+            items: components["schemas"]["WorkStreamResponse"][];
+            page: number;
+            pageSize: number;
+            /** Format: int64 */
+            total: number;
+        };
         ProgramCreateRequest: {
             name: string;
             description?: string | null;
@@ -2970,6 +3001,36 @@ export interface components {
              * @description Epoch millis
              */
             updatedAt: number;
+        };
+        ProgramListItem: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            workStreamId: number;
+            name: string;
+            description: string | null;
+            /** Format: int32 */
+            ownerPersonId: number;
+            ownerName: string;
+            /** @description The name of the program's work stream. */
+            workStreamName: string;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            createdAt: number;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            updatedAt: number;
+        };
+        ProgramPage: {
+            items: components["schemas"]["ProgramListItem"][];
+            page: number;
+            pageSize: number;
+            /** Format: int64 */
+            total: number;
         };
         ProjectCreateRequest: {
             name: string;
@@ -7967,6 +8028,42 @@ export interface operations {
             500: components["responses"]["InternalServerError"];
         };
     };
+    listWorkStreams: {
+        parameters: {
+            query?: {
+                /** @description 1-based page index. Defaults to 1. */
+                page?: components["parameters"]["Page"];
+                /** @description Rows per page. Defaults to 20, maximum 100. */
+                pageSize?: components["parameters"]["PageSize"];
+                /**
+                 * @description Sort spec. Format: `field` (ascending) or `-field` (descending). Multiple fields are
+                 *     comma-separated, leftmost wins: `sort=-updatedAt,name`. The endpoint declares its
+                 *     sortable-field whitelist; unknown fields are rejected with `400`. `id` ascending is
+                 *     always appended as a deterministic tiebreaker.
+                 */
+                sort?: components["parameters"]["Sort"];
+                name?: components["parameters"]["NameQuery"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of work streams */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkStreamPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
     createWorkStream: {
         parameters: {
             query?: never;
@@ -8115,6 +8212,44 @@ export interface operations {
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    listPrograms: {
+        parameters: {
+            query?: {
+                /** @description 1-based page index. Defaults to 1. */
+                page?: components["parameters"]["Page"];
+                /** @description Rows per page. Defaults to 20, maximum 100. */
+                pageSize?: components["parameters"]["PageSize"];
+                /**
+                 * @description Sort spec. Format: `field` (ascending) or `-field` (descending). Multiple fields are
+                 *     comma-separated, leftmost wins: `sort=-updatedAt,name`. The endpoint declares its
+                 *     sortable-field whitelist; unknown fields are rejected with `400`. `id` ascending is
+                 *     always appended as a deterministic tiebreaker.
+                 */
+                sort?: components["parameters"]["Sort"];
+                name?: components["parameters"]["NameQuery"];
+                /** @description Only the programs of this work stream. */
+                workStreamId?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of programs */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalServerError"];
         };
     };

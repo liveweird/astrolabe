@@ -1,5 +1,6 @@
 package ch.nokillswit.planning
 
+import ch.nokillswit.infra.paging.PageResponse
 import ch.nokillswit.infra.validation.requireNameAndDescription
 import ch.nokillswit.infra.validation.sanitizeSingleLine
 import ch.nokillswit.infra.validation.sanitizedDescription
@@ -32,6 +33,30 @@ data class ProgramResponse(
     val createdAt: Long,
     val updatedAt: Long,
 )
+
+/**
+ * A list row of `GET /api/v1/programs` (the picker list): the [ProgramResponse] fields plus the name of the ACTIVE work stream above,
+ * resolved in the same read, so it is never stale or empty.
+ */
+@Serializable
+data class ProgramListItem(
+    val id: UInt,
+    val workStreamId: UInt,
+    val name: String,
+    val description: String?,
+    val ownerPersonId: UInt,
+    val ownerName: String,
+    val workStreamName: String,
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
+typealias ProgramPageResponse = PageResponse<ProgramListItem>
+
+/** The list filters: a case- and accent-insensitive substring of the program name, and one work stream's id. */
+data class ProgramListFilter(val name: String? = null, val workStreamId: UInt? = null)
+
+data class ProgramListResult(val items: List<ProgramListItem>, val total: Long)
 
 /** What the update replaced, for the audit delta: the STORED owner before the write. */
 data class ProgramUpdateOutcome(val ownerFrom: UInt)

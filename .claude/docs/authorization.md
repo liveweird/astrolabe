@@ -150,7 +150,7 @@ The inner guard (`withPlanWrite`) re-resolves the caller's person `FOR SHARE` ag
 
 | Operation | Who | Order |
 |---|---|---|
-| `GET` any node, `GET /projects`, `GET /milestones` (paged picker lists) | any authenticated user | 400 paging, sort, repeated `name`; for milestones a malformed or repeated `scheduled`/`teamId`/`projectId` |
+| `GET` any node, `GET /work-streams`, `GET /programs`, `GET /projects`, `GET /milestones` (paged lists) | any authenticated user | 400 paging, sort, repeated `name`; for programs a malformed or repeated `workStreamId`; for milestones a malformed or repeated `scheduled`/`teamId`/`projectId` |
 | `POST /work-streams` | ADMIN | `requireAdmin` first (it addresses no node: guard-before-read) |
 | `PUT`/`DELETE /work-streams/{id}`, `POST /work-streams/{id}/programs` | the stream's owner or ADMIN | chain(stream) ?: 404 → `requireOwnerOrAdmin` |
 | `PUT`/`DELETE /programs/{id}`, `POST /programs/{id}/projects` | the stream's or the program's owner, or ADMIN | chain(program) ?: 404 → `requireOwnerOrAdmin` |

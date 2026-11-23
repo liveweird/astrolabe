@@ -4,6 +4,9 @@ import ch.nokillswit.audit.audit
 import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.authz.requireAdmin
+import ch.nokillswit.infra.paging.optionalString
+import ch.nokillswit.infra.paging.parsePaging
+import ch.nokillswit.infra.paging.toPage
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource
@@ -34,7 +37,8 @@ class WorkStreamsRoute {
 private const val WORK_STREAM = "Work stream"
 
 /**
- * Work streams: create is ADMIN only (guard first — it addresses no node); read is any authenticated user; update, delete and
+ * Work streams: create is ADMIN only (guard first — it addresses no node); the paged list and read are any authenticated user;
+ * update, delete and
  * "create a program under it" need the stream's owner (or ADMIN) AFTER the 404 (read-before-guard). Reassigning the owner is part of
  * the update body, so any caller who may edit may hand the stream over (the user's answer 3; the ancestors can take it back).
  */
@@ -55,6 +59,13 @@ internal fun Route.workStreamRoutes(d: PlanRouteDeps) {
         )
         call.response.header(HttpHeaders.Location, call.application.href(WorkStreamsRoute.Id(id = id)))
         call.respond(HttpStatusCode.Created, created)
+    }
+    get<WorkStreamsRoute> {
+        call.caller()
+        val paging = call.parsePaging(sortable = WORK_STREAM_SORT_FIELDS)
+        val filter = WorkStreamListFilter(name = call.request.queryParameters.optionalString("name"))
+        val result = d.structure.workStreams.list(filter, paging)
+        call.respond(HttpStatusCode.OK, paging.toPage(result.items, result.total))
     }
     get<WorkStreamsRoute.Id> { route ->
         call.caller()

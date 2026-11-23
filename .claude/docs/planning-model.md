@@ -14,7 +14,7 @@ Owns: the planning domain as built: people, permissions and dates, the plan stru
 - **Who writes what.** Plan fields follow the owner chain; dates follow the milestone's team manager, never the project's owner; the rank and any project's target window follow `ROADMAP_EDITOR`; registries (people, teams, holidays) are ADMIN.
 - Every mutation emits an audit event (`observability.md`); an owner change, a window change and a team change are their own trail lines (rights paths); whether a no-op emits is per event (`observability.md`): the moves, `dependency.updated`, `milestone.scheduled`, `baseline.updated` and the pin fire only on a change, the others on every accepted write.
 - **Scheduling is `scheduling.md`.** The auto-proposal (one team) and the cross-team run are pure kernels over this plan: a proposal never writes, the accept is one plan write under the lock, and a stale scope is a `409` decided there.
-- Only projects and milestones have a paged list ("The picker and milestone lists"); work streams and programs are read through the plan view.
+- Work streams, programs, projects and milestones have a paged list ("The picker and milestone lists"); the plan view reads the whole tree.
 - The user's decisions behind a rule are `product.md` "Domain decisions"; this doc says what the code does.
 
 ## People
@@ -307,16 +307,16 @@ Pinned by: `DependencyKernelsTest` (table-driven, counted by hand on the 2027 ca
 
 ## The picker and milestone lists
 
-Files: `ProjectService.list`, `MilestoneService.list`.
+Files: `WorkStreamService.list`, `ProgramService.list`, `ProjectService.list`, `MilestoneService.list`.
 
-`GET /api/v1/projects` and `GET /api/v1/milestones` are the paged lists (`list-endpoints.md`; copied from `GET /teams`) the dependency dialogs search with; the milestone list also backs the Milestones page. Any authenticated user; no audit event (a read). Work streams and programs have no list.
+`GET /api/v1/work-streams`, `/programs`, `/projects` and `/milestones` are the paged lists (`list-endpoints.md`; copied from `GET /teams`): the dependency dialogs search projects and milestones, the Jira bind dialog programs; the milestone list also backs the Milestones page; `GET /work-streams` has no UI consumer yet. Any authenticated user; no audit event (a read); ACTIVE rows under an active chain only.
 
-- `ProjectListItem` = `ProjectResponse` + `programName`, `workStreamName`; `MilestoneListItem` = `MilestoneResponse` + `projectName` and `teamName` (the option reads "Design · Project Alpha": "Discovery" recurs across projects). The sort and filter whitelists are the spec's per path; `milestones` sorts by the joined tables' `name` columns through one `SORTABLE_COLUMNS` map that is also the route's whitelist.
-- Projects take the ONE filter `name` (`containsNormalized`). Milestones take `name`, `scheduled` (strict `true`/`false`: `start_date IS [NOT] NULL`, since `ck_milestones_schedule` makes the date pair both-or-neither), `teamId` and `projectId`, all ANDed into the one predicate.
+- `ProgramListItem` = `ProgramResponse` + `workStreamName`; `WorkStreamResponse` is its own row; `ProjectListItem` = `ProjectResponse` + `programName`, `workStreamName`; `MilestoneListItem` = `MilestoneResponse` + `projectName` and `teamName` (the option reads "Design · Project Alpha": "Discovery" recurs across projects). The sort and filter whitelists are the spec's per path; `milestones` sorts by the joined tables' `name` columns through one `SORTABLE_COLUMNS` map that is also the route's whitelist.
+- Work streams and projects take the ONE filter `name` (`containsNormalized`); programs take `name` and `workStreamId`. Milestones take `name`, `scheduled` (strict `true`/`false`: `start_date IS [NOT] NULL`, since `ck_milestones_schedule` makes the date pair both-or-neither), `teamId` and `projectId`, all ANDed into the one predicate.
 - A malformed or repeated filter is a `400`; an id that names nothing is an empty `200` page (a filter is not an address, no `404`).
 - `scheduled=false` counts the SAME set as Home's `plan.unscheduledMilestones` (and `scheduled=false&teamId=N` a team row's `unscheduledMilestones`): the active milestones under an active project, program and work stream. ACTIVE rows only, joined to ACTIVE ancestors; count and rows on one predicate in one read transaction.
 
-Pinned by: `ProjectListTest`, `MilestoneListTest` (the equality above).
+Pinned by: `WorkStreamListTest`, `ProgramListTest`, `ProjectListTest`, `MilestoneListTest` (the equality above).
 
 ## Team capacity periods
 
@@ -530,7 +530,7 @@ Pinned by: `BaselineTest`, `BaselineCopyTest`, `BaselineViewTest`, `ProjectViewB
 - **The four timeline views** (`/views/roadmap`, `/views/project/{id}`, `/views/team/{id}`, `/views/programs`) carry `jiraSites[]` (rows add `jira`, `flags`) and take an optional `?baseline=N`: the SAME document plus additive `baseline` blocks from the same snapshot, absent without the parameter ("Baselines" › "The overlay").
 - **Ten of the views answer through a validator** (`ETag`, `If-None-Match`, `304`; "View validators").
 - **The integration views** (`GET /views/deviations`, `GET /integrations/flow/teams`, `GET /views/capacity-deviations`) are unpaged one-snapshot documents; their shapes are in `jira-sync.md` and `flow-sync.md`.
-- **Ordinary resource lists keep the envelope.** Projects and milestones have a paged list (`GET /projects` rows add `programName`/`workStreamName`, `GET /milestones` rows add `projectName`/`teamName`; "The picker and milestone lists"); work streams and programs have none, the plan view is theirs.
+- **Ordinary resource lists keep the envelope.** Work streams, programs, projects and milestones have a paged list (`GET /programs` rows add `workStreamName`, `GET /projects` rows `programName`/`workStreamName`, `GET /milestones` rows `projectName`/`teamName`; "The picker and milestone lists"); the plan view reads the whole tree.
 
 | Route | Answers | Caps |
 |---|---|---|

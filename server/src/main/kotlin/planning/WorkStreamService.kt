@@ -5,8 +5,12 @@ import ch.nokillswit.authz.OwnerChain
 import ch.nokillswit.authz.orNotFound
 import ch.nokillswit.infra.db.SoftDeletable
 import ch.nokillswit.infra.db.active
+import ch.nokillswit.infra.db.containsNormalized
 import ch.nokillswit.infra.db.localDate
 import ch.nokillswit.infra.db.nowMillis
+import ch.nokillswit.infra.paging.PageRequest
+import ch.nokillswit.infra.paging.applyPaging
+import ch.nokillswit.infra.paging.pagedRead
 import ch.nokillswit.people.PersonService
 import io.ktor.util.AttributeKey
 import kotlinx.coroutines.flow.toList
@@ -16,6 +20,17 @@ import org.jetbrains.exposed.v1.r2dbc.*
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 
 val WorkStreamServiceKey = AttributeKey<WorkStreamService>("WorkStreamService")
+
+private val SORTABLE_COLUMNS: Map<String, Column<*>> = mapOf(
+    "id" to WorkStreamService.WorkStreams.id,
+    "name" to WorkStreamService.WorkStreams.name,
+    "startDate" to WorkStreamService.WorkStreams.startDate,
+    "createdAt" to WorkStreamService.WorkStreams.createdAt,
+    "updatedAt" to WorkStreamService.WorkStreams.updatedAt,
+)
+
+/** The ONE sortable whitelist of `GET /work-streams`, derived from the column map so the two can never drift. */
+val WORK_STREAM_SORT_FIELDS: Set<String> = SORTABLE_COLUMNS.keys
 
 /**
  * Work streams (V12). Every write runs under the `plan_state` lock ([withPlanWrite]) and bumps the plan revision; a missing or
@@ -36,6 +51,35 @@ class WorkStreamService(private val database: R2dbcDatabase) {
         val createdAt = long("created_at")
         val updatedAt = long("updated_at")
         override val markedAsDeleted = bool("marked_as_deleted").default(false)
+    }
+
+    /**
+     * The paged work stream list: ACTIVE streams, one predicate for the count and the rows in ONE read transaction (no lock, no
+     * revision: a list is not a plan view).
+     */
+    suspend fun list(filter: WorkStreamListFilter, paging: PageRequest): WorkStreamListResult = pagedRead(database) {
+        var predicate: Op<Boolean> = WorkStreams.active()
+        filter.name?.takeIf { it.isNotBlank() }?.let { predicate = predicate and WorkStreams.name.containsNormalized(it) }
+        val total = WorkStreams.selectAll().where { predicate }.count()
+        val rows = WorkStreams.selectAll().where { predicate }.applyPaging(paging, SORTABLE_COLUMNS).toList()
+        val owners = ownerNames(rows.map { it[WorkStreams.ownerPersonId].value })
+        WorkStreamListResult(
+            items = rows.map { row ->
+                val ownerId = row[WorkStreams.ownerPersonId].value
+                WorkStreamResponse(
+                    id = row[WorkStreams.id].value,
+                    name = row[WorkStreams.name],
+                    description = row[WorkStreams.description],
+                    ownerPersonId = ownerId,
+                    ownerName = owners.getValue(ownerId),
+                    startDate = row[WorkStreams.startDate].toString(),
+                    endDate = row[WorkStreams.endDate]?.toString(),
+                    createdAt = row[WorkStreams.createdAt],
+                    updatedAt = row[WorkStreams.updatedAt],
+                )
+            },
+            total = total,
+        )
     }
 
     /** The stream's owner chain, or null when it is missing or deleted (the route's 404, before the guard). */

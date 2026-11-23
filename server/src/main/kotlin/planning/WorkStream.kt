@@ -1,5 +1,6 @@
 package ch.nokillswit.planning
 
+import ch.nokillswit.infra.paging.PageResponse
 import ch.nokillswit.infra.validation.parseIsoDate
 import ch.nokillswit.infra.validation.requireDateOrder
 import ch.nokillswit.infra.validation.requireNameAndDescription
@@ -42,6 +43,13 @@ data class WorkStreamResponse(
     val createdAt: Long,
     val updatedAt: Long,
 )
+
+typealias WorkStreamPageResponse = PageResponse<WorkStreamResponse>
+
+/** The one list filter: a case- and accent-insensitive substring of the work stream name. */
+data class WorkStreamListFilter(val name: String? = null)
+
+data class WorkStreamListResult(val items: List<WorkStreamResponse>, val total: Long)
 
 /** The parsed dates of a validated work stream request. */
 data class WorkStreamDates(val start: LocalDate, val end: LocalDate?)

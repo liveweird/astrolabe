@@ -49,7 +49,7 @@ theme-level `foldedOptionsFilter` (`web/src/utils/text.ts`).
 
 Every view has capped sub-lists (the spec documents each cap) and, except the links reads (`GET /views/jira-links`, `GET /integrations/flow/teams`: no plan state), a `revision` and `can` flags; the timeline views take `?baseline=N`. Ten of them answer through a validator (`ETag`, `If-None-Match`, `304`; `planning-model.md` "View validators"); shapes: `planning-model.md` "The view documents", `jira-sync.md`, `flow-sync.md`.
 
-Every ordinary resource list keeps the envelope; **projects and milestones have a paged list**, work streams and programs have NONE (the plan view is theirs).
+Every ordinary resource list keeps the envelope; **work streams, programs, projects and milestones have a paged list**.
 
 **Batch commands** (`…/milestone-schedules`, `/schedule-proposals[/accept|/check]`, the Jira import) answer one unpaged document; a per-item failure is data in `200` (shapes: `planning-model.md` "The view documents").
 

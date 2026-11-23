@@ -3,6 +3,10 @@ package ch.nokillswit.planning
 import ch.nokillswit.audit.audit
 import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.orNotFound
+import ch.nokillswit.infra.paging.optionalString
+import ch.nokillswit.infra.paging.optionalUInt
+import ch.nokillswit.infra.paging.parsePaging
+import ch.nokillswit.infra.paging.toPage
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource
@@ -37,12 +41,21 @@ class ProgramsRoute {
 private const val PROGRAM = "Program"
 
 /**
- * Programs: created under a work stream (`POST /work-streams/{id}/programs`, in `WorkStreamRoutes.kt` — the parent id in the path is
+ * Programs: `GET /programs` is the paged list (any authenticated user; filters `name`, `workStreamId`). Created under a work stream
+ * (`POST /work-streams/{id}/programs`, in `WorkStreamRoutes.kt` — the parent id in the path is
  * what the guard needs). Read is any authenticated user; update, delete and "create a project under it" need an owner on the program's
  * chain (work stream or program) or ADMIN, after the 404 (read-before-guard). `POST /programs/{id}/move` reparents under another work
  * stream: the caller must own the program's work stream (its own owner alone may not) AND the target work stream (or be ADMIN).
  */
 internal fun Route.programRoutes(d: PlanRouteDeps) {
+    get<ProgramsRoute> {
+        call.caller()
+        val paging = call.parsePaging(sortable = PROGRAM_SORT_FIELDS)
+        val query = call.request.queryParameters
+        val filter = ProgramListFilter(name = query.optionalString("name"), workStreamId = query.optionalUInt("workStreamId"))
+        val result = d.structure.programs.list(filter, paging)
+        call.respond(HttpStatusCode.OK, paging.toPage(result.items, result.total))
+    }
     get<ProgramsRoute.Id> { route ->
         call.caller()
         call.respond(HttpStatusCode.OK, d.structure.programs.read(route.id).orNotFound(PROGRAM))
