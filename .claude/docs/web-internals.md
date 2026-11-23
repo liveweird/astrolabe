@@ -351,9 +351,7 @@ unmounts with the page, so they never fight).
     never gets answered with the first kebab.
   - `menuOpener.ts`'s `setTimeout(0)` expiry cannot beat the hook's effect: the click is a discrete event, and React commits it and flushes the passive effect
     before any timer.
-- Pinned by: `useDeleteConfirm.focus.test.tsx`, `useDialogFocus.test.tsx` and `useDialogFocus.menu.test.tsx` (the real `RowActionsMenu` + Mantine `Modal`
-  harness); the edit-then-delete cases on the project page (a milestone) and Teams; the Dependencies page and the project page's dependency cases pin the
-  order. Those page cases render inside a `main#main-content`, as the shell does (without it the watch has nowhere to send the focus and the race does not show
+- Pinned by the co-located `useDeleteConfirm.focus` and `useDialogFocus*` tests (the real `RowActionsMenu` + Mantine `Modal` harness) and the edit-then-delete cases of the project page, Teams and Dependencies. Those page cases render inside a `main#main-content`, as the shell does (without it the watch has nowhere to send the focus and the race does not show
   in vitest), and answer the DELETE after about 30 ms (Mantine's 10 ms return-focus timer would otherwise race a confirm click no person can make).
 
 ### Registries and forms
@@ -447,20 +445,13 @@ The non-obvious wiring:
    (a lazily built id→index map) lets the arrow input name rows by `TimelineRowData.id`, so a re-sorted page never re-indexes its arrows. The route math
    (`utils/timelineArrows.ts`) is pure; the tests feed a hand-built geometry, and `Timeline.test.tsx` covers the plain and the virtual path (the unmounted end
    of an arrow is positioned from data).
-10. **The header height.** The sticky header is `headerHeight(hasStrip)` = 56 px, or 92 px with a `strip` (`STRIP_HEIGHT` 36). Its five consumers all follow ONE
-    number computed in `Timeline.tsx`: the track drop zone's `visibleBounds().top` (`hooks/useTimelineDropZones.ts`), the virtualiser's `scrollMargin` and
-    `scrollPaddingStart`, `revealFocused`'s `clearTop` (`utils/timelineReveal.ts`), and the two CSS `scroll-margin-top`s (`.timelineCell`, `.timelineBarBody`),
-    which read `var(--timeline-head)` set on the grid beside `--timeline-left`. A new sticky part adds to `headerHeight()`, never to a literal.
-    - `Timeline.test.tsx` "the load strip" pins the value of `--timeline-head` and the drop zone's top, `revealFocused`'s `clearTop` and the virtualiser's
-      `scrollMargin` (through the mounted window), with and without a strip.
-    - NOT pinned (happy-dom has no layout and does not process CSS modules): `scrollPaddingStart` (where `scrollToIndex` lands a row) and the two CSS
-      `var(--timeline-head)` uses; the real-browser proof is the team page's e2e or a manual pass.
-    - The strip is a header row, so the geometry's origin (the top of the first body row) and the arrows do not move.
-11. **Public holidays.** `Timeline` takes `holidays?` and builds ONE epoch-day map per render (`holidayDayMap`). The same map feeds the row hatch
-    (`trackBackground`: the holiday gradient layer over the weekend layer, ONE `backgroundImage` string computed once per render and handed down as `hatch`),
-    the header (`headerRows(scale, map)` puts `holiday` on the day cells; `HeaderCells` renders the `title` and `data-holiday`) and the visually hidden "Public
-    holidays shown" paragraph (`holidaysShown`). The pages never touch any of it: they pass `useHolidays()` straight through. happy-dom keeps gradient strings
-    in `style.backgroundImage`, so the tests count `gradient(` occurrences on the body row's LAST `gridcell` (its left cells are gridcells too).
+10. **The header height.** The sticky header is `headerHeight(hasStrip)` = 56 px, or 92 px with a `strip` (`STRIP_HEIGHT` 36); all its consumers (the drop zone's `visibleBounds().top`, the virtualiser's
+    `scrollMargin`/`scrollPaddingStart`, `revealFocused`'s `clearTop`, the two CSS `scroll-margin-top`s via `var(--timeline-head)`) follow ONE number computed in `Timeline.tsx`. A new sticky
+    part adds to `headerHeight()`, never to a literal. `Timeline.test.tsx` "the load strip" pins `--timeline-head`, the drop zone's top, `clearTop` and `scrollMargin`; NOT pinned (happy-dom has no
+    layout and ignores CSS modules): `scrollPaddingStart` and the CSS uses (the team page's e2e or a manual pass). The strip is a header row, so the geometry's origin and the arrows do not move.
+11. **Public holidays.** `Timeline` takes `holidays?` and builds ONE epoch-day map per render (`holidayDayMap`) that feeds the row hatch (`trackBackground`, one `backgroundImage` string handed down as
+    `hatch`), the header day cells (`headerRows(scale, map)`: `title`, `data-holiday`) and the visually hidden "Public holidays shown" paragraph. Pages pass `useHolidays()` straight through. The tests
+    count `gradient(` occurrences on the body row's LAST `gridcell` (happy-dom keeps gradient strings in `style.backgroundImage`).
 
 ## Home
 
@@ -579,9 +570,7 @@ builder (`roadmapFilteredPath`, `unscheduledMilestonesPath`, `teamLoadWarningPat
   - Why `acknowledged=true`: both views compute `totals` over "every filter but the acknowledgement state" and count the OPEN rows, so the same totals arrive while the body lists only
     the acknowledged items (typically a few KB against up to 700 KB for the default list of up to 2,000 items). The cost grows with the acknowledgements, so a plan with nearly
     everything acknowledged pays close to the full list, bounded by `staleTime` 60 s.
-  - Measured at the 1.10 release, NON-BINDING (throwaway stack, sample plan, nothing bound on the Jira side, the seed admin, loopback `curl`, median of 10 after warm-ups):
-    `GET /views/deviations?acknowledged=true` 11 ms / 715 B and `GET /views/capacity-deviations?acknowledged=true` 6 ms / 137 B, against 13 ms / 2,010 B and 5 ms / 137 B for the
-    default lists. A heavily bound or acknowledged plan costs more (the Jira computation is about 50 ms for 1,100 bindings, `timeline.md` "Measured figures").
+  - Cost: with `acknowledged=true` the deviations read is under 1 KB on a sample plan against about 2 KB for the default list (capacity views: about 137 B either way); a heavily bound plan costs more (the Jira computation is about 50 ms for 1,100 bindings, `timeline.md` "Measured figures").
 - Per source, ONE line (label "Open differences from Jira:" / "Open capacity differences from Flow:" and the orange warnings / gray infos badges of the Deviations page; a zero badge is
   omitted), shown only for a source whose view lists a connection AND whose count is positive. **No claim at zero** (no "nothing open", `web/CLAUDE.md` "Deviations wording"): zero, no
   connection and loading all show nothing. The one exception is neutral and separate (1.26.0): `flowPending` (the Flow view's `totals.pending`, which counts under `acknowledged=true` too) shows one
@@ -592,8 +581,6 @@ builder (`roadmapFilteredPath`, `unscheduledMilestonesPath`, `teamLoadWarningPat
   itself shows (no figure, no qualifier).
 
 ### Tests
-
-Pinned by: `Home.test.tsx`, `components/HomeMine.test.tsx`, `components/BadgeLink.test.tsx`, `pages/headingOutline.test.tsx`.
 
 - `Home.test.tsx` is built on the honest builders (`connectionIn(shape)` / `view()` of `test/deviations.ts`, `CAPACITY_CONNECTION` / `capacityView()` of `test/flow.ts`, `homeView()` /
   `homeMe()` / `emptyHomeView()` of `test/home.ts`); the figure-links' hrefs and names are pinned in it and in `HomeMine.test.tsx`.
@@ -667,7 +654,7 @@ arithmetic is `utils/planMove.ts`: `projectMoveTargets` groups the eligible prog
 
 ### Tests
 
-Pinned by: `Plan.test.tsx`, `PlanMove.test.tsx`, `utils/planMove.test.ts`, `AppDatesProvider.test.tsx`, `utils/planForm.test.ts`.
+The co-located `Plan*.test.tsx`, `AppDatesProvider.test.tsx` and the `planMove`/`planForm` `utils/` tests.
 
 ## Project view
 
@@ -868,9 +855,7 @@ All from the view, no request of their own; the bars, the Jira window, `jiraPage
 
 ### Tests
 
-Pinned by: `ProjectView.test.tsx`, `ProjectView.jira.test.tsx`, `ProjectView.jiraTray.test.tsx`, `pages/ProjectView.jiraImport.test.tsx`, `ProjectView.pin.test.tsx`,
-`ProjectView.baseline.test.tsx`, `BaselineMovement.test.tsx`, `JiraRowMenu.test.tsx`, `milestoneForm.test.ts`, `projectViewUpdate.test.ts`, `projectDependencies.test.ts`,
-`dependencyForm.test.ts`, `api/milestones.test.ts`, `api/dependencies.test.ts`, `TeamSelect.test.tsx`, `DependencyEditorModal.test.tsx`, and the e2e `project-view.spec.ts` (the real
+The page's co-located tests (`ProjectView*.test.tsx` incl. `.jira`, `.jiraTray`, `.jiraImport`, `.pin`, `.baseline`; the form, dependency and `api/` helpers), and the e2e `project-view.spec.ts` (the real
 pointer drag, the resize handle, the tray drop under scroll, the keyboard sensor, the stale notice) and `dependencies.spec.ts` (link, ghost row, arrow, cycle refusal, the manager's
 conflict, delete).
 
@@ -1121,10 +1106,7 @@ path"; generic over the cached view: roadmap `["roadmap","view"]` with `applyRoa
 
 ### Tests
 
-Pinned by: `Roadmap.test.tsx` (including "the filters in the address"), `roadmapOrder.test.ts`, `roadmapRows.test.ts`, `api/roadmap.test.ts`, `Roadmap.flow.test.tsx`,
-`Roadmap.jira.test.tsx`, `Roadmap.baseline.test.tsx`, `Roadmap.critical.test.tsx`, `RoadmapCriticalChain.test.tsx`, `roadmapCritical.test.ts`, `baselineWrites.test.tsx`,
-`hooks/useRoadmapFilters.test.tsx` (the table), `utils/roadmapFilterParams.test.ts`, `Roadmap.window.test.tsx`, `Programs.window.test.tsx`, `targetWindowUpdate.test.ts`,
-`planTrack.test.ts` (who gets an editable band and a draw surface), `planForm.test.ts` (the dialog's rules), and the e2e `roadmap.spec.ts` (the real pointer drag inside the ranking and
+The page's co-located tests (`Roadmap*.test.tsx` incl. `.flow`, `.jira`, `.baseline`, `.critical`, `.window`; `roadmapOrder|roadmapRows|roadmapCritical|targetWindowUpdate.test.ts`; `Roadmap.test.tsx` has "the filters in the address"), among them `hooks/useRoadmapFilters.test.tsx` (the table), `planTrack.test.ts` (who gets an editable band and a draw surface), `planForm.test.ts` (the dialog's rules), and the e2e `roadmap.spec.ts` (the real pointer drag inside the ranking and
 across the divider, focus retention after a menu move, the stale notice, the window gestures: its third scenario).
 
 `Roadmap.test.tsx` runs the whole flow against a small fetch-mock server (a PUT applies the order and bumps the revision); it wraps `DndContext` to hand the test the page's drag
@@ -1246,8 +1228,7 @@ is said once per pick).
 
 ### Tests
 
-Pinned by: `pages/Programs.test.tsx`, `Programs.virtual.test.tsx`, `Programs.baseline.test.tsx`, `Programs.jira.test.tsx`, `Programs.critical.test.tsx`, `Programs.window.test.tsx`,
-`utils/programsTree.test.ts`, `api/programs.test.ts`, the e2e `programs.spec.ts` and the axe scans in `accessibility.spec.ts`.
+The page's co-located tests (`Programs*.test.tsx` incl. `.virtual`, `.baseline`, `.jira`, `.critical`, `.window`; `utils/programsTree.test.ts`), the e2e `programs.spec.ts` and the axe scans in `accessibility.spec.ts`.
 
 `Programs.test.tsx` runs the page against a one-endpoint fetch mock (the default open set, the chevron by pointer and keyboard, the status sentences, Expand/Collapse all, the arrows
 following the fold, the pick and its shared key, Year zoom, empty and failed loads).
@@ -1283,7 +1264,7 @@ search, so a milestone under a deleted project or program is absent. It is the l
 
 ### Tests
 
-Pinned by: `Milestones.test.tsx`, `utils/milestoneFilters.test.ts`, `utils/milestoneLinks.test.ts` (fixtures `test/milestones.ts`).
+The page's co-located tests (`Milestones.test.tsx`, the `milestoneFilters|milestoneLinks` `utils/` tests; fixtures `test/milestones.ts`).
 
 ## Dependencies
 
@@ -1343,8 +1324,7 @@ every dependency), `teamId`, `projectId` (positive integers, `idOf`).
 
 ### Tests
 
-Pinned by: `Dependencies.test.tsx`, `Dependencies.write.test.tsx` (the menu by `can`, the dialog, the confirmation, the refresh, the focus), `api/dependencyList.test.ts`,
-`utils/dependencyListRows.test.ts`, `utils/dependencyListFilters.test.ts`, `utils/dependencyListLinks.test.ts`. The fixtures `test/dependencyList.ts`: rows and ends are the RESOLVED shapes;
+The page's co-located tests (`Dependencies.test.tsx`; `Dependencies.write.test.tsx` pins the menu by `can`, the dialog, the confirmation, the refresh, the focus; the `dependencyList*` `api/` and `utils/` tests). The fixtures `test/dependencyList.ts`: rows and ends are the RESOLVED shapes;
 `dependencyListView(rows)` answers the wire document built from them.
 
 ## Team load
@@ -1399,8 +1379,7 @@ progress (peak) and Status. The weeks are the document's `warningWeeks` (the tea
 
 ### Tests
 
-Pinned by: `TeamLoad.test.tsx` (also the date, the line, the switch, a pinned far-off browser clock), `api/teamLoad.test.ts`, `utils/teamLoadFilters.test.ts`, `utils/teamLoadLinks.test.ts`
-(fixtures `test/teamLoad.ts`).
+The page's co-located tests (`TeamLoad.test.tsx` also pins the date, the line, the switch, a pinned far-off browser clock; the `teamLoad*` `api/` and `utils/` tests; fixtures `test/teamLoad.ts`).
 
 ## Baselines
 
@@ -1458,7 +1437,7 @@ totals line (`BaselineTotals`). The query keys, the write rules, the tone, the r
 
 ### Tests
 
-Pinned by: `Baselines.test.tsx`, `BaselineCompare.test.tsx`, `BaselineCompare.against.test.tsx`, `baselines.test.ts`, `useBaselines.test.tsx`, `baselineOverlay.test.ts`, `baselineMovement.test.ts`, `baselineCompare.test.ts`.
+The co-located `Baseline*.test.tsx`, `useBaselines.test.tsx` and the `baseline*` `utils/` tests.
 
 ## Schedule proposals
 
@@ -1518,7 +1497,7 @@ The accept/discard/outcome words reuse `teams.proposal.*`.
 
 ### Tests
 
-Pinned by: `ScheduleProposals.test.tsx`, `CrossTeamProposalSection.test.tsx`, `useCrossTeamProposal.test.tsx` (fixtures `test/crossTeamRun.ts`).
+The co-located `ScheduleProposals.test.tsx`, `CrossTeamProposalSection.test.tsx`, `useCrossTeamProposal.test.tsx` (fixtures `test/crossTeamRun.ts`).
 
 ## Deviations, bindings and the Jira chips
 
@@ -1911,16 +1890,10 @@ it in a fourth "Acknowledgement" column of their table, so a single missing spri
 
 ### Tests
 
-Pinned by: `Deviations.test.tsx` (also "Capacity from Flow"), `Deviations.ack.test.tsx`, `Deviations.ack.lines.test.tsx`, `Deviations.ack.refusals.test.tsx`, `DeviationAckCell.test.tsx`,
-`utils/deviations.test.ts`, `utils/deviationFilters.test.ts`, `utils/jiraMarks.test.ts`, `utils/jiraBind.test.ts`, `utils/flagSentences.test.ts`, `hooks/useDeviations.test.tsx`, `api/deviations.test.ts`,
-`JiraBindDialog.test.tsx`, `JiraBindingsSection.test.tsx`, `utils/jiraImportRoot.test.ts`, `ProjectView.jira.test.tsx`, `TeamDetails.jira.test.tsx`, `JiraChips.test.tsx`.
+The co-located tests of the page and its parts (`Deviations*`, `JiraBind*`, `JiraChips`, `Capacity*`, the helpers; fixtures in `test/flow.ts`).
 
-- Import: `JiraImportModal.test.tsx`, `.errors.test.tsx`, `.virtual.test.tsx` (the 2,000-row cap), `.source.test.tsx`, `JiraImportModal.filter.test.tsx`, `JiraImportModal.matches.test.tsx`,
-  `JiraImportModal.search.test.tsx`, `JiraImportModal.root.test.tsx`, `hooks/useJiraImport.test.tsx` (the in-flight guard, unmount), `hooks/useJiraPlanLinks.test.tsx`,
-  `utils/jiraImport.test.ts`, `utils/jiraImportText.test.ts`, `pages/Plan.test.tsx` ("Import from a linked program", "Import from a linked project"), the harness `test/jiraImportHarness.ts`
+- Import: the co-located `JiraImportModal*.test.tsx` family (`.virtual` pins the 2,000-row cap), `useJiraImport.test.tsx` (the in-flight guard, unmount), `Plan.test.tsx` ("Import from a linked program", "Import from a linked project"), the harness `test/jiraImportHarness.ts`
   (`previewScope(user, rooted)`); the server pins the same bodies in `JiraImportWebBodyTest.kt` (literal JSON through the real deserialization and the kernel).
-- Flow: `CapacityDeviationsSection.test.tsx`, `CapacityDeviationsSection.ack.test.tsx`, `CapacityDeviationList.test.tsx`, `CapacityAckCell.test.tsx`, `utils/capacityDeviations.test.ts`,
-  `hooks/useCapacityDeviations.test.tsx`, `hooks/useCapacityAcknowledge.test.tsx`, `api/capacityDeviations.test.ts`; fixtures in `test/flow.ts`.
 - Technique: tests build connections with `connectionIn(shape)` (`test/deviations.ts`: every member of `enabled`/`lastRun`/`status` agrees, as the server derives it), never by overriding
   `lastRun` alone.
 
@@ -2149,10 +2122,8 @@ An observed snapshot with `sprintsComplete: false` shows refresh guidance and di
 
 ### Tests
 
-Pinned by: `TeamDetails.test.tsx` (the page against a fetch-mock server that applies the order and schedule PUTs; the wrapped `DndContext` hands it the bar drop and the row drop; "the menu button
-keeps focus" through a real Move) and its `TeamDetails.pin|proposal|baseline|jira|flow.test.tsx` siblings (the others serve `READ_ONLY_PANEL`); `Team*.test.tsx`,
-`ProposalTable|CapacityImportModal|FlowTeamLinkDialog|FlowRosterPanel.test.tsx`, the `useScheduleProposal|useScheduleCheck|useCapacityDeviations|useCapacityAcknowledge` hook tests, the `utils/` tests
-of the helpers named above; fixtures in `test/flow.ts`; the real browser is `e2e/tests/team-view.spec.ts` and `accessibility.spec.ts`.
+The co-located `TeamDetails.test.tsx` (the page against a fetch-mock server that applies the order and schedule PUTs; the wrapped `DndContext` hands it the bar drop and the row drop; "the menu button
+keeps focus" through a real Move) and its `TeamDetails.pin|proposal|baseline|jira|flow.test.tsx` siblings (the others serve `READ_ONLY_PANEL`), the `Team*`, `ProposalTable`, `CapacityImportModal`, `FlowTeamLinkDialog`, `FlowRosterPanel` and hook tests; fixtures in `test/flow.ts`; the real browser is `e2e/tests/team-view.spec.ts` and `accessibility.spec.ts`.
 
 
 ## People
@@ -2168,7 +2139,7 @@ Edit takes the row as it stands (no detail fetch). The family of paths is spelle
   modal, and the required-owner message).
 - **A 409 on save** marks the email field, or the login field when the problem `type` is `person-login-taken` (`isPersonLoginTaken`, `api/people.ts`); an untyped 409 reads as the email.
 
-Pinned by: `People.test.tsx`, `PersonDetails.test.tsx`, `PersonSelect.test.tsx`; the real browser is `e2e/tests/people.spec.ts`.
+The co-located `People*.test.tsx`, `PersonDetails.test.tsx`, `PersonSelect.test.tsx`; the real browser is `e2e/tests/people.spec.ts`.
 
 ## Public holidays
 
@@ -2196,7 +2167,7 @@ Files: `pages/PublicHolidays.tsx`; `api/calendar.ts` (`listPublicHolidays` unwra
   `calendar.duplicateDate`, a 400 `calendar.invalid`, a 403 `calendar.error.forbidden`: the server's `detail` is never rendered. Delete is `useDeleteConfirm` + `ConfirmDeleteModal` with an
   interpolated row aria-label (`calendar.deleteAria`); a 404 on delete reads "This holiday no longer exists".
 
-Pinned by: `PublicHolidays.test.tsx`, `utils/publicHolidays.test.ts`, `api/calendar.test.ts`; the wiring into the pages is one test each in `ProjectView|TeamDetails|Roadmap|Programs.test.tsx`;
+The co-located `PublicHolidays.test.tsx`, `utils/publicHolidays.test.ts`, `api/calendar.test.ts`; the wiring into the pages is one test each in `ProjectView|TeamDetails|Roadmap|Programs.test.tsx`;
 `MilestoneScheduleModal`'s pre-check is `ProjectView.test.tsx` and `milestoneForm.test.ts`.
 
 ## Users, feature flags and permissions
@@ -2375,8 +2346,7 @@ right-aligned, no colour (a count is not a verdict), and a dimmed "Counted as of
 "Not synced yet", `MAPPING_UNUSABLE` a gray note and `MAPPING_CHANGED` ("The mapping changed since the last synchronisation … Use Refresh now to count them") likewise, each instead of a table (never
 zeros); a failed read is the inline `ErrorAlert`.
 
-Pinned by: `Jira*.test.tsx` (the pages, the editor, the mapping editor, the report, Peek, Coverage), `Connection*.test.tsx`, `SyncRunsTable.test.tsx`, `SyncStatusBadge.test.tsx`,
-`useSyncRuns.test.tsx` (fake timers, incl. a second claim after the bound), `useNow.test.tsx`, `utils/jiraForm|jiraMappingForm|jiraFailure|syncRuns|syncStatus|jiraLinks.test.ts`; shared fixtures in
+The co-located `Jira*.test.tsx` (the pages, the editor, the mapping editor, the report, Peek, Coverage), `Connection*`, `SyncRuns*`, `SyncStatusBadge`, `useSyncRuns.test.tsx` (fake timers, incl. a second claim after the bound), `useNow` and the `utils/` tests; shared fixtures in
 `test/jira.ts`.
 
 ## Flow connections
@@ -2426,7 +2396,7 @@ the server answers 400).
 - A refused link shows a fixed lead and, for a 409 `already-bound` or a 400, the server's sentence, and re-reads the list.
 - A link or unlink refreshes the Flow lists, team panel, deviations, plan and Roadmap families through `refreshFlowLinks`.
 
-Pinned by: `Flow*.test.tsx` (the pages, the sections, the editor), `PollingFields.test.tsx`, `utils/flowForm|flowLinks|pollingForm.test.ts`; shared fixtures in `test/flow.ts`.
+The co-located `Flow*.test.tsx` (the pages, the sections, the editor), `PollingFields.test.tsx` and the `utils/` tests; shared fixtures in `test/flow.ts`.
 
 ## Changelog and app versioning
 
