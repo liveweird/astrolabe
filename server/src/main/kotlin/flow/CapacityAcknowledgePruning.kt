@@ -13,7 +13,7 @@ internal suspend fun pruneUnlistedCapacityAcks(
     binding: FlowTeamBindingRow,
     listed: List<CapacityDeviation>,
     inMirror: Set<Long>,
-    sprintsJudgeable: Boolean = true,
+    sprintsJudgeable: Boolean,
 ): List<Long?> {
     val keep = listedKeys(listed) ?: return emptyList()
     val table = CapacityAcknowledgeService.Acknowledgements
@@ -26,7 +26,8 @@ internal suspend fun pruneUnlistedCapacityAcks(
     return gone.map { it[table.sprintId] }.sortedWith(compareBy(nullsFirst()) { it })
 }
 
-private fun listedKeys(listed: List<CapacityDeviation>): Set<Long?>? =
+/** The keys of the rows [listed] now (null = the team's own row), or null when nothing may be pruned: the Flow team is gone. */
+internal fun listedKeys(listed: List<CapacityDeviation>): Set<Long?>? =
     listed.takeIf { rows -> rows.none { it.kind == CapacityDeviationKind.TEAM_GONE } }?.mapTo(HashSet()) { it.detail.sprintId }
 
 internal fun BindingCapacityFacts?.mirroredSprintIds(): Set<Long> =

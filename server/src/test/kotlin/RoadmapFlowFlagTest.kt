@@ -128,6 +128,33 @@ class RoadmapFlowFlagTest {
     }
 
     @Test
+    fun `a team with an incomplete sprint snapshot is pending - a neutral team flag, a marker on its scheduled projects, no warning`() =
+        testApplication {
+            val world = dayTwo("rff3b")
+            with(world) {
+                val client = w.admin.client
+                milestone(w.projectId, teamId, "2049-03-17", "2049-03-19")
+                val unscheduled = secondProject().also { milestone(it, teamId, null) }
+                refreshOnly(1, 2, truncated = true) // the team's stored snapshot is incomplete: no row can be judged
+
+                val roadmap = client.roadmap()
+                val row = roadmap.row(w.projectId)
+                assertEquals(emptyList(), row.capacity(), "no capacity warning is invented from partial data")
+                assertEquals(listOf(teamId), row.flowPendingTeamIds)
+                assertEquals(emptyList(), roadmap.row(unscheduled).flowPendingTeamIds, "an unscheduled milestone has no days to compare")
+                assertEquals(listOf(teamId), client.programs().row(w.projectId).flowPendingTeamIds)
+                assertTrue(row.flags.none { it.kind == FlagKind.FLOW_CAPACITY_PENDING }, "the marker is not a flag: no count moves")
+
+                val header = client.team(teamId).team.flags.single()
+                assertEquals(FlagKind.FLOW_CAPACITY_PENDING, header.kind)
+                assertTrue(client.team(teamId).weeks.none { it.flowCapacity != null }, "no week is marked")
+
+                refresh() // a complete document ends it
+                assertEquals(emptyList(), client.roadmap().row(w.projectId).flowPendingTeamIds)
+            }
+        }
+
+    @Test
     fun `acknowledging the warning leaves an INFO, both leave none, a changed figure flags again`() = testApplication {
         val world = dayTwo("rff4")
         with(world) {

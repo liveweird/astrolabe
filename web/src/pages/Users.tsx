@@ -31,7 +31,7 @@ import RowActionsMenu from "../components/RowActionsMenu";
 import SortHeader from "../components/SortHeader";
 import TableLoadingRow from "../components/TableLoadingRow";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
-import { FILTER_DEBOUNCE_MS, usePagedSort } from "../hooks/usePagedSort";
+import { FILTER_DEBOUNCE_MS, useClampPage, usePagedSort } from "../hooks/usePagedSort";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useResetPassword } from "../hooks/useResetPassword";
 import { isString, useStoredState } from "../hooks/useStoredState";
@@ -68,7 +68,7 @@ export default function Users() {
       sortFields: SORT_FIELDS,
     });
 
-  const { data, isLoading, isError, error } = useQuery({
+  const { data, isLoading, isError, error, isPlaceholderData } = useQuery({
     queryKey: ["users", page, pageSize, sortParam, debouncedName, debouncedEmail, roleFilter],
     queryFn: () =>
       listUsers({
@@ -82,6 +82,7 @@ export default function Users() {
     placeholderData: keepPreviousData,
     enabled: admin,
   });
+  useClampPage(page, pageSize, setPage, data, isPlaceholderData);
 
   // "Create a person" is offered for a login whose row says no ACTIVE person links to it (`personId`, read with the list).
   // The failure is inline, tied to the view it happened in (a filter, sort or page change drops it) and cleared when

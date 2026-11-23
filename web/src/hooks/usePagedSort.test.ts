@@ -1,6 +1,6 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
-import { PAGE_SIZE_OPTIONS, usePagedSort } from "./usePagedSort";
+import { PAGE_SIZE_OPTIONS, useClampPage, usePagedSort } from "./usePagedSort";
 
 const SORT_FIELDS = ["name", "kind", "updatedAt"] as const;
 type SortField = (typeof SORT_FIELDS)[number];
@@ -107,5 +107,46 @@ describe("usePagedSort", () => {
 
   test("PAGE_SIZE_OPTIONS is the 20/40/60 ladder", () => {
     expect(PAGE_SIZE_OPTIONS).toEqual([20, 40, 60]);
+  });
+});
+
+describe("useClampPage", () => {
+  type Answer = { total: number } | undefined;
+  function renderClamp(initial: { page: number; data: Answer; isPlaceholderData?: boolean }) {
+    const setPage = vi.fn();
+    const view = renderHook(
+      (p: { page: number; data: Answer; isPlaceholderData?: boolean }) =>
+        useClampPage(p.page, 20, setPage, p.data, p.isPlaceholderData ?? false),
+      { initialProps: initial },
+    );
+    return { setPage, ...view };
+  }
+
+  test("a settled answer that shrank below the current page returns to the last real page", () => {
+    const { setPage, rerender } = renderClamp({ page: 3, data: { total: 100 } });
+    expect(setPage).not.toHaveBeenCalled();
+    rerender({ page: 3, data: { total: 25 } });
+    expect(setPage).toHaveBeenCalledWith(2);
+  });
+
+  test("an empty settled list clamps to page 1", () => {
+    const { setPage } = renderClamp({ page: 2, data: { total: 0 } });
+    expect(setPage).toHaveBeenCalledWith(1);
+  });
+
+  test("a page that still exists is left alone", () => {
+    const { setPage } = renderClamp({ page: 2, data: { total: 21 } });
+    expect(setPage).not.toHaveBeenCalled();
+  });
+
+  test("a failed or still-loading request (no data) never changes the page", () => {
+    const { setPage, rerender } = renderClamp({ page: 3, data: undefined });
+    rerender({ page: 3, data: undefined });
+    expect(setPage).not.toHaveBeenCalled();
+  });
+
+  test("a keepPreviousData placeholder is not a settled answer", () => {
+    const { setPage } = renderClamp({ page: 3, data: { total: 5 }, isPlaceholderData: true });
+    expect(setPage).not.toHaveBeenCalled();
   });
 });

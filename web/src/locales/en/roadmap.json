@@ -114,6 +114,8 @@
     "flowCapacityMilestones_other": "{{count}} milestones on {{team}} are scheduled in sprints whose capacity differs from Flow",
     "flowCapacityMilestonesNoTeam_one": "{{count}} milestone is scheduled in a sprint whose capacity differs from Flow",
     "flowCapacityMilestonesNoTeam_other": "{{count}} milestones are scheduled in sprints whose capacity differs from Flow",
+    "flowCapacityPending": "Flow capacity comparison pending: waiting for a complete Flow refresh",
+    "flowCapacityPendingTeams": "Flow capacity comparison pending for {{teams}}: waiting for a complete Flow refresh",
     "show": "Show in timeline",
     "showAria": "Show in timeline: {{name}}"
   },

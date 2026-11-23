@@ -334,6 +334,8 @@
       "gone_other": "of which {{count}} teams gone from Flow",
       "acknowledged_one": "{{count}} acknowledged",
       "acknowledged_other": "{{count}} acknowledged",
+      "pending_one": "{{count}} team waiting for a complete Flow refresh",
+      "pending_other": "{{count}} teams waiting for a complete Flow refresh",
       "shownOf": "{{n}} of {{total}} teams shown"
     },
     "list": {
@@ -345,7 +347,9 @@
         "differences": "Differences",
         "observed": "Data as of"
       },
-      "openTeamAria": "Open team {{name}}"
+      "openTeamAria": "Open team {{name}}",
+      "pending": "Waiting for a complete Flow refresh",
+      "pendingHint": "Astrolabe compares this team after its connection completes a full Flow refresh."
     },
     "empty": {
       "noneLinked": "No team is linked to Flow yet.",

@@ -142,6 +142,8 @@
     "flowCapacityMilestonesNoTeam_few": "{{count}} kamienie milowe przypadają na sprinty, w których przepustowość różni się od Flow",
     "flowCapacityMilestonesNoTeam_many": "{{count}} kamieni milowych przypada na sprinty, w których przepustowość różni się od Flow",
     "flowCapacityMilestonesNoTeam_other": "{{count}} kamienia milowego przypada na sprinty, w których przepustowość różni się od Flow",
+    "flowCapacityPending": "Porównanie przepustowości z Flow oczekuje na pełne odświeżenie Flow",
+    "flowCapacityPendingTeams": "Porównanie przepustowości z Flow dla: {{teams}} oczekuje na pełne odświeżenie Flow",
     "show": "Pokaż na osi czasu",
     "showAria": "Pokaż na osi czasu: {{name}}"
   },

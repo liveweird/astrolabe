@@ -259,8 +259,8 @@ class FlowConnectionServiceTest {
         val id = service.create(flowRequest(name = connectionName))
         val other = service.create(flowRequest(name = name()))
         val mirrored = flowTeam(1, sprints = listOf(flowSprint(10), flowSprint(11)), members = listOf(flowMember("a")))
-        store.replace(id, listOf(mirrored), at = 5L)
-        store.replace(other, listOf(flowTeam(1, sprints = listOf(flowSprint(10)))), at = 5L)
+        store.replace(id, listOf(mirrored), at = 5L, sprintsComplete = true)
+        store.replace(other, listOf(flowTeam(1, sprints = listOf(flowSprint(10)))), at = 5L, sprintsComplete = true)
         val team = TestTeams.seed(flowUnique(PREFIX))
         val user = TestUsers.seed(uniqueEmail("flowdel"), "flow-del-pass-1")
         jbSql(

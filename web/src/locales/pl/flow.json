@@ -147,6 +147,7 @@
       "missing_many": "Brak przepustowości w planie dla {{count}} sprintów",
       "missing_other": "Brak przepustowości w planie dla {{count}} sprintu",
       "loading": "Porównywanie z Flow…",
+      "pending": "Oczekuje na pełne odświeżenie Flow",
       "loadFailed": "Nie udało się porównać przepustowości z Flow",
       "listAria": "Różnice przepustowości względem Flow",
       "fix": "Przycisk Importuj przepustowość… pokazuje, co zmieniłby import. Okresy wpisane ręcznie zostają bez zmian, a sprint, w którym Flow podaje 0, trzeba zaznaczyć ręcznie.",

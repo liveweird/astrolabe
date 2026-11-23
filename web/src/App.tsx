@@ -131,7 +131,7 @@ function Shell() {
     <AppShell
       header={{ height: SHELL_HEADER_HEIGHT }}
       navbar={{ width: { base: 248, sm: rail ? 64 : 232 }, breakpoint: "sm", collapsed: { mobile: !opened } }}
-      // 420 px beside the page from `lg` up (the content gives way: at 1200 px the 240 px navbar and the panel still leave ~540 px);
+      // 420 px beside the page from `lg` up (the content gives way: at 1200 px the 232 px navbar and the panel still leave ~540 px; the navbar is 248 px on mobile);
       // below it the panel covers the page edge to edge, since a pushed 420 px next to the navbar would leave a sliver.
       aside={{ width: 420, breakpoint: "lg", collapsed: { desktop: !showPanel, mobile: !showPanel } }}
       padding={{ base: "md", md: "lg" }}

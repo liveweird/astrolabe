@@ -2,6 +2,7 @@ package ch.nokillswit
 
 import ch.nokillswit.flow.FlowMirrorSprint
 import ch.nokillswit.flow.FlowMirrorStore
+import ch.nokillswit.flow.FlowMirrorTeam
 import ch.nokillswit.flow.FlowMirrorWrite
 import ch.nokillswit.flow.fittedTo
 import kotlinx.coroutines.async
@@ -29,6 +30,15 @@ class FlowMirrorStoreTest {
     private val connections = newFlowConnectionService()
     private val store = newFlowMirrorStore()
 
+    /** A write of a COMPLETE sprint snapshot (the run's own case when Flow did not cut the document at the sprint cap). */
+    private suspend fun FlowMirrorStore.write(
+        id: UInt,
+        teams: List<FlowMirrorTeam>,
+        at: Long,
+        keepAbsentTeams: Boolean = false,
+        afterWrite: suspend () -> Unit = {},
+    ) = replace(id, teams, at, sprintsComplete = true, keepAbsentTeams = keepAbsentTeams, afterWrite = afterWrite)
+
     private suspend fun connection() = connections.create(flowRequest(name = flowUnique(PREFIX)))
 
     private fun count(table: String, connection: UInt) =
@@ -50,7 +60,7 @@ class FlowMirrorStoreTest {
         )
         val members = listOf(flowMember("b", from = 5), flowMember("a", from = 9, to = 20), flowMember("a", from = 2, name = null))
         val document = listOf(flowTeam(2, "Zeta"), flowTeam(1, "Alpha", sprints, members))
-        assertEquals(FlowMirrorWrite.WRITTEN, store.replace(id, document, at = 777L))
+        assertEquals(FlowMirrorWrite.WRITTEN, store.write(id, document, at = 777L))
 
         assertEquals(777L, assertNotNull(connections.read(id)).teamsAt)
         val teams = store.teamsOf(id)
@@ -95,9 +105,9 @@ class FlowMirrorStoreTest {
                 flowSprint(30, start = 1_000, end = 2_000, md = "40.00", name = "Earlier"),
                 flowSprint(32, start = null, end = null, md = null, name = "Undated"),
             )
-            store.replace(first, listOf(flowTeam(1, "Alpha", sprints), flowTeam(2, "Bare"), flowTeam(3, "Other")), at = 11L)
+            store.write(first, listOf(flowTeam(1, "Alpha", sprints), flowTeam(2, "Bare"), flowTeam(3, "Other")), at = 11L)
             val again = flowTeam(1, "Alpha again", listOf(flowSprint(40, start = 5, end = 6)))
-            store.replace(second, listOf(again, flowTeam(4, "Four")), at = 22L)
+            store.write(second, listOf(again, flowTeam(4, "Four")), at = 22L)
 
             val keys = listOf(first to 1, first to 2, second to 1, second to 4, first to 99, second to 3)
             val batch = store.teamsSprintsOf(keys)
@@ -116,14 +126,14 @@ class FlowMirrorStoreTest {
     fun `a second replace swaps the whole document - nothing of the first survives`() = runBlocking {
         PostgresTestSupport.ensureMigrated()
         val id = connection()
-        store.replace(id, listOf(flowTeam(1, sprints = listOf(flowSprint(1), flowSprint(2)), members = listOf(flowMember("a")))), at = 1L)
-        assertEquals(FlowMirrorWrite.WRITTEN, store.replace(id, listOf(flowTeam(3, "Third", sprints = listOf(flowSprint(9)))), at = 2L))
+        store.write(id, listOf(flowTeam(1, sprints = listOf(flowSprint(1), flowSprint(2)), members = listOf(flowMember("a")))), at = 1L)
+        assertEquals(FlowMirrorWrite.WRITTEN, store.write(id, listOf(flowTeam(3, "Third", sprints = listOf(flowSprint(9)))), at = 2L))
         assertEquals(listOf(3), store.teamsOf(id).map { it.flowTeamId })
         assertEquals(listOf(9L), store.sprintsOf(id, 3).map { it.sprintId })
         assertEquals(0, count("flow_members", id))
         assertEquals(1, count("flow_sprints", id))
         assertEquals(2L, assertNotNull(connections.read(id)).teamsAt)
-        assertEquals(FlowMirrorWrite.WRITTEN, store.replace(id, emptyList(), at = 3L), "an empty document is a document")
+        assertEquals(FlowMirrorWrite.WRITTEN, store.write(id, emptyList(), at = 3L), "an empty document is a document")
         assertEquals(emptyList(), store.teamsOf(id))
         assertEquals(3L, assertNotNull(connections.read(id)).teamsAt)
     }
@@ -132,7 +142,7 @@ class FlowMirrorStoreTest {
     fun `a replace is atomic - a failure while writing leaves the previous document and its stamp`() = runBlocking {
         PostgresTestSupport.ensureMigrated()
         val id = connection()
-        assertEquals(FlowMirrorWrite.WRITTEN, store.replace(id, listOf(flowTeam(1, "Old", sprints = listOf(flowSprint(1)))), at = 10L))
+        assertEquals(FlowMirrorWrite.WRITTEN, store.write(id, listOf(flowTeam(1, "Old", sprints = listOf(flowSprint(1)))), at = 10L))
         // A trigger makes the SPRINT insert of the new document fail after its teams were already inserted and the old rows deleted.
         jbSql(
             "CREATE OR REPLACE FUNCTION flow_mirror_test_fail() RETURNS trigger AS " +
@@ -143,7 +153,7 @@ class FlowMirrorStoreTest {
                 "WHEN (NEW.connection_id = $id) EXECUTE FUNCTION flow_mirror_test_fail()",
         )
         try {
-            val failure = runCatching { store.replace(id, listOf(flowTeam(2, "New", sprints = listOf(flowSprint(2)))), at = 20L) }
+            val failure = runCatching { store.write(id, listOf(flowTeam(2, "New", sprints = listOf(flowSprint(2)))), at = 20L) }
             assertTrue(failure.isFailure, "the write failed")
         } finally {
             jbSql("DROP TRIGGER flow_mirror_test_fail ON flow_sprints")
@@ -159,12 +169,12 @@ class FlowMirrorStoreTest {
         runBlocking {
             PostgresTestSupport.ensureMigrated()
             val id = connection()
-            assertEquals(FlowMirrorWrite.WRITTEN, store.replace(id, listOf(flowTeam(1, "Old", sprints = listOf(flowSprint(1)))), at = 10L))
+            assertEquals(FlowMirrorWrite.WRITTEN, store.write(id, listOf(flowTeam(1, "Old", sprints = listOf(flowSprint(1)))), at = 10L))
             var seen = emptyList<String>()
             var stamp: Long? = null
             assertEquals(
                 FlowMirrorWrite.WRITTEN,
-                store.replace(id, listOf(flowTeam(2, "New")), at = 20L) {
+                store.write(id, listOf(flowTeam(2, "New")), at = 20L) {
                     seen = store.teamsOf(id).map { it.name }
                     stamp = connections.read(id)?.teamsAt
                 },
@@ -172,7 +182,7 @@ class FlowMirrorStoreTest {
             assertEquals(listOf("New"), seen, "the block reads the new mirror (the same transaction)")
             assertEquals(20L, stamp, "... after the stamp")
 
-            val failure = runCatching { store.replace(id, listOf(flowTeam(3, "Third")), at = 30L, afterWrite = { error("boom") }) }
+            val failure = runCatching { store.write(id, listOf(flowTeam(3, "Third")), at = 30L, afterWrite = { error("boom") }) }
             assertTrue(failure.isFailure, "a throwing block fails the replace")
             assertEquals(listOf("New"), store.teamsOf(id).map { it.name }, "the previous document is back")
             assertEquals(20L, assertNotNull(connections.read(id)).teamsAt, "and the stamp did not move")
@@ -182,13 +192,13 @@ class FlowMirrorStoreTest {
     fun `a replace for a deleted or unknown connection writes nothing`() = runBlocking {
         PostgresTestSupport.ensureMigrated()
         val id = connection()
-        assertEquals(FlowMirrorWrite.WRITTEN, store.replace(id, listOf(flowTeam(1)), at = 1L))
+        assertEquals(FlowMirrorWrite.WRITTEN, store.write(id, listOf(flowTeam(1)), at = 1L))
         connections.delete(id)
         val late = listOf(flowTeam(2, sprints = listOf(flowSprint(5))))
-        assertEquals(FlowMirrorWrite.GONE, store.replace(id, late, at = 2L), "the run finds its connection gone")
+        assertEquals(FlowMirrorWrite.GONE, store.write(id, late, at = 2L), "the run finds its connection gone")
         assertEquals(0, count("flow_teams", id))
         assertEquals(0, count("flow_sprints", id))
-        assertEquals(FlowMirrorWrite.GONE, store.replace(id + 1_000_000u, listOf(flowTeam(1)), at = 3L), "an unknown connection likewise")
+        assertEquals(FlowMirrorWrite.GONE, store.write(id + 1_000_000u, listOf(flowTeam(1)), at = 3L), "an unknown connection likewise")
         assertEquals(emptyList(), store.teamsOf(id))
     }
 
@@ -204,7 +214,7 @@ class FlowMirrorStoreTest {
                 st.executeQuery().close()
             }
             coroutineScope {
-                val writing = async { store.replace(id, listOf(flowTeam(1, sprints = listOf(flowSprint(1)))), at = 1L) }
+                val writing = async { store.write(id, listOf(flowTeam(1, sprints = listOf(flowSprint(1)))), at = 1L) }
                 awaitLockWait("flow_connections")
                 raw.prepareStatement("UPDATE flow_connections SET marked_as_deleted = TRUE, api_token = NULL WHERE id = ?").use {
                     it.setInt(1, id.toInt())
@@ -222,17 +232,17 @@ class FlowMirrorStoreTest {
     fun `a replace for a disabled connection writes nothing and keeps the last document and teams_at`() = runBlocking {
         PostgresTestSupport.ensureMigrated()
         val id = connection()
-        assertEquals(FlowMirrorWrite.WRITTEN, store.replace(id, listOf(flowTeam(1, "Kept")), at = 5L))
+        assertEquals(FlowMirrorWrite.WRITTEN, store.write(id, listOf(flowTeam(1, "Kept")), at = 5L))
         jbSql("UPDATE flow_connections SET enabled = FALSE WHERE id = ?", id.toInt())
 
-        val result = store.replace(id, listOf(flowTeam(2, "Refused", sprints = listOf(flowSprint(5)))), at = 6L)
+        val result = store.write(id, listOf(flowTeam(2, "Refused", sprints = listOf(flowSprint(5)))), at = 6L)
 
         assertEquals(FlowMirrorWrite.DISABLED, result, "switched off while the run was in flight")
         assertEquals(listOf("Kept"), store.teamsOf(id).map { it.name })
         assertEquals(0, count("flow_sprints", id))
         assertEquals(5L, assertNotNull(connections.read(id)).teamsAt)
         jbSql("UPDATE flow_connections SET enabled = TRUE WHERE id = ?", id.toInt())
-        assertEquals(FlowMirrorWrite.WRITTEN, store.replace(id, listOf(flowTeam(2, "Back")), at = 7L), "enabled again: written")
+        assertEquals(FlowMirrorWrite.WRITTEN, store.write(id, listOf(flowTeam(2, "Back")), at = 7L), "enabled again: written")
     }
 
     @Test
@@ -253,7 +263,7 @@ class FlowMirrorStoreTest {
                     flowMember("dup", from = 4, name = "second"),
                 ),
             ).copy(defaultCapacityMd = BigDecimal("12345678.9"))
-            assertEquals(FlowMirrorWrite.WRITTEN, store.replace(id, listOf(team, flowTeam(1, "same id twice")), at = 1L))
+            assertEquals(FlowMirrorWrite.WRITTEN, store.write(id, listOf(team, flowTeam(1, "same id twice")), at = 1L))
 
             val row = store.teamsOf(id).single()
             assertEquals(100, row.name.length)
@@ -282,7 +292,7 @@ class FlowMirrorStoreTest {
         assertEquals("a".repeat(98) + smile, ("a".repeat(98) + smile).fittedTo(100), "a pair that fits is kept")
         val id = connection()
         val cut = listOf(flowTeam(1, name = "n".repeat(99) + smile))
-        assertEquals(FlowMirrorWrite.WRITTEN, store.replace(id, cut, at = 1L), "an unpaired half would fail the insert")
+        assertEquals(FlowMirrorWrite.WRITTEN, store.write(id, cut, at = 1L), "an unpaired half would fail the insert")
         assertEquals("n".repeat(99), store.teamsOf(id).single().name)
     }
 
@@ -295,12 +305,12 @@ class FlowMirrorStoreTest {
             flowTeam(1, "One", listOf(flowSprint(10)), listOf(flowMember("a"))),
             flowTeam(2, "Two", listOf(flowSprint(20), flowSprint(21)), listOf(flowMember("b"), flowMember("c"))),
         )
-        assertEquals(FlowMirrorWrite.WRITTEN, store.replace(id, doc(), at = 1L))
-        assertEquals(FlowMirrorWrite.WRITTEN, store.replace(other, doc(), at = 1L))
+        assertEquals(FlowMirrorWrite.WRITTEN, store.write(id, doc(), at = 1L))
+        assertEquals(FlowMirrorWrite.WRITTEN, store.write(other, doc(), at = 1L))
 
         // A document cut at the team cap carried team 1 only (renamed, with a new sprint) and none of team 2.
         val renamed = flowTeam(1, "One renamed", listOf(flowSprint(11), flowSprint(12)), emptyList())
-        assertEquals(FlowMirrorWrite.WRITTEN, store.replace(id, listOf(renamed), at = 2L, keepAbsentTeams = true))
+        assertEquals(FlowMirrorWrite.WRITTEN, store.write(id, listOf(renamed), at = 2L, keepAbsentTeams = true))
 
         val teams = store.teamsOf(id).associateBy { it.flowTeamId }
         assertEquals(setOf(1, 2), teams.keys)
@@ -318,7 +328,7 @@ class FlowMirrorStoreTest {
         // carried because the document was also team-truncated, so it keeps its own previous completeness evidence.
         assertEquals(
             FlowMirrorWrite.WRITTEN,
-            store.replace(id, listOf(renamed), at = 3L, keepAbsentTeams = true, sprintsComplete = false),
+            store.replace(id, listOf(renamed), at = 3L, sprintsComplete = false, keepAbsentTeams = true),
         )
         assertEquals(false, assertNotNull(store.teamSprintsOf(id, 1)).sprintsComplete)
         assertTrue(assertNotNull(store.teamSprintsOf(id, 2)).sprintsComplete)
@@ -328,7 +338,7 @@ class FlowMirrorStoreTest {
         assertEquals(2, store.teamsOf(id).size)
         assertEquals(false, assertNotNull(store.teamSprintsOf(id, 1)).sprintsComplete)
         assertTrue(assertNotNull(store.teamSprintsOf(id, 2)).sprintsComplete)
-        assertEquals(FlowMirrorWrite.WRITTEN, store.replace(id, emptyList(), at = 5L))
+        assertEquals(FlowMirrorWrite.WRITTEN, store.write(id, emptyList(), at = 5L))
         assertEquals(0, store.teamsOf(id).size)
     }
 
@@ -338,8 +348,8 @@ class FlowMirrorStoreTest {
         val id = connection()
         val kept = connection()
         val document = listOf(flowTeam(1, sprints = listOf(flowSprint(1)), members = listOf(flowMember("a"), flowMember("b"))))
-        store.replace(id, document, at = 1L)
-        store.replace(kept, document, at = 1L)
+        store.write(id, document, at = 1L)
+        store.write(kept, document, at = 1L)
         val removed = suspendTransaction(sharedDatabaseForTests()) { FlowMirrorStore.deleteForConnectionInTransaction(id) }
         assertEquals(4, removed, "1 team + 1 sprint + 2 members")
         assertEquals(0, count("flow_members", id))

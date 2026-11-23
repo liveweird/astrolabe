@@ -131,6 +131,18 @@ object RoadmapKernels {
     }
 
     /**
+     * The teams whose Flow comparison is PENDING (1.26.0), by project id: the distinct team ids ([pendingTeams]), ascending, of the
+     * project's SCHEDULED milestones (an unscheduled one has no days to compare, as in [capacityFlags]). A project with none is absent.
+     */
+    fun flowPendingTeams(milestones: Collection<PlanMilestoneFact>, pendingTeams: Set<UInt>): Map<UInt, List<UInt>> =
+        if (pendingTeams.isEmpty()) {
+            emptyMap()
+        } else {
+            milestones.filter { it.span != null && it.teamId in pendingTeams }
+                .groupBy({ it.projectId }) { it.teamId }.mapValues { (_, ids) -> ids.distinct().sorted() }
+        }
+
+    /**
      * Every link whose two ends resolve, checked, in the order of [links]. Each end resolves to its project (a milestone's own, a
      * project itself) and span (the milestone's dates, the project's derived span from [spans]); a link with an end whose project is not
      * among [projects] is dropped. A link INSIDE one project is kept (the roll-up [aggregate] skips it; the home figures count it).

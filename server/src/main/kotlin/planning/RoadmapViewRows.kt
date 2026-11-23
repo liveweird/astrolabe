@@ -37,8 +37,8 @@ internal class RoadmapSnapshot(
     /** The external flags of the milestones the source answered for, by milestone id (empty without a source or a binding). */
     val milestoneFlags: Map<UInt, List<PlanFlag>> = emptyMap(),
     /**
-     * Each team's own flags from the same answer ([TeamExternal.flags]: the Flow capacity roll-up, the team view's header flag), by team
-     * id; a team with nothing to say has no entry. Home's managed teams read it instead of asking the source per team (1.23).
+     * Each team's own flags from the same answer ([TeamExternal.flags]: the Flow roll-up or pending marker, the team view's header flag),
+     * by team id; a team with nothing to say has no entry. Home's managed teams read it instead of asking the source per team (1.23).
      */
     val teamFlags: Map<UInt, List<PlanFlag>> = emptyMap(),
 )
@@ -61,8 +61,8 @@ internal class MilestoneFactRow(val fact: PlanMilestoneFact, val teamName: Strin
  * about EVERY project and milestone right after the calendar, in the same snapshot, and its links and flags are folded into the project
  * rows ([withExternal]); the baseline capture and comparison pass none, a baseline freezes spans and ranks, never flags. The request
  * also asks for EVERY team ([ExternalFlagRequest.everyTeam], 1.23, one batched read): the days the teams' open Flow capacity differences
- * cover are folded into the project rows' own flags by [RoadmapKernels.capacityFlags], and the teams' own flags ride in
- * [RoadmapSnapshot.teamFlags].
+ * cover are folded into the project rows' own flags by [RoadmapKernels.capacityFlags], the teams whose Flow comparison is pending into
+ * the rows' `flowPendingTeamIds` ([RoadmapKernels.flowPendingTeams]), and the teams' own flags ride in [RoadmapSnapshot.teamFlags].
  */
 internal suspend fun loadRoadmapSnapshot(
     actor: PlanActor,
@@ -85,6 +85,10 @@ internal suspend fun loadRoadmapSnapshot(
     val spans = RoadmapKernels.projectSpans(facts)
     val inversions = RoadmapKernels.inversionFlags(projectFacts, facts)
     val capacity = RoadmapKernels.capacityFlags(facts, outside.teams.mapValues { it.value.ranges })
+    val pending = RoadmapKernels.flowPendingTeams(
+        facts,
+        outside.teams.filterValues { team -> team.flags.any { it.kind == FlagKind.FLOW_CAPACITY_PENDING } }.keys,
+    )
     val teamIds = facts.groupBy({ it.projectId }) { it.teamId }.mapValues { (_, ids) -> ids.distinct().sorted() }
     val projects = rows.values.map { row ->
         val p = row.project
@@ -96,6 +100,7 @@ internal suspend fun loadRoadmapSnapshot(
             drift = SpanKernels.drift(span, row.target),
             flags = (RoadmapKernels.driftFlags(span, row.target) + inversions[p.id].orEmpty() + capacity[p.id].orEmpty())
                 .sortedWith(FLAG_ORDER),
+            flowPendingTeamIds = pending[p.id].orEmpty(),
             can = RoadmapProjectCan(PlanPermissions.canEditTargetWindow(actor, row.chain)),
         ).withExternal(outside.project(p.id))
     }

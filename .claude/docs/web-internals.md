@@ -61,7 +61,7 @@ The model is `utils/navigation.ts`, shared by the sidebar and the command palett
 - Planning groups plan views and lists. Teams and capacity groups staffing and scheduling. Integrations holds deviations and connection
   settings. Administration holds account controls and appears for administrators.
 - **The icon rail** (Lettuce's): a header `ActionIcon` beside the Burger (`appShell.toggleNav`, `data-expanded` while expanded) narrows the desktop navbar from
-  232 to 64 px. `rail = navCollapsed && !opened`, remembered under `astrolabe.viewSettings.appShell.navCollapsed`.
+  232 to 64 px (the mobile overlay is 248 px wide). `rail = navCollapsed && !opened`, remembered under `astrolabe.viewSettings.appShell.navCollapsed`.
   In rail mode each leaf is an icon-only `NavLink` (`classes.railLink`) whose `aria-label` IS the label, inside a right-hand `Tooltip`; section captions
   become hairline `Divider`s. The mobile overlay always shows full labels.
 
@@ -293,6 +293,7 @@ The template and its rules (the chrome, the colour vocabulary, delete, the entit
 list-page building blocks". The pieces behind them were copied from Lettuce (`pages/Users.tsx` is the reference page).
 
 - `SortHeader` renders its own `Table.Th` so the sort state lands as `aria-sort` on the header cell; wrapping it in another `Th` would lose that.
+- **Every paged list page calls `useClampPage`** (`hooks/usePagedSort.ts`) beside `usePagedSort`: when a SETTLED answer's `total` falls below the current page (a delete emptied the last page, a filter narrowed it elsewhere) it returns to the last real page; a failed or placeholder (`keepPreviousData`) answer never moves the user.
 - `FilterPanel` is collapsed by default, remembers open or closed per view, and badges the number of active filters; `ClearableTextInput` debounces.
 - **A filter select is complete, or says what it lacks.** The team options are ALL teams: `api/teams.ts` `listEveryTeam` reads pages of 100 by name until
   they reach `total` or a page is empty, at most 20 pages, and `hooks/useTeamOptions.ts` answers `{ teams, settled }` under the one key
@@ -583,7 +584,8 @@ builder (`roadmapFilteredPath`, `unscheduledMilestonesPath`, `teamLoadWarningPat
     default lists. A heavily bound or acknowledged plan costs more (the Jira computation is about 50 ms for 1,100 bindings, `timeline.md` "Measured figures").
 - Per source, ONE line (label "Open differences from Jira:" / "Open capacity differences from Flow:" and the orange warnings / gray infos badges of the Deviations page; a zero badge is
   omitted), shown only for a source whose view lists a connection AND whose count is positive. **No claim at zero** (no "nothing open", `web/CLAUDE.md` "Deviations wording"): zero, no
-  connection and loading all show nothing.
+  connection and loading all show nothing. The one exception is neutral and separate (1.26.0): `flowPending` (the Flow view's `totals.pending`, which counts under `acknowledged=true` too) shows one
+  dimmed line "N teams waiting for a complete Flow refresh" (`deviations.flowSection.totals.pending`, plural keys) under the Flow line, with or without any difference.
 - A failed read is the inline `ErrorAlert` (title `home.deviations.loadFailed`) inside the Deviations card; the other source's line still shows and the links never depend on either read.
 - `useOpenDeviationCounts` also answers `jiraStale` (`hasStaleSource` of the Jira document's connections: the Deviations banner's fold, an ENABLED connection only) and `flowStale`
   (`hasStaleFlowSource`). A source's sentence (`JiraStaleNote`, "Jira data may be out of date"; Flow's own `home.deviations.flowStale`) sits under its line and only while the line
@@ -918,6 +920,8 @@ under the title ("N ranked", "M unranked", an ORANGE "K warnings" badge, a gray 
 - A `SegmentedControl` above the open table (a labelled radiogroup: All / Warnings / Infos, each label with its count, default All) filters the LIST by severity: panel-local state,
   never stored or in the URL. The row icons and the disclosure's count stay total, and an empty slice says "No warnings/infos among the flags shown." instead of an empty table (the
   Programs page has no flag panel).
+- **The pending marker (1.26.0):** `FLOW_CAPACITY_PENDING` (a team flag, `roadmap.flag.flowCapacityPending`) is drawn neutral by `TeamFlags` (gray, hourglass, no `data-severity`); a project row's `flowPendingTeamIds` makes `FlagCountsCell` (`PlanProjectCells.tsx`, `flowPending`) add a gray hourglass (`data-flow-pending`) and the same words to its hidden sentence, never a count; the sentence names the pending teams (`utils/roadmapRows.ts` `pendingTeamNames` over the view's `teams`, `roadmap.flag.flowCapacityPendingTeams`) and falls back to the unnamed words for a team the view does not list.
+  The team page's Capacity vs Flow row (`CapacityFact`) reads "Waiting for a complete Flow refresh" for an item with `sprintsComplete` false (never "In line"), and the Capacity from Flow section lists such a team with that note, a hint and a neutral `totals.pending` badge.
 - **The Flow capacity flag:** `flagSentence` phrases `FLOW_CAPACITY_MILESTONES` through `names.team` ("{{count}} milestones on {{team}} are scheduled in sprints whose capacity differs
   from Flow"; the plural forms of both languages are in `flagSentences.test.ts`).
   - The panel puts an icon-only link beside it (`TeamLink`: `IconUsersGroup`, a visually hidden name `teams.openAria` "Open team {{name}}", to `teamPath(teamId)`, where the sprints

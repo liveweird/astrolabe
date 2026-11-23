@@ -17,7 +17,7 @@ import { listUsers, updateUserFeatures } from "../api/users";
 import { useAdmin } from "../auth";
 import { useFeatureFlagBulk } from "../hooks/useFeatureFlagBulk";
 import { FEATURE_FLAGS_KEY, useFeatureFlagFilters } from "../hooks/useFeatureFlagFilters";
-import { usePagedSort } from "../hooks/usePagedSort";
+import { useClampPage, usePagedSort } from "../hooks/usePagedSort";
 import { isFeatureEnabled, withFeatureEnabled, type UserRow } from "../utils/featureFlags";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
@@ -59,12 +59,13 @@ export default function FeatureFlags() {
       featureEnabled: filters.state == null ? undefined : filters.state === "enabled",
     });
 
-  const { data, isLoading, isError, error: loadError } = useQuery({
+  const { data, isLoading, isError, error: loadError, isPlaceholderData } = useQuery({
     queryKey: ["users", FEATURE_FLAGS_KEY, page, pageSize, sortParam, ...filters.deps],
     queryFn: () => listQuery(page, pageSize),
     placeholderData: keepPreviousData,
     enabled: admin,
   });
+  useClampPage(page, pageSize, setPage, data, isPlaceholderData);
 
   const bulkState = useFeatureFlagBulk({
     feature,

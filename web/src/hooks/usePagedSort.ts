@@ -89,3 +89,24 @@ export function usePagedSort<F extends string>(
     toggleSort,
   };
 }
+
+/**
+ * Returns to the last real page when a SETTLED answer shrinks below the current page (a delete emptied it, a
+ * filter narrowed the list elsewhere). Settled = `data` is present and is not a `keepPreviousData` placeholder:
+ * a failed or still-loading request has no total to clamp to, and must not move the user off the page whose
+ * error they are looking at.
+ */
+export function useClampPage(
+  page: number,
+  pageSize: number,
+  setPage: (page: number) => void,
+  data: { total: number } | undefined,
+  isPlaceholderData: boolean,
+) {
+  const settledTotal = data !== undefined && !isPlaceholderData ? data.total : undefined;
+  useEffect(() => {
+    if (settledTotal === undefined) return;
+    const lastPage = Math.max(1, Math.ceil(settledTotal / pageSize));
+    if (page > lastPage) setPage(lastPage);
+  }, [page, pageSize, setPage, settledTotal]);
+}

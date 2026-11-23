@@ -370,7 +370,10 @@ class CrossTeamProposalTest {
             val ids = admin.items.map { it.id }
             assertTrue(listOf(t.teamId, t.otherTeamId, both.first, both.second).all { it in ids }, "every active team")
             assertTrue(deleted !in ids, "a deleted team is not offered")
-            assertEquals(admin.items.sortedWith(compareBy({ it.name.lowercase() }, { it.id })), admin.items, "by name, then id")
+            // Other classes' accented names sit in the shared container and the server folds them ("Ż" as "z"): compare our own teams.
+            val own = setOf(t.teamId, t.otherTeamId, both.first, both.second)
+            val ownListed = admin.items.filter { it.id in own }
+            assertEquals(ownListed.sortedWith(compareBy({ it.name.lowercase() }, { it.id })), ownListed, "by name, then id")
             assertEquals(ids.size, ids.toSet().size)
 
             val managed = t.manager.client.get(listed).body<ProposalTeamList>()

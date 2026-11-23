@@ -25,7 +25,8 @@ function isGone(rows: readonly CapacityDeviation[]): boolean {
 
 /**
  * The facts table's **Capacity vs Flow** row: an orange badge while the plan has more than Flow for some OPEN sprint, gray when it only has less, a
- * gray one for open sprints without capacity, green text when nothing differs. Acknowledged sprints do not count as open: a dimmed "· N acknowledged"
+ * gray one for open sprints without capacity, green text when nothing differs, and (1.26.0) a dimmed "Waiting for a complete Flow refresh" when the
+ * team's sprint snapshot is incomplete (the item's `sprintsComplete` false: no row, never "in line"). Acknowledged sprints do not count as open: a dimmed "· N acknowledged"
  * follows the badges, and with only acknowledged rows left the row reads "No open difference · N acknowledged" - never "In line with Flow", for the
  * figures still differ.
  */
@@ -38,6 +39,16 @@ export function CapacityFact({ comparison }: { comparison: CapacityComparison })
       <Fact label={t("flow.panel.fact.capacity")}>
         <Text size="sm" c="dimmed">
           {t("flow.panel.capacity.loading")}
+        </Text>
+      </Fact>
+    );
+  }
+  if (comparison.item?.sprintsComplete === false) {
+    // The team's stored Flow sprint snapshot is incomplete: it lists no row, which is NOT agreement - the comparison waits for a complete refresh.
+    return (
+      <Fact label={t("flow.panel.fact.capacity")}>
+        <Text size="sm" c="dimmed" data-flow-pending="true">
+          {t("flow.panel.capacity.pending")}
         </Text>
       </Fact>
     );

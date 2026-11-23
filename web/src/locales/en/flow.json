@@ -141,6 +141,7 @@
       "missing_one": "No capacity in the plan for {{count}} sprint",
       "missing_other": "No capacity in the plan for {{count}} sprints",
       "loading": "Comparing with Flow…",
+      "pending": "Waiting for a complete Flow refresh",
       "loadFailed": "Could not compare the capacity with Flow",
       "listAria": "Capacity differences from Flow",
       "fix": "Import capacity… shows what an import would change. Hand-entered periods are left as they are, and a sprint where Flow has 0 must be ticked by hand.",

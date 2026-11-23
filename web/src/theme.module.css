@@ -73,9 +73,16 @@ table.table {
   color: inherit;
 }
 
+/* The active tint, per scheme (both Mantine tokens are OPAQUE, never rgba). Light: the 1-shade softened to 55% over the navbar (#dffafc on white,
+   1.09:1 against it, label ink 7.0:1). Dark: the `-light-hover` token (the 9-shade darkened 30%, #06404b on dark-7 #242424: 1.36:1, ink 10.5:1) —
+   the 55% mix of the plain `-light` token (the 9-shade darkened 50%) came to #132a2e, 1.03:1, i.e. no visible tint at all. The inset bar is the
+   marker either way. */
 .navLink[data-active] {
   font-weight: 600;
-  background-color: color-mix(in srgb, var(--mantine-color-astrolabe-light) 55%, var(--mantine-color-body));
+  background-color: light-dark(
+    color-mix(in srgb, var(--mantine-color-astrolabe-light) 55%, var(--mantine-color-body)),
+    var(--mantine-color-astrolabe-light-hover)
+  );
   color: var(--mantine-color-astrolabe-light-color);
   box-shadow: inset 3px 0 0 var(--astrolabe-accent-ink);
 }

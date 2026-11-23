@@ -203,7 +203,7 @@ private fun Application.wireFlow(
     attributes.put(CapacityImportServiceKey, CapacityImportService(database, flowBindings, flowMirror, teamCapacity))
     val capacityDeviations = CapacityDeviationService(database, flowBindings, flowMirror, teamCapacity, syncRuns)
     attributes.put(CapacityDeviationServiceKey, capacityDeviations)
-    attributes.put(CapacityAcknowledgeServiceKey, CapacityAcknowledgeService(database, capacityDeviations, flowBindings, flowMirror))
+    attributes.put(CapacityAcknowledgeServiceKey, CapacityAcknowledgeService(database, capacityDeviations, flowBindings))
     return capacityDeviations
 }
 

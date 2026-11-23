@@ -38,6 +38,16 @@ data class CapacityDeviationFilter(
 ) {
     val includeAll: Boolean get() = all ?: (teamId != null)
 
+    /**
+     * Whether a team whose sprint snapshot is incomplete is COUNTED as pending (no rows): it has no row to match a [severity] or a [kind],
+     * so those filters leave it out. The acknowledgement state does not matter here (the totals ignore it, so a Home card reading
+     * `acknowledged=true` still sees the teams waiting for a complete refresh).
+     */
+    val countsPending: Boolean get() = severity == null && kind == null
+
+    /** Whether such a team is LISTED: also not under `acknowledged=true` (it has no acknowledged row); the open/all states list it. */
+    val listsPending: Boolean get() = countsPending && acknowledged != true
+
     /** Whether a row is listed (it already matches every other filter). */
     fun lists(row: CapacityDeviation): Boolean = when (acknowledged) {
         true -> !row.isOpen
@@ -54,8 +64,11 @@ class CapacityDeviationActor(val admin: Boolean, val managedTeamIds: Set<UInt>) 
     fun mayAcknowledge(teamId: UInt): Boolean = admin || teamId in managedTeamIds
 }
 
-/** One team's rows with their acknowledgement state, and whether its connection is enabled (the team view's flag source reads both). */
-internal class TeamCapacityFacts(val enabled: Boolean, val deviations: List<CapacityDeviation>)
+/**
+ * One team's rows with their acknowledgement state, whether its connection is enabled and whether its sprint snapshot is complete (the
+ * team view's flag source reads all three; an incomplete one has no rows and is PENDING, never "in line").
+ */
+internal class TeamCapacityFacts(val enabled: Boolean, val deviations: List<CapacityDeviation>, val sprintsComplete: Boolean)
 
 /** One binding's computed rows plus the exact mirror snapshot they were derived from, so acknowledgement pruning never re-reads it. */
 internal class BindingCapacityFacts(
@@ -73,7 +86,8 @@ internal class BindingCapacityFacts(
  *
  * A binding whose connection has never mirrored a document (`teamsAt` null) is not a deviation (nothing to compare); one whose
  * connection has and whose Flow team is absent from the mirror is `TEAM_GONE` (the panel's rule, [FlowTeamService.panel]). A present
- * team with incomplete sprint coverage contributes no rows: even a carried sprint's claim can depend on an omitted earlier sprint. A
+ * team with incomplete sprint coverage contributes no rows (even a carried sprint's claim can depend on an omitted earlier sprint) but
+ * is still LISTED, with `sprintsComplete` false: pending a complete Flow refresh, never "in line". A
  * DISABLED, FAILED or STALE connection's teams are computed from its latest mirror when sprint coverage is complete; the connection's
  * status qualifies them. Nothing is stored, locked, audited or sent to Flow, and there is no `revision`: capacity periods are team data
  * and no plan revision moves with
@@ -107,9 +121,9 @@ class CapacityDeviationService(
             val states = withAcknowledgements(computed.associate { it.bindingId to it.deviations })
             // Every filter but the acknowledgement state: what the totals count over, so "N open" survives `acknowledged=true`.
             val inScope = computed.map { it.copy(deviations = states.getValue(it.bindingId)).narrowedTo(filter) }
-                .filter { it.deviations.isNotEmpty() }
+                .filter { it.deviations.isNotEmpty() || (!it.sprintsComplete && filter.listsPending) }
             val items = inScope.map { it.copy(deviations = it.deviations.filter(filter::lists)) }
-                .filter { it.deviations.isNotEmpty() }.sortedWith(ITEM_ORDER)
+                .filter { it.deviations.isNotEmpty() || !it.sprintsComplete }.sortedWith(ITEM_ORDER)
             val open = inScope.flatMap { it.deviations }.filter { it.isOpen }
             CapacityDeviationView(
                 asOf = Instant.ofEpochMilli(at).atOffset(ZoneOffset.UTC).toLocalDate().toString(),
@@ -119,7 +133,9 @@ class CapacityDeviationService(
                     infos = open.count { it.severity == DeviationSeverity.INFO },
                     gone = open.count { it.kind == CapacityDeviationKind.TEAM_GONE },
                     acknowledged = inScope.sumOf { item -> item.deviations.count { !it.isOpen } },
-                    teams = items.size,
+                    teams = items.count { it.sprintsComplete },
+                    // Like the other totals, ignores the acknowledgement state: `acknowledged=true` lists no pending team but counts them.
+                    pending = if (filter.countsPending) computed.count { !it.sprintsComplete } else 0,
                 ),
                 items = items.take(maxItems),
                 truncated = items.size > maxItems,
@@ -140,7 +156,7 @@ class CapacityDeviationService(
         val periods = capacity.importRowsOfTeams(listOf(teamId))[teamId].orEmpty()
         val computed = computeOf(binding, connection[registry.timeZone], connection[registry.teamsAt], periods, calendar, at) ?: return null
         val rows = withAcknowledgements(mapOf(binding.id to computed.deviations)).getValue(binding.id)
-        return TeamCapacityFacts(connection[registry.enabled], rows)
+        return TeamCapacityFacts(connection[registry.enabled], rows, computed.sprintsComplete)
     }
 
     /**
@@ -167,7 +183,9 @@ class CapacityDeviationService(
                 ?.let { binding to it }
         }
         val rows = withAcknowledgements(computed.associate { (binding, c) -> binding.id to c.deviations }, withNames = false)
-        return computed.associate { (binding, _) -> binding.teamId to TeamCapacityFacts(true, rows.getValue(binding.id)) }
+        return computed.associate { (binding, c) ->
+            binding.teamId to TeamCapacityFacts(true, rows.getValue(binding.id), c.sprintsComplete)
+        }
     }
 
     /**
@@ -191,7 +209,10 @@ class CapacityDeviationService(
         }
     }
 
-    /** The team's item, or null when there is nothing to compare (the connection never mirrored a document) or nothing deviates. */
+    /**
+     * The team's item, or null when there is nothing to compare (the connection never mirrored a document) or nothing deviates. A team
+     * whose sprint snapshot is incomplete is NOT "nothing deviates": it is kept, with no rows and `sprintsComplete` false (pending).
+     */
     private suspend fun itemOf(
         row: FlowTeamBindingWithTeam,
         connection: ConnectionFacts,
@@ -202,7 +223,7 @@ class CapacityDeviationService(
     ): CapacityDeviationItem? {
         val binding = row.binding
         val computed = computeOf(binding, connection.timeZone, connection.wire.teamsAt, periods, calendar, at) ?: return null
-        if (computed.deviations.isEmpty()) return null
+        if (computed.deviations.isEmpty() && computed.sprintsComplete) return null
         return CapacityDeviationItem(
             bindingId = binding.id,
             connectionId = binding.connectionId,
@@ -211,6 +232,7 @@ class CapacityDeviationService(
             observedAt = computed.observedAt,
             zone = connection.timeZone,
             can = CapacityDeviationCan(acknowledge = actor?.mayAcknowledge(binding.teamId) == true),
+            sprintsComplete = computed.sprintsComplete,
             deviations = computed.deviations,
         )
     }
@@ -282,7 +304,7 @@ class CapacityDeviationService(
             )
             CapacityDeviationKernels.deviations(plan, periods, calendar, gone = false)
         }
-        return Computed(deviations, team?.observedAt)
+        return Computed(deviations, team?.observedAt, team?.sprintsComplete != false)
     }
 
     /** The ACTIVE connections (or the one asked for) by name then id with their derived status; only the columns the status needs. */
@@ -313,8 +335,11 @@ class CapacityDeviationService(
         )
 }
 
-/** A binding's rows with the instant its Flow team was last seen in the mirror (null = gone). */
-private class Computed(val deviations: List<CapacityDeviation>, val observedAt: Long?)
+/**
+ * A binding's rows with the instant its Flow team was last seen in the mirror (null = gone) and whether its sprint snapshot is complete
+ * (false = pending: no row can be judged; a gone team is complete).
+ */
+private class Computed(val deviations: List<CapacityDeviation>, val observedAt: Long?, val sprintsComplete: Boolean)
 
 /** What a connection row adds to the wire shape: its IANA zone id (the sprint dates' zone), which the wire connection never carries. */
 private class ConnectionFacts(val wire: CapacityDeviationConnection, val timeZone: String)

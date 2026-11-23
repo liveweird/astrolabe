@@ -12,6 +12,8 @@ export type OpenCounts = { warnings: number; infos: number };
  * Their `totals` count the open rows by contract (every filter but the acknowledgement state), while the body then carries only the acknowledged
  * items - a few KB instead of the default list's hundreds. The keys sit under the `["jira"]` and `["flow"]` prefixes the refresh helpers
  * invalidate. `null` for a source = no connection to count (the view lists none): Home says nothing for it. `error` is the first failed read.
+ * `flowPending` (1.26.0) is the view's `totals.pending` (which ignores the acknowledgement state too): the teams whose Flow comparison waits for a
+ * complete refresh, 0 without a Flow connection - a neutral line, never a count of differences.
  * `jiraStale` / `flowStale` (1.18) say the source "may be out of date" by the Deviations page's own folds over the connections the two documents already
  * carry (an ENABLED connection that is stale; `hasStaleSource` / `hasStaleFlowSource`), so Home never disagrees with the page its line links to.
  */
@@ -21,6 +23,7 @@ export function useOpenDeviationCounts() {
   return {
     jira: jira.data && jira.data.connections.length > 0 ? { warnings: jira.data.totals.warnings, infos: jira.data.totals.infos } : null,
     flow: flow.data && flow.data.connections.length > 0 ? { warnings: flow.data.totals.warnings, infos: flow.data.totals.infos } : null,
+    flowPending: flow.data && flow.data.connections.length > 0 ? flow.data.totals.pending : 0,
     jiraStale: jira.data ? hasStaleSource(jira.data.connections) : false,
     flowStale: flow.data ? hasStaleFlowSource(flow.data.connections) : false,
     ready: jira.isSuccess && flow.isSuccess,

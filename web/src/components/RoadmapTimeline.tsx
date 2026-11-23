@@ -8,7 +8,7 @@ import { removedProjectRows } from "../utils/baselineOverlay";
 import type { JiraWindow } from "../utils/jiraBars";
 import { projectTrack, planArrows } from "../utils/planTrack";
 import { criticalIndex } from "../utils/roadmapCritical";
-import { conflictsByProject, countFlags, displayRows, DIVIDER_ID, type DisplayRow, type VisibleProjects } from "../utils/roadmapRows";
+import { conflictsByProject, countFlags, displayRows, DIVIDER_ID, pendingTeamNames, type DisplayRow, type VisibleProjects } from "../utils/roadmapRows";
 import type { RovingTarget, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
 import { PLAN_ZOOMS, type TimelineScale, type Zoom } from "../utils/timelineScale";
 import { BaselineRowName } from "./BaselineParts";
@@ -174,6 +174,7 @@ export default function RoadmapTimeline({
   const { t } = useTranslation();
   const { holidays, failed: holidaysFailed } = useHolidays();
   const canRank = view.can.editRank;
+  const teamNames = new Map(view.teams.map((team) => [team.id, team.name]));
   const columns: TimelineColumn[] = [
     { id: "rank", header: t("roadmap.column.rank"), width: view.baseline === undefined ? COLUMN_WIDTHS.rank : COLUMN_WIDTHS.rankWithBaseline },
     { id: "project", header: t("roadmap.column.project"), width: COLUMN_WIDTHS.project },
@@ -207,7 +208,7 @@ export default function RoadmapTimeline({
       cells: [
         <RankCell key="rank" project={project} position={position} />,
         (stop: RovingTarget) => <ProjectCell project={project} placement={canRank ? { index, count: display.length } : null} stop={stop} />,
-        <FlagCountsCell key="flags" counts={countFlags(project.flags)} />,
+        <FlagCountsCell key="flags" counts={countFlags(project.flags)} flowPending={(project.flowPendingTeamIds?.length ?? 0) > 0} pendingTeams={pendingTeamNames(project, teamNames)} />,
         (stop: RovingTarget) => <ProjectMenu project={project} rankedIndex={rankedIndex} rankedCount={rankedCount} canRank={canRank} actions={actions} trigger={stop} />,
       ],
       ...projectTrack(project, t, conflicts, jira, chain.projects.has(project.id)),

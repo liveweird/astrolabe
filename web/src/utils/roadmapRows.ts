@@ -129,6 +129,11 @@ export function displayRows(visible: VisibleProjects): DisplayRow[] {
 
 export type FlagCounts = { warnings: number; infos: number };
 
+/** The names of a project row's Flow-pending teams (`flowPendingTeamIds`) among the view's `teams`; a team the view does not list is left out. */
+export function pendingTeamNames(project: Pick<RoadmapProject, "flowPendingTeamIds">, teams: ReadonlyMap<number, string>): string[] {
+  return (project.flowPendingTeamIds ?? []).flatMap((id) => teams.get(id) ?? []);
+}
+
 export function countFlags(flags: readonly PlanFlag[]): FlagCounts {
   const warnings = flags.filter((flag) => flag.severity === "WARNING").length;
   return { warnings, infos: flags.length - warnings };

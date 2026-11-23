@@ -86,9 +86,11 @@ data class CapacityDeviationFlowTeam(val id: Int, val name: String)
 data class CapacityDeviationCan(val acknowledge: Boolean)
 
 /**
- * One bound team with its deviations ([deviations] is never empty in a listed item; the filters narrow it). [observedAt] is when the mirror
- * last saw the Flow team (null when it is gone), [zone] the connection's IANA id the sprint dates are in, [can] the caller's right to
- * acknowledge and withdraw the team's rows.
+ * One bound team with its deviations ([deviations] is never empty in a listed item unless [sprintsComplete] is false; the filters narrow
+ * it). [sprintsComplete] false = the team's stored sprint snapshot is incomplete (a truncated or pre-V31 refresh), so no comparison can
+ * be made yet: the team is listed as PENDING with no rows, never as "in line" (`GET /views/capacity-deviations`, no default on purpose).
+ * [observedAt] is when the mirror last saw the Flow team (null when it is gone), [zone] the connection's IANA id the sprint dates are in,
+ * [can] the caller's right to acknowledge and withdraw the team's rows.
  */
 @Serializable
 data class CapacityDeviationItem(
@@ -99,6 +101,7 @@ data class CapacityDeviationItem(
     val observedAt: Long?,
     val zone: String,
     val can: CapacityDeviationCan,
+    val sprintsComplete: Boolean,
     val deviations: List<CapacityDeviation>,
 )
 
@@ -106,9 +109,19 @@ data class CapacityDeviationItem(
  * Before the cap, on the Jira view's basis: [warnings], [infos] and [gone] count the OPEN rows (not currently acknowledged), and
  * [acknowledged] the rows whose acknowledgement is CURRENT, over every row matching the filters but the acknowledgement state (so "N open"
  * survives `acknowledged=true`). [teams] is the exception: the teams with a row the list answers (it can exceed the items listed).
+ * [pending] counts the teams (matching the connection and team filters, and neither a severity nor a kind, whatever the acknowledgement
+ * state) whose sprint snapshot is incomplete ([CapacityDeviationItem.sprintsComplete] false): no row, awaiting a complete Flow refresh;
+ * they are in none of the other figures.
  */
 @Serializable
-data class CapacityDeviationTotals(val warnings: Int, val infos: Int, val gone: Int, val acknowledged: Int, val teams: Int)
+data class CapacityDeviationTotals(
+    val warnings: Int,
+    val infos: Int,
+    val gone: Int,
+    val acknowledged: Int,
+    val teams: Int,
+    val pending: Int,
+)
 
 /**
  * `GET /api/v1/views/capacity-deviations`: [asOf] is the UTC date of the read; [connections] every ACTIVE Flow connection (at most

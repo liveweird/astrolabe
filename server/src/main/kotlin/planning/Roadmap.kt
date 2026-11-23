@@ -73,6 +73,12 @@ data class RoadmapProject(
     val flags: List<PlanFlag>,
     val can: RoadmapProjectCan,
     val jira: JiraLink? = null,
+    /**
+     * The teams (ids ascending) with a SCHEDULED milestone of this project whose Flow capacity comparison is PENDING (the team's stored
+     * sprint snapshot is incomplete, so no capacity flag can be judged): a neutral marker, never a warning. ABSENT when there is none.
+     */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val flowPendingTeamIds: List<UInt> = emptyList(),
     /** Present only for `?baseline=N` and a project the baseline also froze (absent = the project is newer than the baseline). */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val baseline: RoadmapProjectBaseline? = null,
@@ -89,11 +95,14 @@ data class RoadmapProjectCan(val editTargetWindow: Boolean)
  * [FLOW_CAPACITY] (1.9) is the team view's roll-up of its open Flow capacity deviations: `count` = the open rows, the worst severity.
  * [FLOW_CAPACITY_MILESTONES] (1.23) is a PROJECT's flag, one per team: `teamId`, and `count` = the project's scheduled milestones on that
  * team that lie in days an open capacity difference of the team covers; the severity is the worst among the differences they meet.
+ * [FLOW_CAPACITY_PENDING] (1.26.0) is a TEAM flag only (never on a project row, never counted as a warning or an info; its severity is
+ * INFO by necessity): the team's Flow comparison waits for a complete refresh, so [FLOW_CAPACITY] cannot be judged. It excludes
+ * [FLOW_CAPACITY] (an incomplete snapshot has no rows); a project's own marker is [RoadmapProject.flowPendingTeamIds].
  */
 @Serializable
 enum class FlagKind {
     DRIFT_END_LATE, DRIFT_START_LATE, DRIFT_END_EARLY, RANK_INVERSION, NO_WORKING_DAY, JIRA_DEVIATION, JIRA_MILESTONES, FLOW_CAPACITY,
-    FLOW_CAPACITY_MILESTONES,
+    FLOW_CAPACITY_MILESTONES, FLOW_CAPACITY_PENDING,
 }
 
 /** WARNING sorts before INFO. */

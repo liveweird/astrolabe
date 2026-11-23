@@ -187,8 +187,19 @@ describe("CapacityDeviationsSection", () => {
       expect(within(table).queryByText("Acme Flow")).not.toBeInTheDocument();
     });
 
+    test("a team with an incomplete Flow snapshot is listed with a short note, a neutral count, and no sentence of agreement (1.26.0)", async () => {
+      doc = capacityView({ items: [capacityItem({ sprintsComplete: false, deviations: [] })] });
+      renderSection();
+      const table = await screen.findByRole("table", { name: "Capacity differences between the plan and Flow" });
+      expect(within(table).getByText("Waiting for a complete Flow refresh")).toBeInTheDocument();
+      expect(within(table).getByText(/Astrolabe compares this team after its connection completes a full Flow refresh/)).toBeInTheDocument();
+      expect(screen.getByText("1 team waiting for a complete Flow refresh")).toBeInTheDocument();
+      expect(screen.getByText("1 team shown")).toBeInTheDocument();
+      expect(screen.queryByText(/In line with Flow/)).not.toBeInTheDocument();
+    });
+
     test("a list cut by the server says how many teams matched", async () => {
-      doc = capacityView({ truncated: true, totals: { warnings: 1200, infos: 0, gone: 0, acknowledged: 0, teams: 1200 } });
+      doc = capacityView({ truncated: true, totals: { warnings: 1200, infos: 0, gone: 0, acknowledged: 0, teams: 1200, pending: 0 } });
       renderSection();
       expect(await screen.findByText("1 of 1200 teams shown")).toBeInTheDocument();
     });

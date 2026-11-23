@@ -8,7 +8,7 @@ data class HomeStreamFact(val id: UInt, val name: String, val ownerPersonId: UIn
 /** An ACTIVE program as Home sees it; [ownerName] is its owner's (read with no `active()` filter: the `ownerNames` reasoning). */
 data class HomeProgramFact(val id: UInt, val workStreamId: UInt, val name: String, val ownerPersonId: UInt, val ownerName: String)
 
-/** An ACTIVE team the caller manages, with the team view's `team.flags` (the Flow capacity roll-up; empty without a Flow source). */
+/** An ACTIVE team the caller manages, with the team view's `team.flags` (the Flow roll-up or pending marker; empty without a source). */
 data class HomeTeamFact(val id: UInt, val name: String, val flags: List<PlanFlag>)
 
 /**

@@ -9,6 +9,7 @@ import { getPlanView, LEVELS, planViewKey } from "../api/plan";
 import { listJiraBindings, type JiraBinding, type JiraConnection, type JiraLevel } from "../api/jira";
 import { useJiraUnlink } from "../hooks/useJiraUnlink";
 import { useDialogFocus } from "../hooks/useDialogFocus";
+import { useClampPage } from "../hooks/usePagedSort";
 import { useRegistryListControls } from "../hooks/useRegistryListControls";
 import { goneBadge } from "../utils/deviations";
 import { formatDateTime } from "../utils/formatDate";
@@ -94,11 +95,12 @@ export default function JiraBindingsSection({ connection }: { connection: JiraCo
   const { page, setPage, pageSize, setPageSize, sortField, sortDir, sortParam, toggleSort } = controls;
   const q = controls.debouncedName.trim();
 
-  const { data, isLoading, isError, error } = useQuery({
+  const { data, isLoading, isError, error, isPlaceholderData } = useQuery({
     queryKey: ["jira", "bindings", connection.id, page, pageSize, sortParam, level, q],
     queryFn: () => listJiraBindings({ page, pageSize, connectionId: connection.id, level: level ?? undefined, q: q === "" ? undefined : q, sort: sortParam }),
     placeholderData: keepPreviousData,
   });
+  useClampPage(page, pageSize, setPage, data, isPlaceholderData);
 
   const [binding, setBinding] = useState(false);
   const [importing, setImporting] = useState(false);

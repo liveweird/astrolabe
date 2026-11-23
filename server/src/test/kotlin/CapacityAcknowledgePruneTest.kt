@@ -291,6 +291,23 @@ class CapacityAcknowledgePruneTest {
     }
 
     @Test
+    fun `a team retained by a team-capped refresh keeps its sprint acknowledgements while its stored snapshot is incomplete`() =
+        testApplication {
+            val world = dayTwo("capackp17")
+            with(world) {
+                acknowledgeBoth()
+                refreshOnly(1, 2, truncated = true) // the team is carried, stored INCOMPLETE; no sprint key is judged
+                assertEquals(2, capAckStored(bindingId))
+                // A document cut at the TEAM cap (not the sprint cap) that omits the team: it is retained with its previous incomplete
+                // flag, so the run may judge sprint keys (the document is not sprint-capped) but the stored snapshot forbids it.
+                mirror.refreshTruncated(flowTeamDoc(2, "Billing"))
+                assertEquals(2, capAckStored(bindingId), "the retained team's unlisted rows are not pruned from an incomplete snapshot")
+                assertNotNull(capAckRow(bindingId, 2))
+                assertNotNull(capAckRow(bindingId, 3))
+            }
+        }
+
+    @Test
     fun `the team's own row is audited as none, ascending with the sprints`() = testApplication {
         val world = dayTwo("capackp10")
         with(world) {

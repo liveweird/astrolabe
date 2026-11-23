@@ -202,7 +202,7 @@ class SyncSchedulerTest {
         val mirror = FlowMirrorStore(database)
         val flowBindings = FlowTeamBindingService(database)
         val acknowledgements = CapacityAcknowledgeService(
-            database, CapacityDeviationService(database, flowBindings, mirror, capacityService(database), runs), flowBindings, mirror,
+            database, CapacityDeviationService(database, flowBindings, mirror, capacityService(database), runs), flowBindings,
         )
         val observer = FlowObserver(
             FlowConnector({ _, _ -> client }, sprintsSinceDays = 365), connections, mirror, flowBindings, acknowledgements,

@@ -16,17 +16,23 @@ class RunnableTeamsTest {
         val third = TestTeams.seed("ż$marker-c")
         val first = TestTeams.seed("ż$marker-a")
         val ineligible = TestTeams.seed("A$marker-0")
-        val actor = PlanActor(
-            isAdmin = false,
-            personId = null,
-            roadmapEditor = false,
-            managedTeamIds = setOf(first, second, third),
-        )
+        val seeded = listOf(first, second, third, ineligible)
+        try {
+            val actor = PlanActor(
+                isAdmin = false,
+                personId = null,
+                roadmapEditor = false,
+                managedTeamIds = setOf(first, second, third),
+            )
 
-        val result = CrossTeamProposalService(sharedDatabaseForTests()).runnableTeams(actor, limit = 2)
+            val result = CrossTeamProposalService(sharedDatabaseForTests()).runnableTeams(actor, limit = 2)
 
-        assertEquals(listOf(first, second), result.items.map { it.id })
-        assertTrue(result.truncated)
-        assertTrue(ineligible !in result.items.map { it.id })
+            assertEquals(listOf(first, second), result.items.map { it.id })
+            assertTrue(result.truncated)
+            assertTrue(ineligible !in result.items.map { it.id })
+        } finally {
+            // The shared container outlives the class: the accented rows would otherwise skew every later alphabetical assertion.
+            seeded.forEach { jbSql("DELETE FROM teams WHERE id = ?", it.toInt()) }
+        }
     }
 }

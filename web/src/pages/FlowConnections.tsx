@@ -21,7 +21,7 @@ import { useBoundedPoll } from "../hooks/useBoundedPoll";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useNow } from "../hooks/useNow";
-import { usePagedSort } from "../hooks/usePagedSort";
+import { useClampPage, usePagedSort } from "../hooks/usePagedSort";
 import { flowReady, untestedKey } from "../utils/flowForm";
 import { flowBaseHref, flowConnectionPath } from "../utils/flowLinks";
 import { refreshFlowConnections } from "../utils/flowRefresh";
@@ -61,7 +61,7 @@ export default function FlowConnections() {
   });
 
   const poll = useBoundedPoll();
-  const { data, isLoading, isError, error, dataUpdatedAt } = useQuery({
+  const { data, isLoading, isError, error, dataUpdatedAt, isPlaceholderData } = useQuery({
     queryKey: ["flow", "list", page, pageSize, sortParam],
     queryFn: () => listFlowConnections({ page, pageSize, sort: sortParam }),
     placeholderData: keepPreviousData,
@@ -69,6 +69,7 @@ export default function FlowConnections() {
     // While any listed connection's newest run is running (the server's verdict), the list is re-read so its badge moves by itself.
     refetchInterval: (query) => listRefetchInterval(poll, query.state.data?.items),
   });
+  useClampPage(page, pageSize, setPage, data, isPlaceholderData);
   const now = useNow(60_000, dataUpdatedAt);
 
   const [editorTarget, setEditorTarget] = useState<FlowConnection | "new" | null>(null);

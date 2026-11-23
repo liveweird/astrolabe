@@ -18,6 +18,7 @@ import RowActionsMenu from "../components/RowActionsMenu";
 import SortHeader from "../components/SortHeader";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { useDialogFocus } from "../hooks/useDialogFocus";
+import { useClampPage } from "../hooks/usePagedSort";
 import { useRegistryListControls } from "../hooks/useRegistryListControls";
 import { personPath } from "../utils/peopleLinks";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
@@ -40,11 +41,12 @@ export default function People() {
   const { nameFilter, setNameFilter, debouncedName, nameFilterActive, page, setPage, pageSize, setPageSize, sortField, sortDir, sortParam, toggleSort } =
     useRegistryListControls<SortField>({ settingsKey: SETTINGS_KEY, sortFields: SORT_FIELDS, initialSortField: "name" });
 
-  const { data, isLoading, isError, error } = useQuery({
+  const { data, isLoading, isError, error, isPlaceholderData } = useQuery({
     queryKey: ["people", "list", page, pageSize, sortParam, debouncedName],
     queryFn: () => listPeople({ page, pageSize, sort: sortParam, name: debouncedName || undefined }),
     placeholderData: keepPreviousData,
   });
+  useClampPage(page, pageSize, setPage, data, isPlaceholderData);
 
   // A list row carries every field of the detail, so it is the editor's target as it stands.
   const [editorTarget, setEditorTarget] = useState<PersonResponse | "new" | null>(null);

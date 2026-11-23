@@ -26,7 +26,8 @@ export default function TimelineToolbar({
     <Group gap="sm" role="group" aria-label={t("timeline.toolbarAria")}>
       <SegmentedControl
         size="xs"
-        // Update the label color with the background when the color scheme changes.
+        // Mantine eases the labels' colour and the indicator over 200 ms; with 0 a light/dark switch recolours them in the same frame as the
+        // rest of the (instantly re-themed) toolbar instead of leaving the labels one fade behind.
         transitionDuration={0}
         aria-label={t("timeline.zoomAria")}
         value={zoom}

@@ -459,6 +459,60 @@ class CapacityDeviationViewTest {
     }
 
     @Test
+    fun `an incomplete sprint snapshot stays listed as pending - no rows, sprintsComplete false, counted apart`() = runBlocking {
+        val mirror = scripted("FA" to sprint2049(71), "FB" to sprint2049(72))
+        val docs = arrayOf(flowTeamDoc(1, "FA", sprints = listOf(sprint2049(71))), flowTeamDoc(2, "FB", sprints = listOf(sprint2049(72))))
+        val pendingTeam = linkOwn(mirror.connectionId, 1, "pending")
+        val completeTeam = linkOwn(mirror.connectionId, 2, "complete")
+        // Flow cut the document at the sprint cap: every team it carries is stored incomplete.
+        mirror.refreshSprintsTruncated(*docs)
+        val filter = CapacityDeviationFilter(connectionId = mirror.connectionId)
+        val view = service(mirror.harness).view(filter)
+        assertEquals(setOf(pendingTeam, completeTeam), view.items.map { it.team.id }.toSet())
+        assertTrue(view.items.all { !it.sprintsComplete && it.deviations.isEmpty() }, "an incomplete snapshot lists the team without a row")
+        val figures = view.totals.let { listOf(it.warnings, it.infos, it.gone, it.acknowledged, it.teams, it.pending) }
+        assertEquals(listOf(0, 0, 0, 0, 0, 2), figures)
+
+        mirror.refresh(*docs)
+        // Both complete again: rows are back, nothing is pending.
+        val complete = service(mirror.harness).view(filter)
+        assertTrue(complete.items.all { it.sprintsComplete && it.deviations.isNotEmpty() })
+        assertEquals(0, complete.totals.pending)
+
+        // A filter that needs a row (severity, kind, acknowledged=true) leaves a pending team out; open, all and teamId keep it.
+        mirror.refreshSprintsTruncated(*docs)
+        suspend fun by(f: CapacityDeviationFilter) = service(mirror.harness).view(f)
+        assertEquals(emptyList(), by(filter.copy(severity = DeviationSeverity.WARNING)).items)
+        assertEquals(emptyList(), by(filter.copy(kind = CapacityDeviationKind.CAPACITY_MISSING)).items)
+        assertEquals(emptyList(), by(filter.copy(acknowledged = true)).items)
+        // The totals ignore the acknowledgement state (the Home card reads acknowledged=true): the waiting teams are still counted there.
+        assertEquals(2, by(filter.copy(acknowledged = true)).totals.pending)
+        assertEquals(0, by(filter.copy(severity = DeviationSeverity.WARNING)).totals.pending)
+        assertEquals(2, by(filter.copy(acknowledged = false)).items.size)
+        assertEquals(2, by(filter.copy(all = true)).totals.pending)
+        val own = by(filter.copy(teamId = pendingTeam))
+        assertEquals(listOf(pendingTeam), own.items.map { it.team.id })
+        assertEquals(1, own.totals.pending)
+    }
+
+    @Test
+    fun `the route answers sprintsComplete false and totals pending for an incomplete team`() = testApplication {
+        usePostgresTestcontainer()
+        val client = seededClient(PREFIX)
+        val mirror = scripted("FT" to sprint2049(81))
+        val teamId = linkOwn(mirror.connectionId, 1, "route")
+        mirror.refreshSprintsTruncated(flowTeamDoc(1, "FT", sprints = listOf(sprint2049(81))))
+
+        val view = client.view("?connectionId=${mirror.connectionId}")
+        val item = view.items.single()
+        assertEquals(teamId, item.team.id)
+        assertFalse(item.sprintsComplete)
+        assertEquals(emptyList(), item.deviations)
+        assertEquals(1, view.totals.pending)
+        assertEquals(0, view.totals.teams)
+    }
+
+    @Test
     fun `a soft-deleted connection hides its teams, whether or not its links are still active`() = runBlocking {
         val kept = scripted("FT" to sprint2049(51))
         linkOwn(kept.connectionId, 1, "kept")

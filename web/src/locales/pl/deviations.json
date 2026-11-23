@@ -397,6 +397,10 @@
       "acknowledged_few": "{{count}} potwierdzone",
       "acknowledged_many": "{{count}} potwierdzonych",
       "acknowledged_other": "{{count}} potwierdzonego",
+      "pending_one": "{{count}} zespół czeka na pełne odświeżenie Flow",
+      "pending_few": "{{count}} zespoły czekają na pełne odświeżenie Flow",
+      "pending_many": "{{count}} zespołów czeka na pełne odświeżenie Flow",
+      "pending_other": "{{count}} zespołu czeka na pełne odświeżenie Flow",
       "shown_one": "Pokazano {{count}} zespół",
       "shown_few": "Pokazano {{count}} zespoły",
       "shown_many": "Pokazano {{count}} zespołów",
@@ -413,7 +417,9 @@
         "differences": "Różnice",
         "observed": "Dane z"
       },
-      "openTeamAria": "Otwórz zespół {{name}}"
+      "openTeamAria": "Otwórz zespół {{name}}",
+      "pending": "Oczekuje na pełne odświeżenie Flow",
+      "pendingHint": "Astrolabe porówna przepustowość tego zespołu, gdy połączenie zakończy pełne odświeżenie Flow."
     },
     "empty": {
       "noneLinked": "Żaden zespół nie jest jeszcze powiązany z Flow.",

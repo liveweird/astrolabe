@@ -107,6 +107,27 @@ describe("Roadmap page: the Flow capacity flag of a project row", () => {
     expect(within(facts()).queryByText(/out of date/)).toBeNull();
   });
 
+  test("a project on a team whose Flow comparison is pending gets a neutral hourglass, not a flag: no count, no warning, announced in words (1.26.0)", async () => {
+    view = viewOf({ ranked: [{ position: 1, project: project(1, "Invoices", { rankPosition: 1, flowPendingTeamIds: [4] }) }, { position: 2, project: AUDIT }] });
+    renderAt();
+    await waitForGrid();
+    const cell = rowOf("Invoices").querySelector("[data-flags]") as HTMLElement;
+    expect(cell).toHaveAttribute("data-flags", "0,0");
+    expect(cell.querySelector("[data-flow-pending]")).not.toBeNull();
+    expect(cell).toHaveTextContent("Flow capacity comparison pending for Backend: waiting for a complete Flow refresh");
+    expect(cell.querySelector(".mantine-Badge-root")).toBeNull();
+    expect(rowOf("Audit").querySelector("[data-flow-pending]")).toBeNull();
+    expect(within(facts()).queryByText(/warning/)).toBeNull();
+    expect(screen.getByText("No flags on the projects shown.")).toBeInTheDocument();
+  });
+
+  test("a pending team the view does not list leaves the hidden sentence without a name (1.26.0)", async () => {
+    view = viewOf({ teams: [], ranked: [{ position: 1, project: project(1, "Invoices", { rankPosition: 1, flowPendingTeamIds: [4] }) }], unranked: [] });
+    renderAt();
+    await waitForGrid();
+    expect(rowOf("Invoices").querySelector("[data-flags]")).toHaveTextContent("Flow capacity comparison pending: waiting for a complete Flow refresh");
+  });
+
   test("the Flags section words each flag with its team and count, a warning before an info, and links the team beside the sentence", async () => {
     const user = userEvent.setup();
     renderAt();

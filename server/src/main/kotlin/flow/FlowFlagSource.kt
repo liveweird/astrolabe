@@ -26,8 +26,10 @@ import java.time.LocalDate
  *   an INFO row);
  * - one [FlaggedRange] per open row that holds days, `[effectiveFrom, end]` at the row's severity (a `TEAM_GONE` row flags but has no
  *   range).
+ * A team of an ENABLED connection whose stored sprint snapshot is incomplete has no rows, and gets instead ONE neutral
+ * [FlagKind.FLOW_CAPACITY_PENDING] flag (1.26.0: "comparison pending"; no range, so the weeks strip is unmarked).
  * Nothing at all for an unlinked team, a connection that never mirrored a document, or a DISABLED connection (nobody refreshes it, the
- * Jira rule: the Deviations page still lists its rows).
+ * Jira rule: the Deviations page still lists its rows, and its pending teams as pending).
  */
 internal class FlowFlagSource(private val deviations: CapacityDeviationService) : ExternalFlagSource {
     override suspend fun flagsInTransaction(request: ExternalFlagRequest): ExternalFlags {
@@ -41,8 +43,16 @@ internal class FlowFlagSource(private val deviations: CapacityDeviationService) 
         return ExternalFlags(teams = mapOf(teamId to external))
     }
 
-    /** A team's flag and ranges from its OPEN rows, or null when its connection is disabled or nothing is open. */
+    /**
+     * A team's flag and ranges from its OPEN rows, or null when its connection is disabled or nothing is open. A team whose sprint
+     * snapshot is incomplete has no rows to judge: it gets ONE neutral [FlagKind.FLOW_CAPACITY_PENDING] flag (no range, no count),
+     * never a warning invented from partial data.
+     */
     private fun externalOf(facts: TeamCapacityFacts): TeamExternal? {
+        if (facts.enabled && !facts.sprintsComplete) {
+            val pending = PlanFlag(FlagKind.FLOW_CAPACITY_PENDING, FlagSeverity.INFO, days = null, teamId = null, otherProjectId = null)
+            return TeamExternal(listOf(pending), emptyList())
+        }
         val open = facts.takeIf { it.enabled }?.deviations?.filter { it.isOpen }.orEmpty()
         if (open.isEmpty()) return null
         val flag = PlanFlag(

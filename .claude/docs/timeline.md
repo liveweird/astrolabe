@@ -468,7 +468,7 @@ While the "Jira dates" toggle is on, an UNSCHEDULED milestone whose link carries
 
 ### The Flow capacity marker
 
-The team view alone carries what Flow says about the team's capacity: `team.flags[]` (the header's ONE `FLOW_CAPACITY` roll-up: `count` open rows, the worst severity) and `weeks[].flowCapacity` (`WARNING` | `INFO`, the weeks strip's per-week mark, absent when unmarked).
+The team view alone carries what Flow says about the team's capacity: `team.flags[]` (the header's ONE `FLOW_CAPACITY` roll-up: `count` open rows, the worst severity; or the neutral `FLOW_CAPACITY_PENDING` while the team's Flow sprint snapshot is incomplete, which marks no week) and `weeks[].flowCapacity` (`WARNING` | `INFO`, the weeks strip's per-week mark, absent when unmarked).
 
 #### The server half
 
@@ -477,6 +477,7 @@ A document contract (the rules: `flow-sync.md` "Deviations"; the seam: `planning
 - Nothing is marked for a disabled connection, an acknowledged row or a team with nothing scheduled.
 - The cost on a linked team is six reads inside the view's snapshot (the connections select, the binding, the team's periods, the mirror's team and sprints, the stored acknowledgements and the acknowledging logins' names) plus the pure kernel over at most the team's sprints.
 - **The project rows.** The Roadmap and Programs project rows carry ONE `FLOW_CAPACITY_MILESTONES` flag per team whose open difference covers days of one of the project's scheduled milestones (`count` = those milestones; the rules and the five-statement read: `planning-model.md` "The roadmap view", `flow-sync.md` "The project rows' flag"). The counts cells, the facts lines and the filters count it like any flag, and Home's figures move with it.
+  A project whose scheduled milestones sit on a team with a pending Flow comparison lists it in `flowPendingTeamIds`: the counts cell adds a neutral hourglass (`data-flow-pending`), never counted.
 - `TimelineJiraFlagsTest` and `JiraFlagsScaleTest` pin that the other three views stay byte-identical and the team view's byte gate holds.
 
 #### The web half

@@ -10,7 +10,7 @@ import MilestonesFilters from "../components/MilestonesFilters";
 import PageHeader from "../components/PageHeader";
 import RegistryListTable from "../components/RegistryListTable";
 import SortHeader from "../components/SortHeader";
-import { FILTER_DEBOUNCE_MS, usePagedSort } from "../hooks/usePagedSort";
+import { FILTER_DEBOUNCE_MS, useClampPage, usePagedSort } from "../hooks/usePagedSort";
 import { milestoneFilterParams, narrowingCount, parseMilestoneFilter, type MilestoneFilter } from "../utils/milestoneFilters";
 import { projectPath } from "../utils/planLinks";
 import { teamPath } from "../utils/teamLinks";
@@ -72,6 +72,7 @@ export default function Milestones() {
       }),
     placeholderData: keepPreviousData,
   });
+  useClampPage(page, pageSize, setPage, data, isPlaceholderData);
 
   // The name written is the typed one, not the URL's (which may still lag a keystroke), so a select never undoes typing.
   const change = (patch: Partial<MilestoneFilter>) =>

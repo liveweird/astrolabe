@@ -44,6 +44,11 @@ describe("flagSentence", () => {
     expect(flagSentence(pl, flag("FLOW_CAPACITY", "WARNING", { count: 5 }), NAMES, null)).toBe("Przepustowość różni się od Flow: 5 otwartych różnic");
   });
 
+  test("the team page's pending flag is one neutral sentence in both languages (1.26.0)", () => {
+    expect(flagSentence(en, flag("FLOW_CAPACITY_PENDING", "INFO"), NAMES, null)).toBe("Flow capacity comparison pending: waiting for a complete Flow refresh");
+    expect(flagSentence(pl, flag("FLOW_CAPACITY_PENDING", "INFO"), NAMES, null)).toBe("Porównanie przepustowości z Flow oczekuje na pełne odświeżenie Flow");
+  });
+
   test("a project's Flow capacity flag names its team and counts its milestones, in all plural forms of both languages (1.23)", () => {
     const at = (count: number) => flag("FLOW_CAPACITY_MILESTONES", "WARNING", { teamId: 4, count });
     expect(flagSentence(en, at(1), NAMES, null)).toBe("1 milestone on T4 is scheduled in a sprint whose capacity differs from Flow");

@@ -250,6 +250,22 @@ describe("Programs page", () => {
     expect(within(facts).getByText("1 info")).toBeInTheDocument();
   });
 
+  test("a project on a team whose Flow comparison is pending shows the neutral hourglass and no count (1.26.0)", async () => {
+    const waiting = project(7, "Waiting", { teamIds: [4], span: { start: "2026-03-02", end: "2026-03-13" }, flowPendingTeamIds: [4] });
+    const program: ProgramsProgram = { id: 21, name: "Pending", ownerName: "Pat Program", span: waiting.span, flags: { warnings: 0, infos: 0 }, projects: [waiting] };
+    const stream: ProgramsWorkStream = { id: 9, name: "Delivery", ownerName: "Sam Stream", startDate: "2026-01-05", endDate: null, span: program.span, flags: { warnings: 0, infos: 0 }, programs: [program] };
+    view = viewOf({ workStreams: [stream], teams: [{ id: 4, name: "Backend" }], links: [] });
+    const user = userEvent.setup();
+    renderWithProviders(<Programs />);
+    await waitForGrid();
+    await user.click(screen.getByRole("button", { name: "Expand all" }));
+    const cell = rowOfLeaf("Waiting").querySelector("[data-flags]") as HTMLElement;
+    expect(cell).toHaveAttribute("data-flags", "0,0");
+    expect(cell.querySelector("[data-flow-pending]")).not.toBeNull();
+    expect(cell).toHaveTextContent("Flow capacity comparison pending for Backend: waiting for a complete Flow refresh");
+    expect(rowOfNode("Program Pending").querySelector("[data-flags]")).toBeNull();
+  });
+
   test("Month / Quarter / Year with Quarter by default, remembered under the plan pages' own zoom key", async () => {
     const user = userEvent.setup();
     renderWithProviders(<Programs />);

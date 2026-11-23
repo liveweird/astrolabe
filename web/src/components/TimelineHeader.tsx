@@ -56,6 +56,9 @@ export default function TimelineHeader({
       const next = { scrollLeft: scroller.scrollLeft, width: scroller.clientWidth };
       setViewport((current) => current.scrollLeft === next.scrollLeft && current.width === next.width ? current : next);
     };
+    // Measure once on entering the windowed mode: a zoom change at a non-zero scroll position must not wait for the next scroll or
+    // resize event (without ResizeObserver there may be none) while the header sits on the {0, innerWidth} guess.
+    update();
     scroller.addEventListener("scroll", update, { passive: true });
     window.addEventListener("resize", update);
     const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);

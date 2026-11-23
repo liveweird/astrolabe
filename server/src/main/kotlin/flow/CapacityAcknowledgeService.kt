@@ -85,8 +85,6 @@ class CapacityAcknowledgeService(
     private val database: R2dbcDatabase,
     private val deviations: CapacityDeviationService,
     private val bindings: FlowTeamBindingService,
-    /** The sprints the mirror holds: the acknowledge prunes only rows whose sprint is still in it (the run judges the rest). */
-    private val mirror: FlowMirrorStore,
 ) {
     object Acknowledgements : UIntIdTable("flow_capacity_acknowledgements") {
         val bindingId = reference("binding_id", FlowTeamBindingService.Bindings)
@@ -142,7 +140,9 @@ class CapacityAcknowledgeService(
                 STALE_DEVIATIONS_PROBLEM,
             )
         if (row.fingerprint != fingerprint) throw ConflictException("The deviation changed since it was read", STALE_DEVIATIONS_PROBLEM)
-        val cleared = pruneUnlistedCapacityAcks(binding, rows, computed.mirroredSprintIds())
+        val cleared = pruneUnlistedCapacityAcks(
+            binding, rows, computed.mirroredSprintIds(), sprintsJudgeable = computed?.mirror?.sprintsComplete == true,
+        )
         val stamp = nowMillis()
         val updated = Acknowledgements.update({ keyOf(bindingId, sprintId) }) {
             it[this.fingerprint] = fingerprint
@@ -193,7 +193,9 @@ class CapacityAcknowledgeService(
             }
             row
         }
-        val cleared = pruneUnlistedCapacityAcks(binding, rows, computed.mirroredSprintIds())
+        val cleared = pruneUnlistedCapacityAcks(
+            binding, rows, computed.mirroredSprintIds(), sprintsJudgeable = computed?.mirror?.sprintsComplete == true,
+        )
         val stamp = nowMillis()
         deleteKeys(bindingId, items.map { it.sprintId })
         Acknowledgements.insertRows(items) { item ->
@@ -284,13 +286,13 @@ class CapacityAcknowledgeService(
             // Not locked = unlinked (soft-deleted); not live = its team was deleted: neither lists anything, so all rows go (keep = null).
             val binding = live[bindingId]?.takeIf { bindingId in locked }
             val computed = if (binding == null) null else (listedOrNull(binding, calendar) ?: continue)
-            val keep = if (binding == null) null else keptKeys(checkNotNull(computed).deviations) ?: continue
+            val keep = if (binding == null) null else listedKeys(checkNotNull(computed).deviations) ?: continue
             // Both facts are required. The run knows whether the whole document was truncated; the stored team flag also protects a
             // retained team and a V31 upgrade whose own sprint coverage is still unknown.
             val teamSprintsComplete = computed?.mirror?.sprintsComplete == true
             val gone = stored[bindingId].orEmpty().filter { row ->
                 val sprint = row[Acknowledgements.sprintId]
-                keep == null || sprint == null || (sprintsJudgeable && teamSprintsComplete == true && sprint !in keep)
+                keep == null || sprint == null || (sprintsJudgeable && teamSprintsComplete && sprint !in keep)
             }
             if (gone.isEmpty()) continue
             doomed += gone.map { it[Acknowledgements.id] }
@@ -319,7 +321,8 @@ class CapacityAcknowledgeService(
      * only): the binding row(s) [lockBindingsBeforeCapacityWrite] locked and the team row are held, so two capacity writes of one team,
      * or one and an acknowledge, are serialised and the second sees the first's committed periods - an "in line and back" ends the
      * acknowledgement at the first write. One read for the team's ACTIVE binding that HAS stored rows (none: nothing is computed), then
-     * [pruneUnlisted]: for a complete snapshot, only a sprint still in the mirror but unlisted, and the team's own row of a present team;
+     * [pruneUnlistedCapacityAcks]: for a complete snapshot, only a sprint still in the mirror but unlisted, and the team's own row of a
+     * present team;
      * for an incomplete snapshot, only that own row, because no sprint result is judgeable. "Gone from the document" stays the run's
      * call. The deletes commit WITH the write and roll back with it. A NON-database failure of the computation
      * keeps the rows (WARN, [listedOrNull]); a database error aborts the write. The audit line goes to [trail], after the commit.
@@ -340,7 +343,7 @@ class CapacityAcknowledgeService(
                 computed?.mirror?.sprintsComplete == false ->
                     pruneUnlistedCapacityAcks(binding, emptyList(), computed.mirroredSprintIds(), sprintsJudgeable = false)
                 computed == null -> emptyList()
-                else -> pruneUnlistedCapacityAcks(binding, computed.deviations, computed.mirroredSprintIds())
+                else -> pruneUnlistedCapacityAcks(binding, computed.deviations, computed.mirroredSprintIds(), sprintsJudgeable = true)
             }
             if (binding == null || cleared.isEmpty()) null else CapacityWritePruneOutcome(binding.id, binding.connectionId, cleared)
         } ?: return
@@ -361,10 +364,6 @@ class CapacityAcknowledgeService(
             log.warn("Capacity acknowledgements of binding {} kept: not computable ({})", binding.id, failure.javaClass.simpleName)
             null
         }
-
-    /** The keys of the rows [listed] now (null = the team's own row), or null when nothing may be pruned: nothing to compare, or gone. */
-    private fun keptKeys(listed: List<CapacityDeviation>?): Set<Long?>? =
-        listed?.takeIf { rows -> rows.none { it.kind == CapacityDeviationKind.TEAM_GONE } }?.mapTo(HashSet()) { it.detail.sprintId }
 
     /** Locks binding [bindingId] (`404` once gone), re-reads it with its ACTIVE team (`404` when dead) and runs [guard] on that team. */
     private suspend fun lockedBinding(bindingId: UInt, guard: TeamGuard): FlowTeamBindingRow {

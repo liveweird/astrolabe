@@ -1,5 +1,5 @@
 import { Anchor, Badge, Group, Menu, VisuallyHidden } from "@mantine/core";
-import { IconAlertTriangle, IconCalendarEvent, IconCalendarOff, IconExternalLink, IconInfoCircle, IconLink, IconRoute } from "@tabler/icons-react";
+import { IconAlertTriangle, IconCalendarEvent, IconCalendarOff, IconExternalLink, IconHourglass, IconInfoCircle, IconLink, IconRoute } from "@tabler/icons-react";
 import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { RoadmapProject } from "../api/roadmap";
@@ -14,13 +14,21 @@ import type { RovingTarget } from "../utils/timelineModel";
 /**
  * Flags as icons with counts: an orange warning triangle and/or a gray info circle (the words are for assistive technology; colour is never the
  * only carrier). A project row passes its own flags' counts, a work stream / program row the roll-up of its projects'. Nothing when there are none.
- * `label` replaces the counts in words with the flags' own sentences (a milestone row's, on the project and team pages).
+ * `label` replaces the counts in words with the flags' own sentences (a milestone row's, on the project and team pages). `flowPending` (a project
+ * row whose scheduled milestones sit on a team with an incomplete Flow snapshot, 1.26.0) adds a neutral gray hourglass: not a flag, never counted and
+ * never orange or red - the comparison simply waits for a complete Flow refresh. `pendingTeams` are those teams' names (from the view's `teams`): the
+ * hidden sentence names them, and says it without names when the view lists none of them.
  */
-export function FlagCountsCell({ counts, label }: { counts: FlagCounts; label?: string }) {
+export function FlagCountsCell({ counts, label, flowPending = false, pendingTeams = [] }: { counts: FlagCounts; label?: string; flowPending?: boolean; pendingTeams?: readonly string[] }) {
   const { t } = useTranslation();
   const { warnings, infos } = counts;
-  if (warnings + infos === 0) return null;
-  const sentence = label ?? [warnings > 0 ? t("roadmap.facts.warnings", { count: warnings }) : null, infos > 0 ? t("roadmap.facts.infos", { count: infos }) : null].filter(Boolean).join(", ");
+  if (warnings + infos === 0 && !flowPending) return null;
+  const pending = pendingTeams.length > 0 ? t("roadmap.flag.flowCapacityPendingTeams", { teams: pendingTeams.join(", ") }) : t("roadmap.flag.flowCapacityPending");
+  const sentence =
+    label ??
+    [warnings > 0 ? t("roadmap.facts.warnings", { count: warnings }) : null, infos > 0 ? t("roadmap.facts.infos", { count: infos }) : null, flowPending ? pending : null]
+      .filter(Boolean)
+      .join(", ");
   return (
     <Group gap={4} wrap="nowrap" title={sentence} data-flags={`${warnings},${infos}`}>
       {warnings > 0 && (
@@ -33,6 +41,7 @@ export function FlagCountsCell({ counts, label }: { counts: FlagCounts; label?: 
           {infos}
         </Badge>
       )}
+      {flowPending && <IconHourglass size={14} aria-hidden="true" color="var(--mantine-color-dimmed)" data-flow-pending="true" />}
       <VisuallyHidden>{sentence}</VisuallyHidden>
     </Group>
   );

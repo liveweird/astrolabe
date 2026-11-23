@@ -47,6 +47,17 @@ describe("TeamPageHeader: the Flow capacity flag (1.9)", () => {
     expect(badges.map((b) => b.textContent)).toEqual(["Capacity differs from Flow: 2 open differences", "Capacity differs from Flow: 1 open difference"]);
   });
 
+  test("a pending flag (an incomplete Flow snapshot) is neutral: gray with an hourglass, no severity, its sentence announced once (1.26.0)", () => {
+    renderHeader(team({ flags: [{ kind: "FLOW_CAPACITY_PENDING", severity: "INFO" }] }));
+    const badge = document.querySelector("[data-team-flag]") as HTMLElement;
+    expect(badge).toHaveAttribute("data-team-flag", "FLOW_CAPACITY_PENDING");
+    expect(badge).not.toHaveAttribute("data-severity");
+    expect(badge.getAttribute("style") ?? "").not.toMatch(/orange|red/);
+    expect(badge).toHaveTextContent(/^Flow capacity comparison pending: waiting for a complete Flow refresh$/);
+    expect(screen.getAllByText("Flow capacity comparison pending: waiting for a complete Flow refresh")).toHaveLength(1);
+    expect(badge.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+  });
+
   test("no flags: nothing is drawn and the title stays the heading", () => {
     renderHeader(team());
     expect(document.querySelector("[data-team-flag]")).toBeNull();

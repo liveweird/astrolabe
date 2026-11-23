@@ -43,8 +43,8 @@ const withdraws = (request: AckRequest) => request.kind === "unacknowledge" || r
  * instead of the binding; a batch of either kind is keyed by the binding (`<id>:all`). A batch is all or nothing, so its `409 stale-deviations` is the
  * same note (the list is read again, nothing was stored or deleted) and its success the same toast ("withdrawn" for the withdrawal; its 404 can only be the binding).
  *
- * **What is refreshed.** A success re-reads the capacity deviations and the plan's views (`refreshFlowCapacity`: the team view's flag
- * and markers follow the open rows). A `409 stale-deviations` is a normal state, not an error: the sprint's figures changed since the list was read (or the
+ * **What is refreshed.** A success re-reads the capacity deviations and the plan's and the roadmap's views (`refreshFlowCapacity`: the team view's flag
+ * and markers, and the roadmap rows' Flow flag, follow the open rows). A `409 stale-deviations` is a normal state, not an error: the sprint's figures changed since the list was read (or the
  * row is gone), so it is an inline note in the row (never a toast) and re-reads the same keys. A 403/404 re-reads the Flow links too (the rights or the
  * link changed) and, like every other refusal, is an inline red message in the row. A DELETE's 404 means "no acknowledgement stored".
  *

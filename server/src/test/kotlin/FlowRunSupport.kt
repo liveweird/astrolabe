@@ -86,7 +86,7 @@ class FlowRunHarness(clients: FlowClientFactory, sprintsSinceDays: Int = 365, no
 
     /** The deviation computation of the run's prune, on the harness's OWN clock (a clock-injected test must prune against its "today"). */
     val deviations = CapacityDeviationService(database, bindings, mirror, capacity, runs, now)
-    val acknowledgements = CapacityAcknowledgeService(database, deviations, bindings, mirror)
+    val acknowledgements = CapacityAcknowledgeService(database, deviations, bindings)
     val observer = FlowObserver(FlowConnector(clients, sprintsSinceDays), connections, mirror, bindings, acknowledgements, now)
 
     /** Creates a connection to [origin]; [tested] records a passing Test connection (what makes the scheduler poll it). */

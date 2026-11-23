@@ -76,8 +76,9 @@ class FlowMirrorStore(private val database: R2dbcDatabase) {
      * [keepAbsentTeams] is the run's rule for a TRUNCATED document (`teamsTruncated`: Flow cut its answer at the team cap, so a team
      * missing from it was merely not sent): the teams of [teams] are replaced and every other team already mirrored is KEPT with its
      * sprints and members (so a bound team never reads as gone because of a cap). Without it the mirror is exactly [teams].
-     * [sprintsComplete] belongs to each team row: a document cut at the global sprint cap marks every team it carries incomplete. A
-     * retained absent team keeps its own previous flag, because this document supplied no evidence about that team.
+     * [sprintsComplete] belongs to each team row: a document cut at the global sprint cap marks every team it carries incomplete. It is
+     * required (no fail-open default: a caller must say whether its document was complete). A retained absent team keeps its own previous
+     * flag, because this document supplied no evidence about that team.
      *
      * The row lock is `FOR NO KEY UPDATE` from the start (never upgraded from `FOR SHARE`): concurrent replaces of one connection, the
      * delete and an edit all queue on it, so there is no lock cycle whatever the run claim allows. A team link or "Link all suggested"
@@ -95,8 +96,8 @@ class FlowMirrorStore(private val database: R2dbcDatabase) {
         connectionId: UInt,
         teams: List<FlowMirrorTeam>,
         at: Long,
+        sprintsComplete: Boolean,
         keepAbsentTeams: Boolean = false,
-        sprintsComplete: Boolean = true,
         afterWrite: suspend () -> Unit = {},
     ): FlowMirrorWrite {
         val rows = teams.distinctBy { it.flowTeamId }.map { it.fitted() }
@@ -165,7 +166,10 @@ class FlowMirrorStore(private val database: R2dbcDatabase) {
             }
     }
 
-    /** A team's sprints by start (undated last, then by id) - the capacity import's input; empty for an unknown team. */
+    /**
+     * A team's sprints by start (undated last, then by id); empty for an unknown team. Its one production reader is [FlowTeamService.panel]
+     * (the sprint count and list on the team page): the capacity import and deviations read through [teamSprintsOf]/[teamsSprintsOf].
+     */
     suspend fun sprintsOf(connectionId: UInt, flowTeamId: Int): List<FlowMirrorSprint> = suspendTransaction(database) {
         FlowSprints.selectAll().where { (FlowSprints.connectionId eq connectionId) and (FlowSprints.flowTeamId eq flowTeamId) }
             .orderBy(FlowSprints.startAt to SortOrder.ASC_NULLS_LAST, FlowSprints.sprintId to SortOrder.ASC).toList()

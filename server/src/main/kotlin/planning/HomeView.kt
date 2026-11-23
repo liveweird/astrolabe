@@ -95,7 +95,7 @@ data class HomeProject(
 /**
  * The figures of the team page's header: its milestones, the unscheduled ones, [conflicts], the weeks it flags orange
  * ([overloadedWeeks], [wipExceededWeeks]), the open Jira deviations of its milestones ([jira]: the chip's rule) and [flags], the
- * team view's `team.flags` (at most one [FlagKind.FLOW_CAPACITY]).
+ * team view's `team.flags` (at most one Flow flag: [FlagKind.FLOW_CAPACITY] or the neutral [FlagKind.FLOW_CAPACITY_PENDING]).
  */
 @Serializable
 data class HomeTeam(

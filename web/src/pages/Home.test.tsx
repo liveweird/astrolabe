@@ -30,8 +30,8 @@ type JiraConnection = ReturnType<typeof connectionIn>;
 function jiraView(warnings: number, infos: number, connections: JiraConnection[] = [connectionIn("CURRENT")]) {
   return view({ connections, items: [], totals: { warnings, infos, bindings: 0, gone: 0, stillInJira: 0, acknowledged: 0 } });
 }
-function flowView(warnings: number, infos: number, connections = [CAPACITY_CONNECTION]) {
-  return capacityView({ connections, items: [], totals: { warnings, infos, gone: 0, acknowledged: 0, teams: 0 } });
+function flowView(warnings: number, infos: number, connections = [CAPACITY_CONNECTION], pending = 0) {
+  return capacityView({ connections, items: [], totals: { warnings, infos, gone: 0, acknowledged: 0, teams: 0, pending } });
 }
 
 type Answers = { jira?: () => Response; flow?: () => Response; home?: () => Response | Promise<Response> };
@@ -128,6 +128,27 @@ describe("Home", () => {
     expect(deviations.getAllByText(/infos?$/)).toHaveLength(1);
   });
 
+  test("says in one neutral line how many Flow teams wait for a complete refresh, even at zero differences; nothing when none wait", async () => {
+    stubViews({ flow: () => jsonResponse(200, flowView(0, 0, [CAPACITY_CONNECTION], 2)) });
+    const first = renderWithProviders(<Home />);
+    const line = await screen.findByText("2 teams waiting for a complete Flow refresh");
+    expect(line).toBeInTheDocument();
+    // Neutral: no warning/info badge and no "differences" label beside it.
+    expect(screen.queryByText("Open capacity differences from Flow:")).not.toBeInTheDocument();
+    first.unmount();
+
+    stubViews({ flow: () => jsonResponse(200, flowView(1, 0, [CAPACITY_CONNECTION], 1)) });
+    const second = renderWithProviders(<Home />);
+    expect(await screen.findByText("1 team waiting for a complete Flow refresh")).toBeInTheDocument();
+    expect(screen.getByText("1 warning")).toBeInTheDocument();
+    second.unmount();
+
+    const fetchMock = stubViews({ flow: () => jsonResponse(200, flowView(1, 0)) });
+    renderWithProviders(<Home />);
+    await settled(fetchMock);
+    expect(screen.queryByText(/waiting for a complete Flow refresh/)).not.toBeInTheDocument();
+  });
+
   test("says nothing at zero and nothing without a connection (no 'nothing open' claim)", async () => {
     const fetchMock = stubViews({ jira: () => jsonResponse(200, jiraView(0, 0)), flow: () => jsonResponse(200, flowView(4, 4, [])) });
     renderWithProviders(<Home />);
@@ -137,6 +158,32 @@ describe("Home", () => {
     expect(screen.queryByText("Open capacity differences from Flow:")).not.toBeInTheDocument();
     expect(deviations.queryByText(/warning|info/)).not.toBeInTheDocument();
     expect(deviations.queryByText(/nothing|no open/i)).not.toBeInTheDocument();
+  });
+
+  test("says so when both views report no connection at all", async () => {
+    const fetchMock = stubViews({ jira: () => jsonResponse(200, jiraView(0, 0, [])), flow: () => jsonResponse(200, flowView(0, 0, [])) });
+    renderWithProviders(<Home />);
+    await settled(fetchMock);
+    expect(await screen.findByText("No Jira or Flow connections are configured.")).toBeInTheDocument();
+  });
+
+  test("does not claim there are no connections while one of the two reads is still pending", async () => {
+    const fetchMock = stubViews({
+      jira: () => jsonResponse(200, jiraView(0, 0, [])),
+      flow: () => new Promise<Response>(() => undefined) as unknown as Response,
+    });
+    renderWithProviders(<Home />);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    await screen.findByText("5 work streams");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.queryByText("No Jira or Flow connections are configured.")).not.toBeInTheDocument();
+  });
+
+  test("does not say it when one source has a connection", async () => {
+    const fetchMock = stubViews({ jira: () => jsonResponse(200, jiraView(0, 0, [])), flow: () => jsonResponse(200, flowView(0, 0)) });
+    renderWithProviders(<Home />);
+    await settled(fetchMock);
+    expect(screen.queryByText("No Jira or Flow connections are configured.")).not.toBeInTheDocument();
   });
 
   test("a failed deviation read is an inline alert in the Deviations card; the links stay, the other source still shows", async () => {

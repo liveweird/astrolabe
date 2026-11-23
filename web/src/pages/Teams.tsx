@@ -18,6 +18,7 @@ import SortHeader from "../components/SortHeader";
 import TeamEditorModal from "../components/TeamEditorModal";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { useDialogFocus } from "../hooks/useDialogFocus";
+import { useClampPage } from "../hooks/usePagedSort";
 import { useRegistryListControls } from "../hooks/useRegistryListControls";
 import { saveErrorMessage } from "../utils/saveError";
 import { teamPath } from "../utils/teamLinks";
@@ -41,11 +42,12 @@ export default function Teams() {
   const { nameFilter, setNameFilter, debouncedName, nameFilterActive, page, setPage, pageSize, setPageSize, sortField, sortDir, sortParam, toggleSort } =
     useRegistryListControls<SortField>({ settingsKey: SETTINGS_KEY, sortFields: SORT_FIELDS, initialSortField: "name" });
 
-  const { data, isLoading, isError, error } = useQuery({
+  const { data, isLoading, isError, error, isPlaceholderData } = useQuery({
     queryKey: ["teams", "list", page, pageSize, sortParam, debouncedName],
     queryFn: () => listTeams({ page, pageSize, sort: sortParam, name: debouncedName || undefined }),
     placeholderData: keepPreviousData,
   });
+  useClampPage(page, pageSize, setPage, data, isPlaceholderData);
 
   // The editor takes the DETAIL shape (it prefills from it); the list row only has the summary,
   // so Edit fetches the team first — through the detail query key, so the page shares the cache.

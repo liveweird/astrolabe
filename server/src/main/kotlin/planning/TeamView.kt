@@ -51,7 +51,10 @@ data class TeamViewTeam(
     val createdAt: Long,
     val updatedAt: Long,
     val can: TeamViewCan,
-    /** The team-level flags (1.9): today only [FlagKind.FLOW_CAPACITY]; empty unless an enabled Flow link has open rows. */
+    /**
+     * The team-level flags (1.9): [FlagKind.FLOW_CAPACITY] (an enabled Flow link with open rows) or [FlagKind.FLOW_CAPACITY_PENDING]
+     * (its sprint snapshot is incomplete), never both; else empty.
+     */
     val flags: List<PlanFlag> = emptyList(),
 )
 

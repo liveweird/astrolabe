@@ -23,7 +23,7 @@ import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useBoundedPoll } from "../hooks/useBoundedPoll";
 import { useNow } from "../hooks/useNow";
-import { usePagedSort } from "../hooks/usePagedSort";
+import { useClampPage, usePagedSort } from "../hooks/usePagedSort";
 import { untestedKey } from "../utils/jiraForm";
 import { jiraConnectionPath, jiraSiteUrl } from "../utils/jiraLinks";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
@@ -62,7 +62,7 @@ export default function JiraConnections() {
   });
 
   const poll = useBoundedPoll();
-  const { data, isLoading, isError, error, dataUpdatedAt } = useQuery({
+  const { data, isLoading, isError, error, dataUpdatedAt, isPlaceholderData } = useQuery({
     queryKey: ["jira", "list", page, pageSize, sortParam],
     queryFn: () => listJiraConnections({ page, pageSize, sort: sortParam }),
     placeholderData: keepPreviousData,
@@ -70,6 +70,7 @@ export default function JiraConnections() {
     // While any listed connection's newest run is running (the server's verdict), the list is re-read so its badge moves by itself.
     refetchInterval: (query) => listRefetchInterval(poll, query.state.data?.items),
   });
+  useClampPage(page, pageSize, setPage, data, isPlaceholderData);
   const now = useNow(60_000, dataUpdatedAt);
 
   const [editorTarget, setEditorTarget] = useState<JiraConnection | "new" | null>(null);

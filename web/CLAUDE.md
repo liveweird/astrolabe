@@ -87,7 +87,7 @@ Every list page composes the same ported Lettuce blocks — copy `pages/Users.ts
 
 - **State**: filters in `useStoredState` (`astrolabe.viewSettings.<viewKey>.filter.*`, text filters debounced 300 ms — the DEBOUNCED value goes into the query
   key, and any action reading the filters reads it too, so a click never operates on a slice the table isn't showing); sort/page/pageSize from
-  `usePagedSort(initialSort, filterDeps, { key, sortFields })` with `SORT_FIELDS ... as const`. Every query of one area keys under that area's prefix
+  `usePagedSort(initialSort, filterDeps, { key, sortFields })` with `SORT_FIELDS ... as const`; every paged list also calls `useClampPage(page, pageSize, setPage, data, isPlaceholderData)`. Every query of one area keys under that area's prefix
   (`["users", …]`, `["teams", …]`);
   `useQuery({ queryKey: ["<area>", page, pageSize, sortParam, ...filters], queryFn: list<Area>(...), placeholderData: keepPreviousData })`.
 - **Chrome**: `FilterPanel` + `ClearableTextInput`; `SortHeader` renders its OWN `Table.Th` (never wrap it in another); `TableLoadingRow` (`isLoading && !data`)

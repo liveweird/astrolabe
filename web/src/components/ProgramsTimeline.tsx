@@ -10,7 +10,7 @@ import type { JiraWindow } from "../utils/jiraBars";
 import { planArrows, projectTrack, withConflicts } from "../utils/planTrack";
 import { isNodeRow, type NodeRow, type ProjectTreeRow, type RemovedTreeRow, type TreeRow } from "../utils/programsTree";
 import { criticalIndex } from "../utils/roadmapCritical";
-import { conflictsByProject, conflictsByRow, countFlags, rolledUpLinks } from "../utils/roadmapRows";
+import { conflictsByProject, conflictsByRow, countFlags, pendingTeamNames, rolledUpLinks } from "../utils/roadmapRows";
 import type { BarId, RovingTarget, TimelineBarData, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
 import { PLAN_ZOOMS, type TimelineScale, type Zoom } from "../utils/timelineScale";
 import { BaselineRowName } from "./BaselineParts";
@@ -127,6 +127,7 @@ function summaryBars(row: NodeRow, t: TFunction, conflicts: number, holdsCritica
  */
 export default function ProgramsTimeline({
   links,
+  teams,
   rows: treeRows,
   anchors,
   onToggle,
@@ -144,6 +145,8 @@ export default function ProgramsTimeline({
   critical,
 }: {
   links: readonly RoadmapLink[];
+  /** The view's `teams` (active teams with milestones): the names of a project's Flow-pending teams. */
+  teams: readonly { id: number; name: string }[];
   rows: readonly TreeRow[];
   /** The bar that stands for each project on the timeline (`arrowAnchors`): the project's own, or its folded program's or work stream's summary bar. */
   anchors: ReadonlyMap<number, BarId>;
@@ -178,6 +181,7 @@ export default function ProgramsTimeline({
   ];
   const projects = treeRows.filter((row): row is ProjectTreeRow => row.kind === "project").map((row) => row.project);
   const conflicts = conflictsByProject(links);
+  const teamNames = new Map(teams.map((team) => [team.id, team.name]));
   const anchorOf = (projectId: number) => anchors.get(projectId) ?? null;
   const rowConflicts = conflictsByRow(rolledUpLinks(links, anchorOf));
   const chain = criticalIndex({ criticalPath });
@@ -199,7 +203,7 @@ export default function ProgramsTimeline({
       id: project.id,
       cells: [
         (stop: RovingTarget) => <ProjectLabel project={project} stop={stop} />,
-        <FlagCountsCell key="flags" counts={countFlags(project.flags)} />,
+        <FlagCountsCell key="flags" counts={countFlags(project.flags)} flowPending={(project.flowPendingTeamIds?.length ?? 0) > 0} pendingTeams={pendingTeamNames(project, teamNames)} />,
         (stop: RovingTarget) => (
           <RowActionsMenu label={t("common.table.operationsAria", { name: project.name })} trigger={{ ...stop, "data-operations-for": project.id }} onClosed={() => menuClosed(project)}>
             <CriticalPathItem project={project} target={critical.target} disabled={critical.disabled} onToggle={() => critical.toggle(project)} />

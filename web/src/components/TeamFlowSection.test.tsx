@@ -225,6 +225,16 @@ describe("TeamFlowSection", () => {
       expect(count(mockFetch, `GET ${CAPACITY_URL}`)).toBe(1);
     });
 
+    test("a team whose Flow sprint snapshot is incomplete says it waits for a refresh - never 'In line with Flow' (1.26.0)", async () => {
+      serve(mockFetch, { panel: linkedPanel(), capacity: capacityView({ items: [capacityItem({ sprintsComplete: false, deviations: [] })] }) });
+      renderSection();
+      const row = await factsRow();
+      await waitFor(() => expect(row).toHaveTextContent("Waiting for a complete Flow refresh"));
+      expect(row).not.toHaveTextContent("In line with Flow");
+      expect(row.querySelector(".mantine-Badge-root")).toBeNull();
+      expect(screen.queryByRole("list", { name: "Capacity differences from Flow" })).not.toBeInTheDocument();
+    });
+
     test("a sprint where the plan has more is an orange count with the sentences under it and the remedy for whoever may import", async () => {
       const worse = differsRow({ sprintId: 90003, sprintName: "E2E Flow Sprint 3", start: "2047-02-04", end: "2047-02-15", planMd: 44, flowMd: 48 });
       serve(mockFetch, { panel: linkedPanel(), capacity: capacityView({ items: [capacityItem({ deviations: [worse, differsRow()] })] }) });

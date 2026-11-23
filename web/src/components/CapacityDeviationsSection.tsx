@@ -59,7 +59,7 @@ function EmptyAgreement({ view }: { view: CapacityDeviationView }) {
 
 /**
  * The totals under the heading: warnings (orange), infos (gray), the teams gone from Flow (orange: they are among the warnings), the acknowledged rows
- * (gray; the figures before it count OPEN rows whatever Status lists), how many teams are listed (of how many matched, when the list was cut) and, when
+ * (gray; the figures before it count OPEN rows whatever Status lists), the teams waiting for a complete Flow refresh (gray, only when there are any), how many teams are listed (of how many matched, when the list was cut) and, when
  * the server cut the list, the note that says so.
  */
 function Totals({ view, status }: { view: CapacityDeviationView; status: ReturnType<typeof deviationStatus> }) {
@@ -83,8 +83,14 @@ function Totals({ view, status }: { view: CapacityDeviationView; status: ReturnT
         <Badge color="gray" tt="none">
           {t("deviations.flowSection.totals.acknowledged", { count: totals.acknowledged })}
         </Badge>
+        {totals.pending > 0 && (
+          // Neutral: a team with an incomplete Flow sprint snapshot has no row to count; it waits for a complete refresh.
+          <Badge color="gray" tt="none" data-pending-teams={totals.pending}>
+            {t("deviations.flowSection.totals.pending", { count: totals.pending })}
+          </Badge>
+        )}
         <Text size="sm" c="dimmed">
-          {view.truncated ? t("deviations.flowSection.totals.shownOf", { n: view.items.length, total: totals.teams }) : t("deviations.flowSection.totals.shown", { count: view.items.length })}
+          {view.truncated ? t("deviations.flowSection.totals.shownOf", { n: view.items.length, total: totals.teams + totals.pending }) : t("deviations.flowSection.totals.shown", { count: view.items.length })}
         </Text>
       </Group>
       {status !== "open" && (
@@ -141,7 +147,17 @@ function TeamsTable({ view, now, hook }: { view: CapacityDeviationView; now: num
                 )}
               </Table.Td>
               <Table.Td>
-                <CapacityDeviationList deviations={item.deviations} ack={{ can: item.can, bindingId: item.bindingId, team: item.team.name, hook }} />
+                {item.sprintsComplete ? (
+                  <CapacityDeviationList deviations={item.deviations} ack={{ can: item.can, bindingId: item.bindingId, team: item.team.name, hook }} />
+                ) : (
+                  // No rows, and not "in line": Flow's last document did not carry all of the team's sprints.
+                  <div data-flow-pending="true">
+                    <Text size="sm">{t("deviations.flowSection.list.pending")}</Text>
+                    <Text size="xs" c="dimmed">
+                      {t("deviations.flowSection.list.pendingHint")}
+                    </Text>
+                  </div>
+                )}
               </Table.Td>
               <Table.Td>
                 {item.observedAt === null ? (

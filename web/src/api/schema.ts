@@ -1114,7 +1114,7 @@ export interface paths {
         };
         /**
          * Where a linked team's capacity in the plan differs from what Flow would make it carry
-         * @description Answers, per linked team and per current or future sprint, where the team's capacity in the plan differs from what the capacity import would make it carry, from one read-only snapshot. Any authenticated user; Flow's per-sprint figures and the connection's time zone are open to every login, a base URL, token or account id never. There is no `revision`: capacity periods are team data. A sprint is compared over the working days it holds; a closed sprint never appears, nor one the import skips or longer than 60 calendar days. Only linked teams with a deviation are listed, by default only OPEN rows (not currently acknowledged); `all=true` adds the acknowledged ones and `teamId` makes `all` default to true. A disabled, failed or stale connection's teams are listed from its last mirrored document. Order: teams with an open WARNING first, then team name (case-insensitive), then link id; a team's rows by the sprint's first held day, then sprint id. At most 1,000 teams (`truncated`), `totals` before the cap. Filters are equality; a repeated key or a malformed value is `400`; `severity` and `kind` narrow each team's rows too.
+         * @description Answers, per linked team and per current or future sprint, where the team's capacity in the plan differs from what the capacity import would make it carry, from one read-only snapshot. Any authenticated user; Flow's figures and the connection's time zone are open to every login, a base URL, token or account id never. No `revision`. A sprint is compared over its working days; a closed sprint never appears, nor one the import skips or longer than 60 calendar days. Linked teams with a deviation are listed, by default only OPEN rows (not currently acknowledged); `all=true` adds the acknowledged ones and `teamId` makes `all` default to true. A disabled, failed or stale connection's teams are read from its last mirror. A team whose sprint snapshot is incomplete is listed too, as PENDING (`sprintsComplete: false`, no rows, never "in line"); the `severity`, `kind` and `acknowledged=true` filters leave it out. Order: teams with an open WARNING first, then team name (case-insensitive), then link id; a team's rows by the sprint's first held day, then sprint id. At most 1,000 teams (`truncated`); `totals` precede the cap. Filters are equality; a repeated key or a malformed value is `400`.
          */
         get: operations["getCapacityDeviationsView"];
         put?: never;
@@ -1302,7 +1302,7 @@ export interface paths {
         };
         /**
          * List the teams the caller may include in a cross-team run
-         * @description Lists the active teams the caller may name in a cross-team run: every active team for an ADMIN, otherwise the teams the caller currently manages (none = an empty list). Any authenticated caller. The first 1,000 teams by case-insensitive name, then id. `truncated` indicates more eligible teams. The run itself still answers `403` for any team the caller may not manage.
+         * @description Lists the active teams the caller may name in a cross-team run: every active team for an ADMIN, otherwise the teams the caller currently manages (none = an empty list). Any authenticated caller. The first 1,000 teams by case- and accent-insensitive name, then id. `truncated` indicates more eligible teams. The run itself still answers `403` for any team the caller may not manage.
          */
         get: operations["listScheduleProposalTeams"];
         put?: never;
@@ -2016,7 +2016,7 @@ export interface paths {
         put?: never;
         /**
          * Acknowledge ONE sprint's capacity deviation until its figures change
-         * @description Acknowledges ONE sprint's capacity deviation until its figures change; `sprintId: null` names the team's own `TEAM_GONE` row. The binding's team's ACTIVE manager or ADMIN, as for the import; any other caller (a project owner, a roadmap editor, another team's manager) is `403`. Order: `404` for every caller when the binding is unknown or unlinked or its team was deleted; `403`, whatever the body; `400` unless `sprintId` is present (`null` allowed, else a positive number) and `fingerprint` is 64 lower-case hexadecimal characters. `409` `urn:astrolabe:problem:stale-deviations` when the binding has no such row now (the sprint is in line, closed or outside the window; the team is not gone; the connection never mirrored a document) or the row's fingerprint is not the one sent. Otherwise the fingerprint, time and login are stored (again: restamped). A change of the row reopens it (`acknowledgement.current` false); a new sprint arrives open. This call also deletes the binding's acknowledgements whose row is no longer listed, as a connection's refresh does; a team missing from Flow keeps its sprint acknowledgements. Moves no plan revision.
+         * @description Acknowledges ONE sprint's capacity deviation until its figures change; `sprintId: null` names the team's own `TEAM_GONE` row. The binding's team's ACTIVE manager or ADMIN, as for the import; any other caller (a project owner, a roadmap editor, another team's manager) is `403`. Order: `404` for every caller when the binding is unknown or unlinked or its team was deleted; `403`, whatever the body; `400` unless `sprintId` is present (`null` allowed, else a positive number) and `fingerprint` is 64 lower-case hexadecimal characters. `409` `urn:astrolabe:problem:stale-deviations` when the binding has no such row now (the sprint is in line, closed or outside the window; the team is not gone; the connection never mirrored a document; the team's sprint snapshot is incomplete) or the row's fingerprint is not the one sent. Otherwise the fingerprint, time and login are stored (again: restamped). A change of the row reopens it (`acknowledgement.current` false); a new sprint arrives open. This call also deletes the binding's acknowledgements whose row is no longer listed, as a connection's refresh does; a team missing from Flow keeps its sprint acknowledgements. Moves no plan revision.
          */
         post: operations["acknowledgeCapacityDeviation"];
         /**
@@ -2042,7 +2042,7 @@ export interface paths {
         put?: never;
         /**
          * Acknowledge several of a team's capacity deviations at once, all or nothing
-         * @description Acknowledges several of a team's capacity deviations at once. `items` are the rows the client lists as open, each the `sprintId` (`null` = the team's own `TEAM_GONE` row) and the `fingerprint` it read: 1 to 2,000, no row named twice (`400`). The audience and the order are the single acknowledge's: `404` for EVERY caller when the binding is unknown, unlinked or its team was deleted, then `403` (the binding's team's ACTIVE manager or ADMIN, whatever the body), then the body `400`. All or nothing: a named row that is not listed now, or whose fingerprint is not the one sent, is `409` `urn:astrolabe:problem:stale-deviations` and nothing is stored (read the view again). Otherwise every named row is stamped with the same time and login, and only the named rows: an open row the request does not name stays open. Rows no longer listed are pruned as in the single acknowledge. Moves no plan revision.
+         * @description Acknowledges several of a team's capacity deviations at once. `items` are the rows the client lists as open, each the `sprintId` (`null` = the team's own `TEAM_GONE` row) and the `fingerprint` it read: 1 to 2,000, no row named twice (`400`). The audience and the order are the single acknowledge's: `404` for EVERY caller when the binding is unknown, unlinked or its team was deleted, then `403` (the binding's team's ACTIVE manager or ADMIN, whatever the body), then the body `400`. All or nothing: a named row that is not listed now (an incomplete sprint snapshot lists none), or whose fingerprint is not the one sent, is `409` `urn:astrolabe:problem:stale-deviations` and nothing is stored (read the view again). Otherwise every named row is stamped with the same time and login, and only the named rows: an open row the request does not name stays open. Rows no longer listed are pruned as in the single acknowledge. Moves no plan revision.
          */
         post: operations["acknowledgeCapacityDeviations"];
         delete?: never;
@@ -3734,7 +3734,7 @@ export interface components {
                 /** @description The caller may replace this team's milestone order (`PUT /teams/{id}/milestone-order`). */
                 editOrder: boolean;
             };
-            /** @description The team-level flags: today only `FLOW_CAPACITY`, one roll-up of the team's open Flow capacity deviations (`GET /views/capacity-deviations`), its severity the worst of them. Empty without a Flow link, with a disabled connection or when every row is acknowledged. */
+            /** @description The team-level flags: `FLOW_CAPACITY`, one roll-up of the team's open Flow capacity deviations (`GET /views/capacity-deviations`), its severity the worst of them; or `FLOW_CAPACITY_PENDING` (neutral; the severity is a placeholder) when its sprint snapshot is incomplete, never both. Empty without a Flow link, with a disabled connection or when every row is acknowledged. */
             flags: components["schemas"]["PlanFlag"][];
         };
         TeamViewOrder: {
@@ -3783,7 +3783,7 @@ export interface components {
             maxWip: number;
             /** @description Some working day's in-progress count exceeds the WIP limit in force that day; a day without a limit never flags. */
             wipExceeded: boolean;
-            /** @description Present only on `GET /views/team/{id}` and only when an open Flow capacity row's held days (`effectiveFrom` to the sprint's end) meet the week: the worst severity among the rows that meet it (a `TEAM_GONE` row marks no week). Absent otherwise, and always absent on a proposal's or a check's weeks. */
+            /** @description Present only on `GET /views/team/{id}` and only when an open Flow capacity row's held days (`effectiveFrom` to the sprint's end) meet the week: the worst severity among the rows that meet it (a `TEAM_GONE` row marks no week, nor does a team whose Flow comparison is pending). Absent otherwise, and always absent on a proposal's or a check's weeks. */
             flowCapacity?: components["schemas"]["Severity"];
         };
         /** @description A milestone as the team view shows it - the `MilestoneResponse` fields plus the names of its project chain and its project's rank. Both dates are null in `unscheduled`. */
@@ -4261,6 +4261,8 @@ export interface components {
             drift: components["schemas"]["Drift"] | null;
             /** @description The drift and rank-inversion flags, the Jira ones (`JIRA_DEVIATION` per open line of its own binding, one `JIRA_MILESTONES` roll-up of its milestones, never one flag per milestone) and one `FLOW_CAPACITY_MILESTONES` per team with an open Flow capacity difference over its scheduled milestones; WARNING first, then by kind, team and other project. */
             flags: components["schemas"]["PlanFlag"][];
+            /** @description The teams (ids ascending) with a scheduled milestone of this project whose Flow capacity comparison is pending (the team's sprint snapshot is incomplete): a neutral marker, never a warning and in no flag count. Absent when there is none. */
+            flowPendingTeamIds?: number[];
             can: {
                 /** @description The caller may `PUT /projects/{id}/target-window`: ADMIN, an owner above the project, or a ROADMAP_EDITOR holder. */
                 editTargetWindow: boolean;
@@ -4272,10 +4274,10 @@ export interface components {
         /** @description A flag raised on a project, a milestone or a team; a warning only, nothing is ever moved. Only `kind` and `severity` are always present; every other member is absent (never `null`) when it does not apply to the kind. `FLOW_CAPACITY_MILESTONES` is raised when a scheduled milestone of the project on that team lies in days an open capacity difference of the team covers: WARNING when the plan holds more capacity than Flow in a sprint such a milestone meets, else INFO. An acknowledged difference, a disabled Flow connection, an unscheduled milestone or a team whose Flow team is gone raises nothing. */
         PlanFlag: {
             /**
-             * @description Drift: `DRIFT_END_LATE` (WARNING), `DRIFT_START_LATE` and `DRIFT_END_EARLY` (INFO; an early start raises nothing). `RANK_INVERSION`. `NO_WORKING_DAY`: a milestone's span holds no working day. `JIRA_DEVIATION`: one open deviation line. `JIRA_MILESTONES`: a project's roll-up. `FLOW_CAPACITY`: a team's roll-up (`team.flags`). `FLOW_CAPACITY_MILESTONES`: one team's share of a project row.
+             * @description Drift: `DRIFT_END_LATE` (WARNING), `DRIFT_START_LATE` and `DRIFT_END_EARLY` (INFO). `RANK_INVERSION`. `NO_WORKING_DAY`. `JIRA_DEVIATION`: one open line. `JIRA_MILESTONES`: a project's roll-up. `FLOW_CAPACITY`: a team's roll-up.  `FLOW_CAPACITY_MILESTONES`: one team's share of a project. `FLOW_CAPACITY_PENDING`: a neutral team flag (severity INFO).
              * @enum {string}
              */
-            kind: "DRIFT_END_LATE" | "DRIFT_START_LATE" | "DRIFT_END_EARLY" | "RANK_INVERSION" | "NO_WORKING_DAY" | "JIRA_DEVIATION" | "JIRA_MILESTONES" | "FLOW_CAPACITY" | "FLOW_CAPACITY_MILESTONES";
+            kind: "DRIFT_END_LATE" | "DRIFT_START_LATE" | "DRIFT_END_EARLY" | "RANK_INVERSION" | "NO_WORKING_DAY" | "JIRA_DEVIATION" | "JIRA_MILESTONES" | "FLOW_CAPACITY" | "FLOW_CAPACITY_MILESTONES" | "FLOW_CAPACITY_PENDING";
             severity: components["schemas"]["Severity"];
             /**
              * Format: int32
@@ -4554,7 +4556,7 @@ export interface components {
             wipExceededWeeks: number;
             /** @description The open Jira deviations of the team's milestones, by severity. */
             jira: components["schemas"]["FlagCounts"];
-            /** @description The team view's `team.flags` - at most one `FLOW_CAPACITY` flag. */
+            /** @description The team view's `team.flags` - at most one `FLOW_CAPACITY` or `FLOW_CAPACITY_PENDING` flag. */
             flags: components["schemas"]["PlanFlag"][];
         };
         /** @description Every team's milestones and flagged weeks. Every figure is one the team view shows, so the list never disagrees with it or with Home. */
@@ -6641,7 +6643,7 @@ export interface components {
             /** @description The caller may acknowledge and unacknowledge this team's rows: ADMIN, or the team's active manager. */
             acknowledge: boolean;
         };
-        /** @description One linked team with its deviations (never empty in a listed item; the filters narrow it). */
+        /** @description One linked team with its deviations: never empty in a listed item unless `sprintsComplete` is false (the filters narrow it). */
         CapacityDeviationItem: {
             /** Format: int32 */
             bindingId: number;
@@ -6657,9 +6659,11 @@ export interface components {
             /** @description The connection's IANA time zone id, the zone of the sprint dates. */
             zone: string;
             can: components["schemas"]["CapacityDeviationCan"];
+            /** @description False = the team's stored sprint snapshot is incomplete (a document cut at the sprint cap, or a mirror older than the flag): the comparison is PENDING a complete Flow refresh and `deviations` is empty. No warning is ever derived from partial data and the team is never "in line". */
+            sprintsComplete: boolean;
             deviations: components["schemas"]["CapacityDeviation"][];
         };
-        /** @description Before the 1,000-team cap. `teams` counts what the list answers; `warnings`, `infos`, `gone` and `acknowledged` share one basis, the rows matching every filter but the acknowledgement state. */
+        /** @description Before the 1,000-team cap. `warnings`, `infos`, `gone`, `acknowledged` and `pending` share one basis, what matches every filter but the acknowledgement state; `teams` is the exception (the teams the list answers with a row). */
         CapacityDeviationTotals: {
             /**
              * Format: int32
@@ -6683,9 +6687,14 @@ export interface components {
             acknowledged: number;
             /**
              * Format: int32
-             * @description Teams the list answers (the ones with an open row by default), before the cap; `items` holds at most the first 1,000.
+             * @description Teams the list answers with a row (the ones with an open row by default), before the cap; `items` holds at most the first 1,000.
              */
             teams: number;
+            /**
+             * Format: int32
+             * @description The teams whose sprint snapshot is incomplete (`sprintsComplete` false), before the cap and whatever the acknowledgement state (so `acknowledged=true` still counts them, though it lists none): no row, in none of the other figures; 0 under a `severity` or `kind` filter (a team without a row matches neither).
+             */
+            pending: number;
         };
         CapacityDeviationView: {
             /**

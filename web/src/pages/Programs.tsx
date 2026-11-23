@@ -271,6 +271,7 @@ function ProgramsBody({
           </Group>
           <ProgramsTimeline
             links={view.links}
+            teams={view.teams}
             rows={rows}
             anchors={anchors}
             onToggle={toggle}

@@ -165,13 +165,13 @@ function RoadmapFigures({ plan, jiraStale }: { plan: HomePlan | undefined; jiraS
 
 /**
  * The landing page: an intro and three cards that link to the plan, the roadmap and the deviations. The Plan and Roadmap cards show the plan's figures
- * from ONE read (`GET /views/home`, shown as the server derives them), the Deviations card the OPEN deviation counts (`useOpenDeviationCounts`). The
+ * from ONE read (`GET /views/home`, shown as the server derives them), the Deviations card the OPEN deviation counts and, neutral, the Flow teams waiting for a complete refresh (`useOpenDeviationCounts`). The
  * links never depend on a read; a failed Home read is ONE inline alert under the cards (a failed re-read keeps the figures it has and the "Yours" section
  * below the alert; a failed first read leaves no section), a failed deviation read the alert inside the Deviations card. "May be out of date" follows the page each figure links to (`isStaleSource` and its folds).
  */
 export default function Home() {
   const { t } = useTranslation();
-  const { jira, flow, jiraStale, flowStale, ready, error } = useOpenDeviationCounts();
+  const { jira, flow, flowPending, jiraStale, flowStale, ready, error } = useOpenDeviationCounts();
   const home = useQuery({ queryKey: HOME_VIEW_KEY, queryFn: getHomeView, staleTime: HOME_STALE_MS });
   const plan = home.data?.plan;
   return (
@@ -203,6 +203,11 @@ export default function Home() {
               )
             }
           />
+          {flowPending > 0 && (
+            <Text size="sm" c="dimmed" data-flow-pending={flowPending}>
+              {t("deviations.flowSection.totals.pending", { count: flowPending })}
+            </Text>
+          )}
         </HomeCard>
       </div>
       {home.isError && <ErrorAlert error={home.error} title={t("home.figures.loadFailed")} />}

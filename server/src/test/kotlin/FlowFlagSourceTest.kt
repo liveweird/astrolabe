@@ -134,6 +134,28 @@ class FlowFlagSourceTest {
     }
 
     @Test
+    fun `an incomplete sprint snapshot raises ONE neutral pending flag with no range, never a capacity flag - disabled raises nothing`() =
+        testApplication {
+            val world = dayTwo("flowflag4b")
+            with(world) {
+                refreshOnly(1, 2, truncated = true) // the team is carried but its stored sprint snapshot is incomplete
+                val single = ask(teamId).team(teamId)
+                val flag = single.flags.single()
+                assertEquals(FlagKind.FLOW_CAPACITY_PENDING, flag.kind)
+                assertEquals(listOf(null, null, null, null), listOf(flag.count, flag.days, flag.teamId, flag.otherProjectId))
+                assertEquals(emptyList(), single.ranges, "no day is marked from partial data")
+                assertEquals(single, askEvery().teams[teamId], "the every-team form words it the same")
+
+                jbSql("UPDATE flow_connections SET enabled = FALSE WHERE id = ?", mirror.connectionId.toInt())
+                assertTrue(ask(teamId).teams.isEmpty(), "a disabled connection raises no flag, pending included")
+                jbSql("UPDATE flow_connections SET enabled = TRUE WHERE id = ?", mirror.connectionId.toInt())
+
+                refresh() // a complete document: the pending state is over and the capacity flag is back
+                assertEquals(FlagKind.FLOW_CAPACITY, ask(teamId).team(teamId).flags.single().kind)
+            }
+        }
+
+    @Test
     fun `a gone Flow team flags at WARNING with count 1 and no range`() = testApplication {
         val world = dayTwo("flowflag5")
         with(world) {

@@ -188,17 +188,20 @@ class CapacityImportApplyTest {
                 val body = ciBody(FAR_FROM, listOf(ciItem(1, action, "2049-03-01", "20.0")))
                 val forged = client.ciApply(binding.id, body).bodyAsText().fbObject()
                 assertEquals(listOf("1"), forged.ciRows("skipped").map { it.ciText("sprintId") }, action)
+                assertEquals(listOf("CHANGED"), forged.ciRows("skipped").map { it.ciText("reason") }, action)
                 assertEquals(listOf(0, 0, 0), listOf("created", "updated", "deleted").map { forged.getValue(it).jsonArray.size }, action)
             }
             // Forged: every manual period named as a removal, alone and beside a legitimate UPDATE (sprint 3 reuses the FLOW period).
             val removals = client.ciApply(binding.id, ciBody(FAR_FROM, emptyList(), everyManual)).bodyAsText().fbObject()
             assertEquals(everyManual.map { it.toString() }, removals.ciRows("skipped").map { it.ciText("periodId") })
+            assertTrue(removals.ciRows("skipped").all { it.ciText("reason") == "CHANGED" })
             assertEquals(0, removals.getValue("deleted").jsonArray.size)
             val beside = client.ciApply(binding.id, ciBody(FAR_FROM, listOf(ciItem(3, "UPDATE", "2049-03-29", "22.0")), everyManual))
                 .bodyAsText().fbObject()
             val updated = beside.ciRows("updated").map { it.ciText("sprintId") to it.ciText("periodId") }
             assertEquals(listOf("3" to flowLater.toString()), updated)
             assertEquals(everyManual.size, beside.getValue("skipped").jsonArray.size)
+            assertTrue(beside.ciRows("skipped").all { it.ciText("reason") == "CHANGED" })
             assertEquals("2049-03-29|22.00|-|FLOW|3|Flow later|false", ciRowShape(flowLater))
             // A MANUAL_PERIOD as the expected action is not a thing a person can tick: 400.
             for (action in listOf("MANUAL_PERIOD", "SKIP", "UNCHANGED")) {
@@ -273,6 +276,7 @@ class CapacityImportApplyTest {
         val result = client.ciApply(binding.id, body).bodyAsText().fbObject()
 
         assertEquals(listOf(0, 0, 0, 4), listOf("created", "updated", "deleted", "skipped").map { result.getValue(it).jsonArray.size })
+        assertTrue(result.ciRows("skipped").all { it.ciText("reason") == "CHANGED" })
         assertEquals(before, ciTeamRows(t.teamId))
     }
 
@@ -308,6 +312,7 @@ class CapacityImportApplyTest {
         val stale = client.ciApply(binding.id, staleRequest).bodyAsText().fbObject()
         assertEquals(listOf(0, 0, 0), listOf("created", "updated", "deleted").map { stale.getValue(it).jsonArray.size })
         assertEquals(3, stale.getValue("skipped").jsonArray.size, "two creates and the removal are all rejected")
+        assertTrue(stale.ciRows("skipped").all { it.ciText("reason") == "CHANGED" })
         assertEquals(before, ciTeamRows(t.teamId), "an incomplete snapshot authorizes no capacity write")
 
         m.refresh(flowTeamDoc(1, flowName, sprints = sprints))
@@ -445,7 +450,9 @@ class CapacityImportApplyTest {
             )
             val before = ciRow(s2)
             val forged = client.ciApply(binding.id, ciBody(FAR_FROM, listOf(ciItem(2, "UPDATE", "2049-03-15", "18.0")), listOf(s2)))
-            assertEquals(2, forged.bodyAsText().fbObject().ciRows("skipped").size)
+            val skipped = forged.bodyAsText().fbObject().ciRows("skipped")
+            assertEquals(2, skipped.size)
+            assertTrue(skipped.all { it.ciText("reason") == "CHANGED" })
             assertEquals(before, ciRow(s2))
         }
 
