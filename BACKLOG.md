@@ -90,7 +90,6 @@ Each increment gets its own plan (architect) before implementation. The domain s
 - [new] **The issue-header parser four Jira readers share (1.24).** Four Jira readers parse an issue's header with their own code; the checkup found it, and 1.24 left it out of its extraction, which shared only what the checkup found identical.
 - [new] **The failure code inside the bind `502`'s sentence is still sniffed (1.24).** `utils/jiraBind.ts` reads Jira's code out of the `502` problem's prose; the other sniffed sentences became problem types in 1.24, and this one wants a problem extension member, which is a contract addition the technical release did not make.
 - [new] **A `ConnectionsRegistry` page component for the two connection lists (1.24).** `JiraConnections` and `FlowConnections` stay twins after the leaf pieces were shared; one page component would need a `kind` switch inside, which the 1.24 rule (share a piece only when it is identical after renaming the connector) refuses.
-- [new] **`flow-sync.md` nits that did not fit under its ceiling (1.24).** The doc sits at 64,974 of 65,000 bytes, so four corrections were left: the binding-writes sentence says "the team's active manager or ADMIN" while "Link all suggested" is ADMIN only; the team-view listing no longer says a team with no rows left after the filters is dropped; the withdrawal's text lost "a stored row no longer listed is deleted too"; and the ledger's F11 "second limit" paragraph sits loose after the table.
 
 ## Engineering follow-ups
 
