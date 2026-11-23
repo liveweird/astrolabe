@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import type { ReactElement } from "react";
 import { QueryClient } from "@tanstack/react-query";
 import type { HomeView } from "../api/home";
 import { HOME_VIEW_KEY } from "../api/home";
@@ -8,7 +9,8 @@ import { CAPACITY_CONNECTION, capacityView } from "../test/flow";
 import { homeMe, homeView } from "../test/home";
 import { headingOutline } from "../test/headings";
 import { jsonResponse } from "../test/http";
-import { act, renderWithProviders, screen, waitFor, within } from "../test/render";
+import { requestsAnswered } from "../test/requestsAnswered";
+import { act, renderWithProviders as renderWithClient, screen, waitFor, within } from "../test/render";
 import Home from "./Home";
 
 const JIRA_URL = "/api/v1/views/deviations?acknowledged=true";
@@ -23,6 +25,13 @@ const CARDS = [
 ];
 /** The cards and the "Yours" section (shown while the read is pending and once it has answered; absent after a failed first read). */
 const OUTLINE = [...CARDS, [3, "Yours"]];
+
+/** The query client of the page last rendered: the negative proofs wait for ITS requests to answer, never for a guessed number of milliseconds. */
+let pageClient: QueryClient;
+const renderWithProviders = (ui: ReactElement, options: { queryClient?: QueryClient } = {}) => {
+  pageClient = options.queryClient ?? new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return renderWithClient(ui, { queryClient: pageClient });
+};
 
 type JiraConnection = ReturnType<typeof connectionIn>;
 
@@ -68,7 +77,7 @@ const homeWith = (over: Partial<HomeView>) => () => jsonResponse(200, homeView(o
 async function settled(fetchMock: ReturnType<typeof stubViews>) {
   await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
   await screen.findByText("5 work streams");
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await requestsAnswered(pageClient);
 }
 
 describe("Home", () => {
@@ -104,7 +113,7 @@ describe("Home", () => {
     renderWithProviders(<Home />, { queryClient });
     // The kept figures are on screen at once, with no second round of requests.
     expect(screen.getByText("5 work streams")).toBeInTheDocument();
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await requestsAnswered(pageClient);
     expect(fetchMock).toHaveBeenCalledTimes(3);
 
     // A write that moves a figure marks the read stale (`["plan"]` or its own key): the mounted page re-reads the Home document alone.
@@ -175,7 +184,8 @@ describe("Home", () => {
     renderWithProviders(<Home />);
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
     await screen.findByText("5 work streams");
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    // The Home and Jira reads have answered; the Flow read is the one still pending.
+    await requestsAnswered(pageClient, 1);
     expect(screen.queryByText("No Jira or Flow connections are configured.")).not.toBeInTheDocument();
   });
 

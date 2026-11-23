@@ -12,7 +12,9 @@ import type { PlanFlag } from "../api/roadmap";
 import { applySchedule } from "../utils/projectViewUpdate";
 import { withoutGeneratedIds } from "../test/generatedIds";
 import { headingOutline } from "../test/headings";
+import { deferred } from "../test/deferred";
 import { jsonResponse } from "../test/http";
+import { requestsAnswered } from "../test/requestsAnswered";
 import { renderWithProviders } from "../test/render";
 
 type FetchMock = ReturnType<typeof vi.fn>;
@@ -150,8 +152,13 @@ function serve(mockFetch: FetchMock) {
   });
 }
 
-/** Holds an answer back by a realistic ~30 ms (see the 1.23 edit-then-delete cases). */
-const afterDelay = <T,>(answer: Promise<T>): Promise<T> => new Promise((resolve) => setTimeout(() => resolve(answer), 30));
+/**
+ * Holds the answer to a DELETE at a gate (see the 1.23 edit-then-delete cases): a DELETE takes a realistic ~30 ms, across Mantine's return-focus
+ * timer (`useFocusReturn`, 10 ms after the row menu closes), which may put the focus on the kebab if the body holds it then; a synchronous mock lets the
+ * confirm click land inside that window, which no person can. The test advances its fake clock by `DELETE_HELD_MS`, then releases the gate.
+ */
+const DELETE_HELD_MS = 30;
+const deleteGate = () => deferred();
 
 const calls = (mockFetch: FetchMock, method: string, matcher: RegExp) =>
   mockFetch.mock.calls
@@ -707,12 +714,12 @@ describe("Project view page: schedule write outcomes", () => {
     }
 
     test("success adopts the answered revision in the cache and renders nothing", async () => {
-      const { gate, errors, cached, discovery, container, getsBefore } = await unmountDuringSave();
+      const { gate, errors, queryClient, cached, discovery, container, getsBefore } = await unmountDuringSave();
       gate.settle?.(jsonResponse(200, { revision: 11 }));
       await waitFor(() => expect(cached()?.revision).toBe(11));
       // the saved dates stay (the next visit starts from them), and the closed page is not refetched into life
       expect(discovery(cached())).toMatchObject({ startDate: "2027-01-12", endDate: "2027-01-16" });
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      await requestsAnswered(queryClient);
       expect(viewGets(mockFetch)).toBe(getsBefore);
       expect(container).toBeEmptyDOMElement();
       expect(screen.queryByRole("grid")).toBeNull();
@@ -721,11 +728,11 @@ describe("Project view page: schedule write outcomes", () => {
     });
 
     test("a failure rolls the cache back to the view before the drop and renders nothing", async () => {
-      const { gate, errors, cached, discovery, container, getsBefore } = await unmountDuringSave();
+      const { gate, errors, queryClient, cached, discovery, container, getsBefore } = await unmountDuringSave();
       gate.settle?.(jsonResponse(500, { title: "x", status: 500 }));
       await waitFor(() => expect(discovery(cached())).toMatchObject({ startDate: "2027-01-11", endDate: "2027-01-15" }));
       expect(cached()?.revision).toBe(10);
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      await requestsAnswered(queryClient);
       expect(viewGets(mockFetch)).toBe(getsBefore);
       expect(container).toBeEmptyDOMElement();
       expect(screen.queryByRole("grid")).toBeNull();
@@ -772,13 +779,13 @@ describe("Project view page: schedule write outcomes", () => {
   });
 
   test("a delete right after an edit of the same milestone ends with the focus on the page title (1.23)", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
+    const gate = deleteGate();
     mockFetch.mockImplementation((url: string, init?: RequestInit) => {
       if (init?.method === "PUT" && url === "/api/v1/milestones/1") return Promise.resolve(new Response(null, { status: 204 }));
       if (init?.method === "DELETE" && url === "/api/v1/milestones/1") {
         view = { ...viewOf({ scheduled: [BUILD] }), revision: 11 };
-        // A DELETE takes a realistic ~30 ms: Mantine's return-focus timer (`useFocusReturn`, 10 ms after the row menu closes) may put the
-        // focus on the kebab if the body holds it then; a synchronous mock lets the confirm click land inside that window, which no person can.
-        return afterDelay(Promise.resolve(new Response(null, { status: 204 })));
+        return gate.promise.then(() => new Response(null, { status: 204 }));
       }
       if (url === "/api/v1/views/project/7") return Promise.resolve(jsonResponse(200, view));
       if (url.startsWith("/api/v1/teams?")) {
@@ -786,7 +793,7 @@ describe("Project view page: schedule write outcomes", () => {
       }
       return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
     });
-    const user = userEvent.setup();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     renderPage();
     await screen.findByRole("grid", { name: "Milestone timeline" });
     await user.click(screen.getByRole("button", { name: "Operations for Discovery" }));
@@ -797,9 +804,11 @@ describe("Project view page: schedule write outcomes", () => {
     await user.click(screen.getByRole("button", { name: "Operations for Discovery" }));
     await user.click(await screen.findByRole("menuitem", { name: "Delete Discovery" }));
     await user.click(within(await screen.findByRole("dialog", { name: "Delete milestone?" })).getByRole("button", { name: "Delete" }));
+    await act(() => vi.advanceTimersByTimeAsync(DELETE_HELD_MS));
+    gate.resolve();
     await waitFor(() => expect(screen.queryByRole("button", { name: "Operations for Discovery" })).toBeNull());
     await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: "Invoices" })).toHaveFocus());
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await act(() => vi.advanceTimersByTimeAsync(60));
     expect(screen.getByRole("heading", { level: 2, name: "Invoices" })).toHaveFocus();
   });
 
@@ -1240,15 +1249,15 @@ describe("Project view page: dependencies", () => {
   });
 
   test("a delete right after an edit of the same link ends with the focus on the Dependencies heading (1.23)", async () => {
-    const user = userEvent.setup();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
+    const gate = deleteGate();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     view = viewOf({ dependencies: [VIOLATED_LINK, OK_LINK] });
     renderPage();
     await screen.findByRole("grid", { name: "Milestone timeline" });
     const name = "a1 · Alpha → Discovery";
-    // A DELETE takes a realistic ~30 ms: Mantine's return-focus timer (`useFocusReturn`, 10 ms after the row menu closes) may put the focus on
-    // the kebab if the body holds it then. A synchronous mock would let the confirm click land inside that window, which no person can.
     const served = mockFetch.getMockImplementation() as (url: string, init?: RequestInit) => Promise<Response>;
-    mockFetch.mockImplementation((url: string, init?: RequestInit) => (init?.method === "DELETE" ? afterDelay(served(url, init)) : served(url, init)));
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => (init?.method === "DELETE" ? gate.promise.then(() => served(url, init)) : served(url, init)));
     await user.click(screen.getByRole("button", { name: `Operations for ${name}` }));
     await user.click(await screen.findByRole("menuitem", { name: `Edit ${name}` }));
     const before = viewGets(mockFetch);
@@ -1261,9 +1270,11 @@ describe("Project view page: dependencies", () => {
     const dialog = await screen.findByRole("dialog", { name: "Delete dependency?" });
     view = { ...viewOf({ dependencies: [OK_LINK] }), revision: 11 };
     await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+    await act(() => vi.advanceTimersByTimeAsync(DELETE_HELD_MS));
+    gate.resolve();
     await waitFor(() => expect(tableRows()).toHaveLength(1));
     await waitFor(() => expect(screen.getByRole("heading", { level: 3, name: "Dependencies" })).toHaveFocus());
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await act(() => vi.advanceTimersByTimeAsync(60));
     expect(screen.getByRole("heading", { level: 3, name: "Dependencies" })).toHaveFocus();
   });
 

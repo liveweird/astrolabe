@@ -5,6 +5,7 @@ import { Route, Routes, useLocation, useNavigationType } from "react-router-dom"
 import i18n from "../i18n";
 import { renderWithProviders, screen, waitFor, within } from "../test/render";
 import { headingOutline } from "../test/headings";
+import { requestsAnswered } from "../test/requestsAnswered";
 import { jsonResponse, notModified } from "../test/http";
 import { DATABASE_TIMEOUT_PROBLEM, shouldRetryQuery } from "../api/http";
 import { forgetRevalidated } from "../api/revalidate";
@@ -228,7 +229,7 @@ describe("Team load page", () => {
     expect(within(alert).queryByText(/500/)).toBeNull();
     expect(screen.queryByText("There are no teams yet")).toBeNull();
     // Two more tries would have started by now with retryDelay 0 had the policy retried it.
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await requestsAnswered(queryClient);
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 

@@ -28,6 +28,7 @@ function openFromMenu(hook: ReturnType<typeof mount>, item: HTMLElement) {
 
 describe("useDialogFocus", () => {
   afterEach(() => {
+    vi.useRealTimers();
     document.body.innerHTML = "";
     takeMenuTrigger();
   });
@@ -73,10 +74,11 @@ describe("useDialogFocus", () => {
   });
 
   test("the memory expired before the dialog opened: nothing to return to", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const { item, inside } = scaffold();
     const hook = mount();
     rememberMenuTrigger(item);
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    await vi.advanceTimersByTimeAsync(5);
     act(() => hook.rerender({ opened: true }));
     inside.focus();
     act(() => hook.rerender({ opened: false }));
@@ -314,6 +316,7 @@ describe("useDialogFocus", () => {
   });
 
   test("claim takes the trigger in the click for a dialog that opens after an await, and drops it when the await fails", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const { kebab, item, inside } = scaffold();
     const hook = mount();
     let release!: () => void;
@@ -322,7 +325,7 @@ describe("useDialogFocus", () => {
       rememberMenuTrigger(item);
       void hook.result.current.claim(pending);
     });
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    await vi.advanceTimersByTimeAsync(5);
     release();
     await pending;
     act(() => hook.rerender({ opened: true }));
@@ -336,7 +339,7 @@ describe("useDialogFocus", () => {
       rememberMenuTrigger(item);
       void hook.result.current.claim(failing).catch(() => undefined);
     });
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    await vi.advanceTimersByTimeAsync(5);
     act(() => hook.rerender({ opened: true }));
     inside.focus();
     inside.remove();

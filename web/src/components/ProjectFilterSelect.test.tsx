@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
+import { QueryClient } from "@tanstack/react-query";
 import { jsonResponse } from "../test/http";
+import { requestsAnswered } from "../test/requestsAnswered";
 import { renderWithProviders, screen, waitFor } from "../test/render";
 import ProjectFilterSelect from "./ProjectFilterSelect";
 
@@ -61,11 +63,12 @@ describe("ProjectFilterSelect", () => {
 
   test("while the plan has not answered, or failed, the field is blank and no such option exists", async () => {
     answer = () => jsonResponse(500, { title: "x", status: 500 });
-    renderWithProviders(<ProjectFilterSelect projectId={99} onChange={vi.fn()} />);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderWithProviders(<ProjectFilterSelect projectId={99} onChange={vi.fn()} />, { queryClient });
     const field = screen.getByRole("combobox", { name: "Project" });
     expect(field).toHaveValue("");
     await waitFor(() => expect(mockFetch).toHaveBeenCalled());
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await requestsAnswered(queryClient);
     expect(field).toHaveValue("");
   });
 });

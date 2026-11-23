@@ -42,6 +42,11 @@ function scaffold() {
 
 type Hook = ReturnType<typeof mount>;
 
+// The negative proofs below ("the focus stays") run on a fake clock: the hook's own `setTimeout(0)` and 25 ms retries are advanced by hand
+// (real time still flows for waitFor), so "nothing moved" is asserted after the hook's last chance to move it, never after a guess in real milliseconds.
+const startClock = () => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
+const settle = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
+
 async function succeed(hook: Hook) {
   act(() => hook.current.requestDelete({ id: 1 }));
   act(() => hook.current.confirmDelete());
@@ -50,6 +55,7 @@ async function succeed(hook: Hook) {
 
 describe("useDeleteConfirm focus after a successful delete", () => {
   afterEach(() => {
+    vi.useRealTimers();
     document.body.innerHTML = "";
     takeMenuTrigger();
     vi.clearAllMocks();
@@ -84,37 +90,40 @@ describe("useDeleteConfirm focus after a successful delete", () => {
   });
 
   test("the focus is somewhere real (the user, or Mantine's return focus, put it there): it stays", async () => {
+    startClock();
     const { heading, elsewhere } = scaffold();
     const hook = mount("heading", () => Promise.resolve());
     elsewhere.focus();
     await succeed(hook);
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await settle(20);
     expect(heading).not.toHaveFocus();
     expect(elsewhere).toHaveFocus();
     // ... and the request was dropped, not parked: a later body focus is not stolen.
     elsewhere.blur();
     act(() => hook.current.onExited());
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await settle(20);
     expect(heading).not.toHaveFocus();
   });
 
   test("a null target (the page navigates away) never moves the focus", async () => {
+    startClock();
     const { heading } = scaffold();
     const hook = mount(null, () => Promise.resolve());
     await succeed(hook);
     act(() => hook.current.onExited());
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await settle(20);
     expect(heading).not.toHaveFocus();
   });
 
   test("a failed delete never arms the focus move", async () => {
+    startClock();
     const { heading } = scaffold();
     const hook = mount("heading", () => Promise.reject(new Error("boom")));
     act(() => hook.current.requestDelete({ id: 1 }));
     act(() => hook.current.confirmDelete());
     await waitFor(() => expect(hook.current.mutation.isError).toBe(true));
     act(() => hook.current.onExited());
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await settle(20);
     expect(heading).not.toHaveFocus();
     expect(hook.current.opened).toBe(true);
   });
@@ -142,12 +151,13 @@ describe("useDeleteConfirm focus after a successful delete", () => {
     });
 
     test("the end of the exit is reported while the focus is still in the leaving dialog: the kebab takes it once the dialog is gone", async () => {
+      startClock();
       const els = scaffold();
       const hook = mount("heading", () => Promise.resolve());
       cancelFromMenu(hook, els);
       // Mantine reports the end first; the dialog leaves the DOM later, in a commit of its own that renders nothing of the page.
       act(() => hook.current.onExited());
-      await new Promise((resolve) => setTimeout(resolve, 60));
+      await settle(60);
       expect(els.inside).toHaveFocus();
       els.inside.remove();
       await waitFor(() => expect(els.kebab).toHaveFocus());
@@ -185,6 +195,7 @@ describe("useDeleteConfirm focus after a successful delete", () => {
     });
 
     test("a null target (the page navigates on success) still returns to the kebab, and to nowhere without one", async () => {
+      startClock();
       const els = scaffold();
       const hook = mount(null, () => Promise.resolve());
       cancelFromMenu(hook, els);
@@ -198,18 +209,19 @@ describe("useDeleteConfirm focus after a successful delete", () => {
       second.kebab.remove();
       second.inside.remove();
       act(() => again.current.onExited());
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      await settle(20);
       expect(document.activeElement).toBe(document.body);
     });
 
     test("the focus is somewhere real (a click elsewhere, or Mantine's own return): it stays", async () => {
+      startClock();
       const els = scaffold();
       const hook = mount("heading", () => Promise.resolve());
       cancelFromMenu(hook, els);
       els.elsewhere.focus();
       els.inside.remove();
       act(() => hook.current.onExited());
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      await settle(20);
       expect(els.elsewhere).toHaveFocus();
       expect(els.kebab).not.toHaveFocus();
       expect(els.heading).not.toHaveFocus();

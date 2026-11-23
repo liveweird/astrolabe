@@ -4,7 +4,8 @@ import { QueryClient } from "@tanstack/react-query";
 import { Route, Routes } from "react-router-dom";
 import i18n from "../i18n";
 import { forgetRevalidated } from "../api/revalidate";
-import { renderWithProviders, screen, waitFor, within } from "../test/render";
+import { act, renderWithProviders, screen, waitFor, within } from "../test/render";
+import { deferred } from "../test/deferred";
 import { jsonResponse } from "../test/http";
 import { dependencyListView, dependencyRow, milestoneEnd } from "../test/dependencyList";
 import Dependencies from "./Dependencies";
@@ -50,6 +51,7 @@ describe("Dependencies page: changing a dependency from its row", () => {
     localStorage.setItem("astrolabe.auth.token", "fake-token");
   });
   afterEach(async () => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     localStorage.clear();
     forgetRevalidated();
@@ -181,7 +183,9 @@ describe("Dependencies page: changing a dependency from its row", () => {
   });
 
   test("a delete right after an edit of the same row still ends with the focus on the page title (1.23: the editor's watch does not take it back)", async () => {
-    const user = userEvent.setup();
+    // Fake clock (real time still flows for waitFor): Mantine's 10 ms focus return is advanced by hand while the DELETE is held at a gate.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     answer = () => jsonResponse(200, dependencyListView([MAY_BOTH]));
     renderPage();
     await openMenu(user);
@@ -190,21 +194,24 @@ describe("Dependencies page: changing a dependency from its row", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Edit dependency" })).toBeNull());
     await waitFor(() => expect(readCalls()).toHaveLength(2));
     await waitFor(() => expect(kebab()).toHaveFocus());
-    // A DELETE takes a realistic ~30 ms: Mantine's return-focus timer (`useFocusReturn`, 10 ms after the row menu closes) may put the
+    // A DELETE is held at a gate across Mantine's return-focus timer (`useFocusReturn`, 10 ms after the row menu closes), which may put the
     // focus on the kebab if the body holds it then; a synchronous mock lets the confirm click land inside that window, which no person can.
     const served = mockFetch.getMockImplementation() as (url: string, init?: RequestInit) => Promise<Response>;
+    const deleteGate = deferred();
     mockFetch.mockImplementation((url: string, init?: RequestInit) =>
-      init?.method === "DELETE" ? new Promise((resolve) => setTimeout(() => resolve(served(url, init)), 30)) : served(url, init),
+      init?.method === "DELETE" ? deleteGate.promise.then(() => served(url, init)) : served(url, init),
     );
     await openMenu(user);
     await user.click(screen.getByRole("menuitem", { name: `Delete ${NAME}` }));
     const dialog = await screen.findByRole("dialog", { name: "Delete dependency?" });
     answer = () => jsonResponse(200, dependencyListView([]));
     await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+    await act(() => vi.advanceTimersByTimeAsync(30));
+    deleteGate.resolve();
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Delete dependency?" })).toBeNull());
     expect(await screen.findByText("The plan has no dependencies yet")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: "Dependencies" })).toHaveFocus());
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await act(() => vi.advanceTimersByTimeAsync(60));
     expect(screen.getByRole("heading", { level: 2, name: "Dependencies" })).toHaveFocus();
   });
 

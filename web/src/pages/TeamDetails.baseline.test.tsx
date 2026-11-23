@@ -1,3 +1,4 @@
+import { QueryClient } from "@tanstack/react-query";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
@@ -10,6 +11,7 @@ import type { TeamMilestone, TeamView } from "../api/teams";
 import { jsonResponse } from "../test/http";
 import { READ_ONLY_PANEL } from "../test/flow";
 import { renderWithProviders } from "../test/render";
+import { requestsAnswered } from "../test/requestsAnswered";
 import { applyTeamSchedule } from "../utils/teamViewUpdate";
 
 type FetchMock = ReturnType<typeof vi.fn>;
@@ -129,12 +131,12 @@ function serve() {
   });
 }
 
-function renderPage() {
+function renderPage(queryClient?: QueryClient) {
   return renderWithProviders(
     <Routes>
       <Route path="/teams/:id" element={<TeamDetails />} />
     </Routes>,
-    { route: "/teams/1" },
+    { route: "/teams/1", queryClient },
   );
 }
 
@@ -237,11 +239,12 @@ describe("Team page with a baseline", () => {
 
   test("the typed 400 clears a remembered pick that is gone and fetches the plain view once", async () => {
     localStorage.setItem(PICK_KEY, "99");
-    renderPage();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderPage(queryClient);
     await grid();
     expect(viewUrls).toEqual(["/api/v1/views/team/1?baseline=99", "/api/v1/views/team/1"]);
     expect(JSON.parse(localStorage.getItem(PICK_KEY) ?? "null")).toBeNull();
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    await requestsAnswered(queryClient);
     expect(viewUrls).toHaveLength(2);
   });
 

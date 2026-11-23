@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { Link, Route, Routes } from "react-router-dom";
 import { act, renderWithProviders, screen, waitFor, within } from "../test/render";
+import { deferred } from "../test/deferred";
 import { jsonResponse } from "../test/http";
 import { headingOutline } from "../test/headings";
 import { clientWithKeptHome, homeReadIsStale, homeView } from "../test/home";
@@ -148,6 +149,8 @@ describe("Jira connection page", () => {
   test("the first Test connection of a connection that had no discovery opens the mapping on the DEFAULTS, never on an empty form", async () => {
     // The mapping read before any discovery has defaults null; only a read after the test carries them.
     let discovered = false;
+    const lateMapping = deferred();
+    let lateMappingAsked = false;
     serve(mockFetch, { connection: { ...CONNECTION, discoveredAt: null, lastTestedAt: null, lastTestOk: null } });
     const base = mockFetch.getMockImplementation() as (url: string, init?: RequestInit) => Promise<Response>;
     mockFetch.mockImplementation((url: string, init?: RequestInit) => {
@@ -155,8 +158,9 @@ describe("Jira connection page", () => {
       if (url === BASE && method === "GET") return Promise.resolve(jsonResponse(200, discovered ? CONNECTION : { ...CONNECTION, discoveredAt: null, lastTestedAt: null, lastTestOk: null }));
       // After the test the discovery is answered at once and the mapping late: the editor must not open on the copy read before.
       if (url === `${BASE}/mapping`) {
+        if (discovered) lateMappingAsked = true;
         return discovered
-          ? new Promise((resolve) => setTimeout(() => resolve(jsonResponse(200, MAPPING_DEFAULTS_ONLY)), 150))
+          ? lateMapping.promise.then(() => jsonResponse(200, MAPPING_DEFAULTS_ONLY))
           : Promise.resolve(jsonResponse(200, { mapping: null, defaults: null, effective: null, discoveredAt: null, problems: [] }));
       }
       if (url === `${BASE}/test` && method === "POST") {
@@ -169,6 +173,11 @@ describe("Jira connection page", () => {
     renderPage();
     expect(await screen.findByText(/Test the connection first/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Test connection" }));
+    // The mapping read after the test is held at a gate until the test has seen it asked, then answered.
+    await waitFor(() => expect(lateMappingAsked).toBe(true));
+    await act(async () => {});
+    expect(screen.queryByRole("form", { name: "Field mapping" })).toBeNull();
+    lateMapping.resolve();
     const form = await screen.findByRole("form", { name: "Field mapping" });
     expect(within(form).getAllByRole("combobox", { name: "Start" })[2]).toHaveValue("Target start — customfield_10020");
     expect(within(form).getAllByRole("combobox", { name: "Jira level" })[2]).toHaveValue("Level 1 — Epic");

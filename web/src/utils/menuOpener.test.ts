@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { rememberMenuTrigger, takeMenuTrigger } from "./menuOpener";
 
 function scaffold() {
@@ -13,6 +13,7 @@ function scaffold() {
 
 describe("menuOpener", () => {
   afterEach(() => {
+    vi.useRealTimers();
     document.body.innerHTML = "";
     takeMenuTrigger();
   });
@@ -39,9 +40,10 @@ describe("menuOpener", () => {
   });
 
   test("the memory expires at the end of the click: a later take (a dialog opened from a plain button) finds nothing", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const { item } = scaffold();
     rememberMenuTrigger(item);
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    await vi.advanceTimersByTimeAsync(0);
     expect(takeMenuTrigger()).toBeNull();
   });
 

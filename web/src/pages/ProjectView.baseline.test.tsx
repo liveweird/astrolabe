@@ -1,3 +1,4 @@
+import { QueryClient } from "@tanstack/react-query";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
@@ -9,6 +10,7 @@ import type { Movement } from "../api/baselines";
 import type { ProjectMilestone, ProjectView as ProjectViewDocument } from "../api/milestones";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
+import { requestsAnswered } from "../test/requestsAnswered";
 import { applySchedule } from "../utils/projectViewUpdate";
 
 type FetchMock = ReturnType<typeof vi.fn>;
@@ -140,12 +142,12 @@ function serve() {
   });
 }
 
-function renderPage() {
+function renderPage(queryClient?: QueryClient) {
   return renderWithProviders(
     <Routes>
       <Route path="/projects/:id" element={<ProjectView />} />
     </Routes>,
-    { route: "/projects/7" },
+    { route: "/projects/7", queryClient },
   );
 }
 
@@ -293,12 +295,13 @@ describe("Project view page with a baseline", () => {
 
   test("a pick the server no longer knows (the typed 400) clears itself, refetches the plain view once and does not loop", async () => {
     localStorage.setItem(PICK_KEY, "99");
-    renderPage();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderPage(queryClient);
     await grid();
     expect(viewUrls).toEqual(["/api/v1/views/project/7?baseline=99", "/api/v1/views/project/7"]);
     await waitFor(() => expect(JSON.parse(localStorage.getItem(PICK_KEY) ?? "null")).toBeNull());
     expect(screen.queryByText(/Could not load/)).toBeNull();
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    await requestsAnswered(queryClient);
     expect(viewUrls).toHaveLength(2);
   });
 

@@ -1,3 +1,4 @@
+import { QueryClient } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { screen, waitFor, within } from "@testing-library/react";
@@ -6,6 +7,7 @@ import type { Movement } from "../api/baselines";
 import type { RemovedProject, RoadmapProject, RoadmapView } from "../api/roadmap";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
+import { requestsAnswered } from "../test/requestsAnswered";
 
 // The v0.9 baseline overlay on the Roadmap page: the picker in the timeline toolbar, a shadow bar under each baselined project's span bar,
 // the totals line, the typed 400 that clears the pick, and (1.10) the appended rows for the projects the baseline froze that are deleted now. The pick
@@ -290,16 +292,17 @@ describe("Roadmap page with a baseline", () => {
 
   test("the typed 400 clears a pick that is gone and fetches the plain view once", async () => {
     localStorage.setItem(PICK_KEY, "99");
-    renderPage();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderPage(queryClient);
     await waitForGrid();
     expect(viewUrls).toEqual(["/api/v1/views/roadmap?baseline=99", "/api/v1/views/roadmap"]);
     expect(JSON.parse(localStorage.getItem(PICK_KEY) ?? "null")).toBeNull();
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    await requestsAnswered(queryClient);
     expect(viewUrls).toHaveLength(2);
     expect(screen.queryByText(/Could not load the roadmap/)).toBeNull();
   });
 });
 
-function renderPage() {
-  return renderWithProviders(<Roadmap />);
+function renderPage(queryClient?: QueryClient) {
+  return renderWithProviders(<Roadmap />, { queryClient });
 }

@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import { Route, Routes, useLocation } from "react-router-dom";
 import Teams from "./Teams";
+import { deferred } from "../test/deferred";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
 import { clientWithKeptHome, homeReadIsStale } from "../test/home";
@@ -12,14 +13,6 @@ const TOKEN_KEY = "astrolabe.auth.token";
 const ROLES_KEY = "astrolabe.auth.roles";
 
 type FetchMock = ReturnType<typeof vi.fn>;
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => {
-    resolve = done;
-  });
-  return { promise, resolve };
-}
 
 const PAGE = {
   items: [
@@ -97,6 +90,7 @@ describe("Teams page", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     localStorage.clear();
   });
@@ -238,34 +232,40 @@ describe("Teams page", () => {
   });
 
   test("after a successful delete the focus moves to the page heading, the row's kebab and the dialog being gone", async () => {
+    // Fake clock (real time still flows for waitFor): Mantine's 10 ms focus return is advanced by hand while the DELETE is held at a gate.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
+    const deleteGate = deferred<Response>();
     let deleted = false;
     mockFetch.mockImplementation((url: string, init?: RequestInit) => {
       const method = init?.method ?? "GET";
       if (method === "DELETE" && url === "/api/v1/teams/2") {
         deleted = true;
-        // A DELETE takes a realistic ~30 ms: Mantine's return-focus timer (`useFocusReturn`, 10 ms after the row menu closes) may put the
-        // focus on the kebab if the body holds it then; a synchronous mock lets the confirm click land inside that window, which no person can.
-        return new Promise((resolve) => setTimeout(() => resolve(new Response(null, { status: 204 })), 30));
+        // The DELETE is held at a gate across Mantine's return-focus timer (`useFocusReturn`, 10 ms after the row menu closes), which may put
+        // the focus on the kebab if the body holds it then; a synchronous mock lets the confirm click land inside that window, which no person can.
+        return deleteGate.promise;
       }
       if (method === "GET" && url.startsWith("/api/v1/teams?")) {
         return Promise.resolve(jsonResponse(200, deleted ? { ...PAGE, items: PAGE.items.slice(0, 1), total: 1 } : PAGE));
       }
       return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
     });
-    const user = userEvent.setup();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     renderPage();
     await user.click(await screen.findByRole("button", { name: "Operations for Identity" }));
     await user.click(await screen.findByRole("menuitem", { name: "Delete Identity" }));
     await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: /^delete$/i }));
+    await act(() => vi.advanceTimersByTimeAsync(30));
+    deleteGate.resolve(new Response(null, { status: 204 }));
     await waitFor(() => expect(screen.queryByRole("button", { name: "Operations for Identity" })).not.toBeInTheDocument());
     await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: "Teams" })).toHaveFocus());
     // Mantine's own focus return (10 ms after the close) finds the focus taken and leaves it.
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await act(() => vi.advanceTimersByTimeAsync(60));
     expect(screen.getByRole("heading", { level: 2, name: "Teams" })).toHaveFocus();
     expect(screen.getByRole("heading", { level: 2, name: "Teams" })).toHaveAttribute("tabindex", "-1");
   });
 
   test("a delete right after an edit of the same team ends with the focus on the page heading (1.23)", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
     let deleted = false;
     mockFetch.mockImplementation((url: string, init?: RequestInit) => {
       const method = init?.method ?? "GET";
@@ -281,7 +281,7 @@ describe("Teams page", () => {
       if (method === "GET" && url.startsWith("/api/v1/people?")) return Promise.resolve(jsonResponse(200, PEOPLE));
       return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
     });
-    const user = userEvent.setup();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     renderPage();
     await user.click(await screen.findByRole("button", { name: "Operations for Payments" }));
     await user.click(await screen.findByRole("menuitem", { name: "Edit Payments" }));
@@ -293,7 +293,7 @@ describe("Teams page", () => {
     await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: /^delete$/i }));
     await waitFor(() => expect(screen.queryByRole("button", { name: "Operations for Payments" })).not.toBeInTheDocument());
     await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: "Teams" })).toHaveFocus());
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await act(() => vi.advanceTimersByTimeAsync(60));
     expect(screen.getByRole("heading", { level: 2, name: "Teams" })).toHaveFocus();
   });
 

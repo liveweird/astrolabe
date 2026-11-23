@@ -1,13 +1,14 @@
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { Menu } from "@mantine/core";
 import DestructiveMenuItem from "./DestructiveMenuItem";
 import RowActionsMenu from "./RowActionsMenu";
 import { takeMenuTrigger } from "../utils/menuOpener";
-import { renderWithProviders, screen, waitFor } from "../test/render";
+import { act, renderWithProviders, screen, waitFor } from "../test/render";
 
 describe("RowActionsMenu", () => {
   afterEach(() => {
+    vi.useRealTimers();
     takeMenuTrigger();
   });
 
@@ -132,7 +133,8 @@ describe("RowActionsMenu", () => {
   });
 
   test("an item that takes nothing leaves no stale trigger for a later dialog", async () => {
-    const user = userEvent.setup();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     renderWithProviders(
       <RowActionsMenu label="Operations for acquirer">
         <Menu.Item>Move up</Menu.Item>
@@ -140,11 +142,16 @@ describe("RowActionsMenu", () => {
     );
     await user.click(screen.getByRole("button", { name: "Operations for acquirer" }));
     await user.click(await screen.findByRole("menuitem", { name: "Move up" }));
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    await act(() => vi.advanceTimersByTimeAsync(5));
     expect(takeMenuTrigger()).toBeNull();
   });
   describe("Tab leaves an open menu", () => {
-    const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    // Fake clock (real time still flows for waitFor): Mantine's 10 ms focus return is advanced by hand, never waited for.
+    const pause = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
+    const startClock = () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
+      return userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    };
 
     function renderBetweenButtons() {
       return renderWithProviders(
@@ -176,7 +183,7 @@ describe("RowActionsMenu", () => {
     }
 
     test("Tab closes the menu and the focus moves on from the kebab: the event never reaches the document, so nothing prevents its default", async () => {
-      const user = userEvent.setup();
+      const user = startClock();
       renderBetweenButtons();
       const kebab = await openWithKeyboard(user);
       const document_ = watchDocumentKeys();
@@ -195,7 +202,7 @@ describe("RowActionsMenu", () => {
     });
 
     test("Shift+Tab closes the menu likewise and the focus moves back from the kebab", async () => {
-      const user = userEvent.setup();
+      const user = startClock();
       renderBetweenButtons();
       await openWithKeyboard(user);
       const document_ = watchDocumentKeys();

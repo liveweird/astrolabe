@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
+import { QueryClient } from "@tanstack/react-query";
 import { jsonResponse } from "../test/http";
+import { requestsAnswered } from "../test/requestsAnswered";
 import { renderWithProviders, screen } from "../test/render";
 import { GENERATED_AT, historyFixture, MB, seriesFixture } from "../test/telemetryFixtures";
 import type { TFunction } from "i18next";
@@ -61,8 +63,9 @@ describe("TelemetryTrend", () => {
 
   test("an inactive trend (its section collapsed) asks for nothing", async () => {
     const fetchMock = stubHistory(() => jsonResponse(200, historyFixture("memory", "24h", memory)));
-    renderWithProviders(<TelemetryTrend group="memory" range="24h" columns={memoryOf} label="Memory" active={false} />);
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderWithProviders(<TelemetryTrend group="memory" range="24h" columns={memoryOf} label="Memory" active={false} />, { queryClient });
+    await requestsAnswered(queryClient);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
