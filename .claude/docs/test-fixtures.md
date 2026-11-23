@@ -13,6 +13,7 @@ Owns: the server test harness and fixtures, the fork machinery (warm-up, balanci
 - **Global tables.** Work stream and program names are globally unique among active rows. Holidays are global and start empty: a test adds one inside `TestHolidays.with { }` only. Baselines count toward the cap of 100: a test that takes one removes it in a `finally`. The ranking and the dependency graph are shared: a test that links or ranks cleans up with its own throwaway world.
 - **Stubs.** A test class that touches a stub calls that fixture's `warm()` in a `@BeforeClass` (`StubWarmupGuardTest`). The stubs take a dynamic port, never a fixed one (`StubPortGuardTest`). A test that flips a scenario MUST `resetScenarios()` in a `finally`: the server is shared by every class in the fork.
 - A run is awaited through `SyncRunner.await(runId)`, a request parked at a lock through `requestHeldAtPlanLock`/`awaitLockWait(...)`, never by sleeping.
+- An observable with no signal (a stub's request journal) is waited on with `awaitUntil(what) { … }` (`TestAwait.kt`, a bounded poll). `TestSleepGuardTest` fails a new `Thread.sleep(`/`delay(` outside its allow-list, which only shrinks.
 - Only the `ForkWarmup<k>Test` classes call `ForkWarmup.warm()`; no test may assume it is the fork's first boot.
 - **Scale tests** assert a LOOSE tripwire and print `scale-figure`, never `fixture-cost`.
 - **E2E.** Global setup starts nothing: it requires a stack named by the four `E2E_*` variables (none assumed; no host URL under `e2e/`).

@@ -225,7 +225,7 @@ class LeakedSocketGuardTest {
     private companion object {
         const val LOCK_NOT_AVAILABLE = "55P03"
         const val POLL_MS = 100L
-        const val UNGUARDED_SETTLE_MS = 1_000L
+        const val UNGUARDED_SETTLE_MS = 300L
         const val IDLE_TIMEOUT_S = 2L
         const val IDLE_MARGIN_MS = 1_500L
     }

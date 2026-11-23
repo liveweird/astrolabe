@@ -15,8 +15,8 @@ import ch.nokillswit.jira.JiraTestTarget
 import ch.nokillswit.jira.StoredMapping
 import ch.nokillswit.jira.browseScope
 import io.ktor.http.HttpHeaders
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.time.LocalDate
@@ -312,13 +312,17 @@ class JiraImportBrowseTest {
 
     @Test
     fun `a slow parent read is the browse's TIMEOUT`() {
+        val entered = CompletableDeferred<Unit>()
         val site = ScriptedSite(
             searchPage(doc(1, 1, parent = 20)),
             issues = mapOf("20" to answer(doc(20, 2, done = true))),
-            onIssue = { delay(5_000) },
+            onIssue = { entered.complete(Unit); outlastDeadline() },
         )
-        val failure = assertFailsWith<FetchException> { browse(site, deadlineMillis = 300, filter = Filter().holder, now = today) }
+        val failure = assertFailsWith<FetchException> {
+            browse(site, deadlineMillis = DEADLINE_MILLIS, filter = Filter().holder, now = today)
+        }
         assertEquals("TIMEOUT", failure.code)
+        assertTrue(entered.isCompleted, "the deadline hit INSIDE the parent read, not before it was reached")
     }
 
     @Test
@@ -423,16 +427,30 @@ class JiraImportBrowseTest {
 
     @Test
     fun `a browse past its deadline fails TIMEOUT, and the caller's own cancellation is not mistaken for it`() {
-        val slow = ScriptedSite(searchPage(epic(1)), onSearch = { delay(5_000) })
-        val failure = assertFailsWith<FetchException> { browse(slow, deadlineMillis = 300) }
+        val searching = CompletableDeferred<Unit>()
+        val slow = ScriptedSite(searchPage(epic(1)), onSearch = { searching.complete(Unit); outlastDeadline() })
+        val failure = assertFailsWith<FetchException> { browse(slow, deadlineMillis = DEADLINE_MILLIS) }
         assertEquals("TIMEOUT", failure.code)
-        val cancelled = ScriptedSite(searchPage(epic(1)), onSearch = { delay(5_000) })
+        assertTrue(searching.isCompleted, "the deadline hit INSIDE the search, not before it was reached")
+        val inSearch = CompletableDeferred<Unit>()
+        val cancelled = ScriptedSite(searchPage(epic(1)), onSearch = { inSearch.complete(Unit); outlastDeadline() })
         val outcome = runBlocking {
-            val job = launch { browse(cancelled) }
-            delay(300)
+            // The suspend call itself (not the blocking `browse` wrapper), so cancelling the launch really cancels the browse; a
+            // cancellation turned into a TIMEOUT failure would fail the launch and be rethrown by this runBlocking.
+            val job = launch {
+                browseScope(
+                    cancelled.connector, context, token, listOf("IMP"), importMapping(), IMPORT_DISCOVERY, 1L, {}, 2_000, 60_000, null,
+                )
+            }
+            inSearch.await()
             job.cancelAndJoin()
             job.isCancelled
         }
         assertTrue(outcome, "a cancelled caller is cancelled, not turned into a TIMEOUT failure")
+    }
+
+    private companion object {
+        /** A deadline short enough to cost nothing: the handlers outlast it, and each TIMEOUT test asserts its handler was entered. */
+        const val DEADLINE_MILLIS = 50L
     }
 }

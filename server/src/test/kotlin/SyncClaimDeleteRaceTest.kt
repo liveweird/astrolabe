@@ -15,7 +15,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.delay
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -34,7 +33,6 @@ class SyncClaimDeleteRaceTest {
     private companion object {
         const val PREFIX = "sync-race"
         const val BUDGET_MS = 30_000L
-        const val POLL_MS = 20L
     }
 
     private val database = sharedDatabaseForTests()
@@ -63,16 +61,8 @@ class SyncClaimDeleteRaceTest {
 
     private suspend fun newConnection(): UInt = registry.create(flowRequest(name = flowUnique(PREFIX)))
 
-    /** Whether another backend is blocked on a row lock over `flow_connections` right now (the claim's or the delete's first statement). */
-    private fun lockWaiterPresent(): Boolean = jbScalar(
-        "SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND pid <> pg_backend_pid() " +
-            "AND query ILIKE '%flow_connections%'",
-    ) { it.getInt(1) } > 0
-
-    /** Polls (bounded) until the other transaction is provably waiting on our lock: no fixed pause, so no timing guess. */
-    private suspend fun awaitLockWaiter() = withTimeout(BUDGET_MS) {
-        while (!lockWaiterPresent()) delay(POLL_MS)
-    }
+    /** Waits (bounded) until the other transaction is provably blocked on a row lock over `flow_connections` (a claim or a delete). */
+    private suspend fun awaitLockWaiter() = awaitLockWait("flow_connections")
 
     private fun runCount(id: UInt): Int =
         jbScalar("SELECT count(*) FROM sync_runs WHERE kind = 'FLOW' AND connection_id = ?", id.toInt()) { it.getInt(1) }

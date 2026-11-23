@@ -188,9 +188,10 @@ class FlowConnectionServiceTest {
     fun `a test result is recorded only for the row it judged`() = runBlocking {
         PostgresTestSupport.ensureMigrated()
         val id = service.create(flowRequest(name = name()))
+        // updated_at is epoch millis: backdate it so the edit below is certain to land on a later one, without waiting for the clock.
+        jbSql("UPDATE flow_connections SET updated_at = updated_at - 1000 WHERE id = ?", id.toInt())
         val target = assertNotNull(service.readForTest(id))
         assertEquals(listOf(FLOW_TEST_ORIGIN, "Europe/Warsaw", true), listOf(target.baseUrl, target.timeZone, target.enabled))
-        Thread.sleep(2) // updated_at is epoch millis: the edit below must land on a later one
         service.update(id, flowRequest(name = assertNotNull(service.read(id)).name, token = flowToken('c')))
         assertFalse(service.recordTest(id, target.expectedUpdatedAt, ok = true, at = 5L), "the token was rotated meanwhile")
         assertNull(assertNotNull(service.read(id)).lastTestOk)

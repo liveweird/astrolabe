@@ -26,7 +26,7 @@ import ch.nokillswit.jira.observationFields
 import ch.nokillswit.jira.requireRootRow
 import ch.nokillswit.jira.withoutRow
 import io.ktor.http.HttpHeaders
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.Test
@@ -339,12 +339,17 @@ class JiraImportChildrenTest {
 
     @Test
     fun `a slow search is the browse's TIMEOUT, and so is a slow root read`() {
-        val failure = assertFailsWith<FetchException> { browse(programSite(onSearch = { delay(5_000) }), deadlineMillis = 300) }
+        val searching = CompletableDeferred<Unit>()
+        val slowSearch = programSite(onSearch = { searching.complete(Unit); outlastDeadline() })
+        val failure = assertFailsWith<FetchException> { browse(slowSearch, deadlineMillis = 50) }
         assertEquals("TIMEOUT", failure.code)
+        assertTrue(searching.isCompleted, "the deadline hit INSIDE the search, not before it was reached")
+        val readingRoot = CompletableDeferred<Unit>()
         val slowRoot = ScriptedSite(
-            searchPage(), issues = rootIssues(1 to doc(1, 3)), onIssue = { delay(5_000) },
+            searchPage(), issues = rootIssues(1 to doc(1, 3)), onIssue = { readingRoot.complete(Unit); outlastDeadline() },
         )
-        assertEquals("TIMEOUT", assertFailsWith<FetchException> { browse(slowRoot, deadlineMillis = 300) }.code)
+        assertEquals("TIMEOUT", assertFailsWith<FetchException> { browse(slowRoot, deadlineMillis = 50) }.code)
+        assertTrue(readingRoot.isCompleted, "the deadline hit INSIDE the root read, not before it was reached")
     }
 
     @Test

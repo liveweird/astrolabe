@@ -53,7 +53,7 @@ class RequestAsTest {
             async(Dispatchers.Default) {
                 http.requestAs(HttpMethod.Get, "https://stub.invalid/x") { tree ->
                     maxInside.accumulateAndGet(inside.incrementAndGet(), ::maxOf)
-                    Thread.sleep(50) // long enough for another call to reach the lock if it were free
+                    Thread.sleep(50) // long enough for another call (already running on another thread) to reach the lock if it were free
                     inside.decrementAndGet()
                     n * 1000 + (tree as JsonArray).size
                 }

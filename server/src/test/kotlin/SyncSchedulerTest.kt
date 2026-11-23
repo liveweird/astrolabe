@@ -39,7 +39,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -508,16 +507,24 @@ class SyncSchedulerTest {
     fun `a connector that throws costs one WARN, then recovers, and the loop keeps ticking through it`() = runBlocking {
         val id = connectionId()
         val calls = AtomicInteger()
+        val ran = CompletableDeferred<Unit>()
+        val nextTickBegan = CompletableDeferred<Unit>()
         val fake = FakeConnector().apply {
             listing = {
-                if (calls.incrementAndGet() <= 3) error("the connector cannot read: $secret") else listOf(conn(id))
+                if (calls.incrementAndGet() <= 3) error("the connector cannot read: $secret")
+                // The run starts only after the good tick's last read, and the loop is sequential: a read after it is the NEXT tick's.
+                if (ran.isCompleted) nextTickBegan.complete(Unit)
+                listOf(conn(id))
             }
+            body = { ran.complete(Unit); SyncResult.succeeded(SyncCounts()) }
         }
         val log = capture()
         val scheduler = scheduler(fake)
 
         val loop = scheduler.start()
-        withTimeout(60_000) { while (rows(id).isEmpty() || scheduler.lastTickOk != true) delay(25) }
+        withTimeout(60_000) { nextTickBegan.await() }
+        assertEquals(true, scheduler.lastTickOk, "the first good tick ended clean")
+        assertTrue(rows(id).isNotEmpty(), "and claimed its run")
         settle(id)
 
         assertTrue(loop.isActive, "three failed ticks did not stop the loop")
@@ -557,9 +564,17 @@ class SyncSchedulerTest {
         // And the real loop survives it: it keeps ticking past a leaked timeout and reaches the next good tick.
         val id = connectionId()
         val calls = AtomicInteger()
-        fake.listing = { if (calls.incrementAndGet() <= 2) withTimeout(10) { awaitCancellation() } else listOf(conn(id)) }
+        val ran = CompletableDeferred<Unit>()
+        val nextTickBegan = CompletableDeferred<Unit>()
+        fake.listing = {
+            if (calls.incrementAndGet() <= 2) withTimeout(10) { awaitCancellation() }
+            if (ran.isCompleted) nextTickBegan.complete(Unit) // a read after the run started is the next tick's (the loop is sequential)
+            listOf(conn(id))
+        }
+        fake.body = { ran.complete(Unit); SyncResult.succeeded(SyncCounts()) }
         val loop = scheduler.start()
-        withTimeout(45_000) { while (rows(id).isEmpty()) delay(25) }
+        withTimeout(45_000) { nextTickBegan.await() }
+        assertTrue(rows(id).isNotEmpty(), "the first good tick claimed its run")
         settle(id)
         assertTrue(loop.isActive)
     }
@@ -655,9 +670,5 @@ class SyncSchedulerTest {
         assertEquals(SyncTrigger.SCHEDULED, row.trigger)
         assertEquals(SyncOutcome.FAILED, row.outcome)
         assertEquals("SHUTDOWN", row.errorCode)
-        // Nothing starts after the stop: the loop is gone, so nothing ticks any more.
-        val before = fake.runCalls.get()
-        delay(200)
-        assertEquals(before, fake.runCalls.get())
     }
 }

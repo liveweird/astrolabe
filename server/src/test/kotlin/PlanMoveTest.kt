@@ -92,14 +92,9 @@ class PlanMoveTest {
 
     private suspend fun PlanCaller.program(id: UInt): ProgramResponse = client.get("/api/v1/programs/$id").body()
 
-    /** Spins until the wall clock is strictly past [stamp]: `updatedAt` is epoch millis, so a later write stamps a larger one only then. */
-    private fun awaitClockPast(stamp: Long) {
-        val deadline = System.nanoTime() + CLOCK_WAIT_NANOS
-        while (System.currentTimeMillis() <= stamp) {
-            check(System.nanoTime() < deadline) { "the clock did not pass $stamp" }
-            Thread.onSpinWait()
-        }
-    }
+    /** Backdates `updated_at` (epoch millis): the move under test then certainly stamps a different value, with no wait for the clock. */
+    private fun backdate(table: String, vararg ids: UInt) =
+        ids.forEach { jbSql("UPDATE $table SET updated_at = updated_at - $BACKDATE_MILLIS WHERE id = ?", it.toInt()) }
 
     private suspend fun PlanCaller.planView(): PlanView = client.get("/api/v1/views/plan").body()
 
@@ -165,6 +160,7 @@ class PlanMoveTest {
         val w = m.w
         val team = TestTeams.seed(planName("mvr-team"))
         val milestone = TestPlan.milestone(w.projectId, team)
+        backdate("projects", w.projectId)
         val before = w.admin.project(w.projectId)
         val ranked = w.admin.client.get("/api/v1/views/roadmap").body<RoadmapView>()
         val rank = ranked.ranked.map { it.project.id } + w.projectId
@@ -174,7 +170,6 @@ class PlanMoveTest {
         )
         val position = w.admin.client.get("/api/v1/views/roadmap").body<RoadmapView>()
             .ranked.single { it.project.id == w.projectId }.position
-        awaitClockPast(before.updatedAt)
 
         assertEquals(noContent, w.admin.client.postJson(moveProject(w.projectId), ProjectMoveRequest(m.tgtProgramId)).status)
 
@@ -238,9 +233,10 @@ class PlanMoveTest {
         usePostgresTestcontainer()
         val m = moveWorld("mvn")
         val w = m.w
+        backdate("projects", w.projectId)
+        backdate("programs", w.programId)
         val projectBefore = w.admin.project(w.projectId)
         val programBefore = w.admin.program(w.programId)
-        awaitClockPast(maxOf(projectBefore.updatedAt, programBefore.updatedAt))
         withAuditCapture { capture ->
             assertEquals(noContent, w.programOwner.client.postJson(moveProject(w.projectId), ProjectMoveRequest(w.programId)).status)
             assertEquals(noContent, w.streamOwner.client.postJson(moveProgram(w.programId), ProgramMoveRequest(w.streamId)).status)
@@ -509,7 +505,7 @@ class PlanMoveTest {
     }
 
     private companion object {
-        /** The clock is only ever a few milliseconds behind: a wait this long means it is stuck or the stamp is from the future. */
-        const val CLOCK_WAIT_NANOS = 5_000_000_000L
+        /** How far [backdate] pushes a stamp into the past: far beyond the clock's granularity and any test's own runtime. */
+        const val BACKDATE_MILLIS = 10_000
     }
 }

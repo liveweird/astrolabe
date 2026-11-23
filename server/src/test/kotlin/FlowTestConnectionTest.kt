@@ -28,7 +28,6 @@ import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -54,6 +53,9 @@ class FlowTestConnectionTest {
         const val PREFIX = "flow-tst"
         const val BASE = "/api/v1/integrations/flow/connections"
         const val HINT = "Flow 1.57.0 or later"
+
+        /** How long the stub holds the delayed answer in the racing test: long enough for the edit to land under it. */
+        const val HOLD_MILLIS = 2_000
 
         @JvmStatic
         @BeforeClass
@@ -300,16 +302,13 @@ class FlowTestConnectionTest {
         val admin = seededClient("ftestrace", UserRole.ADMIN)
         val created = admin.create(request())
         FlowStubServer.resetRequests()
-        withOverride(answer(mePath, aResponse().withStatus(200).withFixedDelay(3_000).withBody("{}"))) {
+        withOverride(answer(mePath, aResponse().withStatus(200).withFixedDelay(HOLD_MILLIS).withBody("{}"))) {
             coroutineScope {
                 val racing = async { admin.post("$BASE/${created.id}/test") }
                 // The target is read BEFORE the call goes out, so once the stub has the request the edit lands under the test, and the
                 // stub's delayed answer holds the test open until it has. A bounded poll, not a sleep: it ends the moment the call arrives.
                 val meCall = getRequestedFor(urlPathEqualTo(mePath))
-                var polls = 0
-                while (FlowStubServer.countRequests(meCall) < 1 && polls++ < 100) delay(25)
-                val arrived = FlowStubServer.countRequests(meCall) >= 1
-                assertTrue(arrived, "the test never reached the stub")
+                awaitUntil("the test's call to reach the stub") { FlowStubServer.countRequests(meCall) >= 1 }
                 val edit = request(token = flowToken('y')).copy(name = created.name)
                 assertEquals(HttpStatusCode.NoContent, admin.putJson("$BASE/${created.id}", edit).status)
                 assertFalse(racing.await().result().recorded, "the result judged the old token")

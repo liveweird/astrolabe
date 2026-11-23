@@ -14,15 +14,17 @@ import ch.nokillswit.telemetry.TelemetryMetrics
 import ch.nokillswit.telemetry.TelemetrySampler
 import ch.nokillswit.telemetry.hourFloor
 import ch.nokillswit.telemetry.insertSampleRows
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Before
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.io.path.writeText
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -188,7 +190,14 @@ class TelemetrySamplerTest {
     @Test
     fun `two samplers on one database run the cluster section once per interval`() = runBlocking {
         val runs = AtomicInteger()
-        val slow = ClusterCollector("count") { runs.incrementAndGet(); delay(400); emptyList() }
+        // Once armed, the collector reports it is inside the cluster section and stays there until released: A provably holds the lock.
+        val inside = AtomicReference<CompletableDeferred<Unit>?>(null)
+        val release = CompletableDeferred<Unit>()
+        val slow = ClusterCollector("count") {
+            runs.incrementAndGet()
+            inside.get()?.let { it.complete(Unit); withTimeout(HOLD_BUDGET_MILLIS) { release.await() } }
+            emptyList()
+        }
         var now = t0
         val a = testIdentity()
         val b = testIdentity()
@@ -204,9 +213,16 @@ class TelemetrySamplerTest {
         assertEquals(1, markers().size)
 
         now += interval
-        coroutineScope { // concurrent: B's try-lock fails while A holds it (or B finds the marker if A is already done)
-            launch { samplerA.tick() }
-            launch { samplerB.tick() }
+        val entered = CompletableDeferred<Unit>().also { inside.set(it) }
+        coroutineScope { // concurrent: B's try-lock fails while A holds it (A is parked in the collector until B's tick is over)
+            val tickA = launch { samplerA.tick() }
+            try {
+                withTimeout(HOLD_BUDGET_MILLIS) { entered.await() }
+                samplerB.tick()
+            } finally {
+                release.complete(Unit) // a failure above must not leave A parked until the stall watchdog
+            }
+            tickA.join()
         }
         assertEquals(2, runs.get())
         assertEquals(listOf(bucketOf(t0), bucketOf(t0) + interval), markers().map { it.ts }.sorted())
@@ -275,5 +291,6 @@ class TelemetrySamplerTest {
 
     private companion object {
         const val RAW_RESOLUTION = 300
+        const val HOLD_BUDGET_MILLIS = 30_000L
     }
 }

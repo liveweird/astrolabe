@@ -32,6 +32,7 @@ import ch.nokillswit.jira.JiraMappingLevels
 import ch.nokillswit.jira.JiraObservation
 import ch.nokillswit.jira.JiraStatusCategory
 import io.ktor.client.engine.mock.respond
+import kotlinx.coroutines.delay
 import java.math.BigDecimal
 import java.time.LocalDate
 
@@ -160,6 +161,15 @@ fun ImportPlan.ids(): List<String> = rows.map { it.item.jiraId }
 
 /** One scripted by-id answer (`GET /issue/{id}`): the HTTP [status] and its [body]. */
 class ScriptedIssue(val status: Int, val body: String)
+
+/**
+ * A scripted handler step that outlives any deadline a test sets (an `onSearch` / `onIssue` body): the deadline or the caller's
+ * cancellation ends it, never its own length. Bounded rather than `awaitCancellation()` so a broken deadline fails the test
+ * (the answer arrives, no timeout) instead of hanging the fork.
+ */
+suspend fun outlastDeadline() = delay(OUTLAST_DEADLINE_MILLIS)
+
+private const val OUTLAST_DEADLINE_MILLIS = 5_000L
 
 /**
  * A scripted Jira site: a Ktor `MockEngine` under the real `HttpJiraClient` and transport, answering [pages] in order, one per search

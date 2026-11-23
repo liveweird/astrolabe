@@ -3,13 +3,13 @@ package ch.nokillswit
 import ch.nokillswit.jira.JiraLevel
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
 import com.github.tomakehurst.wiremock.client.WireMock.get
+import com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
 import io.ktor.client.request.post
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import org.junit.AfterClass
 import org.junit.BeforeClass
 import kotlin.test.Test
@@ -23,6 +23,9 @@ import kotlin.test.assertTrue
  */
 class JiraBindBusyTest {
     companion object {
+        /** How long the slow Test connection holds the only permit: past the bind's 300 ms wait with room, well under the old 4 s. */
+        const val HOLD_MILLIS = 1_500
+
         @JvmStatic
         @BeforeClass
         fun warmStub() {
@@ -48,15 +51,18 @@ class JiraBindBusyTest {
         val connectionId = admin.jbConnection().id
         val milestone = TestPlan.milestone(w.projectId, w.requireTeams().teamId, planName("ms"))
 
-        // The Test connection's first call (tenant_info) takes the single permit and holds it for 4 s.
+        // The Test connection's first call (tenant_info) takes the single permit and holds it for [HOLD_MILLIS].
+        JiraStubServer.resetRequests() // the journal counts only the held call below
         val slow = JiraStubServer.addOverride(
             get(urlPathEqualTo("/_edge/tenant_info")).atPriority(1)
-                .willReturn(aResponse().withStatus(200).withBody("{}").withFixedDelay(4_000)),
+                .willReturn(aResponse().withStatus(200).withBody("{}").withFixedDelay(HOLD_MILLIS)),
         )
         try {
             coroutineScope {
                 val held = async { admin.post("$JB_CONNECTIONS/$connectionId/test").status }
-                delay(1_000) // the Test connection is on the wire with the permit; a slow CI runner still has 3 s of hold left
+                // The Test connection is on the wire with the permit once the stub has the request: no guess about how slow the runner is.
+                val tenantInfo = getRequestedFor(urlPathEqualTo("/_edge/tenant_info"))
+                awaitUntil("the Test connection's call to reach the stub") { JiraStubServer.countRequests(tenantInfo) >= 1 }
                 val began = System.nanoTime()
                 val refused = admin.jbBind(connectionId, JiraLevel.MILESTONE, milestone, "E2E-5")
                 val waitedMillis = (System.nanoTime() - began) / 1_000_000
@@ -64,7 +70,8 @@ class JiraBindBusyTest {
                 val problem = refused.jbProblem()
                 assertEquals("urn:astrolabe:problem:jira-upstream", problem.type)
                 assertTrue("(BUSY)" in problem.detail.orEmpty(), problem.detail)
-                assertTrue(waitedMillis < 2_000, "it gave up after its own short wait, not the holder's (waited $waitedMillis ms)")
+                val gaveUpEarly = waitedMillis < HOLD_MILLIS - 300
+                assertTrue(gaveUpEarly, "it gave up after its own short wait, not the holder's (waited $waitedMillis ms)")
                 assertEquals(0, jbScalar("SELECT count(*) FROM jira_bindings WHERE milestone_id = ?", milestone.toInt()) { it.getInt(1) })
                 held.await()
             }
