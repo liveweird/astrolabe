@@ -386,7 +386,7 @@ both registration loops in `plugins/RateLimits.kt` apply (a new bucket inherits 
   guard: a request that would be 404, 403 or 400 spends a token too, and an over-limit caller gets `429` whatever the request would
   have answered (`JiraBindingTest`). Not `jira-test`: that one is per IP and shared with Test connection and Peek (ADMIN-only).
   Audit: bucket `jira-bind`, `byUserId`.
-- **`password-change`** - for `PUT /api/v1/users/{id}/password` (`users/UserRoutes.kt`): it bounds the CPU a burst from ONE signed-in
+- **`password-change`** - for `PUT /api/v1/users/{id}/password` (`users/UserSettingsRoutes.kt`): it bounds the CPU a burst from ONE signed-in
   account can burn, because the lock preflight is not atomic with recording a failure (parallel requests each pay a cost-12 bcrypt
   verify before the lock trips; the guess budget itself holds). Mounted on the route node, so it runs before the guard, the lock
   preflight, the body and the bcrypt verify: an over-limit caller gets `429` whatever the request would have answered, even with the
@@ -832,7 +832,7 @@ by `SecretToStringTest`.
 - `infra/db/Flyway.kt`'s startup log line renders the operator-supplied JDBC URL through `jdbcUrlForLogging()` - `host:port/db`
   only, no userinfo or query string - so a `jdbc:postgresql://host/db?user=...&password=...` form never lands a credential in the
   log (`observability.md` "Never log secrets"); covered by `FlywayLogTest`.
-- `POST /api/v1/logout`'s malformed-body debug line (`auth/AuthRoutes.kt`) logs only the parse failure's exception CLASS NAME, never
+- `POST /api/v1/logout`'s malformed-body debug line (`auth/AuthSessionRoutes.kt`) logs only the parse failure's exception CLASS NAME, never
   the throwable - the cause chain can embed a body excerpt (kotlinx's decode-error message), the same `errorType`-only rule as
   `login.mfa_send_failed`/`password_reset.send_failed`; covered by `LogoutTest`.
 

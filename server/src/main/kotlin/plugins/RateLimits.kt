@@ -112,11 +112,12 @@ object RateLimits {
      */
     const val JIRA_IMPORT = "jira-import"
     /**
-     * `PUT /api/v1/users/{id}/password` (`users/UserRoutes.kt`): 10/min per SIGNED-IN USER in every mode, keyed by the CALLER (the verified
-     * JWT `userId`), never the path id, so an admin resetting somebody else's password spends the admin's own tokens and the target's
-     * attempts can never starve it. One bucket covers the self change and the admin reset (the route cannot tell them apart before the
-     * guard); it rides the route node, so it runs before the lock preflight and before the cost-12 bcrypt verify: a burst from one
-     * account stops paying CPU after ten requests instead of after the lock trips. Ten because a human changing a password needs a few
+     * `PUT /api/v1/users/{id}/password` (`users/UserSettingsRoutes.kt`): 10/min per SIGNED-IN USER in every mode, keyed by the CALLER
+     * (the verified JWT `userId`), never the path id, so an admin resetting somebody else's password spends the
+     * admin's own tokens and the target's attempts can never starve it. One bucket covers the self change and the admin reset
+     * (the route cannot tell them apart before the guard); it rides the route node, so it runs before the lock preflight and
+     * before the cost-12 bcrypt verify: a burst from one account stops paying CPU after ten requests instead of after the lock
+     * trips. Ten because a human changing a password needs a few
      * tries (a typo in the current password, a refused new one) and the wrong-current lock (5 attempts) is the guess budget, not this.
      */
     const val PASSWORD_CHANGE = "password-change"
@@ -212,7 +213,8 @@ fun Application.configureRateLimits() {
             }
         }
         // The per-USER buckets (telemetry, jira-bind, jira-import, password-change, sync-run). The routes mount them INSIDE
-        // `authenticate {}` (telemetry/TelemetryRoutes.kt, jira/JiraBindingRoutes.kt, users/UserRoutes.kt, sync/SyncRoutes.kt), so this key
+        // `authenticate {}` (telemetry/TelemetryRoutes.kt, jira/JiraBindingRoutes.kt, users/UserSettingsRoutes.kt,
+        // sync/SyncRoutes.kt), so this key
         // runs only for a verified token: an anonymous call is a 401 that never reaches it
         // and never creates a limiter. The plugin keeps one limiter per key and drops it after its refill period, so memory is
         // bounded by the accounts active within a minute.
