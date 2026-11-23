@@ -16,7 +16,7 @@ import ScrollRegion from "../components/ScrollRegion";
 import { useBaselinePick } from "../hooks/useBaselinePick";
 import { baselinesPath } from "../utils/baselineLinks";
 import { compareGroups, compareTeams, estimateText, rankSentence, type CompareFilters } from "../utils/baselineCompare";
-import { movementSentence, movementStatus, movementTotalsParts, signedDays } from "../utils/baselineOverlay";
+import { movementSentence, movementStatus, movementTotalsParts, signedDays } from "../utils/baselineMovement";
 import { formatDateTime } from "../utils/formatDate";
 import { projectPath, roadmapPath } from "../utils/planLinks";
 import { loadErrorMessage } from "../utils/saveError";

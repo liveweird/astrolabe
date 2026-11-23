@@ -3,7 +3,8 @@ import { Anchor, Group, Stack, Switch, Table, Text, Title, VisuallyHidden } from
 import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { estimateText } from "../utils/baselineCompare";
-import { movementRows, movementTotalsOf, rowChanged, signedDays, type LiveMilestone, type MilestoneBaseline } from "../utils/baselineOverlay";
+import { movementTotalsOf, signedDays } from "../utils/baselineMovement";
+import { movementRows, rowChanged, type LiveMilestone, type MilestoneBaseline } from "../utils/baselineOverlay";
 import { projectPath } from "../utils/planLinks";
 import { Figures, StatusBadge, TotalsBadges } from "./BaselineParts";
 import ScrollRegion from "./ScrollRegion";

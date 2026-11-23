@@ -1,12 +1,11 @@
 import { useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Badge, Group, Stack, Text } from "@mantine/core";
+import { Stack } from "@mantine/core";
 import { IconCalendarStats } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { ApiError } from "../api/http";
-import { deleteMilestone, type ProjectMilestone, type ProjectView as ProjectViewDocument } from "../api/milestones";
+import { deleteMilestone, type ProjectMilestone } from "../api/milestones";
 import { deleteProject } from "../api/plan";
 import BaselineMovement from "../components/BaselineMovement";
 import { PickedLoadState } from "../components/BaselineParts";
@@ -21,10 +20,10 @@ import CriticalChain from "../components/CriticalChain";
 import CriticalPathToggle from "../components/CriticalPathToggle";
 import IdleGaps from "../components/IdleGaps";
 import JiraBarsToggle from "../components/JiraBarsToggle";
-import { ProjectJiraChip } from "../components/JiraChips";
 import JiraUnlinkModal from "../components/JiraUnlinkModal";
 import ProjectDependencies from "../components/ProjectDependencies";
 import ProjectEditors from "../components/ProjectEditors";
+import ProjectFacts from "../components/ProjectFacts";
 import type { MilestoneActions } from "../components/MilestoneMenu";
 import ProjectTimeline, { ProjectTray } from "../components/ProjectTimeline";
 import type { TimelineHandle } from "../components/Timeline";
@@ -42,14 +41,14 @@ import { useJiraUnlink } from "../hooks/useJiraUnlink";
 import { useMilestoneSchedule } from "../hooks/useMilestoneSchedule";
 import { useRowMenuFocus } from "../hooks/useRowMenuFocus";
 import { isOneOf, useStoredState } from "../hooks/useStoredState";
-import { baselineDays, spanBadges } from "../utils/baselineOverlay";
+import { baselineDays } from "../utils/baselineOverlay";
 import { localIsoDate } from "../utils/isoDate";
 import { jiraPageRange, jiraScheduleDates } from "../utils/jiraBars";
-import { markKey, projectMarks, type JiraMark, type JiraMarks } from "../utils/jiraMarks";
+import { markKey, projectMarks, type JiraMark } from "../utils/jiraMarks";
 import { planPath } from "../utils/planLinks";
 import { needsJiraConnections, type Editor } from "../utils/projectEditor";
 import { growSeenRange, type SeenRange } from "../utils/seenRange";
-import { conflictCount, linksOfMilestone } from "../utils/projectDependencies";
+import { linksOfMilestone } from "../utils/projectDependencies";
 import { refreshJiraAndTimelines, refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { loadErrorMessage, saveErrorMessage } from "../utils/saveError";
 import { dropOutcome } from "../utils/timelineDrag";
@@ -57,59 +56,6 @@ import { defaultRange, makeScale, MILESTONE_ZOOMS, toEpochDay, type Zoom } from 
 
 /** The schedule dialog remembers the plan revision of the view it was opened on: its save must stale-409 if THIS milestone moved since. */
 type Scheduling = { milestone: ProjectMilestone; revision: number };
-
-/** One badge per non-zero drift figure: orange when the project runs LATER than its target (a warning), gray when it is ahead. */
-function driftBadges(drift: NonNullable<ProjectViewDocument["drift"]>, t: TFunction): { key: string; label: string; late: boolean }[] {
-  const figures = [
-    { key: "end", days: drift.endDays, late: "project.drift.endLate", early: "project.drift.endEarly" },
-    { key: "start", days: drift.startDays, late: "project.drift.startLate", early: "project.drift.startEarly" },
-  ] as const;
-  return figures
-    .filter(({ days }) => days !== 0)
-    .map(({ key, days, late, early }) => ({ key, late: days > 0, label: t(days > 0 ? late : early, { count: Math.abs(days) }) }));
-}
-
-/** The facts line under the title: the target window, the derived span and how the span drifts from the target. */
-function ProjectFacts({ view, marks }: { view: ProjectViewDocument; marks: JiraMarks }) {
-  const { t } = useTranslation();
-  const { targetStart, targetEnd } = view.project;
-  const badges = view.drift === null ? [] : driftBadges(view.drift, t);
-  const conflicts = conflictCount(view);
-  return (
-    <Group gap="md" role="group" aria-label={t("project.factsAria")}>
-      <Text size="sm">{targetStart !== null && targetEnd !== null ? t("project.windowLine", { start: targetStart, end: targetEnd }) : t("project.noWindow")}</Text>
-      <Text size="sm">{view.span !== null ? t("project.spanLine", { start: view.span.start, end: view.span.end }) : t("project.nothingScheduled")}</Text>
-      {view.drift !== null && badges.length === 0 && (
-        <Badge color="gray">
-          {t("project.drift.onTarget")}
-        </Badge>
-      )}
-      {badges.map((badge) => (
-        <Badge key={badge.key} color={badge.late ? "orange" : "gray"}>
-          {badge.label}
-        </Badge>
-      ))}
-      {view.baseline !== undefined &&
-        spanBadges(view.baseline.project, t).map((badge) => (
-          <Badge key={`baseline-${badge.key}`} color={badge.late ? "orange" : "gray"} tt="none">
-            {badge.label}
-          </Badge>
-        ))}
-      {conflicts > 0 && (
-        <Badge color="red">
-          {t("project.conflicts", { count: conflicts })}
-        </Badge>
-      )}
-      {view.idleGaps.length > 0 && (
-        <Badge color="gray">
-          {t("timeline.idle.badge", { count: view.idleGaps.length })}
-        </Badge>
-      )}
-      {/* In this row, not under it: the chip comes and goes with the links (a bind, an unlink), and nothing below may move when it does. */}
-      <ProjectJiraChip projectId={view.project.id} marks={marks} />
-    </Group>
-  );
-}
 
 /**
  * The project view (`/projects/:id`): the project's facts, its scheduled milestones on the shared timeline and the Unscheduled

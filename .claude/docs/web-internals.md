@@ -1404,8 +1404,8 @@ Pinned by: `TeamLoad.test.tsx` (also the date, the line, the switch, a pinned fa
 
 ## Baselines
 
-Files: `pages/Baselines.tsx`; `pages/BaselineCompare.tsx`; `hooks/useBaselines.ts`; `components/BaselineEditorModal.tsx`; `components/BaselineCompareControls.tsx`; `utils/baselineOverlay.ts` (`movementTotalsParts`,
-`movementSentence`, `movementStatus`); `utils/baselineCompare.ts` (`rankSentence`); `hooks/useBaselinePick.ts`; `components/BaselinePicker.tsx`; `components/BaselineMovement.tsx`;
+Files: `pages/Baselines.tsx`; `pages/BaselineCompare.tsx`; `hooks/useBaselines.ts`; `components/BaselineEditorModal.tsx`; `components/BaselineCompareControls.tsx`; `utils/baselineMovement.ts` (`movementTotalsParts`,
+`movementSentence`, `movementStatus`); `utils/baselineOverlay.ts`; `utils/baselineCompare.ts` (`rankSentence`); `hooks/useBaselinePick.ts`; `components/BaselinePicker.tsx`; `components/BaselineMovement.tsx`;
 `components/BaselineTotals.tsx`.
 
 ### The registry
@@ -1458,7 +1458,7 @@ totals line (`BaselineTotals`). The query keys, the write rules, the tone, the r
 
 ### Tests
 
-Pinned by: `Baselines.test.tsx`, `BaselineCompare.test.tsx`, `BaselineCompare.against.test.tsx`, `baselines.test.ts`, `useBaselines.test.tsx`, `baselineOverlay.test.ts`, `baselineCompare.test.ts`.
+Pinned by: `Baselines.test.tsx`, `BaselineCompare.test.tsx`, `BaselineCompare.against.test.tsx`, `baselines.test.ts`, `useBaselines.test.tsx`, `baselineOverlay.test.ts`, `baselineMovement.test.ts`, `baselineCompare.test.ts`.
 
 ## Schedule proposals
 
@@ -2207,7 +2207,7 @@ rest is `web/CLAUDE.md`'s admin-page rule.
 
 ### User management
 
-Files: `pages/Users.tsx`, `CreateUser.tsx`, `EditUser.tsx`, `ChangePassword.tsx`; `components/OneTimePasswordModal.tsx`, `RevealablePassword.tsx`; `hooks/useResetPassword.ts`; `utils/password.ts`,
+Files: `pages/Users.tsx`, `components/UserTableRow.tsx`, `CreateUser.tsx`, `EditUser.tsx`, `ChangePassword.tsx`; `components/OneTimePasswordModal.tsx`, `RevealablePassword.tsx`; `hooks/useResetPassword.ts`; `utils/password.ts`,
 `userForm.ts`; `api/users.ts`.
 
 - **Passwords** are generated client-side (`utils/password.ts`) and revealed exactly once: `OneTimePasswordModal` (not dismissable by click-outside or Escape) renders `RevealablePassword` (masked by

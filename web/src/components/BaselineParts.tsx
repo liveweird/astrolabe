@@ -3,7 +3,8 @@ import { Badge, Button, Group, Stack, Text } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import type { BaselineFigures, MovementTotals } from "../api/baselines";
 import EditPageLoadState from "./EditPageLoadState";
-import { movementTotalsParts, rowSuffix, type BaselineRow, type movementStatus } from "../utils/baselineOverlay";
+import { movementTotalsParts, type movementStatus } from "../utils/baselineMovement";
+import { rowSuffix, type BaselineRow } from "../utils/baselineOverlay";
 
 // The small pieces the comparison page and the timelines' Movement section share (v0.9): a row's status badge, one side of a comparison, the totals as badges.
 
