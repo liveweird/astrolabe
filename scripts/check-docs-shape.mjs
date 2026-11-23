@@ -41,9 +41,7 @@ const ENFORCE_REFS = true;
 
 // The docs that do not pass limits 1-5 yet. The list can only shrink: a listed file that passes fails ("remove it from NOT_YET"),
 // an entry that names no file fails. The main session edits it when it commits a D step; nobody else.
-const NOT_YET = [
-  ".claude/docs/build-times.md",
-];
+const NOT_YET = [];
 
 // ---- What is read ------------------------------------------------------------------------------------------------------
 const COVERED_FIXED = ["CLAUDE.md", "AGENTS.md", "web/CLAUDE.md", "e2e/README.md", "e2e/scenarios/README.md"];

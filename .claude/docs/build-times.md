@@ -1,4 +1,4 @@
-### Build, test and CI times
+# Build, test and CI times
 
 Astrolabe is a small app: a tiny database, no external integration in the tests, a few hundred source files. **Everything should be blazing fast.** When a build, test or CI
 job is not, the job is to find out WHY — not to raise a timeout. This doc is the measuring kit, the
@@ -10,6 +10,14 @@ test harness (fixtures, forks, Kover) or anything that makes a gate slower.
 > fork balancing, the ESLint cache, AppCDS): read its WHY before re-inventing one, port it when the same symptom shows up.
 >
 > **"WHY n" in a code or workflow comment** (e.g. `build-times.md WHY 27`, 13, 24, 51) is the donor's numbering: it points at that WHY entry in Flow's file, not at this one. Astrolabe's own entries start a fresh series below and are cited as `Astrolabe WHY n`.
+
+## Rules
+
+- **Never just a raised budget.** A `TREND` flag or a budget breach becomes a dated entry in "Investigation log" (the symptom, the evidence, the cause, the outcome), keyed by a running WHY number so a code comment can point at it (`Astrolabe WHY n`).
+- **A budget changes only with the measurement that justifies it**, in the same commit as the edit to `scripts/timings/budgets.json` and to the "Budgets" table.
+- **A new gate or CI job gets a budget row before it lands.**
+- **A target is a claim about the app** ("tiny DB, no integrations, so this cheap"); a miss is a question to answer, not a number to adjust.
+- **The re-baseline rule** (the rule 1.24.0 G5 defines, "Astrolabe WHY 3" below): a row is re-baselined from at least ten green master runs on the final workflow, bucketed by runner speed; target = the median rounded up to 30 s; alarm = the larger of 1.5 x target and 1.2 x the slowest run, rounded up to a minute.
 
 ## How to measure
 
@@ -71,7 +79,10 @@ free-form; the ones with budgets are `server-build`, `server-test`, `web-gates`,
 summary, and a `::warning::` annotation appears when the test time exceeds the `ci.server-tests` alarm (the test task's own budget; `ci.server` stays the whole job's).
 It uses the runner's preinstalled `node` (the scripts need node >= 18; ubuntu-24.04 ships 20+).
 
-Since 1.24.0 every job also opens with a "Runner facts" step (CPU model, logical CPUs, memory, to the log and the job summary: it tells a slow run from a slow runner), and the `web` job ends its coverage run with a "Vitest time report (job summary)" step (`if: always()`, `continue-on-error`, never a gate): `node scripts/timings/vitest-times.mjs test-results/vitest.json` reads the JSON report vitest wrote beside its default output and prints the wall, the sum of the file times, their ratio (the workers kept busy), the 15 slowest files and the 10 slowest tests. The Gradle and `npm ci` steps are named ("Build and test (Gradle)", "Install dependencies") so a `ci-steps` row can carry a budget.
+Since 1.24.0 every job also opens with a "Runner facts" step (CPU model, logical CPUs, memory, to the log and the job summary: it tells a slow run from a slow runner).
+The `web` job ends its coverage run with a "Vitest time report (job summary)" step (`if: always()`, `continue-on-error`, never a gate): `node scripts/timings/vitest-times.mjs test-results/vitest.json` reads the JSON report vitest wrote beside its default output.
+It prints the wall, the sum of the file times, their ratio (the workers kept busy), the 15 slowest files and the 10 slowest tests.
+The Gradle and `npm ci` steps are named ("Build and test (Gradle)", "Install dependencies") so a `ci-steps` row can carry a budget.
 
 ## Budgets
 
@@ -96,9 +107,14 @@ public-repo `ubuntu-24.04` (4 vCPU, 16 GB); local figures are for the dev machin
 | local `e2e-static` | 15 s | 30 s |
 | local `e2e-playwright` | 3 min | 6 min |
 
-The rule for changing one is below ("Review cadence").
+The rule for changing one is in "Rules" above.
 
-**Fork balancing (ported after 1.4.0, measured 2026-11-07, Apple M5 Max, 18 cores, `scripts/gates.sh server`).** Flow's weight-balanced class order (`balancedCandidateOrder` in `server/build.gradle.kts`, `server/test-weights.tsv`, `local-times.mjs test-weights`; `test-fixtures.md` "Fork balancing" is the how) with `ForkWarmup3Test` added. The suite is flat (224 classes, the heaviest `RequestReadTimeoutTest` 12 s of 204 s), so the LPT deal is near-perfect: the span exceeded the ideal `sum / N` by 0.3 to 1.3 %. The whole `server-build` gate (1,760 tests, tests + Kover + detekt + `installDist`), two to three runs each, no other test JVM or gate on the machine (background load average 2 to 6 from idle agents):
+## Fork balancing
+
+Ported after 1.4.0, measured 2026-11-07 (Apple M5 Max, 18 cores, `scripts/gates.sh server`).
+It is Flow's weight-balanced class order (`balancedCandidateOrder` in `server/build.gradle.kts`, `server/test-weights.tsv`, `local-times.mjs test-weights`; `test-fixtures.md` "Fork balancing" is the how) with `ForkWarmup3Test` added.
+The suite is flat (224 classes, the heaviest `RequestReadTimeoutTest` 12 s of 204 s), so the LPT deal is near-perfect: the span exceeded the ideal `sum / N` by 0.3 to 1.3 %.
+The whole `server-build` gate (1,760 tests, tests + Kover + detekt + `installDist`), two to three runs each, no other test JVM or gate on the machine (background load average 2 to 6 from idle agents):
 
 | `-Pforks` | `server-build` | test span | sum of class time | excess over ideal |
 |---|---|---|---|---|
@@ -106,31 +122,75 @@ The rule for changing one is below ("Review cadence").
 | 2 | 2m07s, 2m03s | 1m54s, 1m57s | 3m48s, 3m52s | 0.3 %, 0.6 % |
 | 3 | 1m38s, 1m37s | 1m31s, 1m30s | 4m29s, 4m26s | 1.3 %, 1.2 % |
 
-Two forks bring the gate under its 3 min target (a speed-up of 1.7x, the rest being the serial tail of detekt, Kover and `installDist` plus a second Postgres and boot per fork, 4 s + 2 s); the third buys another 30 s for a third Postgres container, a third JVM and 17 % more total CPU time (the sum grows with the forks: contention and the per-fork fixtures). **`gates.sh` defaults to 2** (`ASTROLABE_FORKS`); the Gradle property stays at 1 and **CI runs 2 since 1.24.0 (G2)**: `TEST_FORKS: "2"` in `ci.yml` after `server/test-weights.tsv` was refreshed from one green single-fork run, the fork-balance block of the job summary read on each run, and the trial kept only by the rule in Astrolabe WHY 3 below (the weights drift check already runs there). The balanced order also moved `BaselineCopyTest` after classes that soft-delete projects, which failed it in five of six multi-fork runs until its expected-rows query was restricted to the plan's active projects (`test-fixtures.md`). `SharedPauseTest` (a virtual-clock race: two callers resuming from a shared pause in either order, one of them able to see the other's new Retry-After first, plus a default sleeper that summed concurrent sleeps) failed once in ten multi-fork runs while the machine was loaded, and twice on CI's single fork on 2026-11-08; it is not order-dependent. **Fixed (1.6.0):** the default sleeper moves the clock to its own absolute target (`max(clock, begin + ms)`), and the two concurrent-resume tests gate each sleep and release the callers one at a time, waiting on an explicit signal (a counter, the retry reaching the engine) instead of the scheduler; ten runs and six runs under 36 CPU burners on 18 cores all green.
+- Two forks bring the gate under its 3 min target (a speed-up of 1.7x, the rest being the serial tail of detekt, Kover and `installDist` plus a second Postgres and boot per fork, 4 s + 2 s).
+- The third fork buys another 30 s for a third Postgres container, a third JVM and 17 % more total CPU time (the sum grows with the forks: contention and the per-fork fixtures).
+- **`gates.sh` defaults to 2** (`ASTROLABE_FORKS`); the Gradle property stays at 1.
+- **CI runs 2 since 1.24.0 (G2)**: `TEST_FORKS: "2"` in `ci.yml` after `server/test-weights.tsv` was refreshed from one green single-fork run, the fork-balance block of the job summary read on each run, and the trial kept only by the rule in Astrolabe WHY 3 below (the weights drift check already runs there).
+- The balanced order also moved `BaselineCopyTest` after classes that soft-delete projects, which failed it in five of six multi-fork runs until its expected-rows query was restricted to the plan's active projects (`test-fixtures.md`).
+- `SharedPauseTest` (a virtual-clock race: two callers resuming from a shared pause in either order, one of them able to see the other's new Retry-After first, plus a default sleeper that summed concurrent sleeps) failed once in ten multi-fork runs while the machine was loaded, and twice on CI's single fork on 2026-11-08; it is not order-dependent.
+- **Fixed (1.6.0):** the default sleeper moves the clock to its own absolute target (`max(clock, begin + ms)`), and the two concurrent-resume tests gate each sleep and release the callers one at a time, waiting on an explicit signal (a counter, the retry reaching the engine) instead of the scheduler; ten runs and six runs under 36 CPU burners on 18 cores all green.
 
 ## Fixtures that add start-up cost
 
-**Flow stub (v1.5.0 C2, measured 2026-11-08, same machine).** `FlowStubFixture.warm()` starts a second in-JVM WireMock (9 mappings, 6 bodies, 0.26 MB; one `me` and one `teams` call): `fixture-cost flow-stub` was **0.93 s when it was the fork's first WireMock and 0.35 s (Jira's) when it came second** in a focused run, so the pair costs about 1 s per fork once; `FlowStubFixtureTest` runs in well under a second after that. The `flow-stub` image idles at ~115 MiB RSS (`ci.md`).
+### Jira stub
 
-**Jira stub (v1.1.0 C1, measured 2026-11-06, Apple M5 Max, Docker via OrbStack).** `JiraStubFixture.warm()` starts the in-JVM WireMock over `sample-data/jira-stub` (1,360 mappings, 1,334 bodies, about 7 MB when measured; 1.2.0 adds the `IMP` project and the single-key import scopes: 1,612 mappings, 1,567 bodies, 26.8 MB of file bytes, 36 MB by `du` on disk; the stub's RSS was re-measured at that size, about 146 MiB, but this start-up time was not re-timed) and makes its
-first two requests: **0.74 s per fork in the full `build`** (0.90 s in a focused run), printed as `fixture-cost jira-stub` and subtracted from the suite that paid it by `local-times.mjs`. It is paid once per fork by the first class that reads
-the stub (today `JiraStubFixtureTest`), in a `@BeforeClass`, never inside `testApplication`'s 60 s. The step's new server classes add 39 tests and about 8 s of class time, 5.8 s of it `OutboundTransportTest` (local sockets only: the negative control
-waits out a 700 ms client timeout, the leak cases wait for the client's connection close); every other new class runs under 1.2 s. A full `./gradlew build` from an empty `GRADLE_USER_HOME` (1,148 tests, `check`, `installDist`)
-took 3m18s including the downloads. The stub dataset is generated in 0.2 s; `e2e-static` gains the generator's self-test and the generate-twice `diff` (both under 1 s). No budget row moved: the CI `server-tests` target (3 min) is
-the figure to re-read after the first CI run on this commit.
+Measured 2026-11-06 (1.1.0 C1), Apple M5 Max, Docker via OrbStack.
+`JiraStubFixture.warm()` starts the in-JVM WireMock over `sample-data/jira-stub` and makes its first two requests: **0.74 s per fork in the full `build`** (0.90 s in a focused run), printed as `fixture-cost jira-stub` and subtracted from the suite that paid it by `local-times.mjs`.
+- Size: 1,360 mappings, 1,334 bodies, about 7 MB when measured. 1.2.0 adds the `IMP` project and the single-key import scopes: 1,612 mappings, 1,567 bodies, 26.8 MB of file bytes, 36 MB by `du` on disk; the stub's RSS was re-measured at that size, about 146 MiB, but this start-up time was not re-timed.
+- It is paid once per fork by the first class that reads the stub (today `JiraStubFixtureTest`), in a `@BeforeClass`, never inside `testApplication`'s 60 s.
+- The step's new server classes add 39 tests and about 8 s of class time, 5.8 s of it `OutboundTransportTest` (local sockets only: the negative control waits out a 700 ms client timeout, the leak cases wait for the client's connection close); every other new class runs under 1.2 s.
+- A full `./gradlew build` from an empty `GRADLE_USER_HOME` (1,148 tests, `check`, `installDist`) took 3m18s including the downloads.
+- The stub dataset is generated in 0.2 s; `e2e-static` gains the generator's self-test and the generate-twice `diff` (both under 1 s).
+- No budget row moved: the CI `server-tests` target (3 min) is the figure to re-read after the first CI run on this commit.
 
-**Jira import apply, the plan-lock hold (1.2.0 C5, measured 2026-11-07, Apple M5 Max, Docker via OrbStack).** `JiraImportScaleTest` runs `JiraImportService.apply` over a scripted MockEngine site, every milestone dated: **869-956 ms for 20 programs / 100 projects / 1,000 milestones (1,120 nodes, each created and bound), 1,692-2,005 ms at the 2,000-item cap** (three runs) (20 / 100 / 1,880), from the plan-lock request to the commit - the time every other plan writer waits, once. About 0.85 ms a node (a node insert, the binding's two locking selects and two inserts); the milestones' dates are a few multi-row statements. The Jira browse is outside it. The test asserts a loose 10 s tripwire (at least 5x the figure) and prints the figures as `scale-figure` lines (`ScaleFigures`); it removes its 1,120 / 2,000 nodes and bindings in a `NonCancellable` `finally`. The two tests add about 4 s of class time.
-**Jira flags at scale (1.3.0 C5, measured 2026-11-07).** `JiraFlagsScaleTest` builds ONE sample-plan-sized world through the same MockEngine import (20/100/1,000, all bound, 15 teams), reads the four views plain and with `?baseline=` and with the connection disabled, and prints the `scale-figure` lines of `timeline.md` "Measured figures": **6.0 s in the full gate (12.5 s when run alone, cold)**; with the 21 other new 1.3 C5 tests the class additions cost about 11 s of the 3m27s server gate (the CDS, Kover and detekt steps unchanged).
+### Flow stub
 
-**Jira flags at scale with roll-ups (1.4.0 C6, measured 2026-11-07, Apple M5 Max).** `JiraFlagsScaleTest` now also seeds five census children under each of the 1,000 bound epics (5,000 `jira_issues` rows through `JiraIssueStore.upsert`, 500-row chunks, removed by `removeScaleRows`) and asserts every Platform link carries the roll-up: **7.0 s in the full gate** (6.0 s before the seed; 8.8 s when run alone with its two sibling classes, cold), so the 5,000-row seed costs about 1 s. The C6 step as a whole (that seed, the 3 new `JiraFlagSourceTest` cases, the new `TimelineJiraFlagsTest` case) is about +1.5 s of the 3m39s server gate (1,753 tests; `JiraFlagSourceTest` 2.0 s, `TimelineJiraFlagsTest` 3.5 s). Figures: `timeline.md` "Measured figures".
+Measured 2026-11-08 (1.5.0 C2), same machine.
+`FlowStubFixture.warm()` starts a second in-JVM WireMock (9 mappings, 6 bodies, 0.26 MB; one `me` and one `teams` call).
+`fixture-cost flow-stub` was **0.93 s when it was the fork's first WireMock and 0.35 s (Jira's) when it came second** in a focused run, so the pair costs about 1 s per fork once; `FlowStubFixtureTest` runs in well under a second after that.
+The `flow-stub` image idles at ~115 MiB RSS (`ci.md`).
 
-**The server suite at 1.1.0 (re-measured 2026-11-07, Apple M5 Max, `scripts/gates.sh server`).** 1,468 tests, `server-build` **2m58s** (2m56s in the full `all` run), against its 3 min target and 6 min alarm: last five median 2m47s, previous five 2m42s, max 2m59s. The Jira sync (C1 to C11) took the suite from about 2m05s (the 1.0.0 median) to the edge of the target, so a next server increment re-reads this row first; no budget moved. `web-gates` 20s (1,857 tests), `e2e-static` 5.6s. The Kover floors held (line 98.53%, branch 86.57%, no raise possible).
+### Jira import apply, the plan-lock hold
 
-**The server suite at 1.3.0 (re-measured 2026-11-07, Apple M5 Max, `scripts/gates.sh server`).** 1,713 tests, `server-build` **3m28s** (the whole `./gradlew build` gate: tests, Kover, detekt, CDS, `installDist`), against its 3 min target and 6 min alarm: **over target** by 28 s (last five median 3m28s, previous five 3m08s, max 3m37s). The 1.3 additions are the scheduler (`SyncSchedulerTest`: a real registry, an injected clock, two instances), the status and acknowledge classes and the flag tests (`JiraFlagsScaleTest` 6.0 s in the full gate, 12.5 s alone; the roughly 11 s of the C5 step), so the 245 tests added since the 1.1.0 row above (1.2 and 1.3) cost about 30 s in total; none adds a fixture with start-up cost beyond the existing Jira stub warm-up. No budget moved: the alarm (6 min) is far, and a next server increment re-reads this row first (the fork balancing that `testing.md` names as Flow's technique is the lever when the target is the problem; `BACKLOG.md`).
+Measured 2026-11-07 (1.2.0 C5), Apple M5 Max, Docker via OrbStack.
+`JiraImportScaleTest` runs `JiraImportService.apply` over a scripted MockEngine site, every milestone dated: **869-956 ms for 20 programs / 100 projects / 1,000 milestones (1,120 nodes, each created and bound), 1,692-2,005 ms at the 2,000-item cap** (three runs) (20 / 100 / 1,880), from the plan-lock request to the commit - the time every other plan writer waits, once.
+- About 0.85 ms a node (a node insert, the binding's two locking selects and two inserts); the milestones' dates are a few multi-row statements. The Jira browse is outside it.
+- The test asserts a loose 10 s tripwire (at least 5x the figure) and prints the figures as `scale-figure` lines (`ScaleFigures`); it removes its 1,120 / 2,000 nodes and bindings in a `NonCancellable` `finally`.
+- The two tests add about 4 s of class time.
 
-**The server suite at 1.4.0 (re-measured 2026-11-07, Apple M5 Max, `scripts/gates.sh all`).** 1,753 tests, `server-build` **3m36s** (the whole `./gradlew build` gate: tests, Kover, detekt, CDS, `installDist`), against its 3 min target and 6 min alarm: **over target** by 36 s (last five median 3m36s, previous five 3m40s, max 3m43s), 8 s slower than the 1.3.0 row above for the 40 tests added since (the V23 store and census classes, the coverage loaders, the kernels' vectors, the fold and the roll-up seed in `JiraFlagsScaleTest`; the C6 row above has the per-step costs). The alarm (6 min) is not near; the target breach is the standing one, and **fork balancing (`-Pforks=2` with a measured test-weights file, Flow's technique, `BACKLOG.md`) is the user's lever**, not a change this release makes. `web-gates` 21s (2,138 tests), `e2e-static` 6.6s (the stub generator's self-test and generate-twice diff, 2,278 mappings).
+### Jira flags at scale
 
-**The server suite at 1.5.0 (re-measured 2026-11-08, Apple M5 Max, `scripts/gates.sh all`, `-Pforks=2` as `gates.sh` sets it; the user's own compose and Kubernetes stacks were running on the machine).** 2,008 tests, `server-build` **2m44s** (the whole `./gradlew build` gate: tests, Kover, detekt, CDS, `installDist`), against its 3 min target and 6 min alarm: **inside the target** with two forks (last five median 2m33s, previous five 2m22s). The 1.4.0 row above (3m36s) was one fork; the two-fork figure measured after the fork balancing was 2m03s-2m07s for 1,760 tests, so the 248 tests added since (the Flow server classes of C1-C8, among them a second in-JVM WireMock per fork, about 1 s per fork once: "Fixtures that add start-up cost" above) cost roughly 35 s of wall clock; the per-class split was not re-measured, and `server/test-weights.tsv` was not refreshed (the fork-balance block is the cue). No budget moved. `web-gates` 34s (2,337 vitest tests; the report flags `TREND +63%` against a previous-five median of 20s, not investigated), `e2e-static` 6.6s (both stub generators' self-tests and generate-twice diffs). The Playwright suite against a throwaway compose project built from the checkout: 174 tests in 2.9 minutes on 4 workers, against `e2e-playwright`'s 3 min target and 6 min alarm; the new `flow-sync.spec.ts` is 3 tests in about 13 s alone and the accessibility Flow describe 6 tests in about 8 s. `node scripts/cds-classlist.mjs` (own project `astrolabe-cds-train`, ports 8590/5941/8534/8600/8601) now also trains the Flow path against a Flow stub of its own: the list grew from 12,063 to 12,463 classes (398 of the 574 added lines are `ch/nokillswit/flow/` ones).
+Measured 2026-11-07 (1.3.0 C5).
+`JiraFlagsScaleTest` builds ONE sample-plan-sized world through the same MockEngine import (20/100/1,000, all bound, 15 teams), reads the four views plain and with `?baseline=` and with the connection disabled, and prints the `scale-figure` lines of `timeline.md` "Measured figures".
+**6.0 s in the full gate (12.5 s when run alone, cold)**; with the 21 other new 1.3 C5 tests the class additions cost about 11 s of the 3m27s server gate (the CDS, Kover and detekt steps unchanged).
+
+### Jira flags at scale with roll-ups
+
+Measured 2026-11-07 (1.4.0 C6), Apple M5 Max.
+`JiraFlagsScaleTest` now also seeds five census children under each of the 1,000 bound epics (5,000 `jira_issues` rows through `JiraIssueStore.upsert`, 500-row chunks, removed by `removeScaleRows`) and asserts every Platform link carries the roll-up: **7.0 s in the full gate** (6.0 s before the seed; 8.8 s when run alone with its two sibling classes, cold), so the 5,000-row seed costs about 1 s.
+The C6 step as a whole (that seed, the 3 new `JiraFlagSourceTest` cases, the new `TimelineJiraFlagsTest` case) is about +1.5 s of the 3m39s server gate (1,753 tests; `JiraFlagSourceTest` 2.0 s, `TimelineJiraFlagsTest` 3.5 s). Figures: `timeline.md` "Measured figures".
+
+## The server suite over time
+
+`scripts/gates.sh` runs on the Apple M5 Max; every row is against the 3 min target and 6 min alarm of local `server-build` (`cleanTest check :server:installDist`: tests, Kover, detekt, CDS, `installDist`). A next server increment re-reads the latest row first.
+
+| Release | Measured | Tests | `server-build` | Forks | Against target | Last five median / previous five / max |
+|---|---|---|---|---|---|---|
+| 1.1.0 | 2026-11-07, `gates.sh server` | 1,468 | 2m58s (2m56s in the full `all` run) | 1 | inside | 2m47s / 2m42s / 2m59s |
+| 1.3.0 | 2026-11-07, `gates.sh server` | 1,713 | 3m28s | 1 | over by 28 s | 3m28s / 3m08s / 3m37s |
+| 1.4.0 | 2026-11-07, `gates.sh all` | 1,753 | 3m36s | 1 | over by 36 s | 3m36s / 3m40s / 3m43s |
+| 1.5.0 | 2026-11-08, `gates.sh all`, `-Pforks=2` | 2,008 | 2m44s | 2 | inside | 2m33s / 2m22s / - |
+
+- **1.1.0.** The Jira sync (C1 to C11) took the suite from about 2m05s (the 1.0.0 median) to the edge of the target; no budget moved. `web-gates` 20s (1,857 tests), `e2e-static` 5.6s. The Kover floors held (line 98.53%, branch 86.57%, no raise possible).
+- **1.3.0.** The additions are the scheduler (`SyncSchedulerTest`: a real registry, an injected clock, two instances), the status and acknowledge classes and the flag tests (`JiraFlagsScaleTest` 6.0 s in the full gate, 12.5 s alone; the roughly 11 s of the C5 step), so the 245 tests added since the 1.1.0 row (1.2 and 1.3) cost about 30 s in total; none adds a fixture with start-up cost beyond the existing Jira stub warm-up.
+  No budget moved: the alarm (6 min) is far, and the fork balancing that `testing.md` names as Flow's technique is the lever when the target is the problem (`BACKLOG.md`).
+- **1.4.0.** 8 s slower than the 1.3.0 row for the 40 tests added since (the V23 store and census classes, the coverage loaders, the kernels' vectors, the fold and the roll-up seed in `JiraFlagsScaleTest`; "Jira flags at scale with roll-ups" above has the per-step costs).
+  The alarm (6 min) is not near; the target breach is the standing one, and **fork balancing (`-Pforks=2` with a measured test-weights file, Flow's technique, `BACKLOG.md`) is the user's lever**, not a change this release makes. `web-gates` 21s (2,138 tests), `e2e-static` 6.6s (the stub generator's self-test and generate-twice diff, 2,278 mappings).
+- **1.5.0.** Measured with `-Pforks=2` as `gates.sh` sets it, while the user's own compose and Kubernetes stacks were running on the machine.
+  The 1.4.0 row (3m36s) was one fork; the two-fork figure measured after the fork balancing was 2m03s-2m07s for 1,760 tests, so the 248 tests added since (the Flow server classes of C1-C8, among them a second in-JVM WireMock per fork, about 1 s per fork once: "Fixtures that add start-up cost" above) cost roughly 35 s of wall clock; the per-class split was not re-measured, and `server/test-weights.tsv` was not refreshed (the fork-balance block is the cue). No budget moved.
+  `web-gates` 34s (2,337 vitest tests; the report flags `TREND +63%` against a previous-five median of 20s, not investigated), `e2e-static` 6.6s (both stub generators' self-tests and generate-twice diffs).
+  The Playwright suite against a throwaway compose project built from the checkout: 174 tests in 2.9 minutes on 4 workers, against `e2e-playwright`'s 3 min target and 6 min alarm; the new `flow-sync.spec.ts` is 3 tests in about 13 s alone and the accessibility Flow describe 6 tests in about 8 s.
+  `node scripts/cds-classlist.mjs` (own project `astrolabe-cds-train`, ports 8590/5941/8534/8600/8601) now also trains the Flow path against a Flow stub of its own: the list grew from 12,063 to 12,463 classes (398 of the 574 added lines are `ch/nokillswit/flow/` ones).
 
 ## Investigation log
 
@@ -160,7 +220,9 @@ Local (`local-times.mjs report`): `server-build` last five median 2m05s (previou
 - The other TREND flags are small absolute moves on noisy jobs (`k8s-static` 7 -> 10 s); nothing in them was attributed. `gradle-vulnerability-scan` spends 50 of its 70 s on the settings-plugin audit in a `--no-daemon` JVM.
 - `server`, `images` and `e2e` are simply larger than the provisional claims: the suite grew from the foundation to 1,109 tests and the e2e suite to 113, then 123.
 
-**Outcome.** Budgets set from these figures (`budgets.json`; each `why` holds its figure). Tightened: the local `web-gates`, `e2e-static` and `e2e-playwright`, which were far looser than measured. Raised: the CI `server`, `web`, `e2e-static`, `images`, `e2e` targets, and the `web`, `e2e-static` and `images` alarms, so one cold-cache run does not alarm. `ci.server-tests` stays 3 min against the measured 2m55s on purpose: its next breach is the cue for fork balancing. The `ci-steps` rows and the two one-off local rows rest on a single run each, so treat them as weaker. The Kover and vitest floors were re-measured the same day (`server/build.gradle.kts`, `web/vite.config.ts`).
+**Outcome.** Budgets set from these figures (`budgets.json`; each `why` holds its figure).
+Tightened: the local `web-gates`, `e2e-static` and `e2e-playwright`, which were far looser than measured. Raised: the CI `server`, `web`, `e2e-static`, `images`, `e2e` targets, and the `web`, `e2e-static` and `images` alarms, so one cold-cache run does not alarm.
+`ci.server-tests` stays 3 min against the measured 2m55s on purpose: its next breach is the cue for fork balancing. The `ci-steps` rows and the two one-off local rows rest on a single run each, so treat them as weaker. The Kover and vitest floors were re-measured the same day (`server/build.gradle.kts`, `web/vite.config.ts`).
 
 ### Astrolabe WHY 2: the server gate beside the running compose stack (status check, 2026-11-15)
 
@@ -174,17 +236,27 @@ Local (`local-times.mjs report`): `server-build` last five median 2m05s (previou
 
 ### Astrolabe WHY 3: why CI is over its budgets (status check, 2026-11-15)
 
-**Symptom.** At `d4e3c74` (the 1.23.0 release; `ci` run #237) `node scripts/timings/ci-times.mjs --branch master --limit 12 --steps web` flags `server` OVER ALARM (last-five median 14m16s against 6m00s / 10m00s) and `web` OVER ALARM (5m00s against 2m00s / 4m00s); `e2e-static` is over target (1m08s against 1m00s) and the nightly `e2e` over target (13m38s against 8m00s / 15m00s).
-The rows are the 1.0.0 re-baseline of "Astrolabe WHY 1" (2026-11-05), set when the server suite held 1,109 tests; the rule above ("never just a raised budget") makes this entry due. WHY 1 explained one slow `web` run by a cold cache; the breaches since were not investigated.
+#### Symptom and sample
 
-**Evidence.** The sample is the fourteen successful `ci` runs on master, #224 to #237 (`gh run list --workflow ci.yml --branch master --status success --limit 14`, all 2026-11-15, `cf9e2cd`..`d4e3c74`); step times are `completedAt - startedAt` of `gh run view <id> --json jobs`; run #237's job logs are `gh run view --job <id> --log`.
+At `d4e3c74` (the 1.23.0 release; `ci` run #237) `node scripts/timings/ci-times.mjs --branch master --limit 12 --steps web` flags `server` OVER ALARM (last-five median 14m16s against 6m00s / 10m00s) and `web` OVER ALARM (5m00s against 2m00s / 4m00s); `e2e-static` is over target (1m08s against 1m00s) and the nightly `e2e` over target (13m38s against 8m00s / 15m00s).
+The rows are the 1.0.0 re-baseline of "Astrolabe WHY 1" (2026-11-05), set when the server suite held 1,109 tests; the rule in "Rules" ("never just a raised budget") makes this entry due. WHY 1 explained one slow `web` run by a cold cache; the breaches since were not investigated.
+
+The sample is the fourteen successful `ci` runs on master, #224 to #237 (`gh run list --workflow ci.yml --branch master --status success --limit 14`, all 2026-11-15, `cf9e2cd`..`d4e3c74`); step times are `completedAt - startedAt` of `gh run view <id> --json jobs`; run #237's job logs are `gh run view --job <id> --log`.
+
+#### Evidence: the server job
 
 1. **The server job is its test task.** Run #237: the Gradle step (`check :server:installDist`, `TEST_FORKS: "1"`, `ci.yml:71`) took 12m30s of the job's 12m47s; the test task 9m58s of it (the Test time report step: 321 classes, 2,794 test cases, sum of class times 9m57s, span 9m58s, span / sum 1.002, so one fork is saturated and nothing is unbalanced). The same step took 652 to 1,100 s over the fourteen runs (median 756 s); the job 664 to 1,120 s (median 770 s).
    The budget row for the test task (`ci.server-tests`, 3 min) was measured at 2m55s for 1,109 tests: the suite has grown 2.5 times in tests and the task 3.4 times in time. The cost per test went up too (0.16 s then, 0.21 s now); that part is not attributed.
+
+#### Evidence: the web job
+
 2. **The web job is vitest, and vitest on the runner is CPU-bound, not misconfigured.** Run #237: `Test Files 290 passed`, `Tests 3607 passed`, `Duration 208.86s (tests 83%, environment 14%, transform 1%, setup 1%, import 1%)`: the time is in the test bodies, not in module loading or the DOM. The per-file times of that log (the 290 `✓ src/….test.tsx (N tests) Nms` lines) sum to 580.7 s, so 580.7 / 208.9 = 2.8 workers were busy (a 4 vCPU runner's default pool is 3).
    The same seed on the dev machine (Apple M5 Max, 2026-11-15, replayed with `npx vitest run --coverage --sequence.shuffle --sequence.seed=268739076`): **22.6 s** with the default pool and **56.7 s** with `--maxWorkers=3` (three workers, the pool a 4 vCPU runner gets), the file times summing to 153.4 s, so the same 2.7 workers were busy there: the shape is identical and the difference is the speed of one thread.
    File by file (the runner's time for a file over the local `--maxWorkers=3` time of the same file) the runner is **4.7 times slower at the median (p10 1.9, p90 10.3)**; the ratio barely moves over the run (4.0 over the first fifth of the run, 4.9 over the last), so no leak, no cold cache, no growing heap. The files near 1.0 are the ones that wait on real timers (`pages/ScheduleProposals.test.tsx`, `pages/headingOutline.test.tsx` and their kind), which is why the totals (580.7 / 153.4 = 3.8 times) sit under the median file (4.7 times).
    Flow measured the same shape twice and rejected the cheap levers (`~/Sources/flow/.claude/docs/build-times.md` WHY 6 and WHY 20: a fourth worker, `pool: 'forks'`, a cheaper coverage reporter), so none is tried here. Growth: 1,857 tests at 1.1.0, 3,607 at 1.23.0 (1.9 times).
+
+#### Evidence: runner speeds and npm ci
+
 3. **The runners come in two speeds, and a job does not say which it got.** The `web` job over the same fourteen runs:
 
    | Mode | Runs | `web` job | vitest step | `npm ci` | `npm run build` |
@@ -196,14 +268,17 @@ The rows are the 1.0.0 re-baseline of "Astrolabe WHY 1" (2026-11-05), set when t
 4. **`npm ci` takes 31 to 54 s on a cache HIT.** Run #237's log shows `Cache hit for: node-cache-Linux-x64-npm-…` and `npm ci --legacy-peer-deps` still took 49 s (716 packages; the cache is npm's download cache, so `npm ci` unpacks every package and runs the install scripts each time). That is 16 % of the web job, and `e2e-static`'s `npm ci` (35 to 52 s of its 62 to 90 s job over the same runs, the e2e workspace) is more than half of that job.
    Flow's web job spent 9 to 10 s on its own `npm ci` when it recorded it (`~/Sources/flow/.claude/docs/build-times.md` WHY 6, WHY 20). Nobody has looked at why.
 
-**Cause, as far as measured.**
+#### Cause, as far as measured
+
 - `server` and `ci.server-tests`: the budget is mostly a count. The suite grew 2.5 times in tests (1,109 to 2,794) after the row was set, on one fork. Flow's CI already runs two forks on these runners (`~/Sources/flow/.github/workflows/ci.yml:74`, `TEST_FORKS: "2"`, its WHY 5) and Astrolabe's weight-balanced order is ported (`server/test-weights.tsv`, "Fork balancing" above, which says to try exactly this on CI and keep it only if the job gets faster). The trial was never run.
   `server/test-weights.tsv` (dated 2026-11-08, 272 rows for 323 classes) has no row for 51 classes, so a two-fork deal today would be only partly weighted.
 - `web`: the suite grew 1.9 times since the row was set, and the runner's thread runs a test file about 4.7 times slower than the dev machine's. Fewer or smaller tests would help, a faster thread is not ours to give, and a fourth worker or a shard is not worth it (Flow's WHY 20; the web job is not on the critical path once `server` is). Over two speeds the job is 3m03s to 5m10s and no single target fits it.
 - `e2e-static` and `web`: `npm ci` is a sixth to a half of each job on a cache hit, for a reason that is not known.
 - The nightly `e2e` (13m38s against 8m00s / 15m00s) grew from 113 tests (when the row was set) to 254 on four workers; it is not investigated further here.
 
-**Outcome.** No budget moves and no workflow changes in this commit: a budget changes only with its measurement in the same commit (below), and the rows are re-baselined once, from a sample taken after the open items. **Open, in the 1.24.0 plan (§2.6):**
+#### Outcome and open items
+
+No budget moves and no workflow changes in this commit: a budget changes only with its measurement in the same commit ("Rules"), and the rows are re-baselined once, from a sample taken after the open items. **Open, in the 1.24.0 plan (§2.6):**
 - G2: every budgeted job logs the runner (CPU model, logical CPUs, memory) in a "Runner facts" step; the web job writes vitest's JSON report and a summary (wall, sum of file times, their ratio, the slowest files and tests); the Gradle and `npm ci` steps get names a budget row can carry; and `TEST_FORKS` goes to `"2"` after `server/test-weights.tsv` is refreshed from one green single-fork run.
   Landed in G2 (2026-11-15): the workflow, the report script and the refreshed weights; the sample below is still to come.
   The two-fork trial is judged on the first ten green master runs after it, bucketed by CPU model, and kept only if their median is at least 20 % under 14m16s and no red run is explained by the second fork; otherwise it goes back to one fork, recorded here.
@@ -211,16 +286,10 @@ The rows are the 1.0.0 re-baseline of "Astrolabe WHY 1" (2026-11-05), set when t
   **Done (1.24.0 G3, 2026-11-15): the first outcome, a cause fixed where it sits.** Two runs of a throwaway branch (4-CPU `ubuntu-24.04` runners, npm cache hit) timed `npm ci --timing`: web 34.6 s, of which `reify:audit` 30.3 s; e2e 30.0 s, of which `reify:audit` 29.4 s and the unpack about 1.4 s. The install's built-in audit runs beside the unpack and the install waits for it, and its time is the advisory calculation for the typescript-eslint chain (packument loads of about 10 s each). The install scripts (`@scarf/scarf`; `fsevents`, not run on Linux) and the lockfile history are not it.
   With `--no-audit --no-fund` a fresh runner installs web in 11.8 s and e2e in 2.2 s; the jobs' own audits then take 0.4 s (web, `--omit=dev`) and 46.8 s (e2e, the full tree, so that cost moves into the audit step rather than going away). The flags are on all four installs: `ci.yml`'s web and `e2e-static` jobs, `e2e.yml`, and the `Dockerfile`; no `node_modules` cache. Expected: web about 20 s faster, `e2e-static` about the same, the nightly and every image build about 25 to 30 s faster; G5's sample measures it.
 - G4: the coverage floors, after the last code commit.
-- G5: the re-baseline of every `ci.*` row, the five `ci-steps` rows and the `local.*` rows from at least ten green master runs on the final workflow (target = the median rounded up to 30 s; alarm = the larger of 1.5 x target and 1.2 x the slowest run, rounded up to a minute; the sample bucketed by runner speed), the Budgets table, this entry's closing outcome and the rule in "Review cadence".
+- G5: the re-baseline of every `ci.*` row, the five `ci-steps` rows and the `local.*` rows from at least ten green master runs on the final workflow (target = the median rounded up to 30 s; alarm = the larger of 1.5 x target and 1.2 x the slowest run, rounded up to a minute; the sample bucketed by runner speed), the Budgets table, this entry's closing outcome and the rule in "Rules".
 
 ## Review cadence
 
-- Run `node scripts/timings/ci-times.mjs --branch master` at every milestone / PR, and in every
-  checkup; run `local-times.mjs report` when a local gate feels slower.
-- A `TREND` flag or a budget breach becomes a dated investigation entry in this doc (WHY, evidence,
-  outcome) — **never just a raised budget.** A budget changes only with the measurement that justifies
-  it, in the same commit as the edit to `scripts/timings/budgets.json` and the table above.
-- A new gate or CI job gets a budget row before it lands.
-- The `slow-tests` output of the CI job summary is the first stop when the `server` job regresses:
-  a new class or case near the top of the list is almost always the cause.
+- Run `node scripts/timings/ci-times.mjs --branch master` at every milestone / PR, and in every checkup; run `local-times.mjs report` when a local gate feels slower.
+- The `slow-tests` output of the CI job summary is the first stop when the `server` job regresses: a new class or case near the top of the list is almost always the cause.
 - Refresh `server/test-weights.tsv` (after a full green run: `node scripts/timings/local-times.mjs test-weights`) whenever the fork-balance block of `slow-tests --forks N --weights server/test-weights.tsv` warns and at every milestone check; commit it with the run's date in its header.
