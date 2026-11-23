@@ -131,7 +131,7 @@ Pinned by: `FlowTeamMatchKernelsTest`, `FlowTeamBindingTest`, `FlowTeamMatchTest
 
 ## The capacity import
 
-Files: `flow/CapacityImportKernels.kt`, `CapacityApplyKernels.kt`, `CapacityImportService.kt`, `CapacityImportRoutes.kt`.
+Files: `flow/CapacityImportKernels.kt`, `CapacityImportClaims.kt`, `CapacityApplyKernels.kt`, `CapacityImportService.kt`, `CapacityImportRoutes.kt`.
 
 **The rule:** a sprint's man-days from Flow are spread over the sprint's WORKING days (Astrolabe's calendar: Monday-Friday minus the public-holiday dictionary), so the weekly capacity over the sprint adds up to what Flow says, within rounding; a holiday inside the sprint raises the figure instead of losing man-days.
 `mdPerWeek = round2(5 x flowMd / workingDays)` (BigDecimal, `HALF_UP`), one capacity period per sprint (a period holds until the next one, so a gap between sprints keeps the previous figure; the weeks before a team's first imported sprint stay "no capacity"). Example: 40 MD over 10 working days is 20.00 a week; over 9 (one holiday) 22.22, and `weekCapacity` over those weeks sums back to 40.00.
