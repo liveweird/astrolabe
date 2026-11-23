@@ -3,7 +3,7 @@ package ch.nokillswit.planning
 import ch.nokillswit.infra.time.WorkingCalendar
 
 /*
- * The scheduling kernel's dependency side (v0.8.0; `planning-model.md` "The auto-proposal"): the dates every milestone and project has
+ * The scheduling kernel's dependency side (v0.8.0; `scheduling.md` "The auto-proposal"): the dates every milestone and project has
  * SO FAR ([PlanValues]), the lower bounds the links put on a milestone ([ScheduleConstraints.bounds]) and the order in which the
  * milestones are placed ([ScheduleConstraints.placementOrder]). Pure: no I/O, no clock.
  */

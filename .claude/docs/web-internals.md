@@ -1468,7 +1468,7 @@ Files: `pages/ScheduleProposals.tsx`; `utils/scheduleProposalLinks.ts`; `api/sch
 ### Route and data
 
 `/schedule-proposals` (nav: Planning after Baselines, `IconCalendarStats`, **everyone**) runs ONE proposal over several teams (`POST /schedule-proposals`: the teams in dependency order to a
-fixed point, `planning-model.md` "The cross-team run") and accepts the ticked moves of every team in ONE plan write.
+fixed point, `scheduling.md` "The cross-team run") and accepts the ticked moves of every team in ONE plan write.
 
 **What it offers comes from the server.** The `MultiSelect` (`maxValues` 50, searchable, disabled while a run is requested or open, picks the server no longer lists are dropped at Propose) is
 filled from `GET /schedule-proposals/teams` under `["schedule-proposals","teams"]`.

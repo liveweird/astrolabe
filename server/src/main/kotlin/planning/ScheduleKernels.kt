@@ -6,7 +6,7 @@ import java.math.BigDecimal
 import java.time.LocalDate
 
 /*
- * The auto-proposal's scheduling kernel (v0.8.0; `planning-model.md` "The auto-proposal"): pure functions, no I/O, no clock, no
+ * The auto-proposal's scheduling kernel (v0.8.0; `scheduling.md` "The auto-proposal"): pure functions, no I/O, no clock, no
  * randomness - the calendar, the clock date and every row are parameters. The service (C2) loads one snapshot and calls [propose] and
  * [postCheck]; nothing here moves a date.
  *
@@ -72,7 +72,7 @@ data class ScheduleProposalCheck(val weeks: List<WeekLoad>, val weeksTruncated: 
 object ScheduleKernels {
     /**
      * Places the team's movable milestones greedily in the team's effective order (after the milestones they wait for), each on the
-     * earliest span that fits per day within capacity and the WIP limit and after its dependencies. See `planning-model.md`.
+     * earliest span that fits per day within capacity and the WIP limit and after its dependencies. See `scheduling.md` "Placement".
      */
     fun propose(inputs: ScheduleInputs): ScheduleProposalResult {
         requireAcyclicPlan(planContainment(inputs.plan, inputs.team), inputs.links.sortedBy { it.id })

@@ -10,7 +10,7 @@ import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
 /*
- * The scope fingerprint of a schedule proposal (v0.9.0; `planning-model.md` "The auto-proposal"): a content hash of everything the
+ * The scope fingerprint of a schedule proposal (v0.9.0; `scheduling.md` "The auto-proposal"): a content hash of everything the
  * scheduling kernel reads about ONE team that the batch accept's per-milestone `schedule_revision` rule does NOT already cover. The
  * proposal answers it (`scopeHash`) and the batch accept recomputes it under the plan lock from the same rows through the same function
  * ([scheduleScope]); a difference in the STRUCTURE is a 409 `stale-scope`, nothing written.
@@ -116,7 +116,7 @@ data class ScopeRunTeam(val id: UInt, val name: String)
  * The scope of a cross-team run (1.8.0): the [teams] sorted by id (each with its name: `proposeMany` breaks team-order ties by name,
  * so a rename between the run and the accept can change the placement) and, per team in that order, its own [ScheduleScope] built with
  * the WHOLE set as "own" ([scheduleScope]'s `runTeamIds`). Its JSON differs from a [ScheduleScope]'s by construction, so a per-team
- * hash and a run hash never match (the two definitions of "foreign" differ; `planning-model.md` "The cross-team run").
+ * hash and a run hash never match (the two definitions of "foreign" differ; `scheduling.md` "The cross-team run").
  */
 @Serializable
 data class ScheduleRunScope(val teams: List<ScopeRunTeam>, val scopes: List<ScheduleScope>)

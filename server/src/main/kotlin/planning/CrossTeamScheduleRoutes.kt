@@ -30,7 +30,7 @@ class ScheduleProposalsRoute {
 }
 
 /**
- * The plan-scoped cross-team schedule routes (1.8.0, `planning-model.md` "The cross-team run"): unlike every team-scoped route the
+ * The plan-scoped cross-team schedule routes (1.8.0, `scheduling.md` "The cross-team run"): unlike every team-scoped route the
  * team set is in the BODY, so the guard cannot run before the body is read.
  */
 internal fun Route.crossTeamScheduleRoutes(d: PlanRouteDeps) {

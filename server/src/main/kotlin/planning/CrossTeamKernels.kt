@@ -4,7 +4,7 @@ import ch.nokillswit.infra.time.WorkingCalendar
 import java.time.LocalDate
 
 /*
- * The cross-team run (1.8.0; `planning-model.md` "The cross-team run"): pure functions, no I/O, no clock. ONE proposal over several
+ * The cross-team run (1.8.0; `scheduling.md` "The cross-team run"): pure functions, no I/O, no clock. ONE proposal over several
  * teams - the teams in dependency order, each placed by [ScheduleKernels.proposeUnchecked] (today's per-team kernel) with the teams
  * placed so far held as fixed facts, repeated until a pass changes nothing that an earlier team reads, or [MAX_CROSS_TEAM_PASSES].
  * Nothing here moves a date; the other teams enter a team's run only through its `plan` facts, so the run just hands each team a plan

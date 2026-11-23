@@ -8,7 +8,7 @@ import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
 /*
- * The scheduling kernel's per-day ledger (v0.8.0; `planning-model.md` "The auto-proposal"): for every working day from the team's first
+ * The scheduling kernel's per-day ledger (v0.8.0; `scheduling.md` "The auto-proposal"): for every working day from the team's first
  * USABLE day to the horizon, the daily capacity, the WIP limit, the exact share, and what the milestones placed so far already use;
  * and, per ISO week, the exact capacity of ALL its working days against the exact load booked on all of them (days before the first
  * candidate day included), so a proposal never adds load to a week the team view would show overloaded.

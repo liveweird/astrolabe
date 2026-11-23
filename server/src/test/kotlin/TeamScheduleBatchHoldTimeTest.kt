@@ -34,9 +34,10 @@ import kotlin.test.assertTrue
  * the request time of the first batch (cold for this JVM when no earlier class ran one) and of a second, warm one
  * (`ScaleFigures`) and asserts a loose tripwire on both.
  *
- * It also prints the time of the accept's LOOK-AGAIN path (1.13.1, `planning-model.md`): a proposal over the same team (with a capacity
- * period), a far-off holiday added after it, then the accept of its moves with the proposal's token - the holidays part differs, so
- * the kernel runs once under the plan lock before the write. No gate: the figure is the cost of that rare path at the batch cap.
+ * It also prints the time of the accept's LOOK-AGAIN path (1.13.1, `scheduling.md` "The scope check"): a proposal over the same team
+ * (with a capacity period), a far-off holiday added after it, then the accept of its moves with the proposal's token - the holidays
+ * part differs, so the kernel runs once under the plan lock before the write. No gate: the figure is the cost of that rare path at the
+ * batch cap.
  */
 class TeamScheduleBatchHoldTimeTest {
     private val monday = LocalDate.parse("2027-02-01")

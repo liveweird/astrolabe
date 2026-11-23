@@ -333,7 +333,7 @@ The toggle lives with the timeline, so a project without milestones has neither 
 
 ### The proposal preview
 
-The team page previews the server's schedule proposal (`POST /teams/{id}/schedule-proposal`, `planning-model.md` "The auto-proposal") on the same `TeamTimeline`, through its optional `proposal?: {moves, weeks}` prop (`TeamProposalView`, `utils/scheduleProposal.ts`). Without the prop nothing changes (pinned by `TeamTimeline.test.tsx`). The server decides every date and figure; the client only draws them.
+The team page previews the server's schedule proposal (`POST /teams/{id}/schedule-proposal`, `scheduling.md` "The auto-proposal") on the same `TeamTimeline`, through its optional `proposal?: {moves, weeks}` prop (`TeamProposalView`, `utils/scheduleProposal.ts`). Without the prop nothing changes (pinned by `TeamTimeline.test.tsx`). The server decides every date and figure; the client only draws them.
 
 - **The tone.** `TimelineBarData.tone: "proposal"`: a HOLLOW bar (transparent fill) with a 2 px DASHED outline in the text colour (`.timelineBarProposal`, `data-tone="proposal"`). It differs from `summary` (solid outline), `ghost` (a faint filled bar with a thin dashed border) and the `critical` emphasis (an outline AROUND a filled bar) by the fill and the dash together, and adds no hue: the brand cyan stays the held bar's. Read-only like every tone but `window`: an editable bar ignores it.
   Its name is the page's `describe` (`timeline.bar.proposal`, "Proposed: {{name}}, {{start}} to {{end}}", plus the component's ", read-only").
