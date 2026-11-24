@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
  * `GET /views/team/{id}?baseline=N`: the team against baseline [id]. [milestones] has one entry per LIVE milestone of the team that the
  * baseline also froze, whatever team it sat on then (`teamIdThen` differing from the viewed team reads "from {team}"); [removed] are
  * the baseline's milestones of THIS team that are not on it any more: gone ([RemovedMilestone.now] absent) or moved to another team.
+ * [capacity] is the team's frozen capacity as ranges (`captured: false` and no ranges for a baseline taken before 1.26).
  */
 @Serializable
 data class TeamBaseline(
@@ -15,6 +16,8 @@ data class TeamBaseline(
     val planRevision: Long,
     val milestones: List<BaselineMilestone>,
     val removed: List<RemovedMilestone>,
+    /** The team's capacity periods as the baseline froze them (1.26): the "was" the capacity chart and the team's figures compare with. */
+    val capacity: BaselineTeamCapacity,
 )
 
 /**
@@ -41,5 +44,18 @@ internal suspend fun teamBaseline(
         planRevision = header.planRevision,
         milestones = live.mapNotNull { l -> frozenById[l.id]?.let { frozenFigures(it, l, calendar) } }.sortedBy { it.milestoneId },
         removed = gone.map { it.toRemoved(teamName, now[it.id]) }.inAppendOrder(),
+        capacity = teamCapacityThen(header, teamId),
+    )
+}
+
+/** The team's capacity as [header] froze it, by start (`idx_baseline_capacity_periods_team`); not captured when the header has no count. */
+private suspend fun teamCapacityThen(header: BaselineHeader, teamId: UInt): BaselineTeamCapacity {
+    if (header.capacityPeriodCount == null) return BaselineTeamCapacity(captured = false, periods = emptyList())
+    val ranges = BaselineCapacityKernels.ranges(frozenCapacityOfTeam(header.id, teamId))
+    return BaselineTeamCapacity(
+        captured = true,
+        periods = ranges.map {
+            BaselineCapacityRange(it.from.toString(), it.to?.toString(), it.figure.mdPerWeek.toDouble(), it.figure.wipLimit)
+        },
     )
 }

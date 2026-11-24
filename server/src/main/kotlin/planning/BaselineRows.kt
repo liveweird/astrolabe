@@ -32,6 +32,8 @@ internal class BaselineHeader(
     val createdByUserId: UInt?,
     val milestoneCount: Int,
     val projectCount: Int,
+    val dependencyCount: Int?,
+    val capacityPeriodCount: Int?,
     val createdAt: Long,
 )
 
@@ -78,6 +80,8 @@ internal fun ResultRow.toBaselineHeader(): BaselineHeader {
         createdByUserId = this[baselines.createdByUserId]?.value,
         milestoneCount = this[baselines.milestoneCount],
         projectCount = this[baselines.projectCount],
+        dependencyCount = this[baselines.dependencyCount],
+        capacityPeriodCount = this[baselines.capacityPeriodCount],
         createdAt = this[baselines.createdAt],
     )
 }
@@ -232,4 +236,6 @@ internal fun BaselineHeader.toResponse(creators: Map<UInt, BaselineCreator>) = B
     createdBy = createdByUserId?.let(creators::get),
     milestoneCount = milestoneCount,
     projectCount = projectCount,
+    dependencyCount = dependencyCount,
+    capacityPeriodCount = capacityPeriodCount,
 )

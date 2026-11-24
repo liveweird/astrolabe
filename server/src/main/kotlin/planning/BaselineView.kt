@@ -15,7 +15,10 @@ import kotlinx.serialization.Serializable
  *
  * With `?against=N` (1.7) "now" is a second baseline instead of the live plan: [baseline] stays "then" (the path id), [against] is the
  * "now" baseline's header, the `live`/`rankNow`/`span` fields read that baseline's frozen rows, and ADDED means "in [against] only",
- * REMOVED "in [baseline] only". [against] is absent (not null) without the parameter, so the document is byte-identical to before.
+ * REMOVED "in [baseline] only". [against] is absent (not null) without the parameter, so that document is what it was before 1.7.
+ *
+ * [links] and [capacity] (1.26, always present) compare what the baseline froze beside the dated structure with the same "now" side.
+ * Either is `captured: false` (and empty) when the baseline - with `against`, either of the two - was taken before 1.26.
  */
 @Serializable
 data class BaselineView(
@@ -24,6 +27,10 @@ data class BaselineView(
     val totals: BaselineViewTotals,
     val projects: List<BaselineViewProject>,
     val milestones: List<BaselineViewMilestone>,
+    /** The links the baseline froze against the links now (V33); `captured: false` for a baseline taken before 1.26 ([BaselineLinks]). */
+    val links: BaselineLinks,
+    /** The teams' capacity as frozen against now (V33), the same `captured` rule ([BaselineCapacity]). */
+    val capacity: BaselineCapacity,
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val against: BaselineResponse? = null,
 )

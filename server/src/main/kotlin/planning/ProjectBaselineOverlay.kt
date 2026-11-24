@@ -46,3 +46,14 @@ internal suspend fun projectBaseline(
         removed = removed.map { it.toRemoved(teams.getValue(it.teamId), now = null) }.inAppendOrder(),
     )
 }
+
+/**
+ * The project view's links with `newSinceBaseline` (1.26): true for a link the baseline did not freeze, false for one it did, one
+ * primary-key read over the rows' ids. Untouched (the field stays absent) without a baseline or for one that froze no links: its
+ * absence is "unknown", never "all of them are new".
+ */
+internal suspend fun List<ProjectDependency>.markedNewSince(baseline: BaselineHeader?): List<ProjectDependency> {
+    if (baseline?.dependencyCount == null) return this
+    val frozen = frozenLinkIdsAmong(baseline.id, map { it.id })
+    return map { it.copy(newSinceBaseline = it.id !in frozen) }
+}

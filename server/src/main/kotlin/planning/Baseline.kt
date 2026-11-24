@@ -13,8 +13,9 @@ const val MAX_BASELINE_DESCRIPTION_LENGTH = 500
 /**
  * A baseline (V20): a named, immutable copy of the plan's dated structure taken at one plan revision (`planning-model.md` "Baselines").
  * [planRevision] is the plan revision the baseline EQUALS - the one its creation left behind, so a view whose `revision` equals it shows
- * no movement. [createdBy] is the creating login's linked ACTIVE person's name, else the login's display name (`users.name`, never its
- * email); null when that login is gone.
+ * no plan movement (capacity is team data outside that revision: its comparison may differ at an equal revision). [createdBy] is
+ * the creating login's linked ACTIVE person's name, else the login's display name (`users.name`, never its email); null when that
+ * login is gone. [dependencyCount] and [capacityPeriodCount] (V33) are null for a baseline that did not capture them.
  */
 @Serializable
 data class BaselineResponse(
@@ -26,6 +27,10 @@ data class BaselineResponse(
     val createdBy: BaselineCreator?,
     val milestoneCount: Int,
     val projectCount: Int,
+    /** The links the baseline froze (V33); null = taken before 1.26, links NOT captured (never "no links"). */
+    val dependencyCount: Int?,
+    /** The capacity periods of every active team the baseline froze (V33); null = NOT captured, like [dependencyCount]. */
+    val capacityPeriodCount: Int?,
 )
 
 /** The login that took a baseline: [name] is its ACTIVE person's name, else the login's display name - never its email. */

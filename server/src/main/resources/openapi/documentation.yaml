@@ -2179,7 +2179,10 @@ paths:
         `REMOVED` for one that is gone); `milestones` lists only the changed rows; `totals` count every row. Movement is measured in
         working days on the current calendar, positive = later. Under `?against=N` the "now" side is N's frozen rows: the fields named
         `live`, `rankNow` and `span` read them, `ADDED` means in N only and `REMOVED` in the path baseline only. `revision` is the
-        plan revision read first; the baseline equals the plan at `baseline.planRevision`, so an equal `revision` shows no movement.
+        plan revision read first; the baseline equals the plan at `baseline.planRevision`, so an equal `revision` shows no plan movement.
+        `links` and `capacity` compare the links and the teams' capacity periods the baseline froze with the same "now" side; each
+        is `captured: false` for a baseline taken before baselines froze them. Capacity is team data outside the plan revision: an
+        equal `revision` does not mean the `capacity` block is empty.
       responses:
         '200':
           description: The comparison
@@ -2724,7 +2727,8 @@ paths:
       description: >-
         Takes a baseline: a named, immutable copy of the plan's dated structure at one plan revision, every active milestone
         (name, project, team, estimate, dates) and every active project (name, program, work stream, target window, rank position,
-        derived span); links, capacity periods, holidays and team orders are not copied. ADMIN or a holder of `ROADMAP_EDITOR`;
+        derived span), every active link (the end ids, type, lag) and every active capacity period of every active team;
+        holidays and team orders are not copied. ADMIN or a holder of `ROADMAP_EDITOR`;
         every other caller gets `403` before the body is read. Bumps the plan revision by one; the answer's `planRevision` is the
         revision it left behind, which the plan then equals. `409`, nothing written: `urn:astrolabe:problem:baseline-limit` when
         100 baselines are already active; a plain `409` when another active baseline has the name (case-insensitively).
@@ -4859,7 +4863,7 @@ components:
         name: { type: string }
     BaselineResponse:
       type: object
-      required: [id, name, description, planRevision, createdAt, createdBy, milestoneCount, projectCount]
+      required: [id, name, description, planRevision, createdAt, createdBy, milestoneCount, projectCount, dependencyCount, capacityPeriodCount]
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string, minLength: 1, maxLength: 100 }
@@ -4876,6 +4880,8 @@ components:
             - $ref: '#/components/schemas/BaselineCreator'
         milestoneCount: { type: integer, format: int32, minimum: 0, description: 'The active milestones the baseline captured.' }
         projectCount: { type: integer, format: int32, minimum: 0, description: 'The active projects the baseline captured.' }
+        dependencyCount: { type: integer, format: int32, minimum: 0, nullable: true, description: 'The active links the baseline froze; null = taken before baselines froze them: NOT captured (not "no links").' }
+        capacityPeriodCount: { type: integer, format: int32, minimum: 0, nullable: true, description: 'The active capacity periods of the active teams the baseline froze; null = NOT captured, like `dependencyCount`.' }
     BaselineList:
       type: object
       required: [items, can]
@@ -5006,7 +5012,7 @@ components:
             $ref: '#/components/schemas/RemovedMilestone'
     TeamBaseline:
       type: object
-      required: [id, name, planRevision, milestones, removed]
+      required: [id, name, planRevision, milestones, removed, capacity]
       description: Present only with `?baseline=N`.
       properties:
         id: { type: integer, format: int32, minimum: 0 }
@@ -5024,6 +5030,29 @@ components:
           description: The baseline's milestones of THIS team that are not on it any more (deleted, or moved - `now`), by start, end, name and id.
           items:
             $ref: '#/components/schemas/RemovedMilestone'
+        capacity:
+          $ref: '#/components/schemas/BaselineTeamCapacity'
+    BaselineTeamCapacity:
+      type: object
+      required: [captured, periods]
+      description: >-
+        The viewed team's capacity as the baseline froze it: its periods as ranges, by start. `captured` is false (and `periods`
+        empty) for a baseline taken before baselines froze capacity; true with no periods = the team had no capacity then.
+      properties:
+        captured: { type: boolean }
+        periods:
+          type: array
+          items:
+            $ref: '#/components/schemas/BaselineCapacityRange'
+    BaselineCapacityRange:
+      type: object
+      required: [from, to, mdPerWeek, wipLimit]
+      description: One stretch of a team's frozen capacity - a period holds from its start to the day before the next one's.
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date, nullable: true, description: 'Inclusive; null = without end (the last period).' }
+        mdPerWeek: { type: number, format: double, minimum: 0, description: Man-days per week; zero = on hold. }
+        wipLimit: { type: integer, format: int32, minimum: 1, maximum: 99, nullable: true, description: 'Null = no limit.' }
     RemovedProject:
       type: object
       required: [projectId, name, programId, programName, workStreamId, workStreamName, span]
@@ -5074,7 +5103,7 @@ components:
         targetEnd: { type: string, format: date, nullable: true }
     BaselineView:
       type: object
-      required: [revision, baseline, totals, projects, milestones]
+      required: [revision, baseline, totals, projects, milestones, links, capacity]
       properties:
         revision: { type: integer, format: int64, minimum: 0, description: 'The plan revision, read before the rows.' }
         baseline:
@@ -5102,6 +5131,126 @@ components:
           description: Only the CHANGED milestone rows (any kind but `UNCHANGED`, or a different estimate), in the projects' order, then by start, end, name and id.
           items:
             $ref: '#/components/schemas/BaselineViewMilestone'
+        links:
+          $ref: '#/components/schemas/BaselineLinks'
+        capacity:
+          $ref: '#/components/schemas/BaselineCapacity'
+    BaselineLinks:
+      type: object
+      required: [captured, totals, items, truncated]
+      description: >-
+        The links the baseline froze against the links now (or, under `?against=N`, N's frozen ones), by dependency id. A link is the
+        same when its id has the same type and lag on both sides; a link deleted and made again is a `REMOVED` and an `ADDED`.
+        `captured` is false (everything else empty or zero: UNKNOWN, not "nothing changed") when the baseline, or with `against` either
+        of the two, was taken before baselines froze links.
+      properties:
+        captured: { type: boolean }
+        totals:
+          type: object
+          required: [added, removed, changed, unchanged]
+          description: The counts over EVERY link of either side (changed or not).
+          properties:
+            added: { type: integer, format: int32, minimum: 0 }
+            removed: { type: integer, format: int32, minimum: 0 }
+            changed: { type: integer, format: int32, minimum: 0 }
+            unchanged: { type: integer, format: int32, minimum: 0 }
+        items:
+          type: array
+          maxItems: 1000
+          description: Only the changed links (`added`, `removed` or `changed`), by dependency id, at most 1,000.
+          items:
+            $ref: '#/components/schemas/BaselineLinkItem'
+        truncated: { type: boolean, description: 'More than 1,000 links changed; `items` holds the first 1,000 by id and the totals the whole.' }
+    BaselineLinkItem:
+      type: object
+      required: [dependencyId, change, predecessor, successor, then, now]
+      properties:
+        dependencyId: { type: integer, format: int32, minimum: 0 }
+        change: { type: string, enum: [ADDED, REMOVED, CHANGED] }
+        predecessor: { $ref: '#/components/schemas/BaselineLinkEnd' }
+        successor: { $ref: '#/components/schemas/BaselineLinkEnd' }
+        then:
+          nullable: true
+          description: The link's terms in the baseline; null for an `ADDED` link.
+          allOf:
+            - $ref: '#/components/schemas/BaselineLinkTerms'
+        now:
+          nullable: true
+          description: The link's terms now; null for a `REMOVED` link.
+          allOf:
+            - $ref: '#/components/schemas/BaselineLinkTerms'
+    BaselineLinkEnd:
+      type: object
+      required: [kind, id, name, projectName]
+      description: >-
+        One end of a changed link. The name is the "now" side's when the end exists there, else the frozen one; `projectName` is the
+        project a MILESTONE end belongs to (null for a project end).
+      properties:
+        kind: { $ref: '#/components/schemas/EndpointKind' }
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        projectName: { type: string, nullable: true }
+    BaselineLinkTerms:
+      type: object
+      required: [type, lagDays]
+      properties:
+        type: { $ref: '#/components/schemas/DependencyType' }
+        lagDays: { type: integer, format: int32, minimum: -365, maximum: 365, description: Working days; negative = a lead. }
+    BaselineCapacity:
+      type: object
+      required: [captured, totals, teams, truncated]
+      description: >-
+        The teams' capacity as frozen against capacity now (or N's), as the maximal date ranges on which a team's figure (man-days per
+        week AND WIP limit) differs; "no capacity in force" is a figure of its own (null), not zero. Splitting a period into two equal
+        ones is no change. `captured` is false (and the rest empty or zero) when the baseline, or with `against` either of the two, was
+        taken before baselines froze capacity.
+      properties:
+        captured: { type: boolean }
+        totals:
+          type: object
+          required: [teams, changedTeams]
+          properties:
+            teams: { type: integer, format: int32, minimum: 0, description: 'The teams with capacity on either side.' }
+            changedTeams: { type: integer, format: int32, minimum: 0, description: 'The teams whose capacity differs.' }
+        teams:
+          type: array
+          description: 'The changed teams by name (case-insensitive) then id; at most 2,000 change rows in all.'
+          items:
+            $ref: '#/components/schemas/BaselineCapacityTeam'
+        truncated: { type: boolean, description: 'More than 2,000 change rows; the list is cut after the 2,000th, the totals count every team.' }
+    BaselineCapacityTeam:
+      type: object
+      required: [teamId, teamName, changes]
+      properties:
+        teamId: { type: integer, format: int32, minimum: 0 }
+        teamName: { type: string, description: 'The team''s name (a team deleted since is still named).' }
+        changes:
+          type: array
+          description: The ranges on which the capacity differs, by start.
+          items:
+            $ref: '#/components/schemas/BaselineCapacityChange'
+    BaselineCapacityChange:
+      type: object
+      required: [from, to, then, now]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date, nullable: true, description: 'Inclusive; null = without end.' }
+        then:
+          nullable: true
+          description: The figure in the baseline; null = no capacity in force then.
+          allOf:
+            - $ref: '#/components/schemas/BaselineCapacityFigure'
+        now:
+          nullable: true
+          description: The figure now; null = no capacity in force now.
+          allOf:
+            - $ref: '#/components/schemas/BaselineCapacityFigure'
+    BaselineCapacityFigure:
+      type: object
+      required: [mdPerWeek, wipLimit]
+      properties:
+        mdPerWeek: { type: number, format: double, minimum: 0 }
+        wipLimit: { type: integer, format: int32, minimum: 1, maximum: 99, nullable: true }
     BaselineViewProject:
       type: object
       required: [projectId, name, programName, workStreamName, rankThen, rankNow, baselineSpan, span, movement, counts]
@@ -5746,6 +5895,7 @@ components:
         check: { $ref: '#/components/schemas/DependencyCheck' }
         critical: { type: boolean, description: "A zero-slack link on the viewed project's critical chain; a violated link is never critical and ends the chain at the violation. On the team view: on the chain of a project one of the team's milestones belongs to (a link that drives only a project none of the team's milestones belongs to is not marked)." }
         can: { $ref: '#/components/schemas/DependencyCan' }
+        newSinceBaseline: { type: boolean, description: 'Present only on the PROJECT view with `?baseline=N` and only when that baseline froze its links: true = the link is not among them (made since the baseline), false = it is. Absent otherwise (no parameter, a baseline that froze no links, the team view): unknown, not "all new".' }
     DependencyCan:
       type: object
       required: [edit, delete]

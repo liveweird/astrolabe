@@ -33,8 +33,11 @@ const milestone = (milestoneId: number, projectId: number, teamId: number, over:
   ...over,
 });
 
+const NO_LINKS: BaselineView["links"] = { captured: false, totals: { added: 0, removed: 0, changed: 0, unchanged: 0 }, items: [], truncated: false };
+const NO_CAPACITY: BaselineView["capacity"] = { captured: false, totals: { teams: 0, changedTeams: 0 }, teams: [], truncated: false };
+
 function view(projects: BaselineViewProject[], milestones: BaselineViewMilestone[]): BaselineView {
-  return { revision: 5, baseline: {} as BaselineView["baseline"], totals: { milestones: NONE, projects: NONE }, projects, milestones };
+  return { revision: 5, baseline: {} as BaselineView["baseline"], totals: { milestones: NONE, projects: NONE }, projects, milestones, links: NO_LINKS, capacity: NO_CAPACITY };
 }
 
 const ALL = { teamId: null, text: "", changedOnly: false };

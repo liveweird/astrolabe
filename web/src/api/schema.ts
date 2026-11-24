@@ -1160,7 +1160,7 @@ export interface paths {
         };
         /**
          * The comparison of one baseline with the plan now, or with a second baseline
-         * @description Compares one baseline with the plan now, or with a second baseline (`?against=N`). Any authenticated user; `404` when the baseline is unknown or soft-deleted (the views' `?baseline=` answers `400` instead, because there the id is a query value the caller held). `projects` is the union of the baseline's and the live projects (`ADDED` for a project newer than the baseline, `REMOVED` for one that is gone); `milestones` lists only the changed rows; `totals` count every row. Movement is measured in working days on the current calendar, positive = later. Under `?against=N` the "now" side is N's frozen rows: the fields named `live`, `rankNow` and `span` read them, `ADDED` means in N only and `REMOVED` in the path baseline only. `revision` is the plan revision read first; the baseline equals the plan at `baseline.planRevision`, so an equal `revision` shows no movement.
+         * @description Compares one baseline with the plan now, or with a second baseline (`?against=N`). Any authenticated user; `404` when the baseline is unknown or soft-deleted (the views' `?baseline=` answers `400` instead, because there the id is a query value the caller held). `projects` is the union of the baseline's and the live projects (`ADDED` for a project newer than the baseline, `REMOVED` for one that is gone); `milestones` lists only the changed rows; `totals` count every row. Movement is measured in working days on the current calendar, positive = later. Under `?against=N` the "now" side is N's frozen rows: the fields named `live`, `rankNow` and `span` read them, `ADDED` means in N only and `REMOVED` in the path baseline only. `revision` is the plan revision read first; the baseline equals the plan at `baseline.planRevision`, so an equal `revision` shows no plan movement. `links` and `capacity` compare the links and the teams' capacity periods the baseline froze with the same "now" side; each is `captured: false` for a baseline taken before baselines froze them. Capacity is team data outside the plan revision: an equal `revision` does not mean the `capacity` block is empty.
          */
         get: operations["getBaselineView"];
         put?: never;
@@ -1468,7 +1468,7 @@ export interface paths {
         put?: never;
         /**
          * Take a baseline
-         * @description Takes a baseline: a named, immutable copy of the plan's dated structure at one plan revision, every active milestone (name, project, team, estimate, dates) and every active project (name, program, work stream, target window, rank position, derived span); links, capacity periods, holidays and team orders are not copied. ADMIN or a holder of `ROADMAP_EDITOR`; every other caller gets `403` before the body is read. Bumps the plan revision by one; the answer's `planRevision` is the revision it left behind, which the plan then equals. `409`, nothing written: `urn:astrolabe:problem:baseline-limit` when 100 baselines are already active; a plain `409` when another active baseline has the name (case-insensitively).
+         * @description Takes a baseline: a named, immutable copy of the plan's dated structure at one plan revision, every active milestone (name, project, team, estimate, dates) and every active project (name, program, work stream, target window, rank position, derived span), every active link (the end ids, type, lag) and every active capacity period of every active team; holidays and team orders are not copied. ADMIN or a holder of `ROADMAP_EDITOR`; every other caller gets `403` before the body is read. Bumps the plan revision by one; the answer's `planRevision` is the revision it left behind, which the plan then equals. `409`, nothing written: `urn:astrolabe:problem:baseline-limit` when 100 baselines are already active; a plain `409` when another active baseline has the name (case-insensitively).
          */
         post: operations["createBaseline"];
         delete?: never;
@@ -2696,6 +2696,16 @@ export interface components {
              * @description The active projects the baseline captured.
              */
             projectCount: number;
+            /**
+             * Format: int32
+             * @description The active links the baseline froze; null = taken before baselines froze them: NOT captured (not "no links").
+             */
+            dependencyCount: number | null;
+            /**
+             * Format: int32
+             * @description The active capacity periods of the active teams the baseline froze; null = NOT captured, like `dependencyCount`.
+             */
+            capacityPeriodCount: number | null;
         };
         /** @description The active baselines, newest first - a bounded list (at most 100 by the cap), not paged. */
         BaselineList: {
@@ -2829,6 +2839,32 @@ export interface components {
             milestones: components["schemas"]["BaselineMilestone"][];
             /** @description The baseline's milestones of THIS team that are not on it any more (deleted, or moved - `now`), by start, end, name and id. */
             removed: components["schemas"]["RemovedMilestone"][];
+            capacity: components["schemas"]["BaselineTeamCapacity"];
+        };
+        /** @description The viewed team's capacity as the baseline froze it: its periods as ranges, by start. `captured` is false (and `periods` empty) for a baseline taken before baselines froze capacity; true with no periods = the team had no capacity then. */
+        BaselineTeamCapacity: {
+            captured: boolean;
+            periods: components["schemas"]["BaselineCapacityRange"][];
+        };
+        /** @description One stretch of a team's frozen capacity - a period holds from its start to the day before the next one's. */
+        BaselineCapacityRange: {
+            /** Format: date */
+            from: string;
+            /**
+             * Format: date
+             * @description Inclusive; null = without end (the last period).
+             */
+            to: string | null;
+            /**
+             * Format: double
+             * @description Man-days per week; zero = on hold.
+             */
+            mdPerWeek: number;
+            /**
+             * Format: int32
+             * @description Null = no limit.
+             */
+            wipLimit: number | null;
         };
         /** @description A project the baseline froze that is gone now, with its names and the ids of its program and work stream as they were. */
         RemovedProject: {
@@ -2892,6 +2928,102 @@ export interface components {
             projects: components["schemas"]["BaselineViewProject"][];
             /** @description Only the CHANGED milestone rows (any kind but `UNCHANGED`, or a different estimate), in the projects' order, then by start, end, name and id. */
             milestones: components["schemas"]["BaselineViewMilestone"][];
+            links: components["schemas"]["BaselineLinks"];
+            capacity: components["schemas"]["BaselineCapacity"];
+        };
+        /** @description The links the baseline froze against the links now (or, under `?against=N`, N's frozen ones), by dependency id. A link is the same when its id has the same type and lag on both sides; a link deleted and made again is a `REMOVED` and an `ADDED`. `captured` is false (everything else empty or zero: UNKNOWN, not "nothing changed") when the baseline, or with `against` either of the two, was taken before baselines froze links. */
+        BaselineLinks: {
+            captured: boolean;
+            /** @description The counts over EVERY link of either side (changed or not). */
+            totals: {
+                /** Format: int32 */
+                added: number;
+                /** Format: int32 */
+                removed: number;
+                /** Format: int32 */
+                changed: number;
+                /** Format: int32 */
+                unchanged: number;
+            };
+            /** @description Only the changed links (`added`, `removed` or `changed`), by dependency id, at most 1,000. */
+            items: components["schemas"]["BaselineLinkItem"][];
+            /** @description More than 1,000 links changed; `items` holds the first 1,000 by id and the totals the whole. */
+            truncated: boolean;
+        };
+        BaselineLinkItem: {
+            /** Format: int32 */
+            dependencyId: number;
+            /** @enum {string} */
+            change: "ADDED" | "REMOVED" | "CHANGED";
+            predecessor: components["schemas"]["BaselineLinkEnd"];
+            successor: components["schemas"]["BaselineLinkEnd"];
+            /** @description The link's terms in the baseline; null for an `ADDED` link. */
+            then: components["schemas"]["BaselineLinkTerms"] | null;
+            /** @description The link's terms now; null for a `REMOVED` link. */
+            now: components["schemas"]["BaselineLinkTerms"] | null;
+        };
+        /** @description One end of a changed link. The name is the "now" side's when the end exists there, else the frozen one; `projectName` is the project a MILESTONE end belongs to (null for a project end). */
+        BaselineLinkEnd: {
+            kind: components["schemas"]["EndpointKind"];
+            /** Format: int32 */
+            id: number;
+            name: string;
+            projectName: string | null;
+        };
+        BaselineLinkTerms: {
+            type: components["schemas"]["DependencyType"];
+            /**
+             * Format: int32
+             * @description Working days; negative = a lead.
+             */
+            lagDays: number;
+        };
+        /** @description The teams' capacity as frozen against capacity now (or N's), as the maximal date ranges on which a team's figure (man-days per week AND WIP limit) differs; "no capacity in force" is a figure of its own (null), not zero. Splitting a period into two equal ones is no change. `captured` is false (and the rest empty or zero) when the baseline, or with `against` either of the two, was taken before baselines froze capacity. */
+        BaselineCapacity: {
+            captured: boolean;
+            totals: {
+                /**
+                 * Format: int32
+                 * @description The teams with capacity on either side.
+                 */
+                teams: number;
+                /**
+                 * Format: int32
+                 * @description The teams whose capacity differs.
+                 */
+                changedTeams: number;
+            };
+            /** @description The changed teams by name (case-insensitive) then id; at most 2,000 change rows in all. */
+            teams: components["schemas"]["BaselineCapacityTeam"][];
+            /** @description More than 2,000 change rows; the list is cut after the 2,000th, the totals count every team. */
+            truncated: boolean;
+        };
+        BaselineCapacityTeam: {
+            /** Format: int32 */
+            teamId: number;
+            /** @description The team's name (a team deleted since is still named). */
+            teamName: string;
+            /** @description The ranges on which the capacity differs, by start. */
+            changes: components["schemas"]["BaselineCapacityChange"][];
+        };
+        BaselineCapacityChange: {
+            /** Format: date */
+            from: string;
+            /**
+             * Format: date
+             * @description Inclusive; null = without end.
+             */
+            to: string | null;
+            /** @description The figure in the baseline; null = no capacity in force then. */
+            then: components["schemas"]["BaselineCapacityFigure"] | null;
+            /** @description The figure now; null = no capacity in force now. */
+            now: components["schemas"]["BaselineCapacityFigure"] | null;
+        };
+        BaselineCapacityFigure: {
+            /** Format: double */
+            mdPerWeek: number;
+            /** Format: int32 */
+            wipLimit: number | null;
         };
         BaselineViewProject: {
             /** Format: int32 */
@@ -3617,6 +3749,8 @@ export interface components {
             /** @description A zero-slack link on the viewed project's critical chain; a violated link is never critical and ends the chain at the violation. On the team view: on the chain of a project one of the team's milestones belongs to (a link that drives only a project none of the team's milestones belongs to is not marked). */
             critical: boolean;
             can: components["schemas"]["DependencyCan"];
+            /** @description Present only on the PROJECT view with `?baseline=N` and only when that baseline froze its links: true = the link is not among them (made since the baseline), false = it is. Absent otherwise (no parameter, a baseline that froze no links, the team view): unknown, not "all new". */
+            newSinceBaseline?: boolean;
         };
         /** @description What this caller may do with one dependency, by the rules of the writes (an owner on the SUCCESSOR's project chain, or ADMIN; the predecessor's owner is asked nothing). Each flag is true exactly when the write would not be refused with `403` for the caller. */
         DependencyCan: {

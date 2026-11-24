@@ -57,6 +57,7 @@ class ProjectViewService(private val database: R2dbcDatabase, private val extern
         )
         val dependencies = projectDependencies(projectId, milestones.map { it.view.id }, chain, actor, calendar)
             .map { it.copy(critical = it.id in critical.result.criticalDependencies) }
+            .markedNewSince(baseline)
         val (scheduled, unscheduled) = milestones.partition { it.span != null }
         val span = SpanKernels.derivedSpan(scheduled.mapNotNull { it.span })
         val target = spanOf(targetStart, targetEnd)

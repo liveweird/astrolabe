@@ -200,6 +200,7 @@ describe("TeamTimeline with a baseline (v0.9)", () => {
       { milestoneId: 3, teamIdThen: 1, start: "2042-02-16", end: "2042-02-18", estimateMd: 4, movement: { kind: "UNSCHEDULED" as const, startDays: null, endDays: null, estimateDelta: 0 } },
     ],
     removed: [{ milestoneId: 8, projectId: 7, name: "tp-gone", teamId: 1, teamName: "Payments", estimateMd: 2, start: "2042-02-02", end: "2042-02-03" }],
+    capacity: { captured: false, periods: [] },
   };
   const shadows = () => [...document.querySelectorAll('[data-tone="baseline"]')];
 
@@ -318,6 +319,7 @@ describe("TeamTimeline with tray milestones that Jira dates (1.16)", () => {
     planRevision: 4,
     milestones: [{ milestoneId: 3, teamIdThen: 1, start: "2042-02-16", end: "2042-02-18", estimateMd: 4, movement: { kind: "UNSCHEDULED" as const, startDays: null, endDays: null, estimateDelta: 0 } }],
     removed: [],
+    capacity: { captured: false, periods: [] },
   };
 
   /** The team view of a caller who may not schedule (1.16's rows: "Open project" only). */

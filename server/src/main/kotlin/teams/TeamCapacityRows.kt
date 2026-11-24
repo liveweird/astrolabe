@@ -8,6 +8,7 @@ import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.r2dbc.Query
 import org.jetbrains.exposed.v1.r2dbc.selectAll
 
@@ -21,6 +22,19 @@ internal fun activeCapacityPeriods(teamId: UInt): Query = orderedActivePeriods(C
 
 /** [activeCapacityPeriods] for many teams in one statement, in the same order (the rows carry their `teamId`). */
 internal fun activeCapacityPeriods(teamIds: Collection<UInt>): Query = orderedActivePeriods(CapacityPeriods.teamId inList teamIds)
+
+/**
+ * The ACTIVE periods of EVERY active team in one statement, by team, `effectiveFrom`, then id (the baseline capture and its comparison,
+ * `planning/BaselineCaptures.kt`). The join to the ACTIVE team is a backstop: a team delete soft-deletes its periods in its own
+ * transaction, so no active period of a deleted team is expected.
+ */
+internal fun activeCapacityPeriodsOfActiveTeams(): Query = CapacityPeriods
+    .innerJoin(TeamService.Teams, { CapacityPeriods.teamId }, { TeamService.Teams.id })
+    .selectAll()
+    .where { CapacityPeriods.active() and TeamService.Teams.active() }
+    .orderBy(
+        CapacityPeriods.teamId to SortOrder.ASC, CapacityPeriods.effectiveFrom to SortOrder.ASC, CapacityPeriods.id to SortOrder.ASC,
+    )
 
 private fun orderedActivePeriods(inTeams: Op<Boolean>): Query = CapacityPeriods.selectAll()
     .where { inTeams and CapacityPeriods.active() }

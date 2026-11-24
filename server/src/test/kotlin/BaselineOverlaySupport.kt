@@ -17,7 +17,8 @@ import kotlin.test.assertFalse
 /*
  * What the four `?baseline=` view tests share (v0.9 C7): the raw-JSON invariants of an ADDITIVE overlay and the 400 matrix of the
  * parameter. The rule they pin: a view requested WITHOUT the parameter has no `baseline` key anywhere (its bytes are what they were
- * before baselines), and with it the document equals the plain one plus the `baseline` keys.
+ * before baselines), and with it the document equals the plain one plus the `baseline` keys (and the project view's per-link
+ * `newSinceBaseline`, 1.26).
  */
 
 private val json = Json
@@ -25,14 +26,23 @@ private val json = Json
 /** The raw JSON tree of a GET (the typed DTOs would hide an extra or missing key). */
 suspend fun HttpClient.rawJson(path: String): JsonElement = json.parseToJsonElement(get(path).bodyAsText())
 
-/** [this] without every object member named `baseline`, at any depth. */
-fun JsonElement.withoutBaseline(): JsonElement = when (this) {
-    is JsonObject -> JsonObject(filterKeys { it != "baseline" }.mapValues { (_, v) -> v.withoutBaseline() })
-    is JsonArray -> JsonArray(map { it.withoutBaseline() })
+/** The member besides `baseline` the overlay adds (1.26): the project view's link rows say whether the baseline froze them. */
+private const val NEW_SINCE_BASELINE = "newSinceBaseline"
+
+/**
+ * [this] without every object member named `baseline` (the overlay's addition), at any depth, and - [projectView] only - without the
+ * link rows' `newSinceBaseline`, a key no other view carries.
+ */
+fun JsonElement.withoutBaseline(projectView: Boolean = false): JsonElement = when (this) {
+    is JsonObject -> JsonObject(
+        filterKeys { it != "baseline" && !(projectView && it == NEW_SINCE_BASELINE) }
+            .mapValues { (_, v) -> v.withoutBaseline(projectView) },
+    )
+    is JsonArray -> JsonArray(map { it.withoutBaseline(projectView) })
     else -> this
 }
 
-fun JsonElement.hasBaselineKey(): Boolean = withoutBaseline() != this
+fun JsonElement.hasBaselineKey(projectView: Boolean = false): Boolean = withoutBaseline(projectView) != this
 
 /**
  * Pins the overlay as additive on [path] (no query): the plain document has no `baseline` key at all, and the document of
@@ -40,10 +50,11 @@ fun JsonElement.hasBaselineKey(): Boolean = withoutBaseline() != this
  */
 suspend fun HttpClient.assertOverlayIsAdditive(path: String, id: UInt) {
     val plain = rawJson(path)
-    assertFalse(plain.hasBaselineKey(), "without the parameter the document carries no baseline key: $path")
+    val projectView = path.contains("/views/project/")
+    assertFalse(plain.hasBaselineKey(projectView), "without the parameter the document carries no baseline key: $path")
     val overlay = rawJson("$path?baseline=$id")
-    assertEquals(plain, overlay.withoutBaseline(), "the overlay only adds baseline keys: $path")
-    assertEquals(true, overlay.hasBaselineKey(), "the overlay answers a baseline block: $path")
+    assertEquals(plain, overlay.withoutBaseline(projectView), "the overlay only adds baseline keys: $path")
+    assertEquals(true, overlay.hasBaselineKey(projectView), "the overlay answers a baseline block: $path")
 }
 
 /**

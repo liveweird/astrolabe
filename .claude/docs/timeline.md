@@ -582,7 +582,7 @@ Method, so a run can be repeated:
 | The same, 1,000 items with a token whose holidays changed (the look-again) | about 160 ms (plain batch 121-201 ms) | | median ≤ 5,000 ms (plan-lock hold, `TeamScheduleBatchHoldTimeTest`, `MAX_BATCH_SCHEDULE_ITEMS`) | 1.13.1 |
 | The cross-team run, 15 teams (kernel; response) | 212-236 ms, 4 passes, 43 of 60 team placements (257 ms placing every team every pass, 1.8: 285-318); the accept's hold not measured | 472,470 B | 600,000 B; median ≤ 20,000 ms (`ScheduleKernelsScaleTest` CROSS_TRIPWIRE_MS) | 1.26 |
 | Baseline overlay reads (`EXPLAIN (ANALYZE, BUFFERS)` through `psql`) | index scans only: the header and the by-id read by primary key, `baseline_projects` and `baseline_milestones` by `(baseline_id, …)`, the team's rows by `idx_baseline_milestones_team`; none under 0.1 ms; no index missing | | | 0.9 |
-| `POST /baselines` (1,000 + 100 rows under the plan lock) | p50 61 ms | 129.4 KB stored per baseline | none (no test gates it) | 0.9 |
+| `POST /baselines` (1,000 + 100 rows under the plan lock) | p50 61 ms (0.9; since 1.26 the copy also holds every link and capacity period, two more multi-row inserts: not re-measured) | 129.4 KB stored per baseline (0.9; 1.26 adds about 40 B a link and 30 B a period) | none (no test gates it) | 0.9 |
 | `GET /views/baseline/{id}` (920 changed milestone rows) | 36.8 / 38.3 ms | 320,765 B, 30,902 B | none (no test gates it) | 0.9 |
 | Kernels at the cap (`LoadKernelsScaleTest`, `ScheduleKernelsScaleTest`): `weeklyLoad` 520 weeks x 300 items; `propose` 300 milestones | 10-12 ms; 70-79 ms | | median 2,000 ms; 5,000 ms | 1.0.0 |
 | The Jira fold in the roadmap service, 1,100 bindings; the team service, 301 | +50 ms (about 45 µs a binding); +16 ms | | HTTP tripwire 1,000 ms | 1.4 |

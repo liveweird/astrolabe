@@ -47,6 +47,8 @@ internal object BaselineComparison {
         nowMilestones: List<MilestoneCapture>,
         teamNames: Map<UInt, String>,
         calendar: WorkingCalendar,
+        links: BaselineLinks,
+        capacity: BaselineCapacity,
     ): BaselineView {
         val rows = milestoneRows(frozenMilestones, nowMilestones, calendar)
         val rowsByProject = rows.groupBy { it.projectId }
@@ -79,6 +81,8 @@ internal object BaselineComparison {
             ),
             projects = projects,
             milestones = changed.map { it.toView(teamNames) },
+            links = links,
+            capacity = capacity,
         )
     }
 

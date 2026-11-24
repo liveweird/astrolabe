@@ -26,11 +26,12 @@ import java.time.LocalDate
 val BaselineServiceKey = AttributeKey<BaselineService>("BaselineService")
 
 /**
- * The baselines registry (V20): named, immutable copies of the plan's dated structure. `baselines` is a soft-deleted business entity
- * (the name frees on delete through `uq_baselines_name_active`); the two row tables are FROZEN - never updated or deleted, enforced by
- * the V20 triggers, and kept for a soft-deleted baseline too. Every write runs in [withPlanWrite] (the copy IS the plan at one
- * revision: no plan write can interleave, and the create bumps the revision like any plan write): the caller's guard is re-run there
- * (the grant re-read in the same transaction), a rejected write rolls the bump back with the rest. Reads are open to every
+ * The baselines registry (V20, V33): named, immutable copies of the plan's dated structure, links and capacity. `baselines` is a
+ * soft-deleted business entity (the name frees on delete through `uq_baselines_name_active`); the four row tables are FROZEN - never
+ * updated or deleted, enforced by the V20 and V33 triggers, and kept for a soft-deleted baseline too. Every write runs in
+ * [withPlanWrite] (the copy IS the plan at one revision: no plan write can interleave, and the create bumps the revision like any plan
+ * write): the caller's guard is re-run there (the grant re-read in the same transaction), a rejected write rolls the bump back with
+ * the rest. Reads are open to every
  * authenticated user.
  */
 class BaselineService(private val database: R2dbcDatabase) {
@@ -44,6 +45,10 @@ class BaselineService(private val database: R2dbcDatabase) {
         val createdByUserId = reference("created_by_user_id", UserService.Users).nullable()
         val milestoneCount = integer("milestone_count")
         val projectCount = integer("project_count")
+
+        /** V33: the links and capacity periods frozen with the baseline; NULL = taken before 1.26, NOT captured. */
+        val dependencyCount = integer("dependency_count").nullable()
+        val capacityPeriodCount = integer("capacity_period_count").nullable()
         val createdAt = long("created_at")
         val updatedAt = long("updated_at")
         override val markedAsDeleted = bool("marked_as_deleted").default(false)
@@ -79,6 +84,30 @@ class BaselineService(private val database: R2dbcDatabase) {
         override val primaryKey = PrimaryKey(baselineId, milestoneId)
     }
 
+    /** FROZEN, like [BaselineProjects] (V33): a link as it was, the four end ids as the live link held them (one pair set per side). */
+    object BaselineDependencies : Table("baseline_dependencies") {
+        val baselineId = reference("baseline_id", Baselines)
+        val dependencyId = uinteger("dependency_id")
+        val predMilestoneId = uinteger("pred_milestone_id").nullable()
+        val predProjectId = uinteger("pred_project_id").nullable()
+        val succMilestoneId = uinteger("succ_milestone_id").nullable()
+        val succProjectId = uinteger("succ_project_id").nullable()
+        val type = varchar("type", length = 2)
+        val lagDays = integer("lag_days")
+        override val primaryKey = PrimaryKey(baselineId, dependencyId)
+    }
+
+    /** FROZEN, like [BaselineProjects] (V33): an ACTIVE capacity period of an ACTIVE team as it was. */
+    object BaselineCapacityPeriods : Table("baseline_capacity_periods") {
+        val baselineId = reference("baseline_id", Baselines)
+        val periodId = uinteger("period_id")
+        val teamId = uinteger("team_id")
+        val effectiveFrom = localDate("effective_from")
+        val mdPerWeek = decimal("md_per_week", 8, 2)
+        val wipLimit = integer("wip_limit").nullable()
+        override val primaryKey = PrimaryKey(baselineId, periodId)
+    }
+
     /** The ACTIVE baselines, newest first (`created_at`, then `id`, both descending): at most [MAX_ACTIVE_BASELINES], not paged. */
     suspend fun list(): List<BaselineResponse> = suspendTransaction(database) {
         val headers = Baselines.selectAll().where { Baselines.active() }
@@ -98,8 +127,9 @@ class BaselineService(private val database: R2dbcDatabase) {
      * re-read, so a revocation that landed while the request waited refuses the write: 403, no bump), then the CAP (409
      * `urn:astrolabe:problem:baseline-limit` at [MAX_ACTIVE_BASELINES] active ones), then the facts - the roadmap's one set of loaders
      * and ONE kernel run ([loadRoadmapSnapshot], so a project's span, rank and target are exactly what the roadmap showed at that
-     * moment) plus [baselineMilestoneFacts] - the header (a name clash is the unique index's 23505 -> the central 409, before the bulk
-     * rows) and one multi-row insert per frozen table. The answer's `planRevision` is `revision + 1`: the revision this write leaves
+     * moment, and every ACTIVE link) plus [baselineMilestoneFacts] and [liveCapacityCaptures] - the header with the six counts (a name
+     * clash is the unique index's 23505 -> the central 409, before the bulk rows) and one multi-row insert per frozen table (V33: the
+     * links and the capacity periods too). The answer's `planRevision` is `revision + 1`: the revision this write leaves
      * behind, which the plan then equals. A throw anywhere rolls everything back, the bump included.
      */
     suspend fun create(userId: UInt, values: BaselineValues, guard: suspend () -> Unit): PlanWrite<BaselineResponse> {
@@ -118,6 +148,8 @@ class BaselineService(private val database: R2dbcDatabase) {
             // frozen tables consistent whatever happens).
             val known = snapshot.projects.mapTo(HashSet()) { it.id }
             val milestones = baselineMilestoneFacts().filter { it.projectId in known }
+            val links = snapshot.linkFacts
+            val periods = liveCapacityCaptures()
             val stamp = nowMillis()
             val id = Baselines.insert {
                 it[name] = values.name
@@ -126,11 +158,15 @@ class BaselineService(private val database: R2dbcDatabase) {
                 it[createdByUserId] = userId
                 it[milestoneCount] = milestones.size
                 it[projectCount] = snapshot.projects.size
+                it[dependencyCount] = links.size
+                it[capacityPeriodCount] = periods.size
                 it[createdAt] = stamp
                 it[updatedAt] = stamp
             }[Baselines.id].value
             insertProjects(id, snapshot)
             insertMilestones(id, milestones)
+            insertLinks(id, links)
+            insertCapacity(id, periods)
             BaselineResponse(
                 id = id,
                 name = values.name,
@@ -140,6 +176,8 @@ class BaselineService(private val database: R2dbcDatabase) {
                 createdBy = creatorsOf(listOf(userId))[userId],
                 milestoneCount = milestones.size,
                 projectCount = snapshot.projects.size,
+                dependencyCount = links.size,
+                capacityPeriodCount = periods.size,
             )
         }
     }

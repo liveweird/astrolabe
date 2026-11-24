@@ -131,6 +131,12 @@ data class ProjectDependency(
      */
     val critical: Boolean,
     val can: ProjectDependencyCan,
+    /**
+     * Present only on the PROJECT view's `?baseline=N` and only when the baseline froze its links (1.26): true = this link is not
+     * among them (made since the baseline), false = it is. Absent otherwise (no parameter, a baseline taken before 1.26, the team view).
+     */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val newSinceBaseline: Boolean? = null,
 )
 
 /**

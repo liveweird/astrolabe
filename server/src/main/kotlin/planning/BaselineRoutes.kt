@@ -57,6 +57,8 @@ internal fun Route.baselineRoutes(d: PlanRouteDeps, service: BaselineService) {
             "revisionTo" to created.revision,
             "milestoneCount" to created.value.milestoneCount,
             "projectCount" to created.value.projectCount,
+            "dependencyCount" to created.value.dependencyCount,
+            "capacityPeriodCount" to created.value.capacityPeriodCount,
         )
         call.response.header(HttpHeaders.Location, call.application.href(BaselinesRoute.Id(id = created.value.id)))
         call.respond(HttpStatusCode.Created, created.value)

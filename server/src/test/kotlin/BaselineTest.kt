@@ -352,6 +352,8 @@ class BaselineTest {
                 assertTrue(createdEvent.hasKeyValue("revisionTo", baseline.planRevision))
                 assertTrue(createdEvent.hasKeyValue("milestoneCount", baseline.milestoneCount))
                 assertTrue(createdEvent.hasKeyValue("projectCount", baseline.projectCount))
+                assertTrue(createdEvent.hasKeyValue("dependencyCount", assertNotNull(baseline.dependencyCount)))
+                assertTrue(createdEvent.hasKeyValue("capacityPeriodCount", assertNotNull(baseline.capacityPeriodCount)))
 
                 w.editor.client.get("/api/v1/baselines")
                 assertEquals(conflict, w.editor.client.take(name).status)

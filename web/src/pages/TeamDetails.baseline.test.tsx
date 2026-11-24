@@ -93,6 +93,7 @@ const withBaseline = (view = plainView()): TeamView => ({
       { milestoneId: 8, projectId: 7, name: "tv-gone", teamId: 1, teamName: "Payments", estimateMd: 3, start: "2027-02-02", end: "2027-02-03" },
       { milestoneId: 9, projectId: 8, name: "tv-away", teamId: 1, teamName: "Payments", estimateMd: 4, start: "2027-02-04", end: "2027-02-05", now: { teamId: 2, teamName: "Billing" } },
     ],
+    capacity: { captured: false, periods: [] },
   },
 });
 

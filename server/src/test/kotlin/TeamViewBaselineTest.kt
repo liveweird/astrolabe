@@ -3,15 +3,20 @@ package ch.nokillswit
 import ch.nokillswit.planning.MilestoneUpdateRequest
 import ch.nokillswit.planning.MovementKind
 import ch.nokillswit.planning.TeamView
+import ch.nokillswit.planning.BaselineCapacityRange
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * `GET /views/team/{id}?baseline=N` (v0.9 C7): one entry per live milestone of the team the baseline also froze (whatever team it sat
@@ -78,6 +83,51 @@ class TeamViewBaselineTest {
                 assertEquals(false, baseline.removed.any { it.milestoneId == outsider }, "another team's milestone is not this team's row")
 
                 w.stranger.client.assertOverlayIsAdditive(path(t.teamId), id)
+            } finally {
+                TestPlan.deleteBaseline(id)
+            }
+        }
+
+    @Test
+    fun `the baseline block carries the team's capacity as it was frozen - ranges, kept through later edits, none without periods`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val w = planWorld("tvbc", teams = true)
+            val t = w.requireTeams()
+            val first = TestPlan.capacityPeriod(t.teamId, "2027-03-01", 12.5, 3)
+            TestPlan.capacityPeriod(t.teamId, "2027-06-01", 8.0)
+            val a = TestPlan.milestone(w.projectId, t.teamId, "A", 2.0)
+            val b = TestPlan.milestone(w.projectId, t.otherTeamId, "B", 2.0)
+            TestPlan.dependency(milestoneRef(a), milestoneRef(b))
+            val id = TestPlan.baseline(planName("tvbc"))
+            try {
+                val cut = "UPDATE team_capacity_periods SET md_per_week = 1 WHERE id = $first"
+                PostgresTestSupport.connect().use { c -> c.createStatement().use { it.executeUpdate(cut) } }
+                TestPlan.capacityPeriod(t.teamId, "2027-12-01", 3.0)
+
+                val capacity = w.stranger.client.get("${path(t.teamId)}?baseline=$id").body<TeamView>().baseline!!.capacity
+                assertEquals(true, capacity.captured)
+                assertEquals(
+                    listOf(
+                        BaselineCapacityRange("2027-03-01", "2027-05-31", 12.5, 3),
+                        BaselineCapacityRange("2027-06-01", null, 8.0, null),
+                    ),
+                    capacity.periods,
+                    "the periods as they were: a period holds to the day before the next",
+                )
+                val none = w.stranger.client.get("${path(t.otherTeamId)}?baseline=$id").body<TeamView>().baseline!!.capacity
+                assertEquals(true to emptyList(), none.captured to none.periods, "captured, and the team had no capacity then")
+
+                // The link rows of the team view carry no mark (the project view's); the live capacity block is the live one.
+                val raw = w.stranger.client.rawJson("${path(t.teamId)}?baseline=$id") as JsonObject
+                assertTrue(raw["dependencies"]!!.jsonArray.all { "newSinceBaseline" !in it.jsonObject })
+                val live = w.stranger.client.get(path(t.teamId)).body<TeamView>().capacity.periods
+                assertEquals(3, live.size, "the plain view shows the live periods")
+                w.stranger.client.assertOverlayIsAdditive(path(t.teamId), id)
+
+                // The validator follows the parameter.
+                val tags = listOf("", "?baseline=$id").map { w.stranger.client.get(path(t.teamId) + it).headers["ETag"] }
+                assertTrue(tags.all { it != null } && tags.toSet().size == 2, "two documents, two tags: $tags")
             } finally {
                 TestPlan.deleteBaseline(id)
             }

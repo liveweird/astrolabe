@@ -1,5 +1,6 @@
 package ch.nokillswit
 
+import ch.nokillswit.planning.DependencyType
 import ch.nokillswit.planning.MilestoneUpdateRequest
 import ch.nokillswit.planning.MovementKind
 import ch.nokillswit.planning.ProjectView
@@ -8,6 +9,9 @@ import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -90,6 +94,51 @@ class ProjectViewBaselineTest {
             TestPlan.deleteBaseline(id)
         }
     }
+
+    @Test
+    fun `with a baseline each link row says whether the baseline froze it - and without one, or for a baseline before 1_26, no row does`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val w = planWorld("pvbl", teams = true)
+            val t = w.requireTeams()
+            val a = TestPlan.milestone(w.projectId, t.teamId, "A", 2.0)
+            val b = TestPlan.milestone(w.projectId, t.teamId, "B", 2.0)
+            val c = TestPlan.milestone(w.projectId, t.teamId, "C", 2.0)
+            val old = TestPlan.dependency(milestoneRef(a), milestoneRef(b))
+            val id = TestPlan.baseline(planName("pvbl"))
+            val preName = planName("pvbl-old")
+            // What a 1.25 build writes on this schema: a header without the two V33 counts.
+            val insert = "INSERT INTO baselines (name, plan_revision, milestone_count, project_count, created_at, updated_at) " +
+                "VALUES ('$preName', 1, 0, 0, 1, 1)"
+            PostgresTestSupport.connect().use { conn -> conn.createStatement().use { it.executeUpdate(insert) } }
+            val pre = TestPlan.scalar("SELECT id FROM baselines WHERE name = '$preName'") { it.getInt(1) }.toUInt()
+            try {
+                val fresh = TestPlan.dependency(milestoneRef(b), milestoneRef(c), DependencyType.SS, 2)
+                val client = w.stranger.client
+                val rows = client.get("${path(w.projectId)}?baseline=$id").body<ProjectView>().dependencies.associateBy { it.id }
+                assertEquals(setOf(old, fresh), rows.keys)
+                assertEquals(false, rows.getValue(old).newSinceBaseline, "the baseline froze it")
+                assertEquals(true, rows.getValue(fresh).newSinceBaseline, "made since the baseline")
+
+                val plain = client.get(path(w.projectId)).body<ProjectView>().dependencies
+                assertEquals(setOf(old, fresh), plain.mapTo(HashSet()) { it.id })
+                assertTrue(plain.all { it.newSinceBaseline == null }, "no parameter, no mark")
+                for (raw in listOf(path(w.projectId), "${path(w.projectId)}?baseline=$pre")) {
+                    val dependencies = (client.rawJson(raw) as JsonObject)["dependencies"]!!.jsonArray
+                    assertEquals(2, dependencies.size)
+                    assertTrue(dependencies.all { "newSinceBaseline" !in it.jsonObject }, "absent, never an explicit null: $raw")
+                }
+                assertNotNull(client.get("${path(w.projectId)}?baseline=$pre").body<ProjectView>().baseline)
+                client.assertOverlayIsAdditive(path(w.projectId), id)
+
+                // The validator follows the parameter: the plain document, each baseline's (`pre` has NULL counts) differ.
+                val tags = listOf("", "?baseline=$id", "?baseline=$pre").map { client.get(path(w.projectId) + it).headers["ETag"] }
+                assertTrue(tags.all { it != null } && tags.toSet().size == 3, "three documents, three tags: $tags")
+            } finally {
+                TestPlan.deleteBaseline(id)
+                TestPlan.deleteBaseline(pre)
+            }
+        }
 
     @Test
     fun `a project newer than the baseline has no project block and no entries`() = testApplication {

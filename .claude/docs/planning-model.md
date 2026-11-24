@@ -453,22 +453,22 @@ Pinned by: `CriticalPathKernelsTest`, `ProjectViewTest`, `ProjectViewDependencie
 Files: `planning/Baseline*.kt`, `*BaselineOverlay.kt`.
 
 A **baseline** is a named, immutable copy of the plan's DATED STRUCTURE taken at one plan revision: every ACTIVE milestone (name, project, team, estimate, dates) and every ACTIVE project (name, program, work stream, target window, rank position, derived span), everything the timelines draw.
-Links, capacity periods, holidays and team orders are NOT copied (they do not "move"; the comparison is about dates). Plan-wide only: one object at one revision, which every page filters to its own rows. Nothing is edited inside a baseline; baselines are not scenarios (one live plan).
+Since 1.26 it also copies every ACTIVE link (the four end ids, type, lag) and every ACTIVE capacity period of every ACTIVE team; holidays and team orders are NOT copied. A baseline taken before 1.26 froze neither: `dependencyCount`/`capacityPeriodCount` are null = "not captured", which is unknown, never "none". Plan-wide only: one object, taken at one plan revision (capacity is team data outside it, written without the plan lock), which every page filters to its own rows. Nothing is edited inside a baseline; baselines are not scenarios (one live plan).
 
 ### The registry
 
-- **Tables** (`persistence.md` "The baselines (V20)"): `baselines` is the header (soft-deleted; `uq_baselines_name_active` over `LOWER(name)`; `plan_revision`, `milestone_count`, `project_count`, `created_by_user_id`). `baseline_projects` and `baseline_milestones` are the two FROZEN row tables (no FK to a live row).
+- **Tables** (`persistence.md` "The baselines (V20)"): `baselines` is the header (soft-deleted; `uq_baselines_name_active` over `LOWER(name)`; `plan_revision`, `milestone_count`, `project_count`, `created_by_user_id`). `baseline_projects`, `baseline_milestones` and (V33) `baseline_dependencies`, `baseline_capacity_periods` are the four FROZEN row tables (no FK to a live row); the header also holds `dependency_count` and `capacity_period_count` (both NULL or both set).
   Typed rows rather than a JSON document: the `DATE`/`NUMERIC` idioms, CHECKs, indexed per-team and per-project reads, and a 50-row overlay never parses 1,000 entries.
 - **Immutability is the database's.** A `BEFORE UPDATE OR DELETE` trigger and a `BEFORE TRUNCATE` one refuse every change to the frozen tables (Flow's `metrics.forbid_snapshot_change` ported without its purge bypass). The header has its own triggers: never hard-deleted, and `id`, `plan_revision`, `created_by_user_id`, the counts and `created_at` never change; only name, description, `updated_at` and the soft-delete flag do.
 - **The create** (`BaselineService.create`, one `withPlanWrite`): the grant is re-read under the lock (`requireRoadmapEditorOrAdmin`, the ranking's TOCTOU rule) → the cap (`MAX_ACTIVE_BASELINES` = 100 active; 409 `urn:astrolabe:problem:baseline-limit`, "The limit of 100 baselines is reached: delete one first")
-  → the facts: `loadRoadmapSnapshot` (the roadmap's loaders and ONE `RoadmapKernels` run, so a baseline project's span, rank and target are exactly what the roadmap showed at that moment) plus `baselineMilestoneFacts` → the header (a name clash is the unique index's 23505 → 409, before the bulk rows) → one `insertRows` per frozen table → the audit.
+  → the facts: `loadRoadmapSnapshot` (the roadmap's loaders and ONE `RoadmapKernels` run, so a baseline project's span, rank and target are exactly what the roadmap showed at that moment; its `linkFacts` are the links) plus `baselineMilestoneFacts` and `liveCapacityCaptures` (the ACTIVE periods of ACTIVE teams) → the header with its four counts (a name clash is the unique index's 23505 → 409, before the bulk rows) → one `insertRows` per frozen table (`BaselineCaptures.kt`) → the audit.
 - **One revision.** The plan lock makes the copy the plan at ONE revision. The create bumps the revision like any plan write and stales no client write (`schedule_revision`, the ranking's and the team orders' revisions are untouched, like a holiday write). **`plan_revision` = `revision + 1`** (the revision the create LEFT BEHIND: `withPlanWrite` hands the block the old one),
-  so a view whose `revision` equals it shows zero movement; any later state orders against it.
+  so a view whose `revision` equals it shows zero PLAN movement (the `capacity` block may still differ: team data is outside the revision); any later state orders against it.
 - **Rename and delete** run under `withPlanWrite` too. `PUT` re-guards, locks the ACTIVE row `FOR NO KEY UPDATE` (gone = 404), updates name and description (audit only on a change; a no-op still bumps the revision). `DELETE` re-guards and flips `marked_as_deleted` (the name frees; the frozen rows stay as history). A deleted baseline reads as 404 everywhere.
 - **API** (tag `plan`; the spec; guards in `authorization.md`): `POST /baselines` `{name, description?}` → `201` + `Location` + `Baseline`; `GET /baselines` → `{items, can{manage}}`, the ACTIVE baselines newest first (`created_at` then `id`, descending), a bounded set (at most 100 by the cap), not paged; `GET /baselines/{id}`; `PUT /baselines/{id}` → `204`; `DELETE /baselines/{id}` → `204`.
   Name and description follow the registry rules (trimmed single-line name 1..100, description at most 500).
-- **`Baseline {id, name, description|null, planRevision, createdAt (epoch millis), createdBy {userId, name}|null, milestoneCount, projectCount}`.** `createdBy.name` is the login's linked ACTIVE person's name, else its display name (`users.name`), NEVER its email (which would reach every reader and is a targeting aid on a lockout-prone account); `createdBy` is null once the login is gone.
-- **Audit** (`observability.md`): `baseline.created`, `baseline.updated` (only on a change), `baseline.deleted`.
+- **`Baseline {id, name, description|null, planRevision, createdAt (epoch millis), createdBy {userId, name}|null, milestoneCount, projectCount, dependencyCount|null, capacityPeriodCount|null}`.** `createdBy.name` is the login's linked ACTIVE person's name, else its display name (`users.name`), NEVER its email (which would reach every reader and is a targeting aid on a lockout-prone account); `createdBy` is null once the login is gone.
+- **Audit** (`observability.md`): `baseline.created` (with the two new counts), `baseline.updated` (only on a change), `baseline.deleted`.
 
 ### The overlay
 
@@ -477,11 +477,13 @@ Links, capacity periods, holidays and team orders are NOT copied (they do not "m
 - **Additive.** Every field it adds is `null`-defaulted with `@EncodeDefault(NEVER)` (Ktor's JSON encodes defaults, which would write `"baseline":null`): **without the parameter a view answers the exact bytes it answered before**. The tests compare the plain document with the overlay document minus its `baseline` keys and assert the plain one has none (`assertOverlayIsAdditive`).
 - **Errors.** `?baseline=` is parsed in the route (`optionalUInt`: a repeated or non-integer value is a plain `400`). The view's OWN rules come first (a gone project or team is `404` for every caller), then the header: unknown or soft-deleted gives `400` `urn:astrolabe:problem:unknown-baseline` "Unknown or deleted baseline id: N" (`TypedBadRequestException`; the id is a query value the client held, so the page clears its pick and asks again).
 - **Movement** is `BaselineKernels` on the live rows the view already holds (the unrounded estimate is kept beside the wire figure).
-- **Loaders** (`BaselineRows.kt`, one indexed select each, inside the view's snapshot after `readPlanRevision()`): `activeBaseline(id)`, `frozenProjects(id)` / `frozenProject(id, projectId)`, `frozenMilestonesOfProject(id, projectId)`, `frozenMilestonesOfTeam(id, teamId)`, `frozenMilestonesById(id, ids)`, `frozenMilestones(id)`, plus `teamNames(ids)` (any team, active or not) and `liveTeamsOfMilestones(ids)`.
+- **Loaders** (`BaselineRows.kt`, one indexed select each, inside the view's snapshot after `readPlanRevision()`): `activeBaseline(id)`, `frozenProjects(id)` / `frozenProject(id, projectId)`, `frozenMilestonesOfProject(id, projectId)`, `frozenMilestonesOfTeam(id, teamId)`, `frozenMilestonesById(id, ids)`, `frozenMilestones(id)`, plus `teamNames(ids)` (any team, active or not) and `liveTeamsOfMilestones(ids)`; `BaselineCaptures.kt` adds `frozenLinks`, `frozenLinkIdsAmong`, `frozenCapacity`, `frozenCapacityOfTeam` (same rules).
 - **Project view.** `baseline{id, name, planRevision, project{span, movement}|null (null = the project is newer), milestones[{milestoneId, teamIdThen, start, end, estimateMd, movement}], removed[{milestoneId, projectId, name, teamId, teamName, estimateMd, start, end}]}`. `milestones` has one entry per LIVE milestone, scheduled or in the tray, that has a frozen row, by id (a live milestone without an entry is NEW).
   `removed` holds the frozen rows of the project with no active live row. Frozen rows: `idx_baseline_milestones_project`.
+  **`dependencies[].newSinceBaseline`** (1.26, the project view only): `true` when the link's id is not among the baseline's frozen links, `false` when it is; ABSENT (never null) without the parameter, for a baseline that did not capture links (unknown, not "all new") and on the team view. One primary-key read over the rows' ids. The additive test strips this key too.
 - **Team view.** The same `milestones[]` for the team's live milestones (the frozen rows are the team's own, `idx_baseline_milestones_team`, plus those of live milestones that sat on another team then, by primary key; `teamIdThen` differing from the viewed team reads "from {team}").
   `removed[]` = the baseline's milestones of THIS team that are no longer on it, with `now{teamId, teamName}` when the milestone still exists on another team and no `now` when it was deleted.
+  **`baseline.capacity{captured, periods[{from, to|null, mdPerWeek, wipLimit|null}]}`** (1.26) is the viewed team's capacity as frozen, by start, each period to the day before the next (`BaselineCapacityKernels.ranges`): `captured` false and `periods` empty for a baseline before 1.26, `true` with none = no capacity then. It never changes with later edits; the page sets it beside the live `capacity`.
 - **Roadmap.** Each `RoadmapProject` the baseline also froze gains `baseline{span, movement, rankPosition, targetStart, targetEnd}` (ABSENT = the project is newer: the field cannot be an explicit null under `NEVER`). The document gains `baseline{id, name, planRevision, removedProjects[{projectId, name, programId, programName, workStreamId, workStreamName, span}]}`, by work stream, program, name, id;
   the program and work stream ids are as frozen, and either may be gone now.
 - **Programs.** The same project rows; a document `baseline` that is the roadmap's `RoadmapBaseline`, built from the same overlay; and on every program and work stream `baseline{span, movement}`: the `derivedSpan` of the frozen spans of its CURRENT projects (programs, for a stream) that the baseline froze, against its live span (`ProgramsTree.assemble`, `TreeBaseline`), absent when none was frozen.
@@ -489,7 +491,7 @@ Links, capacity periods, holidays and team orders are NOT copied (they do not "m
 
 ### The comparison view
 
-`GET /views/baseline/{id}` (any authenticated; `BaselineView.kt`, `BaselineViewService.kt`, pure `BaselineComparison.kt`) answers `{revision, baseline (the registry's Baseline), totals{milestones, projects}, projects[{projectId, name, programName, workStreamName, rankThen, rankNow, baselineSpan, span, movement, counts}], milestones[{milestoneId, name, projectId, teamId, teamName, frozen{start, end, estimateMd}|null, live|null, movement}]}`.
+`GET /views/baseline/{id}` (any authenticated; `BaselineView.kt`, `BaselineViewService.kt`, pure `BaselineComparison.kt`) answers `{revision, baseline (the registry's Baseline), totals{milestones, projects}, projects[{projectId, name, programName, workStreamName, rankThen, rankNow, baselineSpan, span, movement, counts}], milestones[{milestoneId, name, projectId, teamId, teamName, frozen{start, end, estimateMd}|null, live|null, movement}], links, capacity}` (1.26: the last two, below).
 
 - **Errors.** An unknown or soft-deleted id is `404` (it is the addressed resource; the overlays answer `400` because there the id is a query value); a malformed id is `400`.
 - **One snapshot:** the plan revision, the header, `loadRoadmapSnapshot(…, withLinks = false)` (the live projects with rank and derived span; the links statement is skipped), `baselineMilestoneFacts()` (the live milestones with estimate), the frozen rows of both tables and the team names.
@@ -499,6 +501,9 @@ Links, capacity periods, holidays and team orders are NOT copied (they do not "m
   `BaselineComparison` is side-neutral over `CompareProject` and `MilestoneCapture` (`FrozenProjectRow.toCompare()`, `FrozenMilestoneRow.toCapture()`, `RoadmapProject.toCompare()`).
 - **In `against` mode:** ADDED = in N only, REMOVED = in the path baseline only; names and teams are N's when the row is in N (a team deleted since is still named); any order is allowed (the older one as `against` reads as negative movement); two baselines at one plan revision compare as all UNCHANGED.
   Still ONE snapshot: the live roadmap snapshot is not read, only the calendar (movement is on the CURRENT calendar in both modes).
+- **`links`** `{captured, totals{added, removed, changed, unchanged}, items[{dependencyId, change ADDED|REMOVED|CHANGED, predecessor, successor ({kind, id, name, projectName|null}), then{type, lagDays}|null, now|null}], truncated}`: the CHANGED rows only, by dependency id, at most 1,000 (`totals` count every link; `truncated` says the list was cut). The "now" side is the live ACTIVE links, or `against`'s frozen ones.
+  End names are the "now" side's, else the frozen ones (a removed link's ends may be gone), a milestone end naming its project. **`capacity`** `{captured, totals{teams, changedTeams}, teams[{teamId, teamName, changes[{from, to|null, then{mdPerWeek, wipLimit|null}|null, now|null}]}], truncated}`: the changed teams by name then id, at most 2,000 change rows in all (the last team may be cut), a deleted team still named.
+  **`captured` is false (the block empty and its totals zero) when the baseline - with `against`, either of the two - was taken before 1.26**; the live side is read only when the baseline captured. No new guard: the blocks hold what every authenticated caller already reads (the links in the views, the capacity in `GET /teams/{id}/capacity`).
 - **Order of errors:** a malformed or repeated `against` is a plain `400` (the route), the path id's `404`, then `against == id` a plain `400` ("A baseline cannot be compared with itself") and an unknown or deleted N the `400` `urn:astrolabe:problem:unknown-baseline`.
 
 ### The comparison kernel
@@ -520,7 +525,26 @@ Vectors (`BaselineKernelsTest`; 2027-02-01 is a Monday), frozen 02-01..05 unless
 | Mon 02-01 a holiday, live 02-02..05 | UNCHANGED | (0, 0) |
 | null to 02-01..05 / 02-01..05 to null / null to null | SCHEDULED / UNSCHEDULED / UNCHANGED | null |
 
-Pinned by: `BaselineTest`, `BaselineCopyTest`, `BaselineViewTest`, `ProjectViewBaselineTest`, `TeamViewBaselineTest`, `RoadmapViewBaselineTest`, `ProgramsViewBaselineTest`, `BaselineKernelsTest`, `PlanStateTest`, `PlanPermissionsTest`, `MigrationChecksumTest`.
+### The link and capacity kernels
+
+`BaselineLinkKernels.compare(then, now)` (pure, `BaselineLinkKernels.kt`): a link is its **dependency id**; the same id with another type or lag is CHANGED, an id on one side ADDED (now) or REMOVED (then). Its ends never change, so a link deleted and made again (a new id) is one REMOVED and one ADDED.
+`BaselineCapacityKernels.changes(then, now)` (one team's periods, `BaselineCapacityKernels.kt`): each side is a step function (a period holds from its `effectiveFrom` to the day before the next one's, the last without end, and BEFORE the first there is no capacity - null, which is not zero); the kernel merges the two at the union of their start dates and emits the MAXIMAL ranges on which (man-days, WIP limit) differ, adjacent segments with the same pair of figures as ONE range. Figures compare by value (10 and 10.00), so splitting a period into two equal ones is no change.
+
+Vectors (`BaselineCapacityKernelsTest`, 2027; February has 28 days), each `(from, to, then, now)`:
+
+| then / now | changes |
+|---|---|
+| 01-01: 10 / 01-01: 8 | (01-01, open, 10, 8) |
+| 01-01: 10 / 01-01: 10, 02-01: 6, 03-01: 10 | (02-01, 02-28, 10, 6) |
+| 01-01: 10 / 02-01: 10 | (01-01, 01-31, 10, none) |
+| 01-01: 10, 02-01: 12 / 01-01: 8 | (01-01, 01-31, 10, 8), (02-01, open, 12, 8) |
+| 01-01: 10 / 01-01: 8, 02-01: 10, 03-01: 8 | (01-01, 01-31, 10, 8), (03-01, open, 10, 8) |
+| 01-01: 10 / 01-01: 8, 02-01: 8, 03-01: 8 | (01-01, open, 10, 8) |
+| 01-01: 10, WIP 3 / 01-01: 10.00, 02-01: 10, 03-01: 10.0 (all WIP 3) | none |
+
+Links (`BaselineLinkKernelsTest`): then {1 FS+0, 2 SS+2, 3 FF+0, 5 SF-1}, now {1 FS+0, 2 SS+3, 4 FS+0, 5 FS-1} gives 2 CHANGED, 3 REMOVED, 4 ADDED, 5 CHANGED and totals added 1, removed 1, changed 2, unchanged 1.
+
+Pinned by: `BaselineTest`, `BaselineCopyTest`, `BaselineCaptureTest`, `BaselineCaptureComparisonTest`, `BaselineLinkKernelsTest`, `BaselineCapacityKernelsTest`, `BaselineViewTest`, `ProjectViewBaselineTest`, `TeamViewBaselineTest`, `RoadmapViewBaselineTest`, `ProgramsViewBaselineTest`, `BaselineKernelsTest`, `PlanStateTest`, `PlanPermissionsTest`, `MigrationChecksumTest`.
 
 ## The view documents
 
@@ -539,7 +563,7 @@ Pinned by: `BaselineTest`, `BaselineCopyTest`, `BaselineViewTest`, `ProjectViewB
 | `GET /views/programs` | `{revision (the plan's), teams[], links[], workStreams[{…, span, flags{warnings, infos}, programs[{…, span, flags, projects[<the roadmap's project row>]}]}]}`; `?criticalPath=N`; empty nodes present | about 100 projects |
 | `GET /views/project/{id}` | `{revision, project{…, can}, span|null, drift|null, scheduled[], unscheduled[], dependencies[], idleGaps[], criticalPath{upstream[], upstreamTruncated}}` | about 50 milestones, each with `can`; `upstream[]` = the critical chain plus at most 100 others |
 | `GET /views/team/{id}` | "The team view" | about 100 milestones, at most 520 weeks |
-| `GET /views/baseline/{id}` | `{revision, baseline, totals{milestones, projects}, projects[], milestones[changed rows]}` (`404` if gone; `?against=N`: two baselines) | 100 projects, 1,000 milestones |
+| `GET /views/baseline/{id}` | `{revision, baseline, totals{milestones, projects}, projects[], milestones[changed rows], links, capacity}` (`404` if gone; `?against=N`: two baselines) | 100 projects, 1,000 milestones, 1,000 link and 2,000 capacity rows |
 | `GET /views/home` | `{revision (the plan's), plan{…, flags, conflicts, overloadedTeams, wipExceededTeams}, me|null{personId, name, workStreams[], programs[], projects[], teams[], truncated}, jiraSites[]}`; no `can`, no parameter | each `me` list at most 100 |
 | `GET /views/team-load` | `{revision (the plan's), currentWeekStart, totals{teams, overloadedTeams, wipExceededTeams}, teams[{id, name, managerName|null, milestones, unscheduledMilestones, overloadedWeeks, wipExceededWeeks, weeksWithoutCapacity, warningWeeks[]}], truncated, warningWeeksTruncated}`; the same for every caller, no `can`, no parameter | 200 rows; 2,000 listed weeks in all |
 | `GET /views/dependencies` | `{revision (the plan's), totals{links, violated, unscheduled}, projects[], teams[], milestones[], dependencies[{id, predecessor{kind, id}, successor{kind, id}, type, lagDays, check, can{edit, delete}}], truncated}`; the same for every caller except each row's `can`, no document-level `can`, no parameter | 1,000 rows; each name list at most 2,000, exactly what the listed rows name |
