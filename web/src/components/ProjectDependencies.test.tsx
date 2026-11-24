@@ -63,3 +63,25 @@ describe("ProjectDependencies: the Slack column (1.7)", () => {
     expect(within(rows()[1]).queryByText("Critical path")).toBeNull();
   });
 });
+
+describe("ProjectDependencies: the baseline marker (1.26)", () => {
+  const withMarks = (marks: (boolean | undefined)[]) =>
+    ({ project: { id: 7, can: { createDependency: false } }, dependencies: marks.map((mark, index) => link(index + 1, mark === undefined ? {} : { newSinceBaseline: mark })) }) as unknown as ProjectView;
+  const renderMarks = (marks: (boolean | undefined)[]) => renderWithProviders(<ProjectDependencies view={withMarks(marks)} onAdd={() => undefined} onEdit={() => undefined} />);
+
+  test("only a link marked newSinceBaseline carries the badge, and it is gray: false and absent (no baseline, or links not captured) say nothing", () => {
+    renderMarks([true, false, undefined]);
+    expect(within(rows()[0]).getByText("New since the baseline").closest(".mantine-Badge-root")!.getAttribute("style") ?? "").toContain("gray");
+    expect(within(rows()[1]).queryByText("New since the baseline")).toBeNull();
+    expect(within(rows()[2]).queryByText("New since the baseline")).toBeNull();
+    expect(screen.getAllByText("New since the baseline")).toHaveLength(1);
+  });
+
+  test("the marker sits beside the status badge and never replaces it, a violated link stays red", () => {
+    const violated = link(1, { newSinceBaseline: true, check: { status: "VIOLATED", shortfallDays: 2, slackDays: -2, requiredDate: "2027-02-08", actualDate: "2027-02-04" } });
+    renderWithProviders(<ProjectDependencies view={{ project: { id: 7, can: { createDependency: false } }, dependencies: [violated] } as unknown as ProjectView} onAdd={() => undefined} onEdit={() => undefined} />);
+    const cell = within(rows()[0]).getAllByRole("cell")[0];
+    expect(within(cell).getByText(/Violated/).closest(".mantine-Badge-root")!.getAttribute("style") ?? "").toContain("red");
+    expect(within(cell).getByText("New since the baseline")).toBeInTheDocument();
+  });
+});

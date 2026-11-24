@@ -6,7 +6,9 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { baselineViewKey, getBaselineView, isUnknownBaseline, type Baseline, type BaselineView } from "../api/baselines";
 import { ApiError } from "../api/http";
+import BaselineCapacitySection from "../components/BaselineCapacitySection";
 import BaselineCompareControls from "../components/BaselineCompareControls";
+import BaselineLinksSection from "../components/BaselineLinksSection";
 import { DateRange, Figures, StatusBadge, TotalsBadges } from "../components/BaselineParts";
 import ClearableTextInput from "../components/ClearableTextInput";
 import ErrorAlert from "../components/ErrorAlert";
@@ -63,7 +65,8 @@ function Facts({ view }: { view: BaselineView }) {
       )}
       {!against && view.revision === baseline.planRevision && (
         <Text size="sm" c="dimmed">
-          {t("baselines.compare.samePlan")}
+          {/* Capacity writes bump no plan revision: an equal revision does not mean nothing changed while the capacity differs. */}
+          {t(view.capacity.captured && view.capacity.totals.changedTeams > 0 ? "baselines.compare.samePlanCapacity" : "baselines.compare.samePlan")}
         </Text>
       )}
     </Stack>
@@ -76,6 +79,7 @@ function Facts({ view }: { view: BaselineView }) {
  * later), then ONE plain table grouped by project: a project row with its own span movement and the counts of its milestones, then its
  * CHANGED milestone rows (the document lists only those; an estimate-only change is one). ≤ 1,000 rows, so no virtualisation — a
  * `ScrollRegion`. Filters (team, project name, "changed projects only") are client-side and not persisted.
+ * 1.26: after the changes, the Links and Capacity sections (`BaselineLinksSection`, `BaselineCapacitySection`).
  * 1.7: "Compare against" (the URL's `?against=`, shareable) swaps "now" from the live plan for another baseline - the page's baseline stays "then",
  * the two sides are named in the facts line and the column headers, and the "Show on …" buttons are gone (the timelines' overlay is one baseline
  * against the live plan).
@@ -317,6 +321,10 @@ function Comparison({ id }: { id: number }) {
           </Table>
         </ScrollRegion>
       </Stack>
+
+      {/* 1.26: the frozen links and capacity, each its own section; "not captured" is unknown, never "nothing changed". */}
+      <BaselineLinksSection links={data.links} sides={sides} />
+      <BaselineCapacitySection capacity={data.capacity} sides={sides} />
     </Stack>
   );
 }

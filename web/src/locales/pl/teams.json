@@ -104,6 +104,17 @@
     "noCapacity": "Nie ustawiono przepustowości",
     "noCapacityHint": "Dodaj okres, aby porównać obciążenie każdego tygodnia z przepustowością zespołu.",
     "noCapacityHintReadOnly": "Przepustowość ustawia kierownik/czka zespołu albo administrator/ka.",
+    "baselineCapacity": {
+      "title": "Przepustowość w bazie odniesienia {{name}}",
+      "aria": "Okresy przepustowości w bazie odniesienia {{name}}",
+      "notCaptured": "Baza odniesienia {{name}} powstała, zanim bazy zamrażały przepustowość, więc nie możemy pokazać jej obok obecnej.",
+      "none": "Zespół nie miał wtedy ustawionej przepustowości.",
+      "column": {
+        "from": "Od",
+        "to": "Do (włącznie)"
+      },
+      "openEnd": "bez końca"
+    },
     "weeklyTitle": "Obciążenie tygodniowe",
     "weeklyIntro": "Kolumny to obciążenie tygodnia, linia to przepustowość zespołu; pomarańczowy oznacza tydzień przeciążony, kreskowany znacznik tydzień ponad limitem WIP, a znacznik w rogu (trójkąt albo, przy samej informacji, kółko) tydzień ze sprintem, w którym przepustowość różni się od Flow. Znaczniki tylko ostrzegają — nic się nie przesuwa.",
     "weeklyEmpty": "Nic nie jest jeszcze zaplanowane, więc nie ma obciążenia tygodniowego.",

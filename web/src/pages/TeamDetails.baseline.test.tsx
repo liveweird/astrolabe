@@ -8,6 +8,7 @@ import { Route, Routes } from "react-router-dom";
 import TeamDetails from "./TeamDetails";
 import type { Movement } from "../api/baselines";
 import type { TeamMilestone, TeamView } from "../api/teams";
+import { headingOutline } from "../test/headings";
 import { jsonResponse } from "../test/http";
 import { READ_ONLY_PANEL } from "../test/flow";
 import { renderWithProviders } from "../test/render";
@@ -78,6 +79,9 @@ const plainView = (): TeamView => ({
   idleGaps: [],
 });
 
+/** The capacity the baseline froze (1.26); a pre-1.26 baseline is `captured: false`. */
+let frozenCapacity: NonNullable<TeamView["baseline"]>["capacity"] = { captured: false, periods: [] };
+
 /** tv-a slipped a week, tv-b is new, tv-tray was scheduled then, "tv-gone" was deleted and "tv-away" now sits on Billing. */
 const withBaseline = (view = plainView()): TeamView => ({
   ...view,
@@ -93,7 +97,7 @@ const withBaseline = (view = plainView()): TeamView => ({
       { milestoneId: 8, projectId: 7, name: "tv-gone", teamId: 1, teamName: "Payments", estimateMd: 3, start: "2027-02-02", end: "2027-02-03" },
       { milestoneId: 9, projectId: 8, name: "tv-away", teamId: 1, teamName: "Payments", estimateMd: 4, start: "2027-02-04", end: "2027-02-05", now: { teamId: 2, teamName: "Billing" } },
     ],
-    capacity: { captured: false, periods: [] },
+    capacity: frozenCapacity,
   },
 });
 
@@ -146,6 +150,7 @@ const shadows = () => [...document.querySelectorAll('[data-tone="baseline"]')].m
 
 beforeEach(() => {
   view = plainView();
+  frozenCapacity = { captured: false, periods: [] };
   viewUrls = [];
   dndProps = null;
   mockFetch = vi.fn();
@@ -218,6 +223,32 @@ describe("Team page with a baseline", () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Operations for tv-away" }));
     expect((await screen.findAllByRole("menuitem")).map((item) => item.textContent)).toEqual(["Open project"]);
+  });
+
+  test("the baseline's frozen capacity sits under the Capacity section as an h4 with an open last range; a baseline that did not freeze it adds a note, no heading (1.26)", async () => {
+    localStorage.setItem(PICK_KEY, "5");
+    frozenCapacity = {
+      captured: true,
+      periods: [
+        { from: "2027-01-04", to: "2027-02-26", mdPerWeek: 20, wipLimit: 3 },
+        { from: "2027-03-01", to: null, mdPerWeek: 12.5, wipLimit: null },
+      ],
+    };
+    const { unmount } = renderPage();
+    const table = await screen.findByRole("table", { name: "Capacity periods in baseline Q1 plan" });
+    expect(within(table).getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent))).toEqual([
+      ["2027-01-04", "2027-02-26", "20", "3"],
+      ["2027-03-01", "no end", "12.5", "—"],
+    ]);
+    const outline = headingOutline();
+    const capacity = outline.findIndex(([level, text]) => level === 3 && text === "Capacity");
+    expect(capacity).toBeGreaterThan(-1);
+    expect(outline[capacity + 1]).toEqual([4, "Capacity in baseline Q1 plan"]);
+    unmount();
+    frozenCapacity = { captured: false, periods: [] };
+    renderPage();
+    expect(await screen.findByText(/Baseline Q1 plan was taken before baselines froze capacity/)).toBeInTheDocument();
+    expect(headingOutline().some(([level, text]) => level === 4 && text.startsWith("Capacity in baseline"))).toBe(false);
   });
 
   test("the Movement section has a Project column, says where a milestone moved and lists the changed rows", async () => {

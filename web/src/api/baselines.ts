@@ -21,6 +21,11 @@ export type SpanBaseline = Schemas["SpanBaseline"];
 export type BaselineMilestone = Schemas["BaselineMilestone"];
 export type RemovedMilestone = Schemas["RemovedMilestone"];
 export type MovementTotals = Schemas["MovementTotals"];
+export type BaselineLinks = Schemas["BaselineLinks"];
+export type BaselineLinkEnd = Schemas["BaselineLinkEnd"];
+export type BaselineLinkTerms = Schemas["BaselineLinkTerms"];
+export type BaselineCapacity = Schemas["BaselineCapacity"];
+export type BaselineCapacityFigure = Schemas["BaselineCapacityFigure"];
 
 /** The most active baselines there can be (the server's cap; a create at the cap is a 409, delete one first). */
 export const BASELINE_CAP = 100;

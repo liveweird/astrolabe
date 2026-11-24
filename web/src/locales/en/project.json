@@ -193,6 +193,7 @@
     "lag_other": "{{count}} working days",
     "lead": "(lead)",
     "wholeProject": "Project {{name}}",
+    "newSinceBaseline": "New since the baseline",
     "status": {
       "ok": "OK",
       "violated_one": "Violated · {{count}} working day short",

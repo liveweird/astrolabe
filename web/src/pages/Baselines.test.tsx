@@ -15,8 +15,8 @@ type FetchMock = ReturnType<typeof vi.fn>;
 // 2026-11-02 14:30:00 UTC
 const TAKEN = Date.UTC(2026, 10, 2, 14, 30);
 const ITEMS = [
-  { id: 5, name: "Q2 commitment", description: "After replanning", planRevision: 40, createdAt: TAKEN, createdBy: { userId: 1, name: "Ada Admin" }, milestoneCount: 120, projectCount: 12 },
-  { id: 4, name: "Q1 commitment", description: null, planRevision: 31, createdAt: TAKEN - 86_400_000, createdBy: null, milestoneCount: 100, projectCount: 10 },
+  { id: 5, name: "Q2 commitment", description: "After replanning", planRevision: 40, createdAt: TAKEN, createdBy: { userId: 1, name: "Ada Admin" }, milestoneCount: 120, projectCount: 12, dependencyCount: 30, capacityPeriodCount: 0 },
+  { id: 4, name: "Q1 commitment", description: null, planRevision: 31, createdAt: TAKEN - 86_400_000, createdBy: null, milestoneCount: 100, projectCount: 10, dependencyCount: null, capacityPeriodCount: null },
 ];
 const LIST = (manage: boolean, items = ITEMS) => ({ items, can: { manage } });
 
@@ -73,6 +73,18 @@ describe("Baselines page", () => {
     expect(screen.queryByRole("button", { name: /operations for/i })).not.toBeInTheDocument();
     expect(screen.getByText("2 of 100 baselines")).toBeInTheDocument();
     expect(headingOutline()).toEqual([[2, "Baselines"]]);
+  });
+
+  test("the two counts of what a baseline froze; a baseline from before 1.26 reads not captured, never zero", async () => {
+    serve(mockFetch, { manage: false });
+    renderPage();
+    await screen.findByRole("link", { name: "Compare Q2 commitment with the plan" });
+    expect(screen.getByRole("columnheader", { name: "Links" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Capacity periods" })).toBeInTheDocument();
+    const cells = (name: string) => within(screen.getByText(name).closest("tr")!).getAllByRole("cell").map((cell) => cell.textContent);
+    // Name, Description, Taken, Revision, Taken by, Milestones, Projects, Links, Capacity periods, (menu)
+    expect(cells("Q2 commitment").slice(5, 9)).toEqual(["120", "12", "30", "0"]);
+    expect(cells("Q1 commitment").slice(5, 9)).toEqual(["100", "10", "not captured", "not captured"]);
   });
 
   test("the empty state tells a manager what to do and a reader who does", async () => {

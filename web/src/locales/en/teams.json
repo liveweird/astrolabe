@@ -96,6 +96,17 @@
     "noCapacity": "No capacity set",
     "noCapacityHint": "Add a period to compare each week's load with the team's capacity.",
     "noCapacityHintReadOnly": "The team's manager or an administrator sets the capacity.",
+    "baselineCapacity": {
+      "title": "Capacity in baseline {{name}}",
+      "aria": "Capacity periods in baseline {{name}}",
+      "notCaptured": "Baseline {{name}} was taken before baselines froze capacity, so its capacity cannot be shown beside the current one.",
+      "none": "The team had no capacity set then.",
+      "column": {
+        "from": "From",
+        "to": "To (inclusive)"
+      },
+      "openEnd": "no end"
+    },
     "weeklyTitle": "Weekly load",
     "weeklyIntro": "Columns are the week's load, the line the team's capacity; orange marks an overloaded week, a dashed mark a week over the WIP limit; a corner mark (a triangle, or a ring when only informational) is a week whose sprint's capacity differs from Flow. They only warn — nothing moves.",
     "weeklyEmpty": "Nothing is scheduled yet, so there is no weekly load.",

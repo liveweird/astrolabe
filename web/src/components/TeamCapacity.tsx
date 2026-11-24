@@ -14,6 +14,7 @@ import DestructiveMenuItem from "./DestructiveMenuItem";
 import EmptyState from "./EmptyState";
 import RowActionsMenu from "./RowActionsMenu";
 import ScrollRegion from "./ScrollRegion";
+import TeamBaselineCapacity from "./TeamBaselineCapacity";
 
 type Editor = { kind: "create" } | { kind: "edit"; period: CapacityPeriod };
 
@@ -117,6 +118,8 @@ export default function TeamCapacity({ view, readOnly = false }: { view: TeamVie
           </ScrollRegion>
         </>
       )}
+      {/* 1.26: the capacity the picked baseline froze ("was"), read-only, under the current periods. */}
+      {view.baseline !== undefined && <TeamBaselineCapacity baseline={view.baseline} />}
       {editor !== null && !readOnly && (
         <CapacityPeriodModal
           teamId={view.team.id}

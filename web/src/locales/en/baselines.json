@@ -1,14 +1,15 @@
 {
   "title": "Baselines",
-  "intro": "A baseline is a named, frozen copy of the plan: every milestone's dates, estimate and team, and every project's span, rank and target window. Compare one with the plan as it is now. Everyone can read baselines; administrators and roadmap editors take, rename and delete them.",
+  "intro": "A baseline is a named, frozen copy of the plan: every milestone's dates, estimate and team, and every project's span, rank and target window; since version 1.26 also every dependency link and every team's capacity periods (an older baseline holds neither). Compare one with the plan as it is now. Everyone can read baselines; administrators and roadmap editors take, rename and delete them.",
   "takeBaseline": "Take baseline",
   "takeTitle": "Take a baseline",
-  "takeIntro": "Copies the plan as it is now. The copy cannot be changed afterwards; links, capacity and the holiday calendar are not part of it.",
+  "takeIntro": "Copies the plan as it is now, with its links and every team's capacity. The copy cannot be changed afterwards; the holiday calendar and the teams' own order are not part of it.",
   "renameTitle": "Rename baseline",
   "rename": "Rename…",
   "renameAria": "Rename {{name}}",
   "openAria": "Compare {{name}} with the plan",
   "tableAria": "Baselines",
+  "notCaptured": "not captured",
   "count": "{{count}} of {{max}} baselines",
   "capReached": "The limit of {{max}} baselines is reached: delete one first",
   "empty": "No baselines yet",
@@ -20,7 +21,9 @@
     "revision": "Plan revision",
     "by": "Taken by",
     "milestones": "Milestones",
-    "projects": "Projects"
+    "projects": "Projects",
+    "links": "Links",
+    "capacityPeriods": "Capacity periods"
   },
   "saveConflict": "A baseline with this name already exists",
   "saveForbidden": "Only administrators and roadmap editors can change baselines",
@@ -54,6 +57,7 @@
     "projects_one": "{{count}} project",
     "projects_other": "{{count}} projects",
     "samePlan": "The plan has not changed since this baseline.",
+    "samePlanCapacity": "The plan has not moved since this baseline; the capacity has changed.",
     "totalsTitle": "Totals",
     "totalsMilestones": "Milestones",
     "totalsProjects": "Projects",
@@ -110,6 +114,49 @@
       "changed": "Rank {{then}} → {{now}}",
       "fromUnranked": "Unranked → rank {{now}}",
       "toUnranked": "Rank {{then}} → unranked"
+    },
+    "links": {
+      "title": "Links",
+      "intro": "Links are matched one by one: a link whose type or lag differs is changed, and one deleted and made again counts as removed and added. Only changed links are listed.",
+      "notCaptured": "This baseline was taken before baselines froze links, so nothing can be said about them. That is not the same as no changes.",
+      "notCapturedAgainst": "One of the two baselines was taken before baselines froze links, so nothing can be said about them. That is not the same as no changes.",
+      "none": "No link changes",
+      "totals": {
+        "added": "{{count}} added",
+        "removed": "{{count}} removed",
+        "changed": "{{count}} changed",
+        "unchanged": "{{count}} unchanged"
+      },
+      "tableAria": "Changed links",
+      "column": {
+        "change": "Change",
+        "predecessor": "Predecessor",
+        "successor": "Successor"
+      },
+      "change": {
+        "ADDED": "Added",
+        "REMOVED": "Removed",
+        "CHANGED": "Changed"
+      },
+      "truncated": "More links changed than fit here: the first {{count}} by id are listed, and the totals count them all."
+    },
+    "capacity": {
+      "title": "Capacity",
+      "intro": "The date ranges on which a team's capacity (man-days per week and WIP limit) differs. Splitting a period into two equal ones is no change. Only teams whose capacity differs are listed.",
+      "notCaptured": "This baseline was taken before baselines froze capacity, so nothing can be said about it. That is not the same as no changes.",
+      "notCapturedAgainst": "One of the two baselines was taken before baselines froze capacity, so nothing can be said about it. That is not the same as no changes.",
+      "none": "No capacity changes",
+      "totals": "Teams with changed capacity: {{changed}} of {{total}}",
+      "tableAria": "Capacity changes",
+      "column": {
+        "from": "From",
+        "to": "To (inclusive)"
+      },
+      "openEnd": "no end",
+      "figure": "{{md}} MD/week · WIP {{wip}}",
+      "figureNoWip": "{{md}} MD/week · no WIP limit",
+      "noCapacity": "No capacity",
+      "truncated": "More capacity changes than fit here: the first {{count}} are listed (the last team may be cut), and the totals count every team."
     }
   },
   "status": {

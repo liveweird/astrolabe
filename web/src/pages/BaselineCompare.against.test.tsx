@@ -11,9 +11,9 @@ import { renderWithProviders } from "../test/render";
 // sides are named, the timeline shortcuts are hidden, the rank movement is a sentence on the project row.
 
 const NONE = { unchanged: 0, moved: 0, later: 0, earlier: 0, scheduled: 0, unscheduled: 0, added: 0, removed: 0 };
-const THEN = { id: 5, name: "Q2 commitment", description: null, planRevision: 40, createdAt: Date.UTC(2026, 10, 2, 14, 30), createdBy: { userId: 1, name: "Ada Admin" }, milestoneCount: 120, projectCount: 12 };
-const NOW = { id: 9, name: "Q3 commitment", description: null, planRevision: 52, createdAt: Date.UTC(2026, 10, 9, 8, 0), createdBy: null, milestoneCount: 130, projectCount: 13 };
-const OTHER = { id: 7, name: "Q2.5 draft", description: null, planRevision: 46, createdAt: Date.UTC(2026, 10, 5, 8, 0), createdBy: null, milestoneCount: 125, projectCount: 12 };
+const THEN = { id: 5, name: "Q2 commitment", description: null, planRevision: 40, createdAt: Date.UTC(2026, 10, 2, 14, 30), createdBy: { userId: 1, name: "Ada Admin" }, milestoneCount: 120, projectCount: 12, dependencyCount: 30, capacityPeriodCount: 24 };
+const NOW = { id: 9, name: "Q3 commitment", description: null, planRevision: 52, createdAt: Date.UTC(2026, 10, 9, 8, 0), createdBy: null, milestoneCount: 130, projectCount: 13, dependencyCount: 31, capacityPeriodCount: 25 };
+const OTHER = { id: 7, name: "Q2.5 draft", description: null, planRevision: 46, createdAt: Date.UTC(2026, 10, 5, 8, 0), createdBy: null, milestoneCount: 125, projectCount: 12, dependencyCount: 30, capacityPeriodCount: 24 };
 // newest first, the page's own baseline included
 const LIST = { items: [NOW, OTHER, THEN], can: { manage: false } };
 const UNKNOWN = { type: "urn:astrolabe:problem:unknown-baseline", title: "Bad Request", status: 400, detail: "unknown baseline" };
@@ -32,7 +32,7 @@ const project = (over: object) => ({
   ...over,
 });
 
-const LIVE_VIEW = { revision: 44, baseline: THEN, totals: { milestones: { ...NONE, unchanged: 3 }, projects: { ...NONE, moved: 1, later: 1 } }, projects: [project({})], milestones: [] };
+const LIVE_VIEW = { revision: 44, baseline: THEN, totals: { milestones: { ...NONE, unchanged: 3 }, projects: { ...NONE, moved: 1, later: 1 } }, projects: [project({})], milestones: [], links: { captured: true, totals: { added: 0, removed: 0, changed: 0, unchanged: 0 }, items: [], truncated: false }, capacity: { captured: true, totals: { teams: 0, changedTeams: 0 }, teams: [], truncated: false } };
 const AGAINST_VIEW = {
   ...LIVE_VIEW,
   revision: 60,
@@ -110,7 +110,7 @@ describe("Baseline comparison page, two baselines", () => {
     expect(viewUrls).toEqual(["/api/v1/views/baseline/5?against=9"]);
     expect(await screen.findByDisplayValue("Q3 commitment (plan revision 52)")).toBe(screen.getByRole("combobox", { name: "Compare against" }));
     expect(screen.getByRole("heading", { level: 2, name: "Q2 commitment" })).toBeInTheDocument();
-    expect(headingOutline()).toEqual([[2, "Q2 commitment"], [3, "Totals"], [3, "Changes"]]);
+    expect(headingOutline()).toEqual([[2, "Q2 commitment"], [3, "Totals"], [3, "Changes"], [3, "Links"], [3, "Capacity"]]);
     expect(screen.getByRole("columnheader", { name: "Then: Q2 commitment" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Now: Q3 commitment" })).toBeInTheDocument();
     expect(screen.getByRole("table", { name: "Changes between the two baselines" })).toBeInTheDocument();

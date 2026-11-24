@@ -10,8 +10,11 @@ import { renderWithProviders } from "../test/render";
 type FetchMock = ReturnType<typeof vi.fn>;
 
 const NONE = { unchanged: 0, moved: 0, later: 0, earlier: 0, scheduled: 0, unscheduled: 0, added: 0, removed: 0 };
-const BASELINE = { id: 5, name: "Q2 commitment", description: "After replanning", planRevision: 40, createdAt: Date.UTC(2026, 10, 2, 14, 30), createdBy: { userId: 1, name: "Ada Admin" }, milestoneCount: 120, projectCount: 12 };
+const BASELINE = { id: 5, name: "Q2 commitment", description: "After replanning", planRevision: 40, createdAt: Date.UTC(2026, 10, 2, 14, 30), createdBy: { userId: 1, name: "Ada Admin" }, milestoneCount: 120, projectCount: 12, dependencyCount: 30, capacityPeriodCount: 24 };
 const FIG = (start: string | null, end: string | null, estimateMd = 3) => ({ start, end, estimateMd });
+
+const LINKS = { captured: true, totals: { added: 0, removed: 0, changed: 0, unchanged: 0 }, items: [], truncated: false };
+const CAPACITY = { captured: true, totals: { teams: 0, changedTeams: 0 }, teams: [], truncated: false };
 
 const VIEW = {
   revision: 44,
@@ -65,6 +68,8 @@ const VIEW = {
     { milestoneId: 13, name: "Refund", projectId: 1, teamId: 2, teamName: "Payments team", frozen: FIG("2043-01-14", "2043-01-16"), live: null, movement: { kind: "REMOVED", startDays: null, endDays: null, estimateDelta: null } },
     { milestoneId: 20, name: "Sizing", projectId: 3, teamId: 1, teamName: "Web", frozen: FIG("2043-03-01", "2043-03-05", 3), live: FIG("2043-03-01", "2043-03-05", 5), movement: { kind: "UNCHANGED", startDays: 0, endDays: 0, estimateDelta: 2 } },
   ],
+  links: LINKS,
+  capacity: CAPACITY,
 };
 
 function renderPage(route = "/baselines/5") {
@@ -107,7 +112,7 @@ describe("Baseline comparison page", () => {
     expect(later.closest(".mantine-Badge-root")!.getAttribute("style") ?? "").toContain("orange");
     const earlier = screen.getAllByText("1 end earlier")[0];
     expect(earlier.closest(".mantine-Badge-root")!.getAttribute("style") ?? "").toContain("gray");
-    expect(headingOutline()).toEqual([[2, "Q2 commitment"], [3, "Totals"], [3, "Changes"]]);
+    expect(headingOutline()).toEqual([[2, "Q2 commitment"], [3, "Totals"], [3, "Changes"], [3, "Links"], [3, "Capacity"]]);
   });
 
   test("Show on timeline remembers this baseline as the pick of every timeline page and opens the project's page; the header action opens the roadmap", async () => {

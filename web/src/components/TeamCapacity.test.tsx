@@ -73,4 +73,16 @@ describe("TeamCapacity and Flow-imported periods", () => {
     expect(queryClient.getQueryState(["plan", "team", 1])?.isInvalidated).toBe(true);
     expect(queryClient.getQueryState(["roadmap", "view"])?.isInvalidated).toBe(true);
   });
+
+  test("a baseline pick (1.26) puts the baseline's capacity under the current table, read-only; without one nothing is added", () => {
+    const baseline = { id: 5, name: "Q2", planRevision: 4, milestones: [], removed: [], capacity: { captured: true, periods: [{ from: "2027-01-04", to: null, mdPerWeek: 6, wipLimit: null }] } };
+    const { unmount } = renderWithProviders(<TeamCapacity view={{ ...view([MANUAL]), baseline }} />);
+    expect(screen.getByRole("table", { name: "Capacity periods of the team" })).toBeInTheDocument();
+    const was = screen.getByRole("table", { name: "Capacity periods in baseline Q2" });
+    expect(within(was).queryByRole("button")).toBeNull();
+    expect(within(was).getAllByRole("row")[1]).toHaveTextContent("2027-01-04no end6—");
+    unmount();
+    renderWithProviders(<TeamCapacity view={view([MANUAL])} />);
+    expect(screen.queryByRole("table", { name: /in baseline/ })).toBeNull();
+  });
 });

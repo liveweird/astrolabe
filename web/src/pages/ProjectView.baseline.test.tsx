@@ -237,6 +237,29 @@ describe("Project view page with a baseline", () => {
     expect(screen.getByRole("button", { name: /^Alpha, Backend/ })).not.toHaveAttribute("data-tone");
   });
 
+  test("a dependency made since the baseline carries the gray 'New since the baseline' badge on its own row only (1.26)", async () => {
+    const end = (id: number, name: string) => ({ kind: "MILESTONE" as const, id, name, projectId: 7, projectName: "Invoices", teamId: 3, teamName: "Backend", startDate: "2027-01-11", endDate: "2027-01-15" });
+    const link = (id: number, from: number, to: number, over: Partial<ProjectViewDocument["dependencies"][number]> = {}): ProjectViewDocument["dependencies"][number] => ({
+      id,
+      predecessor: end(from, `p${id}`),
+      successor: end(to, `s${id}`),
+      type: "FS",
+      lagDays: 0,
+      check: { status: "OK", shortfallDays: null, slackDays: 3, requiredDate: "2027-01-18", actualDate: "2027-01-25" },
+      critical: false,
+      can: { edit: true, delete: true },
+      ...over,
+    });
+    view = { ...view, dependencies: [link(1, 1, 2, { newSinceBaseline: true }), link(2, 2, 4, { newSinceBaseline: false })] };
+    localStorage.setItem(PICK_KEY, "5");
+    renderPage();
+    const table = await screen.findByRole("table", { name: "Dependencies of the project" });
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0]).getByText("New since the baseline").closest(".mantine-Badge-root")!.getAttribute("style") ?? "").toContain("gray");
+    expect(within(rows[1]).queryByText("New since the baseline")).toBeNull();
+  });
+
   test("the facts line says how the project's span moved: an orange badge when its end is later", async () => {
     localStorage.setItem(PICK_KEY, "5");
     renderPage();

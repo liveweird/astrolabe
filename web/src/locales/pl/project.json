@@ -217,6 +217,7 @@
     "lag_other": "{{count}} dnia roboczego",
     "lead": "(wyprzedzenie)",
     "wholeProject": "Projekt {{name}}",
+    "newSinceBaseline": "Nowa od bazy odniesienia",
     "status": {
       "ok": "OK",
       "violated_one": "Niedotrzymane · brakuje {{count}} dnia roboczego",

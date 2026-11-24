@@ -674,8 +674,8 @@ Files:
   `conflictsByBar`, `linksOfMilestone`), `utils/dependencyForm.ts`, `components/ProjectDependencies.tsx`, `DependencyEditorModal.tsx`, `DependencyDeleteModal.tsx`, `MilestoneSelect.tsx`,
   `ProjectSelect.tsx`; the summary and ghost rows are in `ProjectTimelineRows.tsx`, the overlay in `ProjectTimeline.tsx`, the "Add dependency…" item in `MilestoneMenu.tsx`.
   - `dependencyForm.ts`: the form values, the self-link and lag rules, `toDependencyBody`, `cyclePathText`, `dependencySaveErrorMessage`; the edit's `editDependencyForm`,
-    `dependencyEditValidation` (the lag only), `toDependencyUpdateBody`, `dependencyUpdateErrorMessage`, and the shared `dependencyEndpointText` (its `ownProjectId` is `number | null`;
-    `null` = no own project, so every milestone end names its project). `EditableDependency` is what the editor and the delete read of a link.
+    `dependencyEditValidation` (the lag only), `toDependencyUpdateBody`, `dependencyUpdateErrorMessage`, and the shared `dependencyEndpointText` (`ownProjectId` `null` = no own project, so every
+    milestone end names its project). `EditableDependency` is what the editor and the delete read of a link.
   - `DependencyDeleteModal.tsx`: the delete confirmation's wording and error mapping, shared with the Dependencies page.
 
 ### Route and data
@@ -706,7 +706,7 @@ Files:
 - `ProjectPageHeader` (name, meta lines, the `can`-gated actions), `ProjectViewNotices` (notes, inline write failures, the polite status region), `ProjectEditors` (the dialogs for the
   open `editor`), `TimelineTitle` and `UnscheduledTraySection` (shared with the team page).
 - The team page has the same shape: `TeamPageHeader.tsx`, `TeamViewNotices.tsx`, `TeamResetConfirm.tsx` and `TeamFlowSection.tsx` (`components/`).
-- A split moves markup, never ARIA, focus or query behaviour.
+- A split moves markup, never ARIA, focus or queries.
 
 ### Write path (dates)
 
@@ -720,33 +720,28 @@ Files:
 - `stale` is `isStaleRevision(save.error)` (a 409 of the stale-revision problem type) and shows `project.stale` (THIS milestone moved). A 403/400/other failure is an inline alert, never
   a toast. The 400 of the schedule PUT has several causes (order, shape, no working day), so its one sentence names the working-day rule instead of sniffing the server's text.
 - A change aimed at a milestone that has left the view (deleted, refetched away) is refused the same way with `project.milestoneGone` and closes the schedule dialog.
-- **The status region is the one announcer** of these notices (`web/CLAUDE.md` "Per-feature rules"): the page's visible notices are `role="note"`, and the dialog's own refusal Alert
-  stays a live alert (`ownRefusalAlert`) because a modal's content is all a screen reader reads. The polite live region announces the button/dialog paths (`project.announce.*`); a drag is
-  announced by dnd-kit's own localized region.
+- **The status region is the one announcer** of these notices (`web/CLAUDE.md` "Per-feature rules"): the visible notices are `role="note"`, and the dialog's own refusal Alert stays a live alert
+  (`ownRefusalAlert`) because a modal's content is all a screen reader reads. The polite region announces the button/dialog paths (`project.announce.*`); a drag is announced by dnd-kit's own region.
 - **A change is never lost silently:** while a save is in flight `commit` answers `false` and sets `refused` (cleared when that save settles). The page shows an orange "a save is still
-  running - try again" notice (also inside the schedule dialog, which stays open) and announces it (every announcement flips an invisible zero-width suffix, so the same sentence twice
-  is re-read); a visible "Saving…" indicator sits by the Timeline heading; `TimelineDndContext` corrects dnd-kit's drop announcement (`onSchedule` returns a boolean).
+  running - try again" notice (also inside the schedule dialog, which stays open) and announces it (each announcement flips an invisible zero-width suffix, so the same sentence twice is re-read);
+  a "Saving…" indicator sits by the Timeline heading; `TimelineDndContext` corrects dnd-kit's drop announcement (`onSchedule` returns a boolean).
 - **The schedule dialog saves with the revision of the view it was OPENED on** (`Scheduling = {milestone, revision}`), so another manager's move of that milestone meanwhile is the
   stale 409, not an overwrite; unrelated writes never stale it (the check is per milestone).
-- The tray's Schedule places the milestone for one calendar week from the later of today (the viewer's LOCAL calendar day, `localIsoDate`) and the project's target start
-  (`dropOutcome("tray", …)`, the pointer drop's week).
-- The schedule dialog also pre-checks "at least one working day": Monday-Friday and not a public holiday of the cached dictionary (`hasWorkingDay(start, end, holidayDays)`); the
-  server's 400 is the rule.
-- The zoom is `useStoredState("timeline.zoom")`, shared by the project and team pages.
+- The tray's Schedule places the milestone for one calendar week from the later of today (`localIsoDate`) and the project's target start (`dropOutcome("tray", …)`).
+- The schedule dialog pre-checks "at least one working day": Monday-Friday and not a public holiday of the cached dictionary (`hasWorkingDay(start, end, holidayDays)`); the server's 400 is the rule.
+- The zoom is `useStoredState("timeline.zoom")`, shared with the team page.
 
 ### Range, bands and rows
 
 - **Range.** The page keeps `seen = {min, max}` (ISO strings) in state, grows it during render whenever the view holds an earlier/later date (scheduled dates, the target window), and
   builds `makeScale(zoom, defaultRange([min, max], today, zoom))` from it.
-  - `today` is `localIsoDate()` (`utils/isoDate.ts`): the VIEWER'S local calendar day, not UTC - the today line and the Schedule button agree with their wall calendar (a Saturday
-    evening in Warsaw is Saturday, not Friday or Sunday in UTC). It is the one place the UI reads the browser's zone; the server's dates stay plain ISO dates with no zone, and the Plan
-    page's close-a-stream date still uses UTC `todayIsoDate()`.
-  - The range NEVER shrinks: after the last far-off link (a ghost row's dates) is deleted it stays wide until the page is reloaded. A drag cannot go further than the padded range (the
-    track clips); typed dates in the schedule dialog can, and the range then grows.
+  - `today` is `localIsoDate()` (`utils/isoDate.ts`): the VIEWER'S local calendar day, not UTC - the today line and the Schedule button agree with their wall calendar. It is the one place the UI
+    reads the browser's zone; the server's dates stay plain ISO dates, and the Plan page's close-a-stream date still uses UTC `todayIsoDate()`.
+  - The range NEVER shrinks: after the last far-off link (a ghost row's dates) is deleted it stays wide until reload. A drag cannot go further than the padded range (the track clips); typed dates
+    in the schedule dialog can, and the range then grows.
 - **Bands.** The target window is a `window` band across every row; when the span ends after the target a `drift` band covers the overrun (`addDays(targetEnd, 1)` … `span.end`).
-- **Rows** are fixed 36 px, so the name cell is one line: the name and the description as dimmed text after it, clipped by the cell. The kebab of a row is a roving stop of the grid
-  (`RowActionsMenu`'s `trigger` prop spreads the stop on the button). The timeline body is at least three rows tall (`MIN_BODY_ROWS`) so an empty timeline still has an area to drop a
-  tray row on.
+- **Rows** are fixed 36 px, so the name cell is one line: the name and the description as dimmed text after it, clipped by the cell. A row's kebab is a roving stop of the grid (`RowActionsMenu`'s
+  `trigger` prop spreads the stop on the button). The timeline body is at least three rows tall (`MIN_BODY_ROWS`) so an empty timeline still has an area to drop a tray row on.
 
 ### Dependencies
 
@@ -764,18 +759,18 @@ The view's `dependencies[]` is read, never recomputed: the SERVER's `check` (OK 
     `project.ghostLinkAria` "A › a1 - open project A", axe's label-content-name-mismatch), a **summary row** only while the project itself is an endpoint, and gray/red arrows
     (`utils/projectDependencies.ts` maps view → `TimelineArrowData[]`; an own end with no row is simply not drawn).
 - **Add dependency** (button beside the heading, and "Add dependency…" in a milestone's row menu, both gated by `project.can.createDependency`) opens `DependencyEditorModal`:
-  - The SUCCESSOR is fixed to this project or one of its milestones (the constrained side; the intro says so).
+  - The SUCCESSOR is fixed to this project or one of its milestones (the constrained side).
   - The predecessor is a Milestone/Project `SegmentedControl` over `MilestoneSelect`/`ProjectSelect` (`SearchPicker`s over the paged `GET /milestones` / `GET /projects`, options
     "name · project" / "name · program · work stream").
-  - Type, and a lag in working days (−365..365, negative = a lead).
+  - Type, and a lag in working days (−365..365; negative = lead).
   - It saves with `createDependency`. A cycle 409 (`isDependencyCycle`) renders the localized sentence plus the path ("A → B → A", from `err.cycle`, never the server's text); every other
     failure goes through `dependencySaveErrorMessage` (the fixed vocabulary - a 409 here is the duplicate pair, "already linked").
 - **Edit** (the page's `editDependency` variant: the row menu's "Edit…", `ProjectDependencies`' `onEdit`) opens the SAME modal with `target` set: the ends as read-only `TextInput`s,
   `TypeAndLagFields` shared with the create, `updateDependency` on Save (`PUT /dependencies/{id}` `{type, lagDays}`, 204), success toast `project.toast.dependencySaved`.
   - Only Type and Lag are editable (changing an end stays delete + add).
-  - A type that would close a cycle is the same 409 drawn from `ApiError.cycle` under "With this type the link would close a cycle through:" (`project.dependency.cycleEdit`); a 400
-    reads as the lag sentence, 403/404 as the create's.
-  - A held `ProjectDependency` snapshot is fine because a vanished link answers 404 ("This no longer exists").
+  - A type that would close a cycle is the same 409 drawn from `ApiError.cycle` under "With this type the link would close a cycle through:" (`project.dependency.cycleEdit`); a 400 reads
+    as the lag sentence, 403/404 as the create's.
+  - A held `ProjectDependency` snapshot is fine: a vanished link answers 404 ("This no longer exists").
 - Create, edit and delete are plain mutations (no optimistic step, no revision).
 
 ### Dependency rows, ids and refresh
@@ -783,25 +778,24 @@ The view's `dependencies[]` is read, never recomputed: the SERVER's `check` (OK 
 - **Row and bar ids.** Own milestones keep their numeric ids; the synthetic rows are strings that cannot collide: `project:<id>` (the summary row), `ghost:m:<id>` / `ghost:p:<id>` (one
   per DISTINCT external endpoint WITH dates); a synthetic row's bar id equals its row id. An arrow end resolves to: the own project → the summary row, an own milestone → its row (a tray
   milestone has none), anything else → its ghost row. The skipped arrows and the range: `timeline.md` "The project page".
-- **Placement.** The section sits AFTER the Unscheduled tray (and after the "No milestones yet" empty state), not between the timeline and the tray: the tray's pointer drop needs the
-  tray close to the timeline and in view with it (the e2e tray drop asserts both are inside the viewport), and the section is taller than the viewport slack once it holds an empty state.
-- **The page owns the dialog**, not the section: `Editor` has a `{kind: "dependency", successor}` variant, so the section's button (successor null → "This project") and a milestone's
-  row-menu item (successor = that milestone) open the same `DependencyEditorModal`; the section owns only its Delete confirmation (the shared `DependencyDeleteModal`).
-- **Refresh.** Create/edit/delete: `refreshQueriesAfterMutation(["plan"])` (+ `["roadmap"]` through the page's `saved`), which brings the server's new checks. The schedule
-  write path already refreshes `["plan"]` after a PUT (`useMilestoneSchedule`); the optimistic `applySchedule` moves the bar but never touches `dependencies[].check`, so for a moment after
-  a drop the table/arrow still show the previous check. Pinned by `ProjectView.test.tsx` ("a schedule write refetches the view…").
-- **Picker query keys** are `["plan", "milestones", "picker", term]` and `["plan", "projects", "picker", term]` - under the `["plan"]` prefix, so a Plan mutation refreshes an open
-  picker's list too.
-- **Delete bodies** state the cascade: `project.dependency.deleteWith` ("Its N dependencies will be deleted too.") is appended to the milestone's and the project's confirm text when the
-  view holds any link on them (`linksOfMilestone`; the project's count is `dependencies.length`, which is exactly its own links and its milestones').
+- **Placement.** The section sits AFTER the Unscheduled tray (and after the "No milestones yet" empty state), not between the timeline and the tray: the tray's pointer drop needs the tray close to
+  the timeline and in view with it (the e2e tray drop asserts both are inside the viewport).
+- **The page owns the dialog**: `Editor` has a `{kind: "dependency", successor}` variant, so the section's button (successor null → "This project") and a milestone's row-menu item open the same
+  `DependencyEditorModal`; the section owns only its Delete confirmation (the shared `DependencyDeleteModal`).
+- **Refresh.** Create/edit/delete: `refreshQueriesAfterMutation(["plan"])` (+ `["roadmap"]` through the page's `saved`), which brings the server's new checks. The schedule write path already
+  refreshes `["plan"]` after a PUT; the optimistic `applySchedule` moves the bar but never touches `dependencies[].check`, so for a moment after a drop the table/arrow show the previous check.
+  Pinned by `ProjectView.test.tsx` ("a schedule write refetches the view…").
+- **Picker query keys** are `["plan", "milestones", "picker", term]` and `["plan", "projects", "picker", term]` (under `["plan"]`: a Plan mutation refreshes an open picker's list).
+- **Delete bodies** state the cascade: `project.dependency.deleteWith` ("Its N dependencies will be deleted too.") is appended to the milestone's and the project's confirm text when the view holds
+  any link on them (`linksOfMilestone`; the project's count is `dependencies.length`).
 
 ### Idle gaps
 
 The view's `idleGaps[]` is the SERVER's list, read and never recomputed; the band, its look and order, the accessible surface and the optimistic rule are `timeline.md` "Idle bands".
 
 - `bandsOf` appends `idleBands(view.idleGaps, t)` (`utils/idleGaps.ts`) after the window and drift bands, also when the project has no target window.
-- `<IdleGaps gaps scope="project" />` (`components/IdleGaps.tsx`, h3) is mounted right after `{dependencies}` (the h3 order is Timeline, Unscheduled, Dependencies, Idle gaps); the
-  facts line gains a gray `timeline.idle.badge` plural badge "N idle gaps", absent at zero.
+- `<IdleGaps gaps scope="project" />` (`components/IdleGaps.tsx`, h3) follows `{dependencies}` (h3 order: Timeline, Unscheduled, Dependencies, Idle gaps); the facts line gains a gray
+  `timeline.idle.badge` "N idle gaps", absent at zero.
 - `applySchedule` spreads the view, so the cached gaps survive the optimistic step unchanged (same array identity, `projectViewUpdate.test.ts`) and the refetch replaces them
   (`ProjectView.test.tsx`: the old band is still drawn synchronously after a drop, then the server's new gap). Strings: `timeline.idle.*`.
 
@@ -839,6 +833,7 @@ With a baseline picked (the toolbar's picker, beside the Critical path toggle; `
 - The **Movement section** (`components/BaselineMovement.tsx`, h3, after Idle gaps) is the accessible surface: totals badges, then a disclosure over a table of every milestone against
   the baseline ("Changed only" on by default, an estimate-only change counts as changed).
 - The optimistic step keeps the cached `baseline` block.
+- **Dependencies (1.26):** a link with `newSinceBaseline: true` carries a gray "New since the baseline" Badge beside its status badge (`ProjectDependencies.tsx`); `false` and absent (no baseline, links not captured) show nothing.
 
 ### The Jira markers
 
@@ -1385,59 +1380,66 @@ The page's co-located tests (`TeamLoad.test.tsx` also pins the date, the line, t
 
 Files: `pages/Baselines.tsx`; `pages/BaselineCompare.tsx`; `hooks/useBaselines.ts`; `components/BaselineEditorModal.tsx`; `components/BaselineCompareControls.tsx`; `utils/baselineMovement.ts` (`movementTotalsParts`,
 `movementSentence`, `movementStatus`); `utils/baselineOverlay.ts`; `utils/baselineCompare.ts` (`rankSentence`); `hooks/useBaselinePick.ts`; `components/BaselinePicker.tsx`; `components/BaselineMovement.tsx`;
-`components/BaselineTotals.tsx`.
+`components/BaselineTotals.tsx`; 1.26: `components/BaselineLinksSection.tsx`, `components/BaselineCapacitySection.tsx`, `components/TeamBaselineCapacity.tsx`.
 
 ### The registry
 
 `/baselines` (nav: Planning after Team load, `IconCamera`, **everyone**) is the registry of the named, frozen copies of the plan, `GET /baselines` under `["baselines","list"]` through
 `hooks/useBaselines.ts` (`{items, can, loading, failed, error}`, `staleTime` 1 minute, the `useHolidays.ts` shape - the timelines' picker reads the same cache).
 
-- The list is a BOUNDED set (the cap is 100, newest first), so it is ONE unpaged table in a `ScrollRegion` (no `RegistryListTable`: it carries a pager), not the Teams page's paged shape:
-  Name (the link into the comparison, `baselines.openAria`), Description, Taken (`YYYY-MM-DD HH:mm`, read in UTC, the header says so), Plan revision, Taken by, Milestones, Projects.
+- The list is a BOUNDED set (cap 100, newest first): ONE unpaged table in a `ScrollRegion` (no `RegistryListTable`: it carries a pager):
+  Name (the link into the comparison, `baselines.openAria`), Description, Taken (`YYYY-MM-DD HH:mm`, read in UTC, the header says so), Plan revision, Taken by, Milestones, Projects, Links, Capacity periods
+  (1.26: `dependencyCount`/`capacityPeriodCount`; null = "not captured", a baseline from before 1.26: unknown, never 0).
 - **What a row offers comes from the list's `can.manage`** (ADMIN or a `ROADMAP_EDITOR`, the server's arithmetic - never the session's roles): "Take baseline" and the row menu (Rename...,
   Delete) exist only with it.
-- `BaselineEditorModal` is take (name + description, then the server copies the plan) and rename in one. The take's 409 is told apart by `isBaselineLimit` (the problem type
-  `urn:astrolabe:problem:baseline-limit`): the cap reads "The limit of 100 baselines is reached: delete one first" as the dialog's alert, any other 409 is a name clash and marks the name
-  field. At 100 rows the page says the cap is reached instead of counting.
-- **Every write bumps the plan revision**, so a take, rename or delete refreshes `["baselines"]` AND `["plan"]` + `["roadmap"]`; a delete of a baseline already deleted elsewhere (404) says so
-  and reloads the list.
+- `BaselineEditorModal` is take (name + description) and rename in one. The take's 409 is told apart by `isBaselineLimit` (problem type `urn:astrolabe:problem:baseline-limit`): the cap is the dialog's
+  alert "The limit of 100 baselines is reached: delete one first", any other 409 is a name clash marking the name field. At 100 rows the page says the cap is reached instead of counting.
+- **Every write bumps the plan revision**: a take, rename or delete refreshes `["baselines"]` AND `["plan"]` + `["roadmap"]`; a delete of one already deleted elsewhere (404) says so and reloads the list.
 
 ### The comparison
 
-`/baselines/:id` renders `GET /views/baseline/{id}` under `["baselines","view",id,{against}]` (read, never recomputed - the server counts the working days on the CURRENT calendar). A
-malformed or unknown id is the not-found alert (`EditPageLoadState`, under the page's h2) and a malformed one never asks the server.
+`/baselines/:id` renders `GET /views/baseline/{id}` under `["baselines","view",id,{against}]` (read, never recomputed - the server counts working days on the CURRENT calendar). A malformed or
+unknown id is the not-found alert (`EditPageLoadState`, under the page's h2); a malformed one never asks the server.
 
-- The facts line: taken, by whom, the plan revision, the counts; "The plan has not changed since this baseline." when the view's `revision` equals the baseline's `planRevision`.
+- The facts line: taken, by whom, the plan revision, the counts; "The plan has not changed since this baseline." when the view's `revision` equals the baseline's `planRevision` AND no captured team's capacity differs (a capacity write bumps no revision; else `samePlanCapacity`).
 - The **totals** of milestones and of projects as badges (`movementTotalsParts`: an ORANGE "N end later", gray for the rest, "No schedule changes" at zero).
 - The **Changes** table is ONE plain table in a `ScrollRegion` (`maxHeight` 70vh, <= 1,000 rows, no virtualisation) grouped by project: the project row (name = link into `/projects/:id`,
   program > work stream, the span movement as a sentence and its milestones' counts, the two spans, Start/End in signed working days, Status) then its CHANGED milestone rows (team, baseline
-  and current dates or "Unscheduled" or a dash, Start/End deltas, the estimate "10 -> 12.5", Status).
-- **The Status badge** is `movementStatus`: ORANGE "Later" exactly when a moved row's END is later, gray "Earlier" / "Moved" / "New" / "Removed" / "Scheduled" / "Unscheduled" / "Unchanged" -
-  and gray "Re-estimated" for an estimate-only change, which the server lists as a changed row though its kind is `UNCHANGED`.
-- Client-side, unpersisted filters (`utils/baselineCompare.ts`, pure): a team `Select` (the teams of the listed rows; keeps only the projects that have a row of it), a project-name text
-  filter (case- and accent-insensitive) and "Changed projects only" (on by default; a project stays when it changed itself, its counts show a change, or it has a listed row).
-- The picker, the shadow bars and the Movement section on the timeline pages reuse `movementSentence`, `movementStatus` and `movementTotalsParts`; here each project row has a "Show on
-  timeline" button and the header a "Show on the roadmap" one - both set the browser-wide pick before they navigate.
+  and current dates, "Unscheduled" or a dash, the deltas, the estimate "10 -> 12.5", Status).
+- **The Status badge** is `movementStatus`: ORANGE "Later" exactly when a moved row's END is later, gray "Earlier" / "Moved" / "New" / "Removed" / "Scheduled" / "Unscheduled" / "Unchanged", and
+  gray "Re-estimated" for an estimate-only change (listed by the server though its kind is `UNCHANGED`).
+- Client-side, unpersisted filters (`utils/baselineCompare.ts`, pure): a team `Select` (the listed rows' teams; keeps the projects with a row of it), a project-name text filter (case- and
+  accent-insensitive) and "Changed projects only" (on by default; a project stays when it changed, its counts show a change, or it has a listed row).
+- The timelines' picker, shadow bars and Movement section reuse `movementSentence`, `movementStatus` and `movementTotalsParts`; each project row has "Show on timeline" and the header "Show on the
+  roadmap" - both set the browser-wide pick before navigating.
+
+### The frozen links and capacity
+
+Two h3 sections after Changes, read as they arrive: `BaselineLinksSection` (`links`) and `BaselineCapacitySection` (`capacity`), each `{…, sides}` (null against the live plan; else the Then/Now headers name both baselines).
+
+- **Links:** gray totals badges (added / removed / changed / unchanged - information, never orange), ONLY the changed links in a table (Change badge; both ends as "Milestone · Project" or "Project X"; Baseline / Current terms "type · lag", "-" for the missing side), a `truncated` note.
+- **Capacity:** the badge "Teams with changed capacity: N of M", ONE table with a rowgroup per changed team (From, To or "no end", Baseline / Current "20 MD/week · WIP 3", null = "No capacity"), a `truncated` note.
+- **`captured: false`** (the baseline, or with `against` either, predates 1.26) is ONE dimmed note per section (own wording for `against`), no totals, no table, never "no changes".
 
 ### Compare against
 
 `components/BaselineCompareControls.tsx` is the "Compare against" `Select` (the live plan, the default, or any OTHER baseline newest first with its plan revision). The URL's `?against=N` is
 the state, so a comparison is a link; a malformed or own id is ignored, the typed 400 `unknown-baseline` drops the parameter with an inline note.
 
-- This baseline stays "then"; the facts line and the Then/Now column headers name both sides, a project row gains the rank sentence ("Rank 3 → 5", `rankSentence`, none for a new or gone
-  project) and both "Show on ..." buttons are hidden (the overlay is one baseline against the live plan).
-- A newly picked "now" that fails to load with anything but the typed 400 keeps the page chrome and the picker mounted with the error inline, so the live plan or another baseline can be
-  picked; a failure with no `against` is the load-error page.
+- This baseline stays "then"; the facts line and the Then/Now headers name both sides, a project row gains the rank sentence ("Rank 3 → 5", `rankSentence`, none for a new or gone project) and
+  both "Show on ..." buttons are hidden (the overlay is one baseline against the live plan).
+- A newly picked "now" that fails with anything but the typed 400 keeps the chrome and the picker mounted with the error inline (so another can be picked); a failure with no `against` is the
+  load-error page.
 
 ### The baseline pick on the timeline pages
 
 The ONE browser-remembered pick (`hooks/useBaselinePick.ts`, key `timeline.baseline`, none by default) selects the baseline all four timeline pages compare with (`BaselinePicker` in the
-Timeline's `toolbar` slot, `?baseline=N` on the view getters, the pick inside every query key). The project and team pages add the Movement section (`BaselineMovement`), the plan pages one
-totals line (`BaselineTotals`). The query keys, the write rules, the tone, the rows and the Movement section: `timeline.md` "The baseline overlay".
+Timeline's `toolbar` slot, `?baseline=N` on the view getters, the pick in every query key). The project and team pages add the Movement section (`BaselineMovement`), the plan pages one totals
+line (`BaselineTotals`); query keys, write rules, tone, rows: `timeline.md` "The baseline overlay".
 
 ### Tests
 
-The co-located `Baseline*.test.tsx`, `useBaselines.test.tsx` and the `baseline*` `utils/` tests.
+The co-located `Baseline*.test.tsx` (the frozen sections: `BaselineCompare.frozen.test.tsx`), `useBaselines.test.tsx` and the `baseline*` `utils/` tests.
 
 ## Schedule proposals
 
@@ -1909,7 +1911,7 @@ The co-located tests of the page and its parts (`Deviations*`, `JiraBind*`, `Jir
 
 ## Teams and the team page
 
-`/teams` is the flat teams registry (the Registries template of `web/CLAUDE.md`: reads for everyone, create/edit/delete ADMIN). Its name link opens `/teams/:id`, the team view (lazy; `TeamDetails` is
+`/teams` is the flat teams registry (the Registries template of `web/CLAUDE.md`: everyone reads, ADMIN writes). Its name link opens `/teams/:id`, the team view (lazy; `TeamDetails` is
 `<TeamPage key={id}>`).
 
 Files: `api/teams.ts` (`listCapacityPeriods` is deliberately NOT wrapped: the view carries the periods); `hooks/useScheduleWritePath.ts` (the project view's write path, generic over the view document:
@@ -1925,39 +1927,35 @@ refresh a mounted page. The team editor's save refreshes `["teams"]` and `["plan
 ADMIN), never the session's roles.
 
 - **Header.** Name, description, the manager line, an ADMIN's Edit (`TeamEditorModal` on the view's team block). The Flow capacity flag sits beside the title: `team.flags[]` (the ONE `FLOW_CAPACITY`
-  roll-up of the OPEN rows, so an acknowledged row is not in it) goes through `PageHeader`'s `titleAddon` as a light badge (`TeamFlags`: orange with a triangle for a warning, gray with an info circle
-  for an info). The text is `flagSentence`'s "Capacity differs from Flow: N open differences" (open ROWS, not sprints: a gone Flow team is one too); the icon is `aria-hidden`, so it is announced once;
-  no count badge, nothing for `[]`.
+  roll-up of the OPEN rows, so an acknowledged row is not in it) goes through `PageHeader`'s `titleAddon` as a light badge (`TeamFlags`: orange triangle for a warning, gray info circle for an info). The text is `flagSentence`'s "Capacity differs from Flow: N open differences" (open ROWS, not sprints: a gone Flow team is one too); the icon is `aria-hidden`; no count badge,
+  nothing for `[]`.
 - **Facts line** (`TeamFacts`). "N milestones · M scheduled", ORANGE "N weeks overloaded" and "N weeks over WIP limit" badges (warnings: nothing moves), the RED conflicts badge of the project page, a
-  gray "N idle gaps" badge (absent at zero) and a gray "Custom order" badge while the team's own order is in force. The red badge is a `BadgeLink` to `/dependencies?status=violated&teamId=N`
-  (accessible name `teams.view.conflictsAria`); after the badges, only while `view.dependencies` is not empty, a link "N dependencies" (its length) to `/dependencies?teamId=N`
-  (`teams.view.dependenciesAria`). Both names start with their visible text; the paths come from `utils/dependencyListLinks.ts`.
+  gray "N idle gaps" badge (absent at zero) and a gray "Custom order" badge while the team's own order is in force. The red one is a `BadgeLink` to `/dependencies?status=violated&teamId=N`
+  (`teams.view.conflictsAria`); after the badges, only while `view.dependencies` is not empty, a link "N dependencies" to `/dependencies?teamId=N` (`teams.view.dependenciesAria`). Both names
+  start with their visible text; the paths come from `utils/dependencyListLinks.ts`.
 - **The timeline** (`TeamTimeline`, on the shared `Timeline*` with the sticky load `strip`) has one row per SCHEDULED milestone in the server's order: **the project rank is only the DEFAULT order; a
   manager's override is the execution order and is never reshuffled by a rank change.** A row has the project as a link, the estimate and the row menu. Arrows are drawn only between this timeline's
   rows (no ghost rows, no Dependencies table; a bar's name gains ", N conflicts"); the Unscheduled tray is the project page's.
 - **Two revisions, never crossed.** The view's `revision` is the PLAN revision: the schedule PUT's `expectedRevision`, adopted from the PUT's answer. `order.revision` is the TEAM's order revision: the
-  order PUT's `expectedRevision`, set ONLY from the order PUT's answer (`TeamOrderResponse.revision`, the plan revision the write left behind). The roadmap's revision is a third thing the page never
-  touches.
-- **Messages shared with the project page:** the busy / milestone-gone / stale / schedule-error / announce sentences are the project page's own keys (`project.busy`, `project.milestoneGone`,
-  `project.stale`, `project.scheduleForbidden`, `project.announce.*`): the same refusal says the same words on both pages.
-- **The strip's data.** `view.weeks` is handed to `TimelineLoadStrip` as it is: the API's `WeekLoad` is structurally the strip's local `LoadWeek` (`flowCapacity?` is optional on both; `stripCells`
-  normalises an absent member to `null`). The weekly table formats with two decimals (what the server flags on); the strip trims zeros.
+  order PUT's `expectedRevision`, set ONLY from the order PUT's answer (`TeamOrderResponse.revision`). The roadmap's revision is a third thing the page never touches.
+- **Messages shared with the project page:** the busy / milestone-gone / stale / schedule-error / announce sentences are its keys (`project.busy`, `project.milestoneGone`, `project.stale`,
+  `project.scheduleForbidden`, `project.announce.*`).
+- **The strip's data.** `view.weeks` is handed to `TimelineLoadStrip` as it is (the API's `WeekLoad` is structurally the strip's `LoadWeek`; `stripCells` normalises an absent `flowCapacity` to
+  `null`). The weekly table formats with two decimals (what the server flags on); the strip trims zeros.
 
 ### Critical path and the pin
 
 - **Critical path.** The page holds the project page's `useCriticalPathPick()` (the same remembered `timeline.criticalPath`; `<CriticalPathToggle>` in the timeline's `toolbar` after the baseline
   picker) and passes `criticalPath` to `TeamTimeline`; the Slack column, the critical emphasis and `markCriticalArrows` are `timeline.md` "The critical-path highlight". A dimmed
-  `teams.view.criticalNote` under the timeline title says the figures are toward each milestone's OWN project's end and a link is marked only on the chain of a project the team works on. Read, never
-  recomputed; off, the DOM is the one it was.
+  `teams.view.criticalNote` under the timeline title says the figures are toward each milestone's OWN project's end and a link is marked only on the chain of a project the team works on. Read, never recomputed.
 - **The pin.** `PUT /milestones/{id}/pin {pinned}` (`api/milestones.ts` `pinMilestone`, answers `{revision}`; no `expectedRevision`: an idempotent flag) is a SECOND write of `useScheduleWritePath`
   (`pin(id, pinned)`, so both timeline pages have it). It is its own mutation on the SAME write key (`teamWriteKey`; the project page's `["plan","project-write",id]`), so a drag, a pin and an order
   save see each other in flight and a change made meanwhile is refused out loud like any other (`refused`, `project.busy`).
   - The step is optimistic (`applyPin`, pure, generic over both views); success stores the answered plan revision into the entry the pin was made on (only) and refreshes `["plan"]`; a failure rolls
-    back and awaits the refetch.
-  - The quiet confirmation is the live region ("{{name}} pinned" / "unpinned", `project.announce.pinned|unpinned`); there is NO toast (a pin is a state, not an event).
+    back and awaits the refetch. The confirmation is the live region ("{{name}} pinned" / "unpinned", `project.announce.pinned|unpinned`), no toast (a pin is a state, not an event).
   - A 403 reads the schedule's forbidden sentence, a 404 the gone one, and the one 409 (`milestone-unscheduled`: it lost its dates meanwhile) `project.pinUnscheduled`, inline through the page's
     `error`; a taken schedule change and a taken pin each clear the other's old failure.
-  - The server clears the pin on an unschedule, so `applySchedule` / `applyTeamSchedule` set `pinned` false on a null pair (a reschedule keeps it).
+  - The server clears the pin on an unschedule: `applySchedule` / `applyTeamSchedule` set `pinned` false on a null pair (a reschedule keeps it).
   - The row menu (`TeamTimelineMenu.tsx`) offers Pin / Unpin dates for a SCHEDULED row under `team.can.schedule`, hidden while a proposal previews or requests (`lock.guarded`) and never on a tray row;
     the pinned row shows `PinMark` after its name and ", pinned" in its bar's name. A baseline's appended rows and the Jira bars are untouched.
   - **In the proposal**, the Proposed schedule `Summary` appends "N pinned" to the figures line and, when `proposal.pinned` is not empty, a dimmed sentence "N milestones keep their dates because they
@@ -1966,39 +1964,33 @@ ADMIN), never the session's roles.
 
 ### Writes: one at a time, and the team's order
 
-- **One write at a time.** The schedule mutation and the order mutation carry the same `mutationKey` (`teamWriteKey(id)`); each hook treats `useIsMutating(key) > 0` as "busy" and refuses a change OUT
-  LOUD: `commit` answers `false`, the hook sets its `refused` flag (the page's `role="note"` shows when either hook's is set) and announces `project.busy` in the live region (`onSchedule` answers
-  `false` for a drop; a Move or Reset is refused the same way, and the Reset confirm dialog stays open and says so inside, since a modal's content is all a screen reader reads). `refused` is cleared
-  by `hooks/useRefusal.ts` the moment NO write is in flight any more, whichever write was the busy one. Two optimistic writes on one cached view would roll each other back. The page's `busy`
-  (aria-busy, "Saving…") is either.
+- **One write at a time.** The schedule and order mutations carry the same `mutationKey` (`teamWriteKey(id)`); each hook treats `useIsMutating(key) > 0` as "busy" and refuses a change OUT LOUD:
+  `commit` answers `false`, the hook sets its `refused` flag (the page's `role="note"` shows when either hook's is set) and announces `project.busy` in the live region (`onSchedule` answers `false`
+  for a drop; a Move or Reset is refused the same way, and the Reset confirm dialog stays open and says so inside, since a modal's content is all a screen reader reads). `hooks/useRefusal.ts`
+  clears `refused` the moment NO write is in flight, whichever was busy (two optimistic writes on one cached view would roll each other back). The page's `busy` (aria-busy, "Saving…") is either.
 - **Order failures.** A stale 409 and a 400 (a listed milestone was deleted or moved to another team meanwhile: removals do not bump the team's order revision) are both "the list changed": rollback,
-  awaited refetch, the visible `role="note"` "The team's order changed in the meantime" and the same sentence in the live region (announced from `onError`, so a screen-reader user hears the list jump
-  back). 403 reads `teams.view.orderForbidden`; anything else the generic action-failed sentence.
+  awaited refetch, the visible `role="note"` "The team's order changed in the meantime" and the same sentence in the live region (from `onError`, so a screen-reader user hears the list jump back).
+  403 reads `teams.view.orderForbidden`; anything else the generic action-failed sentence.
 - **Optimistic order.** Every reorder goes through the hook's one seam `placed(id, permutation)` (a permutation of the displayed scheduled ids; the Move items and the row drop): `placeScheduled` turns
-  it into the full list (unscheduled listed milestones keep their index), `commit` sends it. `applyTeamOrder(view, ids)` (ids = the full list) shows the listed scheduled rows in that order and the
-  unlisted after them in the default order (rank position, project name, project id, start, end, name, id: the server's order without the custom positions); `order.milestoneIds` = the list (ids the
-  view does not hold dropped), `order.custom = ids.length > 0`, so the empty list (Reset) shows the default order at once. `applyTeamSchedule` appends a newly scheduled row (the refetch places it),
-  keeps a rescheduled row where it is and returns an unscheduled row to the tray in the default order.
+  it into the full list (unscheduled listed milestones keep their index), `commit` sends it. `applyTeamOrder(view, ids)` shows the listed scheduled rows in that order and the unlisted after them in
+  the default order (rank position, project name, project id, start, end, name, id: the server's order without the custom positions); `order.milestoneIds` = the list (ids the view does not hold
+  dropped), `order.custom = ids.length > 0`, so Reset (the empty list) shows the default order at once. `applyTeamSchedule` appends a newly scheduled row (the refetch places it), keeps a
+  rescheduled row where it is and returns an unscheduled row to the tray in the default order.
 - **Order commands.** The order is the wholesale `PUT /teams/{id}/milestone-order` against `view.order.revision`. The row menu's Move up / Move down / Move to top / Move to bottom (`can.editOrder`,
-  disabled at the ends) and the "Reset order" button (confirms with "Reset", then sends the empty list = the project rank again) are announced in the page's one polite live region; a refused Reset
-  keeps its confirm dialog open and says so inside.
-- **Menu focus.** Rows are keyed by milestone id, so a Move keeps the row's DOM node and Mantine's menu returns focus to its (still mounted) kebab; the roving grid's focus handler re-adopts it as the
-  tab stop at its new row.
+  disabled at the ends) and the "Reset order" button (confirms with "Reset", then sends the empty list = the project rank again) are announced in the page's one polite live region.
+- **Menu focus.** Rows are keyed by milestone id, so a Move keeps the row's DOM node and Mantine's menu returns focus to its kebab; the roving grid's focus handler re-adopts it as the tab stop.
 - **Row drag.** A manager (`can.editOrder`) also drags a row by its pointer-only handle (`TimelineRowHandle`, the first thing in the name cell). `TimelineDndContext` takes an optional
   `onReorder(id, slot) → boolean` (`onSchedule`'s twin: `false` = refused, announced as "not changed"); the page passes `order.dropAt(id, slot)` =
   `placed(id, moveToSlot(scheduledIds, id, slot), false)`, so a drop is the SAME `commit` as a menu Move (the optimistic `applyTeamOrder`, the PUT against `order.revision`, the stale/400 rollback).
-  - `false` as `placed`'s third argument means no page announcement: dnd-kit's region is the drag's single announcer, so the polite region does not repeat the menu's "moved to position". The menu
-    stays the keyboard path.
+  - `false` as `placed`'s third argument means no page announcement: dnd-kit's region is the drag's single announcer. The menu stays the keyboard path.
   - `moveToSlot` (`utils/roadmapOrder.ts`) removes the id and re-inserts it at `slot − 1` when the gap lies below it, else at `slot`; a slot of `from` or `from + 1` is the identity: the context
-    proposes those too and `placed` answers `true` WITHOUT a PUT when the permutation equals the displayed order, so the page, not a pick-up snapshot, judges a no-op.
-  - `TimelineDndContext` keeps the picked-up `DragData` in a ref because dnd-kit blanks an unmounted active node's data (a virtualised row scrolled out mid-drag). Mechanics and the slot arithmetic:
-    `timeline.md` "Row drag".
+    proposes those too and `placed` answers `true` WITHOUT a PUT when the permutation equals the displayed order (the page, not a pick-up snapshot, judges a no-op).
+  - `TimelineDndContext` keeps the picked-up `DragData` in a ref (dnd-kit blanks an unmounted active node's data). Mechanics and slot arithmetic: `timeline.md` "Row drag".
 
 ### Idle gaps and the Flow capacity marks
 
-- **Idle gaps** are information only (`timeline.md` "Idle bands"): `TeamTimeline` passes `bands={idleBands(view.idleGaps, t)}` (no window band on this page), `TeamFacts` adds the gray
-  `timeline.idle.badge` before the "Custom order" one (only when non-empty) and `<IdleGaps gaps scope="team" />` follows `TeamWeeklyLoad`. The optimistic steps spread the view, so the cached gaps stay
-  until the refetch.
+- **Idle gaps** are information only (`timeline.md` "Idle bands"): `TeamTimeline` passes `bands={idleBands(view.idleGaps, t)}` (no window band here), `TeamFacts` adds the gray
+  `timeline.idle.badge` before the "Custom order" one (only when non-empty) and `<IdleGaps gaps scope="team" />` follows `TeamWeeklyLoad`. The optimistic steps spread the view: cached gaps stay until the refetch.
 - **The Flow capacity marks** (the page half of `timeline.md` "The Flow capacity marker", which holds the strip cell's `data-flow-capacity` / `data-part="flow-capacity"` and the shapes).
   `weeks[].flowCapacity` (`WARNING`|`INFO`, only the weeks an OPEN row's held days meet) is read, never recomputed. The weekly table's verdict cell gains a badge "Differs from Flow" (orange / gray,
   `data-flow-badge`) BESIDE the week's own verdict (an OK week reads "OK" + "Differs from Flow"); the table's intro names the corner mark. The marks follow the CURRENT plan: a proposal preview's strip
@@ -2010,8 +2002,7 @@ ADMIN), never the session's roles.
 period takes effect on ANY date (no weekday rule: a weekend date applies from the next working day), man-days per week (0 ≤ x < 1,000,000, two decimals) and an optional WIP limit 1..99 (empty sends
 `null`); a date clash (409) marks the date field (the model: `planning-model.md` "Team capacity periods").
 
-- **Capacity dialog.** The `NumberInput`s use `clampBehavior="none"`: Mantine's default clamps `0` to the `min` of 1 on blur, which would silently turn an invalid WIP limit into a valid one; with
-  `none` the typed value reaches the validator and the inline message.
+- **Capacity dialog.** The `NumberInput`s use `clampBehavior="none"`: Mantine's default clamps `0` to the `min` of 1 on blur, silently making an invalid WIP limit valid.
 - **The weekly load table** (`TeamWeeklyLoad.tsx`, behind a `TableDisclosure`) is the accessible surface of the decorative strip: load, capacity ("—" when none), peak WIP and the verdict in words
   (orange "Overloaded · +X MD", orange "Over WIP limit", gray "OK" / "No capacity", plus the "Differs from Flow" badge).
 - A `source === "FLOW"` row gets a gray "Flow" badge titled with the sprint; the period editor says a saved edit makes the period hand-entered.
@@ -2021,34 +2012,31 @@ period takes effect on ANY date (no weekday rule: a weekend date applies from th
 Both are the shared pieces, fed from the team view alone (`timeline.md` "The baseline overlay" and "The Jira markers" hold the rows, bars, columns and the toggle).
 
 - **Baseline.** The picker sits in the timeline's toolbar (after Today); the query key and the three write hooks (`useTeamSchedule`, `useTeamOrder`, `useScheduleProposal`) take the pick. The Movement
-  section (`scope="team"`, with a Project column) follows Idle gaps.
-- **Jira.** The chip's count line is `teamMarks(view)` (the team's linked milestones, scheduled and tray, and their open flags). The "Jira dates" toggle sits after the baseline picker. The Flags
+  section (`scope="team"`, with a Project column) follows Idle gaps. 1.26: `TeamBaselineCapacity` (inside `TeamCapacity`, under the current periods) lists the capacity the baseline froze
+  as ranges (h4, From / To or "no end" / man-days / WIP); `captured: false` is one dimmed note without a heading.
+- **Jira.** The chip's count line is `teamMarks(view)` (the team's linked milestones, scheduled and tray, and their open flags); the "Jira dates" toggle sits after the baseline picker. The Flags
   column, the tray rows' key link and the dimmed appended rows `jira-unscheduled:<milestoneId>` are the shared pieces.
   - The appended rows' menu (`TeamTimelineRows.tsx`, the pure builders; `timeline.md` "Appended rows for the tray") offers "Schedule on Jira's dates" only while `team.can.schedule` holds, no proposal
-    previews and Jira's two dates are in order; the action is `lock.guarded` and writes the REAL dates through the page's one schedule write path, and the focus goes to the milestone's own row
-    afterwards (`useRowMenuFocus`).
+    previews and Jira's two dates are in order; it is `lock.guarded`, writes the REAL dates through the page's one schedule write path, then focuses the milestone's own row (`useRowMenuFocus`).
 
 ### The schedule proposal
 
-A third write path, `hooks/useScheduleProposal.ts` (the generated view of it: `timeline.md` "The proposal preview"). "Propose schedule" (timeline header, `team.can.schedule`) POSTs the viewer's local
-day as `asOf`. A proposal with something to show opens the **Proposed schedule section** (`components/TeamProposal.tsx`, h3, under the timeline before the Unscheduled tray; its summary line, table and
-unplaced rows are `components/ProposalTable.tsx`, a controlled table over the structural `ProposalContent` with no actions, which the cross-team page composes once per team); one that has nothing to
-show (nothing to propose / no capacity: add a capacity period first) opens nothing and says so in a note. The page is read-only while a proposal is requested or open (`hooks/useProposalLock.ts`).
+A third write path, `hooks/useScheduleProposal.ts` (the generated view: `timeline.md` "The proposal preview"). "Propose schedule" (timeline header, `team.can.schedule`) POSTs the viewer's local day as
+`asOf`. A proposal with something to show opens the **Proposed schedule section** (`components/TeamProposal.tsx`, h3, under the timeline before the Unscheduled tray; its summary line, table and
+unplaced rows are `components/ProposalTable.tsx`, a controlled, action-free table over the structural `ProposalContent`, which the cross-team page composes once per team); one with nothing to show
+(nothing to propose / no capacity: add a period first) opens nothing and says so in a note. The page is read-only while a proposal is requested or open (`hooks/useProposalLock.ts`).
 
 - **The section** is controlled by the hook (`selected`, `toggle`, `selectAll`, `selectNone`, `accept`, `discard`).
   - A summary line ("3 moves · 1 newly scheduled · 2 stay · 1 could not be placed"), a RED "N links would be violated" badge for links violated AFTER and not before (a gray "N links stay violated" for
     those violated both times: `linkTotals`).
-  - The table (`teams.proposal.tableAria`): a header "Accept all" `Checkbox` (`indeterminate` while only some rows are ticked), a per-row `Checkbox` named "Accept {{name}}"; Milestone with the project
-    as a link, Current, Proposed with its working days, Change = `changeSentence`, Links = `linksAtMove`: "would violate: <link> must start on <date> or later" (start or end by the link type,
-    `requiredEdge`: FS/SS start, FF/SF end) in red with a red "Conflict" badge, "resolves: link with ..." gray, nothing for a link that did not change.
-  - A "Could not be placed" row group with the reason in words (no capacity after {{date}}, the request's `asOf` like the page note / no room within the 520-week horizon, `PROPOSAL_HORIZON_WEEKS`; no
-    checkbox).
-  - The actions **Accept selected (N)** (primary; disabled at zero or while ANY write of the page runs) and **Discard** (disabled while the accept runs). The intro line says the link warnings and the
-    proposed load follow the moves you tick.
+  - The table (`teams.proposal.tableAria`): a header "Accept all" `Checkbox` (`indeterminate` while only some rows are ticked), a per-row `Checkbox` "Accept {{name}}"; Milestone with the project as a
+    link, Current, Proposed with its working days, Change = `changeSentence`, Links = `linksAtMove`: "would violate: <link> must start on <date> or later" (start or end by the link type,
+    `requiredEdge`: FS/SS start, FF/SF end) in red with a red "Conflict" badge, "resolves: link with ..." gray, nothing for an unchanged link.
+  - A "Could not be placed" row group with the reason in words (no capacity after {{date}}, the request's `asOf` / no room within the 520-week horizon, `PROPOSAL_HORIZON_WEEKS`; no checkbox).
+  - **Accept selected (N)** (primary; disabled at zero or while ANY write of the page runs) and **Discard** (disabled while the accept runs). The intro says the link warnings and the proposed load follow the ticks.
 - **Announcements.** Accept all / none are announced in the page's one polite region ("2 of 3 selected"); a per-row tick is a self-announcing checkbox. **What an accept came to** is a dismissible
-  `role="note"` line that lasts until the next action (`ProposalNotes` under the timeline header, green; orange when something was skipped: "3 scheduled · 1 skipped: rescheduled in the meantime"), as
-  are the whole-batch stale refusal and the re-proposal after a `stale-scope` refusal. The status region is the single announcer, so none is an `Alert` with its implicit `role="alert"`. There is no
-  success toast on accept.
+  `role="note"` line lasting until the next action (`ProposalNotes` under the timeline header, green; orange when something was skipped: "3 scheduled · 1 skipped: rescheduled in the meantime"), as are
+  the whole-batch stale refusal and the re-proposal after a `stale-scope` refusal. The status region is the single announcer (never an `Alert` with its implicit `role="alert"`); no success toast on accept.
 - **Failures.** A 403/404/400 of the accept is a `FormErrorAlert` INSIDE the open section above the actions (the preview stays open, the selection is kept) and takes the focus (the disabled Accept
   would otherwise drop it to the body); a propose's failure shows under the timeline header while no preview is open.
 - **Focus.** Discard takes it when the preview opens; Propose gets it back after Discard, an accept or a stale refusal, once no write is running (a disabled button cannot take it)

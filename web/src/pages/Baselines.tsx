@@ -25,6 +25,18 @@ import { saveErrorMessage } from "../utils/saveError";
 
 const NO_WRAP = { whiteSpace: "nowrap" } as const;
 
+/** A frozen count; null = taken before baselines froze it: "not captured" (unknown, never "none"). */
+function CapturedCount({ count }: { count: number | null }) {
+  const { t } = useTranslation();
+  return count === null ? (
+    <Text size="sm" c="dimmed">
+      {t("baselines.notCaptured")}
+    </Text>
+  ) : (
+    <>{count}</>
+  );
+}
+
 /**
  * The Baselines registry (`/baselines`): the named, frozen copies of the plan, newest first. Everyone signed in reads the list (a baseline's
  * name opens its comparison with the plan); `can.manage` (ADMIN or a ROADMAP_EDITOR, the server's own arithmetic — never the session's
@@ -55,7 +67,7 @@ export default function Baselines() {
     focusAfterDelete: titleRef,
   });
 
-  const columnCount = 8;
+  const columnCount = 10;
   const atCap = items.length >= BASELINE_CAP;
 
   return (
@@ -81,7 +93,7 @@ export default function Baselines() {
         </Text>
       )}
 
-      <ScrollRegion label={t("baselines.tableAria")} minWidth={960}>
+      <ScrollRegion label={t("baselines.tableAria")} minWidth={1200}>
         <Table aria-label={t("baselines.tableAria")}>
           <Table.Thead>
             <Table.Tr>
@@ -92,6 +104,8 @@ export default function Baselines() {
               <Table.Th>{t("baselines.column.by")}</Table.Th>
               <Table.Th ta="right">{t("baselines.column.milestones")}</Table.Th>
               <Table.Th ta="right">{t("baselines.column.projects")}</Table.Th>
+              <Table.Th ta="right">{t("baselines.column.links")}</Table.Th>
+              <Table.Th ta="right">{t("baselines.column.capacityPeriods")}</Table.Th>
               <Table.Th aria-label={t("common.table.operations")} style={{ width: 1 }} />
             </Table.Tr>
           </Table.Thead>
@@ -121,6 +135,12 @@ export default function Baselines() {
                   </Table.Td>
                   <Table.Td ta="right">{baseline.milestoneCount}</Table.Td>
                   <Table.Td ta="right">{baseline.projectCount}</Table.Td>
+                  <Table.Td ta="right">
+                    <CapturedCount count={baseline.dependencyCount} />
+                  </Table.Td>
+                  <Table.Td ta="right">
+                    <CapturedCount count={baseline.capacityPeriodCount} />
+                  </Table.Td>
                   <Table.Td style={{ width: 1 }} ta="right">
                     {can.manage && (
                       <RowActionsMenu label={t("common.table.operationsAria", { name: baseline.name })}>

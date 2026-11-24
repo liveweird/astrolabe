@@ -40,6 +40,12 @@ function DependencyRow({
       {/* Status, type and dates stay on one line (a badge clips its sentence, a date must not break at its hyphens); the ends wrap. */}
       <Table.Td style={NO_WRAP}>
         <DependencyStatusBadge check={check} />
+        {dependency.newSinceBaseline === true && (
+          // 1.26: with a baseline picked that froze its links, a link made since is marked - information, so gray, never a warning colour.
+          <Badge color="gray" tt="none" miw="max-content" ml="xs">
+            {t("project.dependency.newSinceBaseline")}
+          </Badge>
+        )}
         {showCritical && dependency.critical && (
           <Badge color="gray" tt="none" miw="max-content" ml="xs">
             {t("project.critical.linkBadge")}
