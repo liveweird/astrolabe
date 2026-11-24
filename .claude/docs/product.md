@@ -66,6 +66,7 @@ Each increment gets its own plan (architect) before implementation; only v0.1.0 
 | **1.23.0 Database time limit, Flow capacity flag, Home "Yours"** | A 15 s statement limit (`POSTGRES_STATEMENT_TIMEOUT_SECONDS`), the focus after "edit, then delete", the Flow capacity flag on the Roadmap and Programs, everything you manage on Home (no migration) |
 | **1.24.0 Technical release** | No feature: docs in Rules and sections with a guard, the spec's descriptions as contract, shared Jira and Flow pieces, two CI forks, a named e2e target; the item-level `acknowledgement` leaves `GET /views/deviations` |
 | **1.25.0 Reliability and navigation** | Complete Flow sprint snapshots (V31), atomic project edits, consistent API reads, grouped navigation and refreshed Home; 1.25.1 a new logo |
+| **1.26.0 Saved proposals, frozen links and capacity** (built, not yet released) | Cross-team runs saved and read by every signed-in user (V32); baselines freeze links and capacity (V33); paged `GET /work-streams` and `/programs`; docs under byte ceilings, fewer test sleeps |
 
 ## Domain decisions taken with the user
 
@@ -90,7 +91,7 @@ An answer is the user's own, including "all recommended" (the user chose the rec
 - **Cross-team run (1.8.0; the 1.7 plan's Q9a-Q13a of 2026-11-09 and the 1.8 plan's Q1a).** (1) The run places the chosen teams **in dependency order**, **each by today's per-team kernel with the teams placed so far as fixed facts**, repeated until a pass changes no back edge's source or `MAX_CROSS_TEAM_PASSES` = 5; the answer says `passes` and `settled`. (2) A **pinned milestone is fixed everywhere**. (3) **Every team of the run must be the caller's**:
   ADMIN, or the ACTIVE manager of EVERY listed team (a missing or deleted team is a 404 for everyone, then the first failing guard is the 403).
 - **Its accept and check (1.8.0).** (4) **One accept across teams**: ONE plan write, ONE revision bump, a whole-batch 403/409 first, then the per-item rules (GONE, NOT_ON_TEAM, NO_WORKING_DAY, STALE). (5) The run's **`scopeHash` is over the team SET** ("foreign" means outside the run set): a colleague's drag of a ticked item skips that item, a drag of an unticked milestone of any run team refuses the accept (`stale-scope`; the page re-proposes at once and keeps the ticks).
-  (6) **The check** (`POST /schedule-proposals/check`) answers "what if only THESE moves were accepted": ONE plan-scoped check, called by BOTH pages (the per-team path could not judge a cross-team link against the other sections' ticks); the client never recomputes a verdict. (7) A proposal stores nothing and a run is page state (a second manager cannot read it). Details: `scheduling.md` "The cross-team run".
+  (6) **The check** (`POST /schedule-proposals/check`) answers "what if only THESE moves were accepted": ONE plan-scoped check, called by BOTH pages (the per-team path could not judge a cross-team link against the other sections' ticks); the client never recomputes a verdict. (7) A proposal stores nothing and a run is page state until it is saved (1.26: a saved run is every signed-in user's to read, "v1.26.0"). Details: `scheduling.md` "The cross-team run".
 
 ### Dependencies, calendar and critical path
 
@@ -125,12 +126,13 @@ An answer is the user's own, including "all recommended" (the user chose the rec
 
 ### Baselines
 
-- **Baselines (0.9.0; the user's answers of 2026-11-02, all nine with the recommended option).** (Q1a) A baseline **captures** every active milestone (name, project, team, dates, estimate) and every active project (name, program, work stream, target window, rank position, derived span); links, capacity periods, holidays and team orders are not copied. (Q2a) **ADMIN or a `ROADMAP_EDITOR`** takes, renames and deletes; reads are every authenticated user's. (Q3a) **Plan-wide only**:
+- **Baselines (0.9.0; the user's answers of 2026-11-02, all nine with the recommended option).** (Q1a) A baseline **captures** every active milestone (name, project, team, dates, estimate) and every active project (name, program, work stream, target window, rank position, derived span); holidays and team orders are not copied (nor, before 1.26, links and capacity periods). (Q2a) **ADMIN or a `ROADMAP_EDITOR`** takes, renames and deletes; reads are every authenticated user's. (Q3a) **Plan-wide only**:
   one object at one plan revision, which every page filters to its own rows. (Q4a) It shows **everywhere, two ways**: a thin gray shadow bar under the current bar on all four timelines, a Movement table on the project and team pages ("Changed only" on by default), and a plan-wide comparison page per baseline (`/baselines/:id`).
 - **Baselines, continued (0.9.0).** (Q5a) **No baseline by default**: a Baseline picker on the toolbar lists them newest first (the newest marked "latest"), one pick remembered in the browser for every timeline page. (Q6a) Movement is **working days, start AND end, on the current calendar**; a later end is an orange "Later" badge, an earlier one gray. (Q7a) **Rows for everything**: an added milestone keeps its bar and reads "new since the baseline";
   a removed or unscheduled one gets a dimmed appended row with only its shadow bar (on the team page also "moved to {team}"). (Q8a) **A cap of 100 active baselines** (a `409` at the cap; delete makes room; a delete is a soft delete). (Q9a) A **change to the team's plan since a proposal** writes nothing and the page proposes again at once, keeping the ticks for the milestones that still move (the per-milestone STALE rule stays). Details: `planning-model.md` "Baselines", `timeline.md` "The baseline overlay".
 - **Two baselines compared (1.7.0; "all recommended", 2026-11-09).** (Q7a) The SAME comparison document and page, `GET /views/baseline/{id}?against=N` (the path id is "then", `against` is "now", any order, `against == id` is a `400`), with a "Compare against" picker (the live plan, or any other baseline, newest first with their plan revisions); the "Show on timeline" overlay stays one baseline against the live plan.
   (Q8) The **rank movement** against a baseline shows on the roadmap's rank cell ("5 (was 3)") and totals line and on the comparison page's project row ("rank 3 → 5").
+- **Links and capacity (1.26; the user's Q3 b, 2026-11-23).** A baseline also freezes every active link and every active capacity period (not holidays, not team orders); the comparison page lists the changed links and the capacity ranges that differ, the team page shows the capacity as it was, the project page marks a link "New since the baseline". An older baseline reads "not captured", not "no changes".
 
 ### The Jira sync
 
@@ -275,6 +277,38 @@ What was ported later, and what was left in Flow on purpose:
 ## Release history
 
 Newest first. Each version: its scope, the user's answers, the defaults that still bind and what was not built; the commits, the plans (they live outside the repository) and the test runs are in git. "No migration" means the preceding schema still applies. Every release leaves "nothing is written to Jira or Flow" true.
+
+### v1.26.0 — saved proposals, frozen links and capacity
+
+Built 2026-11-23 to 11-24, **not yet released** (the release commit flips this section to "what shipped"); a minor bump, the API only gains members. It carries the 1.25 review's fixes too.
+
+**Scope:**
+- **Saved proposals (V32).** A cross-team run is saved explicitly (a name, at least one move ticked), listed on `/schedule-proposals` and opened at `/schedule-proposals/saved/:id`. The server stores its own re-computation, never a client's document; the state is derived at read: CURRENT, CHANGED (the plan moved, or a team is gone) or UNREADABLE (another stored format).
+- **Baselines freeze links and capacity (V33).** Sections on the comparison page, counts on `/baselines`, the team's capacity "as it was", a link "New since the baseline" on the project page; older baselines read "not captured".
+- **Paged lists.** `GET /work-streams` and `GET /programs` (filter `name`; `workStreamId` on programs); the Jira bind dialog's program picker searches the server.
+- **The cross-team run re-places only stale teams:** a team is placed again only when a team with a link into it changed (wire-identical).
+- **Technical, no behaviour change:** every instruction doc under a byte ceiling, held by limit 9 of `scripts/check-docs-shape.mjs` (the new `scheduling.md` holds the auto-proposal and the cross-team run); nine main files split below 360 lines; the unit tests' sleeps cut, a guard each side. The CI budget re-baseline (G5) is its own commit.
+
+**On the wire:**
+- `GET`/`POST /saved-schedule-proposals` (`{items}`, newest first, at most 20, no documents), `GET`/`DELETE /saved-schedule-proposals/{id}`; audit `schedule_proposal.saved` and `.deleted`.
+- `GET /work-streams`, `GET /programs` (`ProgramListItem` adds `workStreamName`).
+- `dependencyCount` and `capacityPeriodCount` on `Baseline` (null = not captured); `links` and `capacity` on `GET /views/baseline/{id}` (also with `?against=`); `capacity {captured, periods}` in the team view's baseline overlay; `newSinceBaseline` on the project view's dependency rows; both counts on `baseline.created`.
+- From the 1.25 review: `totals.pending` on `GET /views/capacity-deviations`, the `FLOW_CAPACITY_PENDING` flag, `flowPendingTeamIds`.
+
+**Upgrade effect:** V32 and V33 are additive (a table, two frozen tables, two nullable count columns). A baseline taken before 1.26 has null counts and reads "not captured", never "no changes".
+
+**The answers (the user's, 2026-11-23):**
+- Q1 (a) every signed-in user may read a saved proposal. Q2 (a) the newest 20 are kept, the oldest dropped on the 21st save. Q3 (b) the wider option: the comparison page AND the team page's "was" capacity and the project page's "new since the baseline". Q4 (a) the bind dialog's program picker over `GET /programs`; work streams stay API-only.
+- Q5 and Q6 were not asked; defaults: (a) the CI re-baseline runs last on the then-last ten green master runs, (a) the byte ceilings become limit 9.
+- The 1.25 review's calls: an incomplete Flow sprint snapshot stays listed with a neutral marker on the Roadmap and the team page; a disabled connection's consequence is documented in `flow-sync.md`.
+
+**Defaults taken for v1.26.0:**
+- The list filter is `name` (the shared `NameQuery`).
+- A save is not plan state: no plan lock, no revision bump. Any save removes the globally oldest saved row (Q2); the delete guard (ADMIN or the manager of every stored team) stops a targeted delete only. The save has its own bucket of 10 a minute per user.
+- A saved run is acceptable only while CURRENT, with `can.accept` and `asOf` equal to today; "Propose again" shows with `can.delete`.
+- The team overlay's "was" capacity is `baseline.capacity {captured, periods}` inside the existing overlay; `newSinceBaseline` is absent when links were not captured (unknown, not "all new").
+- Links compare as added, removed or changed (type, lag); capacity as date ranges of the figure in force, so splitting a period in two equal ones is no change. Capacity is team data outside the plan revision: a capacity-only change leaves the comparison's `revision` equal, and the page's "plan has not changed" note says the capacity has.
+- The e2e cross-team world gains a third team with its own single-team login.
 
 ### v1.25.1 — a new logo
 
