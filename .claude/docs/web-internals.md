@@ -406,19 +406,9 @@ follows: `web/CLAUDE.md` "Per-feature rules". What the pages see of the componen
   card plus an insertion line show the slot, computed from the live pointer against the body-wide row zone, so it reaches unmounted rows). It is the
   timeline's variant of the Roadmap rule: a pointer-only, `aria-hidden` handle (one cell, one roving stop) plus the row menu as the keyboard path, announced
   by dnd-kit's region (`timeline.announce.*Row`). The page passes `onReorder(id, slot) → boolean`; absent, there is no reordering. Reference: "Row drag".
-- **Public holidays.** `holidays?: {date, name}[]` is the dictionary, any range; every page passes `useHolidays()`.
-  - A holiday working day is hatched like a weekend at week and month zoom (`trackBackground` = a holiday `linear-gradient` layer over the weekend layer, the
-    same `--timeline-hatch` ink, one `backgroundImage`).
-  - Its week-zoom header day cell is tinted and named in its `title` ("Public holiday: {{name}}", `data-holiday`).
-  - A `VisuallyHidden` paragraph after the toolbar lists the ones in view ("Public holidays shown: 2027-01-06 …"), because the header and tracks are `aria-hidden`.
-  - Decoration only: the server decides every figure. Reference: "Public holidays".
+- **Public holidays.** `holidays?: {date, name}[]` is the dictionary, any range; every page passes `useHolidays()`. Reference: "Public holidays".
 - **The load strip.** The optional `strip={{label, render: (scale) => …}}` prop adds a sticky THIRD header row (36 px, `aria-hidden`, a visible caption) under
-  the date cells; `components/TimelineLoadStrip.tsx` draws the weekly load into it from a local `LoadWeek[]` (the server's week row; the page maps its view onto it).
-  - One cell per ISO week at `scale.xOf(weekStart)`: a column against the capacity line (orange past it), a figure ("8.5 / 14"), a dashed WIP chip (a dot at
-    quarter zoom). The overload and the WIP warning differ by SHAPE, both orange.
-  - A week with no capacity (`null`) has only its dimmed figure, never flagged.
-  - Decorative: the page's weekly table is the accessible surface; tests read `data-week`/`data-overloaded`/`data-wip-exceeded`.
-  - The header becomes `headerHeight(hasStrip)` tall and every consumer follows it (`--timeline-head`); with no strip nothing changes. Reference: "The load strip".
+  the date cells; `components/TimelineLoadStrip.tsx` draws the weekly load into it from a local `LoadWeek[]` (the server's week row; the page maps its view onto it). Reference: "The load strip".
 
 ### Wiring notes
 
@@ -445,13 +435,8 @@ The non-obvious wiring:
    (a lazily built id→index map) lets the arrow input name rows by `TimelineRowData.id`, so a re-sorted page never re-indexes its arrows. The route math
    (`utils/timelineArrows.ts`) is pure; the tests feed a hand-built geometry, and `Timeline.test.tsx` covers the plain and the virtual path (the unmounted end
    of an arrow is positioned from data).
-10. **The header height.** The sticky header is `headerHeight(hasStrip)` = 56 px, or 92 px with a `strip` (`STRIP_HEIGHT` 36); all its consumers (the drop zone's `visibleBounds().top`, the virtualiser's
-    `scrollMargin`/`scrollPaddingStart`, `revealFocused`'s `clearTop`, the two CSS `scroll-margin-top`s via `var(--timeline-head)`) follow ONE number computed in `Timeline.tsx`. A new sticky
-    part adds to `headerHeight()`, never to a literal. `Timeline.test.tsx` "the load strip" pins `--timeline-head`, the drop zone's top, `clearTop` and `scrollMargin`; NOT pinned (happy-dom has no
-    layout and ignores CSS modules): `scrollPaddingStart` and the CSS uses (the team page's e2e or a manual pass). The strip is a header row, so the geometry's origin and the arrows do not move.
-11. **Public holidays.** `Timeline` takes `holidays?` and builds ONE epoch-day map per render (`holidayDayMap`) that feeds the row hatch (`trackBackground`, one `backgroundImage` string handed down as
-    `hatch`), the header day cells (`headerRows(scale, map)`: `title`, `data-holiday`) and the visually hidden "Public holidays shown" paragraph. Pages pass `useHolidays()` straight through. The tests
-    count `gradient(` occurrences on the body row's LAST `gridcell` (happy-dom keeps gradient strings in `style.backgroundImage`).
+10. **The header height** (`timeline.md` "The load strip"). NOT pinned (happy-dom has no layout and ignores CSS modules): `scrollPaddingStart` and the CSS uses (the team page's e2e or a manual pass).
+11. **Public holidays** (`timeline.md`). The tests count `gradient(` occurrences on the body row's LAST `gridcell` (happy-dom keeps gradient strings in `style.backgroundImage`).
 
 ## Home
 
@@ -806,14 +791,9 @@ column, the ghost-row lookup (by kind + id, never by `hops`) and the Critical ch
 
 - `ProjectPage` holds `useCriticalPathPick()` (the one `timeline.criticalPath` key, shared with the team page; called before the early return: hooks stay unconditional) and passes
   `criticalPath` and `<CriticalPathToggle>` (as `toolbar`) to `ProjectTimeline`, `showCritical` to `ProjectDependencies`.
-- The toggle is a "Critical path" button in the timeline's `toolbar` slot (after Today; `aria-pressed`, filled cyan while on; `useStoredState("timeline.criticalPath", false,
-  isBoolean)`).
 - `ProjectTimeline` (rows in `ProjectTimelineRows.tsx`, cell in `SlackCell.tsx`) adds the `slack` column; `withOptional` inserts the cell before the actions cell, so a bar's roving
   columns shift by one. `emphasized(t, critical, describe)` applies the outline to the bar fields, `arrowSpecs(view, criticalPath)` flags the arrows, and the ghost rows' slack and
   emphasis come from `upstreamIndex(view)` by kind + id.
-- `<CriticalChain view />` (`components/CriticalChain.tsx`, h3) is mounted right after `{dependencies}` (before `IdleGaps`) while the toggle is on and the project has milestones (the h3
-  order is Timeline, Unscheduled, Dependencies, Critical chain, Idle gaps).
-- Off, the DOM is unchanged (pinned). `applySchedule` leaves `slackDays`/`critical`/`criticalPath` as cached (the refetch brings the server's).
 - Strings: `project.critical.*`, `project.column.slack`, `timeline.criticalToggle`, `timeline.bar.critical`.
 
 ### The pin
@@ -1277,8 +1257,7 @@ the caller's own `can{edit, delete}`, the project view's flags, and nothing else
 - **The wire document names its ends once.** A row holds `predecessor`/`successor` as `{kind, id}` and the names are in `milestones`, `projects` and `teams`, exactly what the listed
   rows name. `resolveDependencyList` joins them back, once, in the page's query function (`readDependencyList`), so the cache holds the resolved list: each row's two ends are
   `{kind, id, name, projectId, projectName, teamId, teamName}` (the table, the filter and their tests read that).
-- It is NOT a `select`: a throwing `select` over a kept document makes TanStack Query re-render without end (its error result carries a fresh `errorUpdatedAt` each time), whereas an error
-  from the query function is the ordinary one. A reference the lists do not hold throws there: a failed read (below).
+- It is NOT a `select`: a reference the lists do not hold throws in the query function, a failed read (below); why, in the comment at `Dependencies.tsx:29-33`.
 - Each row is the project view's own item minus `critical` and `can`, in the server's order: the page never sorts
   or recounts.
 - The facts line (`role="group"`, "N dependencies", Home's own red string `home.roadmap.conflicts` and a gray "N not scheduled yet", each badge only when positive, the whole line absent

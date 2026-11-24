@@ -283,17 +283,11 @@ Newest first. Each version: its scope, the user's answers, the defaults that sti
 Built 2026-11-23 to 11-24, released overnight on the user's word of 2026-11-23 ("feel free to release and tag"); a minor bump, the API only gains members. It carries the 1.25 review's fixes too.
 
 **Scope:**
-- **Saved proposals (V32).** A cross-team run is saved explicitly (a name, at least one move ticked), listed on `/schedule-proposals` and opened at `/schedule-proposals/saved/:id`. The server stores its own re-computation, never a client's document; the state is derived at read: CURRENT, CHANGED (the plan moved, or a team is gone) or UNREADABLE (another stored format).
-- **Baselines freeze links and capacity (V33).** Sections on the comparison page, counts on `/baselines`, the team's capacity "as it was", a link "New since the baseline" on the project page; older baselines read "not captured".
-- **Paged lists.** `GET /work-streams` and `GET /programs` (filter `name`; `workStreamId` on programs); the Jira bind dialog's program picker searches the server.
-- **The cross-team run re-places only stale teams:** a team is placed again only when a team with a link into it changed (wire-identical).
-- **Technical, no behaviour change:** every instruction doc under a byte ceiling, held by limit 9 of `scripts/check-docs-shape.mjs` (the new `scheduling.md` holds the auto-proposal and the cross-team run); nine main files split below 360 lines; the unit tests' sleeps cut, a guard each side. The CI budget re-baseline (G5) is its own commit.
+- Saved proposals (V32: `scheduling.md` "Saved proposals"), links and capacity frozen in baselines (V33: `planning-model.md` "Baselines"; older baselines read "not captured") and the paged `GET /work-streams` and `GET /programs` (`planning-model.md` "The picker and milestone lists"), with the bind dialog's program picker searching the server.
+- **The cross-team run re-places only stale teams:** a team is placed again only when a team with a link into it changed (wire-identical; `scheduling.md`).
+- **Technical, no behaviour change:** every instruction doc under a byte ceiling (`ci.md` "Docs shape"; the new `scheduling.md`); nine main files split below 360 lines; the unit tests' sleeps cut, a guard each side. The CI budget re-baseline (G5) is its own commit.
 
-**On the wire:**
-- `GET`/`POST /saved-schedule-proposals` (`{items}`, newest first, at most 20, no documents), `GET`/`DELETE /saved-schedule-proposals/{id}`; audit `schedule_proposal.saved` and `.deleted`.
-- `GET /work-streams`, `GET /programs` (`ProgramListItem` adds `workStreamName`).
-- `dependencyCount` and `capacityPeriodCount` on `Baseline` (null = not captured); `links` and `capacity` on `GET /views/baseline/{id}` (also with `?against=`); `capacity {captured, periods}` in the team view's baseline overlay; `newSinceBaseline` on the project view's dependency rows; both counts on `baseline.created`.
-- From the 1.25 review: `totals.pending` on `GET /views/capacity-deviations`, the `FLOW_CAPACITY_PENDING` flag, `flowPendingTeamIds`.
+**On the wire:** `documentation.yaml` is the contract; the shapes are in `planning-model.md` "Baselines", "The roadmap view" and "The picker and milestone lists", `authorization.md` "Schedule proposals", `list-endpoints.md` "Sub-collections and facets", `observability.md` (the audit events) and `flow-sync.md` "Deviations".
 
 **Upgrade effect:** V32 and V33 are additive (a table, two frozen tables, two nullable count columns). A baseline taken before 1.26 has null counts and reads "not captured", never "no changes".
 
@@ -330,7 +324,7 @@ Built outside the planned-release workflow (PR #41) and released 2026-11-22, a m
 
 A technical release, built 2026-11-15 and released on the user's word ("release 1.24", 2026-11-15), `1.24.0` (a minor bump: the API removes a member). No feature, migration (V30 stays the last), endpoint, audit event, Jira or Flow call, or dependency.
 
-**Scope:** every large doc restructured to `## Rules` plus sections, with a guard (`scripts/check-docs-shape.mjs`) and the new `sync.md`; the spec's descriptions as contract, named enums, one `TeamRef`; refactors without a behaviour change; CI with two forks; Playwright only against a named stack.
+**Scope:** no behaviour change; the docs layout and its guard are `ci.md` "Docs shape", the two CI forks `ci.md`, the contract is the spec.
 
 **On the wire:**
 - **API removal:** the items of `GET /views/deviations` no longer carry the deprecated item-level `acknowledgement` (Q5); each line's own, the filters, the counts and the acknowledge routes are unchanged.
@@ -358,8 +352,7 @@ A technical release, built 2026-11-15 and released on the user's word ("release 
 
 ### v1.23.0 — what shipped
 
-Released on the user's word (2026-11-15), a minor bump (a new configuration key, a new flag kind, new members on Home's rows): a database time limit, the focus after "edit, then delete", the Flow capacity flag on the Roadmap and Programs, everything you manage on Home. The user picked five `BACKLOG.md` items and was PRESENT. No migration, new endpoint, write, audit event, rate bucket, Jira or Flow call, stub data or dependency. On the wire:
-`POSTGRES_STATEMENT_TIMEOUT_SECONDS`, the problem type `urn:astrolabe:problem:database-timeout` on the existing `500`, the `FlagKind` value `FLOW_CAPACITY_MILESTONES`, and `ownerName` and `direct` on the program and project rows of `GET /views/home`.
+Released on the user's word (2026-11-15), a minor bump (a new configuration key, a new flag kind, new members on Home's rows); the scope is the 1.23.0 row of the roadmap above. The user picked five `BACKLOG.md` items and was PRESENT. No migration, new endpoint, write, audit event, rate bucket, Jira or Flow call, stub data or dependency. The wire members are stated in `persistence.md` (the limit's key), `authorization.md` (the typed `500`) and `planning-model.md` (`FLOW_CAPACITY_MILESTONES`, "The home view").
 
 **The answers:**
 - Q1 (a) one statement limit of 15 seconds on the whole pool, 0 = off, covering the views and everything else (not (b) only the reads that change nothing, 10 s, at two extra round trips a read; not (c) no limit).
@@ -592,8 +585,7 @@ removals are listed and never preselected; the last imported sprint's figure sta
 
 ### v1.4.0 — what shipped
 
-Coverage and roll-ups, proven against the stub only (walk-through step 9 and ledger A11 to A14: `jira-sync.md`). **V23** (additive): the mirror `jira_issues` and `jira_connections.census_at`; the EXISTING run observes the census in the same pass. Three deviation kinds on the PARENT's binding (`UNLINKED_IN_JIRA`, `UNLINKED_IN_PLAN`, `CHILDREN_DONE`, declared last so older fingerprints hold), `jira.rollup` on every milestone `JiraLink` and the Deviations item from ONE `GROUP BY`;
-the views make no outbound call. `JIRA_TEST_RATE_LIMIT_PER_MINUTE` (1..100, blank = 10) pins the Test/Peek bucket (30 on the compose stack and the OrbStack overlay). The answers Q1a-Q6a (the user's "all recommended, go ahead", 2026-11-07) are in "Domain decisions".
+Coverage and roll-ups, proven against the stub only (walk-through step 9 and ledger A11 to A14: `jira-sync.md` "The census" and the deviation kinds state what was built). **V23** (additive: `persistence.md`); the config key `JIRA_TEST_RATE_LIMIT_PER_MINUTE` is in `security.md`. The answers Q1a-Q6a (the user's "all recommended, go ahead", 2026-11-07) are in "Domain decisions".
 
 **Defaults taken** (any can be reversed):
 - Done Jira children are not `UNLINKED_IN_JIRA` (closed work the plan never had is history) but count in roll-ups; every non-sub-task type at the child level counts.
@@ -607,8 +599,7 @@ the views make no outbound call. `JIRA_TEST_RATE_LIMIT_PER_MINUTE` (1..100, blan
 
 ### v1.3.0 — what shipped
 
-Polling, status, acknowledge and the timeline markers, proven against the stub only. **V22** (additive): `jira_connections.poll_interval_minutes` (default 15, `CHECK` 5..1440 or null) and the acknowledgement columns on `jira_bindings` (dropped in 1.13). The in-process scheduler (`sync/SyncScheduler.kt`, `SYNC_SCHEDULER_ENABLED`, `SYNC_TICK_SECONDS`; it claims through the ordinary run claim, so two replicas never double-run) over the pure `SchedulePolicy.decide` (nothing stored);
-`SyncStatus` (NEVER_SYNCED, CURRENT, STALE after 3 intervals, FAILED, DISABLED); `POST`/`DELETE /integrations/jira/bindings/{id}/acknowledge`; the four timeline views fold Jira in through `planning`'s `ExternalFlagSource` seam (a `JIRA_DEVIATION` flag per open deviation, one `JIRA_MILESTONES` roll-up per project, `jira{}` links, `jiraSites[]`); acknowledged items, disabled connections and `ESTIMATE_NOT_COMPARABLE` raise nothing. The web adds the Polling group, a status badge and filter, Jira flags and the "Jira dates" toggle with the shadow bar `jira:<id>` on all four pages.
+Polling, status, acknowledge and the timeline markers, proven against the stub only. **V22** (additive: `persistence.md`; its acknowledgement columns were dropped in 1.13). The scheduler and the five states are `sync.md`; the acknowledge routes, the deviation flags and the markers are `jira-sync.md` and `planning-model.md` "The roadmap view".
 
 **The answers** (the user: "yes, recommendations are fine, feel free to go ahead", 2026-11-07; any can be reversed):
 - (Q1) a per-connection `pollIntervalMinutes`, default 15, 5..1440, `null` = manual only; existing connections start polling at the upgrade.
@@ -621,8 +612,7 @@ Polling, status, acknowledge and the timeline markers, proven against the stub o
 
 ### v1.2.0 — what shipped
 
-Import from Jira, proven against the stub only (walk-through and ledger A10: `jira-sync.md`). **No migration.** `POST /integrations/jira/connections/{id}/import-preview` (a read, nothing stored) and `POST …/{id}/import` (the ticked rows, re-browsed and re-decided under ONE `withPlanWrite`: programs, projects and milestones created under the picked work stream, each bound to its Jira item, one revision bump, one `jira.import_applied` audit line); the `jira-import` bucket (5/min per user); up to 2,000 items (a truncated scope is a `400` on the apply);
-a 170 s browse deadline; a three-phase modal on the connection page; the stub's isolated `IMP` project.
+Import from Jira, proven against the stub only (walk-through and ledger A10: `jira-sync.md` "Import", which states the routes, the bucket, the bounds and the audit line). **No migration.**
 
 **The decisions** (the user's, on the plan's recommended options; any can be reversed):
 - (A) the e2e imports an isolated `IMP` stub project, not `E2E`: program names are globally unique, so importing `E2E` would collide with the user's own demo import and with the specs that bind it.
@@ -634,8 +624,7 @@ the planner reads only the direct Jira parent, so an item under an unmapped inte
 
 ### v1.1.0 — what shipped
 
-The Jira sync's first release, proven against a built-in stub only (walk-through and ledger A1–A8: `jira-sync.md`). V21; `infra/fetch/`; the guarded Jira client; the ADMIN registry (token encrypted at rest); probes, discovery, mapping, Peek; 1:1 bindings; the connector-agnostic run registry (`sync/`); the deviation kernel and `GET /views/deviations`;
-the stub on compose and the Kubernetes overlay (port 8096). **Not in 1.1:** polling, acknowledge, import, coverage, Flow. `ingest/`, the raw store and the role switch were deliberately not ported (see "Donors"). The five overnight defaults were ruled on and kept ("The Jira sync" above).
+The Jira sync's first release, proven against a built-in stub only (walk-through and ledger A1–A8: `jira-sync.md`; the pieces are `CLAUDE.md`'s `jira/`, `sync/` and `infra/fetch/` lines). V21. **Not in 1.1:** polling, acknowledge, import, coverage, Flow. `ingest/`, the raw store and the role switch were deliberately not ported (see "Donors"). The five overnight defaults were ruled on and kept ("The Jira sync" above).
 
 ### v1.0.0 — what shipped
 

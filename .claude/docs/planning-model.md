@@ -578,7 +578,7 @@ Pinned by: `BaselineTest`, `BaselineCopyTest`, `BaselineCaptureTest`, `BaselineC
 
 One-off and NON-BINDING; this machine, in-process `testApplication` against the Postgres container, one warm-up then five timed reads, the median; statements are counted below Exposed (only `SELECT`s; the dialect probe `SELECT current_database()` of a fresh database is not counted). Re-measure rather than quote. The client-side figures are `timeline.md`'s.
 
-**Gates.** The team view with the overlay is gated at 400,000 B and 40,000 B gzip (`TEAM_VIEW_GATE_BYTES`; the wire is gzip, and a smaller gate would mean dropping the always-present nulls the contract promises) and the project view with the overlay at 40,000 B (`JiraFlagsScaleTest`). A gate is revised only with its measurement in the same commit.
+**Gates.** The team view with the overlay is gated at 400,000 B and 40,000 B gzip (`TEAM_VIEW_GATE_BYTES`; the wire is gzip, and a smaller gate would mean dropping the always-present nulls the contract promises) and the project view with the overlay at 40,000 B (`JiraFlagsScaleTest`).
 
 | Metric | Figure | Repeat with |
 |---|---|---|
@@ -587,11 +587,8 @@ One-off and NON-BINDING; this machine, in-process `testApplication` against the 
 | Home, worst case (one person owns 125 nodes, manages 15 teams) | 31,533 B (gzip 1,956 B) against the 40,000 B gate, median 45-54 ms; the other callers 687, 504, 386 B; stop line 250 ms, tripwire 500 ms. Each program and project row's `ownerName` and `direct` cost about 52 B | `HomeViewSizeTest` |
 | Home, statements | the roadmap read (18) + 5 for any caller + 1 for a person, nothing per managed team: 23, 24, 24, 24 for a login without a person, a person with nothing, the manager of one team, the manager of 15. The roadmap's part moves with the Jira fold, so the test pins Home relative to the roadmap counted in the same test | `HomeViewSizeTest` |
 | The roadmap read with an enabled Flow link | 13 statements enabled, 9 disabled, whatever the number of teams; median 12.8 ms and 6.4 ms on a small plan (stop line 10 ms) | `RoadmapFlowFlagTest`'s two-team world |
-| Team load | 27,928 B for the sample's 15 teams (gate 42,000 B); a row about 196 B, a listed warning week 123 B, `currentWeekStart` 32 B; at both caps about 290 KB; median 22.8 ms | `HomeViewSizeTest` |
-| Dependencies | 117,984 B for 300 sample links (gate 170,000 B); a row about 360 B with the ends named once, `can` 36 B; at the 1,000-row cap about 340 KB, the wire about a ninth of it; median 13.9 ms | `HomeViewSizeTest` |
 | Bytes in the Jira blocks | a bound milestone row costs about 125 B for `jira` and about 215 B for each flag; a clean bound milestone the 125 B alone, an unbound one 24 B (`"jira":null,"flags":[]`); a filled `JiraLink.rollup` (`jira.rollup`) about 75 B against 14 B for `"rollup":null`; each `jiraSites[]` entry 33 to 41 B (`state` and `mappingOk` add 40 B to a one-site document) | `JiraFlagsScaleTest` |
 | The baseline overlay | about 50 KB on the team view: a `baseline.milestones[]` entry 166 B on average, a comparison milestone row 296 B, a comparison project row 442 B, a roadmap project's `baseline` object 192 B | `JiraFlagsScaleTest` |
-| Other medians | the largest sample team view 37.7 ms; a 1,000-item batch accept 74 ms; Home's four callers 38-58 ms | `HomeViewSizeTest`, `TeamScheduleBatchHoldTimeTest` |
 
 ## The roadmap view
 

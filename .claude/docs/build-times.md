@@ -128,8 +128,6 @@ The whole `server-build` gate (1,760 tests, tests + Kover + detekt + `installDis
 - **`gates.sh` defaults to 2** (`ASTROLABE_FORKS`); the Gradle property stays at 1.
 - **CI runs 2 since 1.24.0 (G2)**: `TEST_FORKS: "2"` in `ci.yml` after `server/test-weights.tsv` was refreshed from one green single-fork run, the fork-balance block of the job summary read on each run, and kept after the trial judged in Astrolabe WHY 3 below (the weights drift check already runs there).
 - The balanced order also moved `BaselineCopyTest` after classes that soft-delete projects, which failed it in five of six multi-fork runs until its expected-rows query was restricted to the plan's active projects (`test-fixtures.md`).
-- `SharedPauseTest` (a virtual-clock race: two callers resuming from a shared pause in either order, one of them able to see the other's new Retry-After first, plus a default sleeper that summed concurrent sleeps) failed once in ten multi-fork runs while the machine was loaded, and twice on CI's single fork on 2026-11-08; it is not order-dependent.
-- **Fixed (1.6.0):** the default sleeper moves the clock to its own absolute target (`max(clock, begin + ms)`), and the two concurrent-resume tests gate each sleep and release the callers one at a time, waiting on an explicit signal (a counter, the retry reaching the engine) instead of the scheduler; ten runs and six runs under 36 CPU burners on 18 cores all green.
 
 ## Fixtures that add start-up cost
 
