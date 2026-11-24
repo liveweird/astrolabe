@@ -2,7 +2,7 @@
 
 - **Spec**: [tests/cross-team-proposal.spec.ts](../tests/cross-team-proposal.spec.ts)
 - **Actors**: three throwaway logins seeded through the API — a MANAGER (the manager of both teams, owning nothing), a SINGLE manager (the manager of team Y
-  in the third scenario only) and a project OWNER (a person who owns the project and manages no team); the seed administrator acts only through the API
+  in the third scenario, of a third team Z in the fourth) and a project OWNER (a person who owns the project and manages no team); the seed administrator acts only through the API
   (seeding, and reading the stored milestones back).
 - **Owns** (exclusive server-side state): its throwaway users, people, TWO teams each with ONE capacity period (from Monday 2048-01-06, 10 man-days a week,
   no WIP limit), work stream, program, project, two milestones and the link between them (unique `e2e-ct-*` names), all seeded through the API and removed by
@@ -52,3 +52,16 @@ The run, counted by hand on the Monday-to-Friday calendar (no holiday): team X i
      team X is a fixed fact of this one-team run, not part of it.
 3. They sign out and the project OWNER (who manages no team) signs in and opens the page.
    - *Expected*: the empty state "You manage no team" with its hint "A team's manager or an administrator can run a proposal."; no multi-select and no **Propose** button.
+
+## Scenario: a manager of two teams saves a proposal, a manager of another team opens it and cannot accept, and the first accepts it from the saved page, which then reads as changed
+
+1. The MANAGER signs in, opens the page, picks X and Y, presses **Propose**, then **Save proposal**, types a unique name (`e2e-ct-saved-*`) and presses **Save proposal** in the dialog.
+   - *Expected*: the save request answers 201 and the dialog closes; the **Saved proposals** table has a row with the name, both teams and "2 of 2" ticked moves, with a Delete button for the saver; y1 is still unscheduled (saving writes nothing to the plan).
+2. They sign out; the SINGLE manager (the manager of team Z only) signs in and opens the page.
+   - *Expected*: the same row shows no Delete button.
+3. They open the proposal through its name link.
+   - *Expected*: the URL is `/schedule-proposals/saved/<id>`; the h2 is the saved name; the state badge reads **Current**; the note says they can read it but only an administrator or the manager of every team in it can accept it; y1's row reads "Unscheduled → 2048-01-08 to 2048-01-08, 1 working day"; x1's tick is checked and disabled; there is no **Accept selected across teams** and no **Propose again**.
+4. They sign out; the MANAGER signs in, opens the page and the same proposal.
+   - *Expected*: the badge reads **Current** and **Accept selected across teams (2)** shows (the stored run is the editable preview).
+5. They press **Accept selected across teams (2)**.
+   - *Expected*: ONE accept request succeeds with 2 accepted and 0 skipped; the note reads "2 scheduled"; the badge turns **Changed** with its note ("The plan changed after it was saved, so it can no longer be accepted."); no Accept button is left; the API (as the administrator) shows y1 at 2048-01-08 to 2048-01-08.

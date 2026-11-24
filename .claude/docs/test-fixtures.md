@@ -303,8 +303,9 @@ Files: `e2e/tests/schedule-proposal.spec.ts`; prefix `e2e-sp-*`. Year **2042** (
 
 Files: `e2e/tests/cross-team-proposal.spec.ts`; prefix `e2e-ct-*`. Year **2048** (2048-01-06 is a Monday; nothing writes a holiday there).
 
-- Seeded per test (the schedule-proposal helpers, copied): a project OWNER login (manages nothing), a team MANAGER login whose person manages BOTH teams X and Y, a SINGLE manager login (third scenario only: the world's `split` flag gives team Y to this person, because a team has one manager). Each team has ONE capacity period from Monday 2048-01-06 (no WIP limit); `x1` on X is scheduled, `y1` on Y unscheduled, link `x1 -FS-> y1`.
+- Seeded per test (the schedule-proposal helpers, copied): a project OWNER login (manages nothing), a team MANAGER login whose person manages BOTH teams X and Y, a SINGLE manager login (third scenario: the world's `split` flag gives team Y to this person, because a team has one manager; fourth: `soloTeam` gives this person a third team Z instead, so they manage one team and neither of the run's). Each team has ONE capacity period from Monday 2048-01-06 (no WIP limit); `x1` on X is scheduled, `y1` on Y unscheduled, link `x1 -FS-> y1`.
 - The plan revision is shared with every parallel spec, so the accept test asserts the answer's revision is ABOVE the run's, never an exact bump. The spec holds the lock `holiday-dictionary` (a run's scope hash covers the holiday dictionary).
+- The fourth test SAVES a proposal through the page (`e2e-ct-saved-*`) and registers its delete first in the teardown: the saved table holds the newest 20 for everyone and any save evicts the oldest, so it never relies on another row, clears none, and saves once (10 a minute per login).
 - `accessibility.spec.ts` sweeps `/schedule-proposals` (empty page, as the administrator it offers every team) among the list pages.
 
 ### The e2e baselines world
@@ -314,6 +315,7 @@ Files: `e2e/tests/baselines.spec.ts`; prefix `e2e-bl-*`. Year **2043** (2043-01-
 - Seeded per test (the team-view helpers, copied): a project OWNER login O and a team MANAGER login M (neither holds the baseline right: ADMIN or `ROADMAP_EDITOR` only), a login-less lead's stream and program, a team T managed by M, a project P owned by O with two milestones on T. The first two tests re-plan P (a move and a new milestone, the second also a delete).
 - **Baselines are plan-wide shared state** (up to 100 active, each a copy of the WHOLE plan, other specs' rows included), so each test takes its OWN baseline (a unique `e2e-bl-*` name, through the UI in scenario 1, otherwise the API) and soft-deletes it in the afterEach (before the project: the teardown list runs in reverse), and no step counts rows, asserts the list is empty or reads a total: every assertion is anchored on P's milestones, rows or the baseline's own name.
 - The pick is a browser setting (`localStorage` `timeline.baseline`), so a fresh browser context per test keeps it from every other spec. The two-baseline test ranks its own project at the end of the ranking (`updateRankingViaApi`; the page's "Unranked → rank N" is asserted, never N).
+- The 1.26 test gives T a capacity period (2043-01-05, 10 MD a week) through the ADMIN API BEFORE taking its baseline, then adds a link `m1` -> `m2` and a cut period (2043-02-02, 5 MD a week); both go with the project and the team in the afterEach, and the assertions read only P's rows and T's own group of the Capacity table.
 - `accessibility.spec.ts`'s baseline describe takes one `e2e-axe-bl-*` baseline in its `beforeAll` (a 2026 world) and soft-deletes it first in its `afterAll`; the scenario file's **Owns** line and the ledger in `e2e/README.md` carry the year.
 
 ### The e2e Jira world

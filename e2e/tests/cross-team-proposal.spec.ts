@@ -1,13 +1,18 @@
 // The cross-team schedule proposal (1.8) on /schedule-proposals, in 2048: a login that manages two teams runs ONE proposal over both, reads the
 // second team's milestone landing after the first team's PROPOSED date and accepts both teams' moves in one write; unticking the first team's move
-// turns the link into a warning through the ticked-subset check; a manager of one team is offered that team only and a login managing nothing is told so.
-// Owns: its throwaway users, people, TWO teams (each with ONE capacity period from Monday 2048-01-06, 10 MD/week, no WIP limit), work stream,
-// program, project, two milestones and the link between them (unique `e2e-ct-*` names), all seeded through the API and deleted by the afterEach
-// below (the project first - its milestones and link go with it - then program, work stream, teams, people, users). Every date it pins is in 2048,
+// turns the link into a warning through the ticked-subset check; a manager of one team is offered that team only and a login managing nothing is told so;
+// a saved proposal (1.26) is opened by a manager of another team, who cannot accept it, and accepted from its page by the manager of both teams.
+// Owns: its throwaway users, people, TWO teams (each with ONE capacity period from Monday 2048-01-06, 10 MD/week, no WIP limit; the saved-proposal
+// test adds a third, the SINGLE manager's), work stream, program, project, two milestones and the link between them (unique `e2e-ct-*` names), and
+// the ONE saved proposal that test saves (named `e2e-ct-saved-*`), all deleted by the afterEach below (the saved proposal first, then the project -
+// its milestones and link go with it - then program, work stream, teams, people, users). Every date it pins is in 2048,
 // which no other spec writes a holiday in; the real clock is the proposal's `asOf`, and nothing can land before a team's first capacity period.
 import { randomUUID } from "node:crypto";
 import type { APIRequestContext, Page, Response } from "@playwright/test";
 import { apiAsAdmin, deleteViaApi, expect, login, signOut, test, uniqueText } from "./helpers";
+
+/** The run's team sections (h3), without the page's "Saved proposals" h3. */
+const teamHeadings = (page: Page) => page.getByRole("heading", { level: 3 }).filter({ hasNotText: "Saved proposals" });
 
 // A cross-team proposal's scope token carries the global holiday dictionary, which `public-holidays` writes (2040): a holiday written while a run is open
 // can stale the accept (409 `stale-scope`, when it changes an accepted date). The specs that write the dictionary or compare the figures never run at the same time.
@@ -60,13 +65,14 @@ async function seedUser(api: APIRequestContext, label: string): Promise<{ id: nu
  * on Monday 2048-01-06 (10 MD/week, no WIP limit: 2 MD a working day), a plan holding one project owned by the owner, and its milestones: `x1` 4 MD on
  * team X scheduled late (Monday 2048-03-02 to Tuesday 03-03), `y1` 2 MD on team Y unscheduled, and the finish-to-start link `x1 -> y1`. Team X is
  * managed by the MANAGER's person; team Y by the same person (the manager runs both teams) or, with `split`, by the SINGLE manager's (a team has
- * one manager, so the third scenario's world gives Y away).
+ * one manager, so the third scenario's world gives Y away). With `soloTeam`, a third team Z (the same capacity, no milestones) is managed by the
+ * SINGLE manager, who then manages one team and none of the two the run is about (the fourth scenario).
  *
  * The run, counted by hand (2048 has no holiday on this stack): X is placed first (the link points from it), x1 takes two working days from the
  * first day with capacity, **2048-01-06 to 2048-01-07**; Y is placed with X's PROPOSED dates as facts, so y1 starts the working day after x1's
  * proposed end, a one-day milestone on **2048-01-08**; one pass, settled. Against x1's STORED end (03-03) y1 would start on 2048-03-04.
  */
-async function seedWorld(split = false): Promise<World> {
+async function seedWorld(split = false, soloTeam = false): Promise<World> {
   const { api } = await apiAsAdmin();
   const owner = await seedUser(api, "owner");
   const manager = await seedUser(api, "manager");
@@ -84,6 +90,7 @@ async function seedWorld(split = false): Promise<World> {
   };
   const teamX = await team("x", managerPerson);
   const teamY = await team("y", split ? singlePerson : managerPerson);
+  if (soloTeam) await team("z", singlePerson);
   const streamId = await seed(api, "/api/v1/work-streams", { name: uniqueText("e2e-ct-stream"), ownerPersonId: lead, startDate: "2026-01-05" }, "/api/v1/work-streams");
   const programId = await seed(api, `/api/v1/work-streams/${streamId}/programs`, { name: uniqueText("e2e-ct-program"), ownerPersonId: lead }, "/api/v1/programs");
   const projectId = await seed(api, `/api/v1/programs/${programId}/projects`, { name: uniqueText("e2e-ct-project"), ownerPersonId: ownerPerson }, "/api/v1/projects");
@@ -116,6 +123,7 @@ const note = (page: Page, text: string) => page.getByRole("note").filter({ hasTe
 // instead of timing out with nothing (the 2026-11-02 flake of the single-team accept).
 const isApi = (method: string, suffix: string) => (r: { request(): { method(): string }; url(): string }) =>
   r.request().method() === method && r.url().endsWith(`/api/v1/schedule-proposals${suffix}`);
+const isSave = (r: { request(): { method(): string }; url(): string }) => r.request().method() === "POST" && r.url().endsWith("/api/v1/saved-schedule-proposals");
 async function expectOk(response: Response): Promise<Response> {
   expect(response.status(), await response.text()).toBe(200);
   return response;
@@ -157,7 +165,7 @@ test("the manager of two teams runs a cross-team proposal: the second team's mil
 
   // One pass, settled; the sections in placement order (X, whose link points ahead, then Y).
   await expect(note(page, "Placed in 1 pass · settled")).toBeVisible();
-  await expect(page.getByRole("heading", { level: 3 })).toHaveText([world.teamX, world.teamY]);
+  await expect(teamHeadings(page)).toHaveText([world.teamX, world.teamY]);
   await expect(page.getByText("placed 1 of 2")).toBeVisible();
   await expect(page.getByText("placed 2 of 2")).toBeVisible();
   // x1 moves from March to the first days of the year; y1 lands the working day AFTER x1's proposed end, not after its stored one.
@@ -231,7 +239,7 @@ test("a manager of one team is offered that team only, and a login managing noth
   await pickTeams(page, world.teamY);
   await propose(page);
   await expect(note(page, "Placed in 1 pass · settled")).toBeVisible();
-  await expect(page.getByRole("heading", { level: 3 })).toHaveText([world.teamY]);
+  await expect(teamHeadings(page)).toHaveText([world.teamY]);
   await expect(row(page, world.teamY, world.y1)).toContainText("Unscheduled → 2048-03-04 to 2048-03-04, 1 working day");
 
   // The project OWNER manages no team: the empty state, no multi-select and no Propose.
@@ -242,4 +250,70 @@ test("a manager of one team is offered that team only, and a login managing noth
   await expect(page.getByText("A team's manager or an administrator can run a proposal.")).toBeVisible();
   await expect(teamsPicker(page)).toHaveCount(0);
   await expect(proposeButton(page)).toHaveCount(0);
+});
+
+test("a manager of two teams saves a proposal, a manager of another team opens it and cannot accept, and the first accepts it from the saved page, which then reads as changed", async ({ page }) => {
+  const world = await seedWorld(false, true);
+  const { api } = world;
+  const savedName = uniqueText("e2e-ct-saved");
+  const savedRow = (name: string) => page.getByRole("table", { name: "Saved proposals", exact: true }).getByRole("row").filter({ hasText: name });
+  const stateBadge = (state: string) => page.locator(`[data-state="${state}"]`);
+
+  // The manager of both teams runs the proposal and saves it with both moves ticked.
+  await login(page, world.manager.email, world.manager.password);
+  await openPage(page);
+  await pickTeams(page, world.teamX, world.teamY);
+  await propose(page);
+  await page.getByRole("button", { name: "Save proposal", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Save proposal", exact: true });
+  await dialog.getByRole("textbox", { name: "Name" }).fill(savedName);
+  const [saved] = await Promise.all([page.waitForResponse(isSave), dialog.getByRole("button", { name: "Save proposal", exact: true }).click()]);
+  expect(saved.status(), await saved.text()).toBe(201);
+  // Registered at once, so a failed assertion below still deletes it (the saved table keeps 20 rows for everyone: never leave one behind).
+  teardown.push(`/api/v1/saved-schedule-proposals/${((await saved.json()) as { id: number }).id}`);
+  await expect(dialog).toHaveCount(0);
+  // The list names it with both teams and both ticked moves; its saver may delete it. Saving moved nothing of the plan.
+  await expect(savedRow(savedName)).toContainText(world.teamX);
+  await expect(savedRow(savedName)).toContainText(world.teamY);
+  await expect(savedRow(savedName)).toContainText("2 of 2");
+  await expect(savedRow(savedName).getByRole("button", { name: `Delete ${savedName}`, exact: true })).toBeVisible();
+  const unmoved = await api.get(`/api/v1/milestones/${world.y1.id}`);
+  expect(((await unmoved.json()) as { startDate?: string | null }).startDate ?? null).toBeNull();
+
+  // The manager of team Z only opens it from the list: the stored run is on screen, current, and has no Accept, no Propose again and no Delete.
+  await signOut(page);
+  await login(page, world.single.email, world.single.password);
+  await openPage(page);
+  await expect(savedRow(savedName).getByRole("button", { name: `Delete ${savedName}`, exact: true })).toHaveCount(0);
+  await page.getByRole("link", { name: `Open ${savedName}`, exact: true }).click();
+  await expect(page).toHaveURL(/\/schedule-proposals\/saved\/\d+$/);
+  await expect(page.getByRole("heading", { level: 2, name: savedName, exact: true })).toBeVisible();
+  await expect(stateBadge("CURRENT")).toHaveText("Current");
+  await expect(note(page, "You can read it; only an administrator or the manager of every team in it can change the ticks and accept it.")).toBeVisible();
+  await expect(row(page, world.teamY, world.y1)).toContainText("Unscheduled → 2048-01-08 to 2048-01-08, 1 working day");
+  await expect(page.getByRole("checkbox", { name: `Accept ${world.x1.name}` })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: `Accept ${world.x1.name}` })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /^Accept selected across teams/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Propose again", exact: true })).toHaveCount(0);
+
+  // The manager of both teams opens it from the list: the stored run is the editable preview, and ONE accept writes both teams' moves.
+  await signOut(page);
+  await login(page, world.manager.email, world.manager.password);
+  await openPage(page);
+  await page.getByRole("link", { name: `Open ${savedName}`, exact: true }).click();
+  await expect(stateBadge("CURRENT")).toHaveText("Current");
+  await expect(acceptButton(page, 2)).toBeVisible();
+  const [accepted] = await Promise.all([page.waitForResponse(isApi("POST", "/accept")), acceptButton(page, 2).click()]);
+  await expectOk(accepted);
+  const body = (await accepted.json()) as { accepted: unknown[]; skipped: unknown[] };
+  expect(body.accepted).toHaveLength(2);
+  expect(body.skipped).toHaveLength(0);
+  await expect(note(page, "2 scheduled")).toBeVisible();
+  // The plan moved under the saved run, so the page reads it as changed and offers no second accept.
+  await expect(stateBadge("CHANGED")).toHaveText("Changed");
+  await expect(note(page, "The plan changed after it was saved, so it can no longer be accepted.")).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Accept selected across teams/ })).toHaveCount(0);
+  const stored = await api.get(`/api/v1/milestones/${world.y1.id}`);
+  expect(await stored.json()).toMatchObject({ startDate: "2048-01-08", endDate: "2048-01-08" });
+  await api.dispose();
 });

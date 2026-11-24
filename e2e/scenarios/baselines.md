@@ -15,6 +15,8 @@
   total: every assertion is anchored on this spec's own project, milestones or baseline name. The baseline pick is a browser setting
   (`localStorage`, one per browser context), so a pick made here never reaches another spec.
 
+(1.26: the fifth scenario's link and capacity periods are T's and P's own, so they go with the project and the team in the afterEach.)
+
 The world (seeded per test): the project P (owned by the OWNER) with `m1` (3 MD, scheduled 2043-01-05..01-09) and `m2` (2 MD, scheduled
 2043-01-12..01-16), both on the MANAGER's team T. The re-plan used by the first two tests: `m1` moves to 2043-01-12..01-16 (onto `m2`'s days:
 overlap only warns), and a new `m3` (2 MD) is scheduled 2043-01-19..01-21.
@@ -86,6 +88,22 @@ overlap only warns), and a new `m3` (2 MD) is scheduled 2043-01-19..01-21.
 4. They choose **The live plan** again.
    - *Expected*: the URL is `/baselines/<A>` again, `m3` reads 2043-01-26 – 2043-01-28 (the second re-plan appears) and **Show on timeline: <project>** is back.
 
+## Scenario: a link added and a capacity period cut after a baseline show in the comparison's Links and Capacity sections and as new on the project page
+
+1. Through the API the administrator gives T a capacity period from 2043-01-05 (10 MD a week, no WIP limit), then takes a baseline: it freezes that period and
+   P's links (none).
+2. Still through the API, the administrator adds a finish-to-start link `m1` -> `m2` (lag 0) on P and a second capacity period on T from 2043-02-02 (a Monday),
+   5 MD a week, no WIP limit.
+3. The project OWNER (a reader) opens `/baselines/<id>`.
+   - *Expected*: the **Links** section (h3) lists, in the "Changed links" table, the row of `m1`: the change "Added", predecessor "<m1> · <P>", successor
+     "<m2> · <P>", no baseline side ("—") and "Finish → Start (FS) · 0 working days" now. The **Capacity** section (h3) lists, in "Capacity changes", T's group
+     with ONE range: from 2043-02-02, to "no end", then "10 MD/week · no WIP limit", now "5 MD/week · no WIP limit" (the weeks before 02-02 are equal on both
+     sides, so they are not listed). Both are read in this spec's own row and group: the tables hold other specs' changes too, so nothing counts rows or reads
+     the totals.
+4. They open P's page (`/projects/<id>`) and pick the baseline in the **Baseline** picker.
+   - *Expected*: in the "Dependencies of the project" table the `m1` row carries the gray badge "New since the baseline" (the baseline froze links, and this one
+     is not among them).
+
 ## Not covered here (and why)
 
 - **The cap of 100** — taking 100 baselines would fill the shared registry for every parallel spec; the cap and its 409 are covered by the server tests
@@ -98,6 +116,7 @@ overlap only warns), and a new `m3` (2 MD) is scheduled 2043-01-19..01-21.
   two-baseline scenario only. A deleted "now" baseline (the typed 400 that drops `against`) is covered by `BaselineCompare.against.test.tsx`.
 - **The roadmap and programs overlays** — the web unit tests (`Roadmap.baseline.test.tsx`, `Programs.baseline.test.tsx`); the axe scans in
   `accessibility.spec.ts` cover the team page, the registry and the comparison page.
+- **A baseline taken before 1.26 ("not captured") and the Links and Capacity sections under "Compare against"** — the server tests (`BaselineViewTest`) and the web unit tests (`BaselineCompare.frozen.test.tsx`, `BaselineLinksSection.test.tsx`, `BaselineCapacitySection.test.tsx`); a pre-1.26 header cannot be made through the API.
 - **The project page's overlay and Movement section, the comparison page's "Show on timeline" / "Show on the roadmap" and the "(latest)" label** — the web
   unit tests (`ProjectView.baseline.test.tsx`, `BaselineCompare.test.tsx`, `BaselinePicker.test.tsx`).
 - **Residue of an aborted run** — a killed run leaves its in-flight baseline active (baselines are soft-deleted only); about 100 such leftovers would make

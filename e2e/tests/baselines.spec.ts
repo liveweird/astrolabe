@@ -2,7 +2,9 @@
 // the team's manager reads the movement on the team page (the picker, the shadow bars, the Movement table) and anyone reads the plan-wide comparison
 // page; a reader sees the list without the write controls; an editor renames a baseline (the picker reads the new name) and deletes it (a page that had
 // it picked falls back to no baseline); and (1.7) the comparison page's "Compare against" reads the movement between TWO baselines (a re-plan after the
-// second one is invisible, the rank sentence needs the project ranked between them - this spec ranks only its own project, through the retrying helper).
+// second one is invisible, the rank sentence needs the project ranked between them - this spec ranks only its own project, through the retrying helper);
+// and (1.26) a baseline freezes the dependency links and the teams' capacity periods: a link added and a capacity period cut after it are listed in the
+// comparison page's Links and Capacity sections, and the project page's link row reads "New since the baseline" under the picked baseline.
 // Owns: its throwaway users, people, team, plan nodes and milestones (unique `e2e-bl-*` names, every date in 2043, which nothing writes a holiday in), all
 // seeded through the API and deleted by the afterEach below (the baselines first - a soft delete, the only delete there is, so the frozen rows stay by
 // design - then the project, whose milestones go with it, program, work stream, team, people, users), and its throwaway BASELINES (unique `e2e-bl-*`
@@ -361,4 +363,55 @@ test("the administrator compares two baselines: the second re-plan is invisible,
   const live = page.getByRole("table", { name: "Changes since the baseline" });
   await expect(live.getByRole("row").filter({ hasText: m3.name }).getByRole("cell").nth(3)).toHaveText(dates("2043-01-26", "2043-01-28"));
   await expect(page.getByRole("button", { name: `Show on timeline: ${world.project}` })).toBeVisible();
+});
+
+test("a link added and a capacity period cut after a baseline show in the comparison's Links and Capacity sections and as new on the project page", async ({ page }) => {
+  const world = await seedWorld();
+  const name = uniqueText("e2e-bl-frozen");
+
+  // The team has capacity from the first Monday on (10 MD a week, no WIP limit) BEFORE the baseline, which freezes it with the (empty) links.
+  const base = await world.api.post(`/api/v1/teams/${world.teamId}/capacity`, { data: { effectiveFrom: "2043-01-05", mdPerWeek: 10 } });
+  expect(base.status(), await base.text()).toBe(201);
+  const id = await takeBaseline(world, name);
+
+  // Afterwards a finish-to-start link joins the two milestones and the capacity is cut from 2043-02-02 (a Monday) on, with no end.
+  const link = await world.api.post(`/api/v1/projects/${world.projectId}/dependencies`, {
+    data: { predecessor: { kind: "MILESTONE", id: world.m1.id }, successor: { kind: "MILESTONE", id: world.m2.id }, type: "FS", lagDays: 0 },
+  });
+  expect(link.status(), await link.text()).toBe(201);
+  const cut = await world.api.post(`/api/v1/teams/${world.teamId}/capacity`, { data: { effectiveFrom: "2043-02-02", mdPerWeek: 5 } });
+  expect(cut.status(), await cut.text()).toBe(201);
+  await world.api.dispose();
+
+  // The project owner (a reader) opens the comparison: both sections are anchored on this spec's own milestones and team (other specs' rows may share them).
+  await login(page, world.owner.email, world.owner.password);
+  await page.goto(`/baselines/${id}`);
+  await expect(page.getByRole("heading", { level: 2, name })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 3, name: "Links", exact: true })).toBeVisible();
+  const links = page.getByRole("table", { name: "Changed links" });
+  const added = links.getByRole("row").filter({ hasText: world.m1.name }).getByRole("cell");
+  await expect(added.nth(0)).toHaveText("Added");
+  await expect(added.nth(1)).toHaveText(`${world.m1.name} · ${world.project}`);
+  await expect(added.nth(2)).toHaveText(`${world.m2.name} · ${world.project}`);
+  await expect(added.nth(3)).toHaveText("—");
+  await expect(added.nth(4)).toHaveText("Finish → Start (FS) · 0 working days");
+
+  await expect(page.getByRole("heading", { level: 3, name: "Capacity", exact: true })).toBeVisible();
+  const capacity = page.getByRole("table", { name: "Capacity changes" });
+  const teamGroup = capacity.locator("tbody").filter({ hasText: world.team });
+  await expect(teamGroup).toHaveCount(1);
+  const range = teamGroup.getByRole("row").filter({ hasText: "2043-02-02" }).getByRole("cell");
+  await expect(range.nth(0)).toHaveText("2043-02-02");
+  await expect(range.nth(1)).toHaveText("no end");
+  await expect(range.nth(2)).toHaveText("10 MD/week · no WIP limit");
+  await expect(range.nth(3)).toHaveText("5 MD/week · no WIP limit");
+
+  // The project page, under the picked baseline, marks the link as made since.
+  await page.goto(`/projects/${world.projectId}`);
+  await expect(page.getByRole("heading", { level: 2, name: world.project })).toBeVisible();
+  await expect(page.getByRole("grid", { name: "Milestone timeline" })).toBeVisible();
+  await pickBaseline(page, name);
+  await settled(page);
+  const dependencies = page.getByRole("table", { name: "Dependencies of the project" });
+  await expect(dependencies.getByRole("row").filter({ hasText: world.m1.name })).toContainText("New since the baseline");
 });
