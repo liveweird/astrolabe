@@ -19,6 +19,7 @@ export type ProjectCreateBody = Schemas["ProjectCreateRequest"];
 export type ProjectUpdateBody = Schemas["ProjectUpdateRequest"];
 export type TargetWindowBody = Schemas["TargetWindowRequest"];
 type ProjectPage = Schemas["ProjectPage"];
+type ProgramPage = Schemas["ProgramPage"];
 
 /** The plan view's query key (`["plan", "view"]`), shared by every reader of `getPlanView`; a write refreshes it under the `["plan"]` prefix. */
 export const planViewKey = ["plan", "view"] as const;
@@ -32,6 +33,12 @@ type ProjectListQuery = { page: number; pageSize: number; sort?: string; name?: 
 export async function listProjects(q: ProjectListQuery): Promise<ProjectPage> {
   const params = buildQuery({ page: q.page, pageSize: q.pageSize, sort: q.sort, name: q.name });
   return jsonRequest<ProjectPage>(`/api/v1/projects?${params}`);
+}
+
+/** The paged program list (each row carries `workStreamName`) - the Jira bind dialog's search; `name` is a case- and accent-insensitive substring. */
+export async function listPrograms(q: ProjectListQuery): Promise<ProgramPage> {
+  const params = buildQuery({ page: q.page, pageSize: q.pageSize, sort: q.sort, name: q.name });
+  return jsonRequest<ProgramPage>(`/api/v1/programs?${params}`);
 }
 
 export async function getPlanView(): Promise<PlanView> {

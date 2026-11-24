@@ -24,13 +24,11 @@ const PROJECTS = {
   pageSize: 50,
   total: 1,
 };
-const can = { edit: true, delete: true, createProject: true, move: true };
-/** Two programs: one the viewer may link and one they may not (the plan view's own `can.edit` is the bind's guard). */
-const PLAN = {
-  revision: 1,
-  workStreams: [
-    { id: 200, name: "Platform", programs: [{ id: 20, name: "Billing", workStreamId: 200, can, projects: [] }, { id: 21, name: "Secret", workStreamId: 200, can: { ...can, edit: false }, projects: [] }] },
-  ],
+const PROGRAMS = {
+  items: [{ id: 20, workStreamId: 200, workStreamName: "Platform", name: "Billing", description: null, ownerPersonId: 1, ownerName: "O", createdAt: 1, updatedAt: 2 }],
+  page: 1,
+  pageSize: 50,
+  total: 1,
 };
 
 let mockFetch: ReturnType<typeof vi.fn>;
@@ -46,7 +44,7 @@ beforeEach(() => {
   post = { status: 201, body: { id: 90 } };
   mockFetch = vi.fn((url: string, init?: RequestInit) => {
     if (init?.method === "POST") return Promise.resolve(jsonResponse(post.status, post.body));
-    if (url === "/api/v1/views/plan") return Promise.resolve(jsonResponse(200, PLAN));
+    if (url.startsWith("/api/v1/programs?")) return Promise.resolve(jsonResponse(200, PROGRAMS));
     if (url.startsWith("/api/v1/milestones?")) return Promise.resolve(jsonResponse(200, MILESTONES));
     if (url.startsWith("/api/v1/projects?")) return Promise.resolve(jsonResponse(200, PROJECTS));
     return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
@@ -202,7 +200,7 @@ describe("JiraBindDialog - the node pickers", () => {
     expect(posts()[0].body).toMatchObject({ level: "PROJECT", nodeId: 2, issueKey: "E2E-1" });
   });
 
-  test("a program comes from the plan view (no list exists) and only the programs the viewer may link are offered", async () => {
+  test("a program comes from the paged program search", async () => {
     const user = userEvent.setup();
     renderDialog();
     const dialog = await screen.findByRole("dialog");
@@ -211,7 +209,6 @@ describe("JiraBindDialog - the node pickers", () => {
     await user.click(await screen.findByRole("option", { name: "Program" }));
     await user.click(within(dialog).getByRole("combobox", { name: "Program" }));
     expect(await screen.findByRole("option", { name: "Billing · Platform" })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "Secret · Platform" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("option", { name: "Billing · Platform" }));
     await user.type(within(dialog).getByRole("textbox", { name: "Jira issue key" }), "E2E-9");
     await user.click(within(dialog).getByRole("button", { name: "Link" }));

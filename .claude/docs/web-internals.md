@@ -1630,9 +1630,9 @@ administrator, for whom the connection registry is forbidden, so it asks for not
   only while the dialog is open: a pending or failed answer is the dialog's own note, with Retry; `useJiraLinks(projectId, enabled)` in `hooks/useDeviations.ts`, `GET /views/deviations?projectId=`, is used only for this).
 - Only `enabled` connections are offered, exactly one is preselected (with two or more and none chosen, a note says why Link is disabled), one with `mappingOk: false` is marked "(mapping
   needs fixing)" and refuses the link in words, none says so plainly (an ADMIN gets the link to Jira, anyone else is told an administrator has to add one).
-- `target` fixes the node (project header, milestone row menu: no picker); `connectionId` fixes the connection (the connection page). Otherwise a level select and a picker: programs from
-  `GET /views/plan` (no list exists; only those with `can.edit`), projects and milestones through the dependency editor's paged pickers (`ProjectSelect`/`MilestoneSelect` take
-  `label`/`description`).
+- `target` fixes the node (project header, milestone row menu: no picker); `connectionId` fixes the connection (the connection page). Otherwise a level select and a picker: programs, projects
+  and milestones through paged name searches (`ProgramSelect` over `GET /programs`; `ProjectSelect`/`MilestoneSelect`, the dependency editor's, take `label`/`description`), all open lists, so a node the viewer may not link
+  is offered and the bind's 403 shows inline.
 - **Every refusal is inline with the entered key kept** (`utils/jiraBind.ts` `bindFailure`): 400 (the server's sentence under a fixed lead: unknown issue, outside the connection's keys,
   wrong level), 409 `already-bound` (the sentence names the other side), 409 `jira-mapping-invalid` / `jira-not-discovered` / `jira-token-unreadable` (an administrator's to fix), 429 (the
   per-user `jira-bind` bucket), 502 (Jira's code in words), 403, 404. Success is the toast "Linked to Jira" + `refreshJiraAndTimelines`.

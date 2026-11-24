@@ -8,6 +8,7 @@ import {
   deleteProject,
   deleteWorkStream,
   getPlanView,
+  listPrograms,
   listProjects,
   setProjectTargetWindow,
   updateProgram,
@@ -40,6 +41,14 @@ describe("plan API wrappers", () => {
     expect(lastCall()[0]).toBe("/api/v1/projects?page=1&pageSize=50&sort=name&name=Alp");
     await listProjects({ page: 3, pageSize: 10 });
     expect(lastCall()[0]).toBe("/api/v1/projects?page=3&pageSize=10");
+  });
+
+  test("listPrograms GETs one page with the sort and the name filter, skipping an absent filter", async () => {
+    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(200, { items: [], page: 1, pageSize: 50, total: 0 })));
+    await listPrograms({ page: 1, pageSize: 50, sort: "name", name: "Bil" });
+    expect(lastCall()[0]).toBe("/api/v1/programs?page=1&pageSize=50&sort=name&name=Bil");
+    await listPrograms({ page: 2, pageSize: 10 });
+    expect(lastCall()[0]).toBe("/api/v1/programs?page=2&pageSize=10");
   });
 
   test("getPlanView GETs the view", async () => {
