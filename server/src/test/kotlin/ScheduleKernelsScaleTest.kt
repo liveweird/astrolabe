@@ -36,7 +36,7 @@ import kotlin.test.assertTrue
  *
  * The cross-team case (1.8.0) runs `proposeMany` over 15 teams of the sample plan's density (1,000 milestones in the sample's team
  * sizes, about 300 links of which a third cross teams, a few pinned, a capacity cliff on a third of the teams) and prints the run's and
- * the post-check's milliseconds, the passes and whether it settled.
+ * the post-check's milliseconds, the passes, whether it settled and the placements the worklist made (1.26) against `passes x teams`.
  */
 class ScheduleKernelsScaleTest {
     private val anchor = LocalDate.parse("2027-01-04") // a Monday
@@ -106,6 +106,9 @@ class ScheduleKernelsScaleTest {
         val run = ScaleFigures.series(CROSS_WARMUPS, CROSS_RUNS) { ScheduleKernels.proposeMany(input) }
         ScaleFigures.printSeries("proposeMany 15 teams, $ITEM_TOTAL milestones, ${input.links.size} links", run)
         println("scale-figure\tproposeMany passes\t${result.passes} (settled=${result.settled})")
+        val everyTeamEveryPass = result.passes * input.teams.size
+        println("scale-figure\tproposeMany placements\t${result.placements} (every team every pass: $everyTeamEveryPass)")
+        assertTrue(result.placements <= everyTeamEveryPass, "the worklist never places more often than every team every pass")
         val check = ScaleFigures.series(CROSS_WARMUPS, CROSS_RUNS) { ScheduleKernels.postCheckMany(input, result) }
         ScaleFigures.printSeries("postCheckMany 15 teams", check)
         assertTrue(ScaleFigures.median(run) <= CROSS_TRIPWIRE_MS, "proposeMany took ${ScaleFigures.median(run)} ms (median)")

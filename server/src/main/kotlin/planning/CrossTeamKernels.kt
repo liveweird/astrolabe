@@ -8,7 +8,8 @@ import java.time.LocalDate
  * teams - the teams in dependency order, each placed by [ScheduleKernels.proposeUnchecked] (today's per-team kernel) with the teams
  * placed so far held as fixed facts, repeated until a pass changes nothing that an earlier team reads, or [MAX_CROSS_TEAM_PASSES].
  * Nothing here moves a date; the other teams enter a team's run only through its `plan` facts, so the run just hands each team a plan
- * whose run-team facts carry the dates proposed so far.
+ * whose run-team facts carry the dates proposed so far. From the second pass on only the teams whose incoming facts changed are
+ * placed again (1.26: [WorklistRun]); the answer is the one an every-team-every-pass loop gives.
  */
 
 /** The most passes a cross-team run makes before it answers with `settled = false` (the last pass's dates stand). */
@@ -47,15 +48,22 @@ data class CheckInputs(
 
 /**
  * [order] is the placement order of the team ids, [passes] the passes made, [settled] whether another pass would reproduce every
- * result, [byTeam] each team's result of the LAST pass (iteration order = [order]).
+ * result, [byTeam] each team's result of the LAST pass (iteration order = [order]). [placements] counts the per-team kernel runs the
+ * worklist made (an every-team-every-pass loop would make `passes x teams`); it is a figure for the tests and never reaches the wire.
  */
-data class MultiTeamResult(val order: List<UInt>, val passes: Int, val settled: Boolean, val byTeam: Map<UInt, ScheduleProposalResult>)
+data class MultiTeamResult(
+    val order: List<UInt>,
+    val passes: Int,
+    val settled: Boolean,
+    val byTeam: Map<UInt, ScheduleProposalResult>,
+    internal val placements: Int = 0,
+)
 
 /**
- * The team placement order and the teams that are the SOURCE of a back edge (an edge `a -> b` with `a` placed after `b`: `b` read `a`'s
- * dates of the previous pass).
+ * The team placement order, the teams that are the SOURCE of a back edge (an edge `a -> b` with `a` placed after `b`: `b` read `a`'s
+ * dates of the previous pass) and, per team, the teams with an edge INTO it ([predecessorsOf]: the only teams whose dates it reads).
  */
-internal class TeamGraph(val order: List<UInt>, val backEdgeSources: Set<UInt>)
+internal class TeamGraph(val order: List<UInt>, val backEdgeSources: Set<UInt>, val predecessorsOf: Map<UInt, Set<UInt>>)
 
 /**
  * Places every team of [inputs] in dependency order to a fixed point. The plan's acyclicity is checked ONCE (not per team and pass).
@@ -67,35 +75,87 @@ fun ScheduleKernels.proposeMany(inputs: MultiTeamInputs): MultiTeamResult {
     require(inputs.teams.map { it.teamId }.toSet().size == inputs.teams.size) { "a team is listed twice" }
     requireAcyclicPlan(planContainment(inputs.plan, inputs.teams.flatMap { it.team }), inputs.links.sortedBy { it.id })
     val graph = teamOrder(inputs)
-    val runs = inputs.teams.associateBy { it.teamId }
-    val working = LinkedHashMap<UInt, PlanMilestoneFact>()
-    inputs.plan.sortedBy { it.id }.forEach { working[it.id] = it }
-    for (run in inputs.teams) run.team.forEach { working[it.id] = PlanMilestoneFact(it.id, it.projectId, run.teamId, it.span) }
-    var previous: Map<UInt, Map<UInt, DaySpan>> =
-        inputs.teams.associate { run -> run.teamId to run.team.mapNotNull { item -> item.span?.let { item.id to it } }.toMap() }
+    val run = WorklistRun(inputs, graph)
     var results: Map<UInt, ScheduleProposalResult> = emptyMap()
     var passes = 0
     var settled = false
     while (passes < inputs.maxPasses && !settled) {
         passes++
-        val pass = LinkedHashMap<UInt, ScheduleProposalResult>()
-        for (teamId in graph.order) {
-            val run = runs.getValue(teamId)
-            val teamInputs = ScheduleInputs(
-                inputs.asOf, teamId, run.team, run.periods, working.values, inputs.links, inputs.calendar, inputs.horizonWeeks,
-            )
-            val result = proposeUnchecked(teamInputs)
-            pass[teamId] = result
-            for (item in run.team) working[item.id] = PlanMilestoneFact(item.id, item.projectId, teamId, result.spansAfter[item.id])
-        }
+        val pass = run.pass(results)
         // A team whose result changed AND is read by an earlier-placed team (a back edge) forces another pass; a change read only by
         // later teams was already seen in this very pass, so the next pass would reproduce every result (the kernel is deterministic).
-        val changed = pass.filter { (teamId, result) -> result.spansAfter != previous[teamId] }.keys
-        settled = changed.none { it in graph.backEdgeSources }
-        previous = pass.mapValues { it.value.spansAfter }
-        results = pass
+        settled = pass.changed.none { it in graph.backEdgeSources }
+        results = pass.results
     }
-    return MultiTeamResult(graph.order, passes, settled, results)
+    return MultiTeamResult(graph.order, passes, settled, results, run.placements)
+}
+
+/** One pass of the run: every team's result (a skipped team's is its previous one) and the teams whose `spansAfter` changed. */
+private class PassOutcome(val results: Map<UInt, ScheduleProposalResult>, val changed: Set<UInt>)
+
+/**
+ * The passes of one run, with the worklist. Pass 1 places every team. A team's placement reads the other teams ONLY through the facts of
+ * the teams with an edge into it ([TeamGraph.predecessorsOf]: `ScheduleConstraints.bounds` reads `values.spanOf(link.predecessor)`, and
+ * every team holding a predecessor milestone, or a milestone of a predecessor project, is an edge source), and everything else it reads
+ * (its rows, periods, calendar, `asOf`) is constant. So a team is placed again only when one of those teams changed its `spansAfter`
+ * since this team last ran ([versions] against [seenAtLastRun]); otherwise the kernel would reproduce its previous result exactly, and
+ * the team keeps it and counts as unchanged.
+ */
+private class WorklistRun(private val inputs: MultiTeamInputs, private val graph: TeamGraph) {
+    private val runs = inputs.teams.associateBy { it.teamId }
+    private val working = LinkedHashMap<UInt, PlanMilestoneFact>()
+    private val previous = HashMap<UInt, Map<UInt, DaySpan>>()
+    private val versions = HashMap<UInt, Int>()
+    private val seenAtLastRun = HashMap<UInt, Map<UInt, Int>>()
+
+    /** The per-team kernel runs made so far. */
+    var placements = 0
+        private set
+
+    init {
+        inputs.plan.sortedBy { it.id }.forEach { working[it.id] = it }
+        for (run in inputs.teams) {
+            run.team.forEach { working[it.id] = PlanMilestoneFact(it.id, it.projectId, run.teamId, it.span) }
+            previous[run.teamId] = run.team.mapNotNull { item -> item.span?.let { item.id to it } }.toMap()
+        }
+    }
+
+    fun pass(before: Map<UInt, ScheduleProposalResult>): PassOutcome {
+        val results = LinkedHashMap<UInt, ScheduleProposalResult>()
+        val changed = HashSet<UInt>()
+        for (teamId in graph.order) {
+            val kept = before[teamId]
+            if (kept != null && !isStale(teamId)) {
+                results[teamId] = kept
+            } else {
+                val result = place(teamId)
+                results[teamId] = result
+                if (result.spansAfter != previous[teamId]) {
+                    changed.add(teamId)
+                    versions.merge(teamId, 1, Int::plus)
+                }
+                previous[teamId] = result.spansAfter
+            }
+        }
+        return PassOutcome(results, changed)
+    }
+
+    /** True when a team with an edge into [teamId] changed its spans since [teamId] last ran. */
+    private fun isStale(teamId: UInt): Boolean {
+        val seen = seenAtLastRun.getValue(teamId)
+        return graph.predecessorsOf[teamId].orEmpty().any { (versions[it] ?: 0) != seen.getValue(it) }
+    }
+
+    private fun place(teamId: UInt): ScheduleProposalResult {
+        val run = runs.getValue(teamId)
+        seenAtLastRun[teamId] = graph.predecessorsOf[teamId].orEmpty().associateWith { versions[it] ?: 0 }
+        placements++
+        val result = ScheduleKernels.proposeUnchecked(
+            ScheduleInputs(inputs.asOf, teamId, run.team, run.periods, working.values, inputs.links, inputs.calendar, inputs.horizonWeeks),
+        )
+        for (item in run.team) working[item.id] = PlanMilestoneFact(item.id, item.projectId, teamId, result.spansAfter[item.id])
+        return result
+    }
 }
 
 /**
@@ -185,7 +245,8 @@ internal fun teamOrder(inputs: MultiTeamInputs): TeamGraph {
     }
     val position = order.withIndex().associate { (index, team) -> team to index }
     val sources = edges.filter { (from, to) -> position.getValue(from) > position.getValue(to) }.map { it.first }.toSet()
-    return TeamGraph(order, sources)
+    val predecessors = edges.groupBy({ it.second }, { it.first }).mapValues { it.value.toSet() }
+    return TeamGraph(order, sources, predecessors)
 }
 
 /**
