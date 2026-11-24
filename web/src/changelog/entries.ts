@@ -17,6 +17,30 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.26.0",
+    date: "2026-11-24",
+    en: `**Saved proposals and baselines that remember links and capacity**
+
+- A cross-team schedule proposal can be saved and opened later by anyone signed in: the saved list on Schedule proposals keeps the newest 20. A saved proposal says whether the plan has changed since; a team's manager can still accept it while it is current and from today.
+- A new baseline also freezes the dependencies and every team's capacity periods. The comparison page lists the links added, removed or changed and the capacity ranges that differ; the team page shows the capacity a baseline froze, and the project page marks a dependency added since the baseline. Baselines taken before this version say "not captured" instead.
+- A Flow team waiting for a complete sprint snapshot is listed as "Waiting for a complete Flow refresh" instead of "In line with Flow", with a neutral marker on the team page, Home, Roadmap and Programs.
+- Linking a Jira item to a program searches the programs on the server, so every program can be found.
+- A cross-team run re-places only the teams its changes affect, so long runs finish sooner.
+- API (\`/api/v1\`), additions only: paged \`GET /work-streams\` and \`GET /programs\`; \`/saved-schedule-proposals\`; the baselines' link and capacity counts and the comparison's \`links\` and \`capacity\`; the Flow \`pending\` totals and flags.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.
+- Proven against the built-in Flow stub; not yet compared with a real Flow.`,
+    pl: `**Zapisane propozycje i bazy odniesienia, które pamiętają zależności i przepustowość**
+
+- Propozycję harmonogramu dla wielu zespołów możesz zapisać, a każda zalogowana osoba może ją później otworzyć: lista „Zapisane propozycje” na stronie „Propozycje harmonogramu” przechowuje 20 najnowszych. Zapisana propozycja mówi, czy plan zmienił się od jej zapisania; menedżer/menedżerka zespołu nadal może ją przyjąć, dopóki jest aktualna i pochodzi z dzisiaj.
+- Nowa baza odniesienia zamraża także zależności i okresy przepustowości każdego zespołu. Strona porównania pokazuje dodane, usunięte i zmienione zależności oraz różniące się zakresy przepustowości; strona zespołu pokazuje przepustowość zamrożoną w bazie, a strona projektu oznacza zależność dodaną po utworzeniu bazy. Bazy utworzone przed tą wersją pokazują „nie zamrożono”.
+- Zespół z Flow, który czeka na kompletny zestaw sprintów, figuruje jako „Oczekuje na pełne odświeżenie Flow” zamiast „Zgodnie z Flow”, z neutralnym znacznikiem na stronie zespołu, stronie głównej, Roadmapie i Programach.
+- Powiązanie elementu z Jiry z programem wyszukuje programy na serwerze, więc znajdziesz każdy program.
+- Przebieg dla wielu zespołów ponownie rozmieszcza tylko zespoły, których dotyczą zmiany, więc długie przebiegi kończą się szybciej.
+- API (\`/api/v1\`), tylko dodatki: stronicowane \`GET /work-streams\` i \`GET /programs\`; \`/saved-schedule-proposals\`; liczby zależności i okresów przepustowości w bazach oraz \`links\` i \`capacity\` w porównaniu; sumy i flagi \`pending\` dla Flow.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.
+- Sprawdzone na wbudowanej atrapie Flow; jeszcze nie porównane z prawdziwym Flow.`,
+  },
+  {
     version: "1.25.1",
     date: "2026-11-22",
     en: `**A new Astrolabe logo**

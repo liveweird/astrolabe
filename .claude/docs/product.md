@@ -15,7 +15,7 @@ Scale assumed: about 15 teams, 5 work streams, 20 programs, 100 projects, 1,000 
 
 ## Roadmap
 
-Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.25.1.** Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-visible fix between two increments is a patch bump. One row a version (patches ride their minor's row); the scope only, the detail is in "Release history".
+Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.26.0.** Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-visible fix between two increments is a patch bump. One row a version (patches ride their minor's row); the scope only, the detail is in "Release history".
 
 ### 0.1 to 0.9: the plan
 
@@ -66,7 +66,7 @@ Each increment gets its own plan (architect) before implementation; only v0.1.0 
 | **1.23.0 Database time limit, Flow capacity flag, Home "Yours"** | A 15 s statement limit (`POSTGRES_STATEMENT_TIMEOUT_SECONDS`), the focus after "edit, then delete", the Flow capacity flag on the Roadmap and Programs, everything you manage on Home (no migration) |
 | **1.24.0 Technical release** | No feature: docs in Rules and sections with a guard, the spec's descriptions as contract, shared Jira and Flow pieces, two CI forks, a named e2e target; the item-level `acknowledgement` leaves `GET /views/deviations` |
 | **1.25.0 Reliability and navigation** | Complete Flow sprint snapshots (V31), atomic project edits, consistent API reads, grouped navigation and refreshed Home; 1.25.1 a new logo |
-| **1.26.0 Saved proposals, frozen links and capacity** (built, not yet released) | Cross-team runs saved and read by every signed-in user (V32); baselines freeze links and capacity (V33); paged `GET /work-streams` and `/programs`; docs under byte ceilings, fewer test sleeps |
+| **1.26.0 Saved proposals, frozen links and capacity** | Cross-team runs saved and read by every signed-in user (V32); baselines freeze links and capacity (V33); paged `GET /work-streams` and `/programs`; docs under byte ceilings, fewer test sleeps |
 
 ## Domain decisions taken with the user
 
@@ -280,7 +280,7 @@ Newest first. Each version: its scope, the user's answers, the defaults that sti
 
 ### v1.26.0 — saved proposals, frozen links and capacity
 
-Built 2026-11-23 to 11-24, **not yet released** (the release commit flips this section to "what shipped"); a minor bump, the API only gains members. It carries the 1.25 review's fixes too.
+Built 2026-11-23 to 11-24, released overnight on the user's word of 2026-11-23 ("feel free to release and tag"); a minor bump, the API only gains members. It carries the 1.25 review's fixes too.
 
 **Scope:**
 - **Saved proposals (V32).** A cross-team run is saved explicitly (a name, at least one move ticked), listed on `/schedule-proposals` and opened at `/schedule-proposals/saved/:id`. The server stores its own re-computation, never a client's document; the state is derived at read: CURRENT, CHANGED (the plan moved, or a team is gone) or UNREADABLE (another stored format).
