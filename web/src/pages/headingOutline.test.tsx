@@ -44,6 +44,8 @@ function emptyApi() {
     "GET /api/v1/people/:id": notFound,
     "GET /api/v1/public-holidays": notFound,
     "GET /api/v1/schedule-proposals/teams": notFound,
+    "GET /api/v1/saved-schedule-proposals": { items: [] },
+    "GET /api/v1/saved-schedule-proposals/:id": notFound,
     "GET /api/v1/integrations/*": notFound,
     "GET /api/v1/views/*": notFound,
     "GET /index.html": notFound,

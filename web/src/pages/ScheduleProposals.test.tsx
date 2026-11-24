@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import ScheduleProposals from "./ScheduleProposals";
 import type { CrossTeamProposal } from "../api/scheduleProposals";
-import { ACCEPT_URL, block, CHECK_URL, ids, move, RUN, RUN_URL, STALE_REVISION, STALE_SCOPE, TEAMS_URL, violatedLink, week } from "../test/crossTeamRun";
+import { ACCEPT_URL, block, CHECK_URL, ids, move, RUN, RUN_URL, SAVED_URL, STALE_REVISION, STALE_SCOPE, TEAMS_URL, violatedLink, week } from "../test/crossTeamRun";
 import { headingOutline } from "../test/headings";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
@@ -36,6 +36,7 @@ beforeEach(() => {
   mockFetch = vi.fn((url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
     if (method === "GET" && url === TEAMS_URL) return Promise.resolve(answer(teamsAnswer));
+    if (method === "GET" && url === SAVED_URL) return Promise.resolve(jsonResponse(200, { items: [] }));
     if (method === "POST" && url === RUN_URL) return Promise.resolve(answer(runAnswer));
     if (method === "POST" && url === ACCEPT_URL) return Promise.resolve(answer(acceptAnswer));
     if (method === "POST" && url === CHECK_URL) return Promise.resolve(answer(checkAnswer));
@@ -73,7 +74,7 @@ describe("the teams", () => {
     const user = userEvent.setup();
     renderWithProviders(<ScheduleProposals />);
     await screen.findByRole("combobox", { name: "Teams" });
-    expect(headingOutline()).toEqual([[2, "Schedule proposals"]]);
+    expect(headingOutline()).toEqual([[2, "Schedule proposals"], [3, "Saved proposals"]]);
     expect(screen.getByRole("button", { name: "Propose" })).toBeDisabled();
     await user.click(screen.getByRole("combobox", { name: "Teams" }));
     expect(within(await screen.findByRole("listbox")).getAllByRole("option").map((o) => o.textContent)).toEqual(["Platform", "Payments"]);
@@ -120,7 +121,7 @@ describe("the teams", () => {
     expect(screen.getByText("A team's manager or an administrator can run a proposal.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Propose" })).toBeNull();
     expect(screen.queryByRole("combobox", { name: "Teams" })).toBeNull();
-    expect(headingOutline()).toEqual([[2, "Schedule proposals"]]);
+    expect(headingOutline()).toEqual([[2, "Schedule proposals"], [3, "Saved proposals"]]);
   });
 
   test("an administrator with no team at all is told there is none to propose for (the words only; the server's list decides)", async () => {
@@ -162,6 +163,7 @@ describe("the run", () => {
       [4, "Proposed load"],
       [3, "Payments"],
       [4, "Proposed load"],
+      [3, "Saved proposals"],
     ]);
     expect(screen.getByText("placed 1 of 2")).toBeInTheDocument();
     expect(screen.getByText("placed 2 of 2")).toBeInTheDocument();

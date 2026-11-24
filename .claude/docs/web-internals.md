@@ -1442,7 +1442,8 @@ The co-located `Baseline*.test.tsx`, `useBaselines.test.tsx` and the `baseline*`
 ## Schedule proposals
 
 Files: `pages/ScheduleProposals.tsx`; `utils/scheduleProposalLinks.ts`; `api/scheduleProposals.ts` (`listProposalTeams`, `proposeCrossTeamSchedule`, `acceptCrossTeamSchedule`,
-`checkSchedule`); `hooks/useCrossTeamProposal.ts`; `components/CrossTeamFacts.tsx`; `components/CrossTeamProposalSection.tsx`.
+`checkSchedule`); `hooks/useCrossTeamProposal.ts`; `components/CrossTeamFacts.tsx`; `components/CrossTeamProposalSection.tsx`; `components/CrossTeamRunView.tsx`; saved (1.26): `pages/SavedScheduleProposal.tsx`,
+`api/savedProposals.ts`, `utils/savedProposal.ts`, `components/Saved{ProposalsTable,ProposalState}.tsx`, `components/SaveProposalModal.tsx`, `hooks/useStatusAnnouncer.ts`.
 
 ### Route and data
 
@@ -1495,9 +1496,18 @@ Closing the run drops the `["plan","schedule-check"]` queries.
 
 The accept/discard/outcome words reuse `teams.proposal.*`.
 
+### Saved proposals
+
+A saved run is the SERVER's own re-computation (`scheduling.md` "Saved proposals"): no document is sent, none recomputed. Keys: `SAVED_PROPOSALS_KEY` `["schedule-proposals","saved"]`; an accept, a stale refusal and a delete refresh it, a delete or a 404 drops the record's copy.
+
+- **Save proposal** (beside Accept, one move ticked): `SaveProposalModal` posts the name, the run's `asOf`, teams, `revision`, `scopeHash` and the ticks. A `409` is inline (focus on **Propose again**) = hook `proposeAgain(teamIds, ticks, rescoped?)`: same teams, ticks kept. `open(run, ticks)` takes a stored run, no request.
+- **Saved proposals** h3 (`SavedProposalsTable`, every user): the newest 20, the name links, Delete by the row's `can.delete` (`useDeleteConfirm`).
+- **`/schedule-proposals/saved/:id`**: h2 the name, a state badge (`data-state`; green CURRENT, else gray), the facts, `CrossTeamRunView`. While CURRENT, `can.accept` AND `asOf` = today (the server ignores the day) the stored run opens as the hook's preview: ticks editable, the ONE accept, the stored `check` for the stored ticks, the live one for any other. Else read-only (an earlier day says so; a refetch that turns it CHANGED ends the preview).
+- **Propose again** (by `can.delete`) opens a FRESH run (`sameRun`), a neutral note (the "plan changed" one only when CHANGED) and Discard back to the saved one; a stale-scope accept lands there too. `UNREADABLE` shows no run.
+
 ### Tests
 
-The co-located `ScheduleProposals.test.tsx`, `CrossTeamProposalSection.test.tsx`, `useCrossTeamProposal.test.tsx` (fixtures `test/crossTeamRun.ts`).
+Co-located: `ScheduleProposals*.test.tsx`, `Saved*.test.tsx`, `SaveProposalModal.test.tsx`, `CrossTeamProposalSection.test.tsx`, `useCrossTeamProposal.test.tsx` (fixtures `test/crossTeamRun.ts`).
 
 ## Deviations, bindings and the Jira chips
 

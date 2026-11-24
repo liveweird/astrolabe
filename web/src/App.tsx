@@ -40,6 +40,7 @@ const Dependencies = lazy(() => import("./pages/Dependencies"));
 const TeamLoad = lazy(() => import("./pages/TeamLoad"));
 const Baselines = lazy(() => import("./pages/Baselines"));
 const ScheduleProposals = lazy(() => import("./pages/ScheduleProposals"));
+const SavedScheduleProposal = lazy(() => import("./pages/SavedScheduleProposal"));
 const Deviations = lazy(() => import("./pages/Deviations"));
 const BaselineCompare = lazy(() => import("./pages/BaselineCompare"));
 const Teams = lazy(() => import("./pages/Teams"));
@@ -263,6 +264,7 @@ export default function App() {
             <Route path="baselines" element={<Baselines />} />
             <Route path="baselines/:id" element={<BaselineCompare />} />
             <Route path="schedule-proposals" element={<ScheduleProposals />} />
+            <Route path="schedule-proposals/saved/:id" element={<SavedScheduleProposal />} />
             <Route path="deviations" element={<Deviations />} />
             <Route path="people" element={<People />} />
             <Route path="people/:id" element={<PersonDetails />} />

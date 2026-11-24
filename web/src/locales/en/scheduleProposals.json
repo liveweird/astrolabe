@@ -36,5 +36,58 @@
   "stale": "The plan changed in the meantime — nothing was saved. Propose again.",
   "requesting": "Asking for a proposal — the teams are locked until it arrives.",
   "noTeamsAdmin": "No team to propose for yet",
-  "noTeamsAdminHint": "Create a team under Teams first."
+  "noTeamsAdminHint": "Create a team under Teams first.",
+  "saved": {
+    "title": "Saved proposals",
+    "intro": "The newest 20 saved runs, for another manager to open. Saving a 21st removes the oldest.",
+    "tableAria": "Saved proposals",
+    "loadFailed": "Could not load the saved proposals",
+    "empty": "No saved proposals yet",
+    "emptyHint": "Tick the moves of a proposal and save it for another manager to review.",
+    "openAria": "Open {{name}}",
+    "moves": "{{selected}} of {{total}}",
+    "column": {
+      "teams": "Teams",
+      "asOf": "As of",
+      "moves": "Ticked moves",
+      "by": "Saved by",
+      "savedAt": "Saved"
+    },
+    "deleteTitle": "Delete saved proposal",
+    "deleteBody": "Delete the saved proposal “{{name}}”? The plan is not affected.",
+    "deleteFailed": "Could not delete the saved proposal",
+    "deleteForbidden": "Only an administrator or the manager of every team in it can delete a saved proposal",
+    "deleteGone": "This saved proposal is already gone — the list was reloaded",
+    "toast": {
+      "saved": "Proposal saved",
+      "deleted": "Saved proposal deleted"
+    },
+    "save": "Save proposal",
+    "saveTitle": "Save proposal",
+    "saveIntro": "Keeps this run with the moves you have ticked, for another manager to open. Nothing in the plan changes.",
+    "nameLength": "Enter a name of 1 to 100 characters",
+    "nameInvalid": "The name must not contain control characters",
+    "saveForbidden": "Only an administrator or the manager of every team in the run can save it",
+    "saveInvalid": "The proposal could not be saved as sent",
+    "saveStale": "The plan changed since this proposal was computed, so it was not saved. Propose again for the same teams — your ticks are kept.",
+    "proposeAgain": "Propose again",
+    "back": "Back to schedule proposals",
+    "pageTitle": "Saved proposal",
+    "notFound": "This saved proposal does not exist — it may have been deleted.",
+    "facts": "Saved by {{name}} on {{when}} · as of {{asOf}} · teams: {{teams}} · {{selected}} of {{total}} moves ticked · plan revision {{revision}}",
+    "factsAnonymous": "Saved on {{when}} · as of {{asOf}} · teams: {{teams}} · {{selected}} of {{total}} moves ticked · plan revision {{revision}}",
+    "state": {
+      "CURRENT": "Current",
+      "CHANGED": "Changed",
+      "UNREADABLE": "Unreadable"
+    },
+    "stateNote": {
+      "CURRENT": "The plan still matches this proposal.",
+      "CHANGED": "The plan changed after it was saved, so it can no longer be accepted. Propose again to get a fresh one with the same ticks.",
+      "UNREADABLE": "It was saved by an older version of Astrolabe and cannot be shown. Propose again for the same teams to get a fresh one."
+    },
+    "outdated": "Computed for {{date}}; propose again for today.",
+    "readOnly": "You can read it; only an administrator or the manager of every team in it can change the ticks and accept it.",
+    "fresh": "This is a fresh run for the same teams, not the saved proposal. Discard it to return to the saved one."
+  }
 }

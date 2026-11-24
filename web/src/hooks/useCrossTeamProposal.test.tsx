@@ -4,7 +4,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useCrossTeamProposal } from "./useCrossTeamProposal";
 import type { CrossTeamProposal } from "../api/scheduleProposals";
-import { ACCEPT_URL, block, move, RUN, RUN_URL, STALE_REVISION, STALE_SCOPE } from "../test/crossTeamRun";
+import { SAVED_PROPOSALS_KEY, savedProposalKey } from "../api/savedProposals";
+import { ACCEPT_URL, block, ids, move, RUN, RUN_URL, STALE_REVISION, STALE_SCOPE } from "../test/crossTeamRun";
 import { jsonResponse } from "../test/http";
 
 let client: QueryClient;
@@ -304,5 +305,71 @@ describe("accept", () => {
     });
     await waitFor(() => expect(result.current.applying).toBe(false));
     expect(result.current.refused).toBe(false);
+  });
+});
+
+describe("saved proposals: open and proposeAgain", () => {
+  test("open takes a stored run with its ticks as the preview and sends nothing; an accept then posts the stored revision and scope token", async () => {
+    const { result } = renderHook(() => useCrossTeamProposal(announce), { wrapper });
+    act(() => {
+      expect(result.current.open(RUN, new Set([11, 21]))).toBe(true);
+    });
+    expect(result.current.proposal).toBe(RUN);
+    expect([...result.current.selected]).toEqual([11, 21]);
+    expect(bodies(RUN_URL)).toHaveLength(0);
+    act(() => void result.current.accept());
+    await waitFor(() => expect(bodies(ACCEPT_URL)).toHaveLength(1));
+    expect(bodies(ACCEPT_URL)[0]).toMatchObject({ expectedRevision: 12, scopeHash: RUN.scopeHash, teamIds: [1, 2] });
+    expect(ids(bodies(ACCEPT_URL)[0])).toEqual([11, 21]);
+  });
+
+  test("open is refused while a run is already open", async () => {
+    const { result } = await opened();
+    act(() => {
+      expect(result.current.open(RUN, new Set([11]))).toBe(false);
+    });
+    expect([...result.current.selected]).toEqual([11, 12, 21]);
+  });
+
+  test("proposeAgain closes the open run and asks for the same teams, keeping only the ticks of the moves that still exist, with the re-proposed note", async () => {
+    runAnswer = jsonResponse(200, { ...RUN, teams: [block(1, "Platform", [move(11, "x1", "2042-01-06", "2042-01-08"), move(13, "x3", "2042-01-09", "2042-01-09")]), RUN.teams[1]] });
+    const { result } = renderHook(() => useCrossTeamProposal(announce), { wrapper });
+    act(() => void result.current.open(RUN, new Set([11, 12, 21])));
+    act(() => {
+      expect(result.current.proposeAgain([1, 2], new Set([11, 12, 21]))).toBe(true);
+    });
+    await waitFor(() => expect(result.current.requesting).toBe(false));
+    await waitFor(() => expect(result.current.proposal?.teams[0].moves.map((m) => m.milestoneId)).toEqual([11, 13]));
+    expect(bodies(RUN_URL)).toEqual([{ asOf: "2042-01-05", teamIds: [1, 2] }]);
+    expect([...result.current.selected].sort()).toEqual([11, 21]);
+    expect(result.current.rescoped).toBe(true);
+  });
+
+  test("proposeAgain sends nothing for no team and leaves the open run alone", async () => {
+    const { result } = await opened();
+    act(() => {
+      expect(result.current.proposeAgain([], new Set())).toBe(false);
+    });
+    expect(bodies(RUN_URL)).toHaveLength(1);
+    expect(result.current.proposal).not.toBeNull();
+  });
+
+  test("proposeAgain with rescoped false keeps the ticks without the 'plan changed' note", async () => {
+    const { result } = renderHook(() => useCrossTeamProposal(announce), { wrapper });
+    act(() => void result.current.proposeAgain([1, 2], new Set([11]), false));
+    await waitFor(() => expect(result.current.proposal).not.toBeNull());
+    expect([...result.current.selected]).toEqual([11]);
+    expect(result.current.rescoped).toBe(false);
+  });
+
+  test.each([
+    ["stale-revision", STALE_REVISION],
+    ["stale-scope", STALE_SCOPE],
+  ])("a %s refusal of the accept refreshes the saved proposals too (what it read is out of date)", async (_name, problem) => {
+    acceptAnswer = jsonResponse(409, problem);
+    client.setQueryData(savedProposalKey(5), { id: 5 });
+    const { result } = await opened();
+    act(() => void result.current.accept());
+    await waitFor(() => expect(client.getQueryState([...SAVED_PROPOSALS_KEY, "record", 5])?.isInvalidated).toBe(true));
   });
 });

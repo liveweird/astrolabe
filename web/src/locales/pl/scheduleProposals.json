@@ -40,5 +40,58 @@
   "stale": "Plan zmienił się w międzyczasie — niczego nie zapisaliśmy. Zaproponuj ponownie.",
   "requesting": "Pobieramy propozycję — zespoły są zablokowane do jej nadejścia.",
   "noTeamsAdmin": "Nie ma jeszcze zespołu, dla którego można zaproponować harmonogram",
-  "noTeamsAdminHint": "Najpierw utwórz zespół w sekcji Zespoły."
+  "noTeamsAdminHint": "Najpierw utwórz zespół w sekcji Zespoły.",
+  "saved": {
+    "title": "Zapisane propozycje",
+    "intro": "Najnowsze 20 zapisanych przebiegów, do otwarcia przez innego kierownika/czkę. Zapisanie 21. usuwa najstarszy.",
+    "tableAria": "Zapisane propozycje",
+    "loadFailed": "Nie udało się wczytać zapisanych propozycji",
+    "empty": "Nie ma jeszcze zapisanych propozycji",
+    "emptyHint": "Zaznacz zmiany propozycji i zapisz ją do przejrzenia przez innego kierownika/czkę.",
+    "openAria": "Otwórz: {{name}}",
+    "moves": "{{selected}} z {{total}}",
+    "column": {
+      "teams": "Zespoły",
+      "asOf": "Na dzień",
+      "moves": "Zaznaczone zmiany",
+      "by": "Zapisał/a",
+      "savedAt": "Zapisano"
+    },
+    "deleteTitle": "Usuń zapisaną propozycję",
+    "deleteBody": "Usunąć zapisaną propozycję „{{name}}”? Plan pozostaje bez zmian.",
+    "deleteFailed": "Nie udało się usunąć zapisanej propozycji",
+    "deleteForbidden": "Zapisaną propozycję może usunąć tylko administrator/ka albo kierownik/czka każdego z jej zespołów",
+    "deleteGone": "Ta zapisana propozycja już nie istnieje — lista została odświeżona",
+    "toast": {
+      "saved": "Zapisano propozycję",
+      "deleted": "Usunięto zapisaną propozycję"
+    },
+    "save": "Zapisz propozycję",
+    "saveTitle": "Zapisz propozycję",
+    "saveIntro": "Zachowuje ten przebieg wraz z zaznaczonymi zmianami do otwarcia przez innego kierownika/czkę. Plan się nie zmienia.",
+    "nameLength": "Podaj nazwę o długości od 1 do 100 znaków",
+    "nameInvalid": "Nazwa nie może zawierać znaków sterujących",
+    "saveForbidden": "Przebieg może zapisać tylko administrator/ka albo kierownik/czka każdego z jego zespołów",
+    "saveInvalid": "Nie udało się zapisać propozycji w takiej postaci",
+    "saveStale": "Plan zmienił się od obliczenia tej propozycji, więc nie została zapisana. Zaproponuj ponownie dla tych samych zespołów — zaznaczenie zostanie zachowane.",
+    "proposeAgain": "Zaproponuj ponownie",
+    "back": "Wróć do propozycji harmonogramu",
+    "pageTitle": "Zapisana propozycja",
+    "notFound": "Ta zapisana propozycja nie istnieje — mogła zostać usunięta.",
+    "facts": "Zapisał/a {{name}} {{when}} · na dzień {{asOf}} · zespoły: {{teams}} · zaznaczone zmiany: {{selected}} z {{total}} · rewizja planu {{revision}}",
+    "factsAnonymous": "Zapisano {{when}} · na dzień {{asOf}} · zespoły: {{teams}} · zaznaczone zmiany: {{selected}} z {{total}} · rewizja planu {{revision}}",
+    "state": {
+      "CURRENT": "Aktualna",
+      "CHANGED": "Zmieniona",
+      "UNREADABLE": "Nieczytelna"
+    },
+    "stateNote": {
+      "CURRENT": "Plan nadal odpowiada tej propozycji.",
+      "CHANGED": "Plan zmienił się po jej zapisaniu, więc nie można jej już zaakceptować. Zaproponuj ponownie, aby dostać nową z tym samym zaznaczeniem.",
+      "UNREADABLE": "Zapisała ją starsza wersja Astrolabe i nie można jej wyświetlić. Zaproponuj ponownie dla tych samych zespołów, aby dostać nową."
+    },
+    "outdated": "Obliczona na dzień {{date}}; zaproponuj ponownie na dziś.",
+    "readOnly": "Możesz ją przeczytać; zaznaczenie zmienić i zaakceptować może tylko administrator/ka albo kierownik/czka każdego z jej zespołów.",
+    "fresh": "To nowy przebieg dla tych samych zespołów, a nie zapisana propozycja. Odrzuć go, aby wrócić do zapisanej."
+  }
 }

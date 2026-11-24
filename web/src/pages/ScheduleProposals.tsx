@@ -1,25 +1,26 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Button, Group, MultiSelect, Stack, VisuallyHidden } from "@mantine/core";
-import { IconCalendarStats, IconCheck, IconWand, IconX } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
+import { IconBookmark, IconCalendarStats, IconCheck, IconWand, IconX } from "@tabler/icons-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { SAVED_PROPOSALS_KEY } from "../api/savedProposals";
 import { listProposalTeams } from "../api/scheduleProposals";
 import { useAdmin } from "../auth";
-import CrossTeamFacts from "../components/CrossTeamFacts";
-import CrossTeamProposalSection from "../components/CrossTeamProposalSection";
+import CrossTeamRunView from "../components/CrossTeamRunView";
 import EmptyState from "../components/EmptyState";
 import ErrorAlert from "../components/ErrorAlert";
 import FormErrorAlert from "../components/FormErrorAlert";
 import LoadingBlock from "../components/LoadingBlock";
 import PageHeader from "../components/PageHeader";
+import SavedProposalsTable from "../components/SavedProposalsTable";
+import SaveProposalModal from "../components/SaveProposalModal";
 import ProposalNotes from "../components/TeamProposalNotes";
 import { movesOf, useCrossTeamProposal } from "../hooks/useCrossTeamProposal";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useProposalFocus } from "../hooks/useProposalFocus";
 import { useScheduleCheck } from "../hooks/useScheduleCheck";
-import { overlayCheck } from "../utils/scheduleProposal";
-
-/** Zero-width space: toggled on the live-region text so the same sentence twice is announced twice. */
-const REREAD = "​";
+import { useStatusAnnouncer } from "../hooks/useStatusAnnouncer";
+import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 
 /** The run takes `teamIds[1..50]`: the multi-select's `maxValues` and the "All teams" shortcut (the first 50 listed) share it. */
 const MAX_TEAMS = 50;
@@ -38,8 +39,11 @@ export default function ScheduleProposals() {
   // The words of the empty state and the "All teams" shortcut depend on it (an administrator with no team has none to propose for); the server's list decides what is offered.
   const admin = useAdmin();
   const teams = useQuery({ queryKey: ["schedule-proposals", "teams"], queryFn: listProposalTeams });
-  const [announcement, setAnnouncement] = useState("");
-  const flow = useCrossTeamProposal((text) => setAnnouncement((previous) => (previous.endsWith(REREAD) ? text : text + REREAD)));
+  const [announcement, announce] = useStatusAnnouncer();
+  const flow = useCrossTeamProposal(announce);
+  const queryClient = useQueryClient();
+  const [saving, setSaving] = useState(false);
+  useDialogFocus(saving);
   const run = flow.proposal;
   const [picked, setPicked] = useState<string[]>([]);
   const busy = flow.requesting || flow.applying;
@@ -115,28 +119,16 @@ export default function ScheduleProposals() {
       <ProposalNotes proposal={flow} />
       {run !== null && (
         <Stack gap="lg">
-          <CrossTeamFacts passes={run.passes} settled={run.settled} />
-          {run.teams.map((block, index) => (
-            <CrossTeamProposalSection
-              key={block.teamId}
-              team={overlayCheck(block, check, block.teamId)}
-              asOf={run.asOf}
-              position={index + 1}
-              total={run.teams.length}
-              selected={flow.selected}
-              applying={flow.applying}
-              check={check}
-              onToggle={flow.toggle}
-              onSelectAll={flow.selectAll}
-              onSelectNone={flow.selectNone}
-            />
-          ))}
+          <CrossTeamRunView run={run} check={check} selected={flow.selected} applying={flow.applying} onToggle={flow.toggle} onSelectAll={flow.selectAll} onSelectNone={flow.selectNone} />
           {error && (
             <FormErrorAlert ref={errorRef} tabIndex={-1}>
               {error}
             </FormErrorAlert>
           )}
           <Group gap="sm">
+            <Button leftSection={<IconBookmark size={16} />} variant="default" disabled={flow.selected.size === 0 || busy} onClick={() => setSaving(true)}>
+              {t("scheduleProposals.saved.save")}
+            </Button>
             <Button leftSection={<IconCheck size={16} />} loading={flow.applying} disabled={flow.selected.size === 0 || busy} onClick={flow.accept}>
               {t("scheduleProposals.accept", { count: flow.selected.size })}
             </Button>
@@ -145,6 +137,23 @@ export default function ScheduleProposals() {
             </Button>
           </Group>
         </Stack>
+      )}
+      <SavedProposalsTable />
+      {saving && run !== null && (
+        <SaveProposalModal
+          run={run}
+          selected={flow.selected}
+          onClose={() => setSaving(false)}
+          onSaved={async () => {
+            setSaving(false);
+            announce(t("scheduleProposals.saved.toast.saved"));
+            await refreshQueriesAfterMutation(queryClient, [...SAVED_PROPOSALS_KEY]);
+          }}
+          onProposeAgain={() => {
+            setSaving(false);
+            flow.proposeAgain(run.teams.map((team) => team.teamId), flow.selected);
+          }}
+        />
       )}
       {/* The page's one polite status region: every taken step is said here (the notes above are visible only). */}
       <VisuallyHidden role="status" aria-live="polite">

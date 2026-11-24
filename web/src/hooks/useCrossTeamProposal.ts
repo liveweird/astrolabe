@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { useIsMutating, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { SAVED_PROPOSALS_KEY } from "../api/savedProposals";
 import { acceptCrossTeamSchedule, proposeCrossTeamSchedule, type CrossTeamProposal } from "../api/scheduleProposals";
 import { isStaleRevision } from "../api/roadmap";
 import { isStaleScope } from "../api/teams";
@@ -43,6 +44,10 @@ export const movesOf = (run: Pick<CrossTeamProposal, "teams"> | null) => run?.te
  * `stale-scope` 409 (the run teams' plan changed, nothing was written) closes it and asks the SAME teams again at once, keeping the ticks
  * of the moves that still exist (`rescoped` says so); any other failure stays inline in `error` (already words) with the preview open.
  * Every taken step is said through `announce`, the page's polite status region.
+ *
+ * Saved proposals (1.26): `open(run, ticked)` takes a run the SERVER stored as the open one (no request: the accept's own `revision`/`scopeHash`
+ * checks stay the guard), and `proposeAgain(teamIds, ticks)` closes the open run and asks for the same teams again, keeping the ticks of the
+ * moves that still exist (the stale-scope path's own mechanism). An accept refreshes the saved list too: what it read is now `CHANGED`.
  */
 export function useCrossTeamProposal(announce: (text: string) => void) {
   const { t } = useTranslation();
@@ -56,6 +61,8 @@ export function useCrossTeamProposal(announce: (text: string) => void) {
   const [rescoped, setRescoped] = useState(false);
   // The ticks of the run a stale-scope refusal voided, until the fresh run that replaces it has taken them over.
   const keptTicks = useRef<ReadonlySet<number> | null>(null);
+  // Whether the fresh run that takes those ticks over says "the plan changed" (an accept's stale scope, a refused save) or nothing (a saved run asked for again).
+  const sayRescoped = useRef(true);
   // Set the moment an accept is sent and cleared when it settles: a second accept in the SAME tick (a double click) sees it before React has re-rendered `writing`.
   const inFlight = useRef(false);
   // The notes this page words itself: they speak of the chosen teams, not of one team and not of a schedule to reload.
@@ -87,7 +94,7 @@ export function useCrossTeamProposal(announce: (text: string) => void) {
       const moves = movesOf(result);
       setProposal(result);
       setSelected(new Set(moves.map((move) => move.milestoneId).filter((id) => kept === null || kept.has(id))));
-      setRescoped(kept !== null);
+      setRescoped(kept !== null && sayRescoped.current);
       // ONE sentence: two announcements in one batch would keep only the last. A run that did not settle says so after the ready sentence.
       const ready = t("teams.proposal.ready", { count: moves.length });
       announce(result.settled ? ready : `${ready}. ${t("scheduleProposals.facts.unsettled", { count: result.passes })}`);
@@ -105,7 +112,7 @@ export function useCrossTeamProposal(announce: (text: string) => void) {
     },
     onSuccess: (result) => {
       // Not awaited: the write is over, so the next change may go at once; every team view and timeline carries these dates.
-      void refreshQueriesAfterMutation(queryClient, ["plan"], ["roadmap"]);
+      void refreshQueriesAfterMutation(queryClient, ["plan"], ["roadmap"], [...SAVED_PROPOSALS_KEY]);
       const done = outcomeOf(result);
       announce(outcomeSentence(done, t));
       setOutcome(done);
@@ -115,19 +122,20 @@ export function useCrossTeamProposal(announce: (text: string) => void) {
       if (isStaleScope(err)) {
         // The run teams' plan moved on under the proposal and nothing was written: ask again at once (a fresh asOf) and keep the ticks.
         keptTicks.current = selected;
+        sayRescoped.current = true;
         close();
         announce(words.rescoped);
         request.mutate(teamIds);
         // NOT awaited: onError settles the accept (`applying`) only when it returns, and the fresh preview must never be shown (or
         // handed the focus) while the accept still reads as running.
-        void refreshQueriesAfterMutation(queryClient, ["plan"]);
+        void refreshQueriesAfterMutation(queryClient, ["plan"], [...SAVED_PROPOSALS_KEY]);
         return;
       }
       if (!isStaleRevision(err)) return;
       close();
       setStale(true);
       announce(words.stale);
-      await refreshQueriesAfterMutation(queryClient, ["plan"]);
+      await refreshQueriesAfterMutation(queryClient, ["plan"], [...SAVED_PROPOSALS_KEY]);
     },
   });
   const writing = useIsMutating({ mutationKey: ACCEPT_KEY }) > 0;
@@ -178,6 +186,23 @@ export function useCrossTeamProposal(announce: (text: string) => void) {
     propose: (teamIds: number[]): boolean => {
       if (proposal !== null || writing || request.isPending || teamIds.length === 0) return false;
       clearMessages();
+      request.mutate(teamIds);
+      return true;
+    },
+    /** Open a stored run with its ticks as the preview (no request). Not while one is open or a write runs. */
+    open: (run: CrossTeamProposal, ticked: ReadonlySet<number>): boolean => {
+      if (proposal !== null || writing || request.isPending) return false;
+      setProposal(run);
+      setSelected(new Set(ticked));
+      return true;
+    },
+    /** Close the open run (if any) and ask for the same `teamIds` again at once, keeping `ticks` for the moves that still exist; `rescoped` false = no "the plan changed" note. */
+    proposeAgain: (teamIds: number[], ticks: ReadonlySet<number>, rescoped = true): boolean => {
+      if (writing || request.isPending || teamIds.length === 0) return false;
+      clearMessages();
+      close();
+      keptTicks.current = ticks;
+      sayRescoped.current = rescoped;
       request.mutate(teamIds);
       return true;
     },

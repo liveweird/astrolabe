@@ -137,7 +137,7 @@ Everything is lazy under `RequireAuth` unless noted.
 - `/baselines`, `/baselines/:id` — Planning, everyone (`can.manage` writes) — "Baselines".
 - `/teams` — Teams and capacity, everyone reads, ADMIN writes — "Teams and the team page"; `/teams/:id` — everyone (`team.can`) — "Teams and the team page" + `timeline.md`.
 - `/team-load` — Teams and capacity, everyone (read-only; warnings and past-weeks filters) — "Team load".
-- `/schedule-proposals` — Teams and capacity, everyone (teams offered by `GET /schedule-proposals/teams`) — "Schedule proposals".
+- `/schedule-proposals` — Teams and capacity, everyone (teams offered by `GET /schedule-proposals/teams`) — "Schedule proposals"; `/schedule-proposals/saved/:id` (no nav leaf) — everyone (`can`) — same section.
 - `/people`, `/people/:id` — Teams and capacity, everyone reads, ADMIN writes — "People".
 - `/public-holidays` — Teams and capacity, everyone reads, ADMIN writes — "Public holidays".
 - `/deviations` — Integrations, everyone (Refresh now ADMIN, acknowledge by `can`) — "Deviations, bindings and the Jira chips".
