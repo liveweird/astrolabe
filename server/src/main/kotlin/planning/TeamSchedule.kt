@@ -93,7 +93,7 @@ data class TeamBatchOutcome(
 /** A validated item: its span is null for the unschedule pair. */
 data class ValidatedBatchItem(val milestoneId: UInt, val span: DaySpan?)
 
-private val SCOPE_HASH = Regex("^[0-9a-f]{64}$")
+internal val SCOPE_HASH = Regex("^[0-9a-f]{64}$")
 
 /**
  * The whole-batch rules checked BEFORE the lock, for client bugs only: a non-negative `expectedRevision`, a `scopeHash` (when present)

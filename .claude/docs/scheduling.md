@@ -1,6 +1,6 @@
 # Scheduling
 
-Owns: the auto-proposal (one team's not-started milestones, placed by the pure kernel), the cross-team run (that proposal over a set of teams), the scope token, the accept and the check, with their vectors. Not here: the plan structure, the `plan_state` lock, milestones, the pin, the batch schedule write and capacity periods (`planning-model.md`), the guard order and existence disclosure (`authorization.md` "Rules"), the audit event catalogue (`observability.md`), the page mechanics (`web-internals.md`, `timeline.md`), the product intent and the user's answers (`product.md`).
+Owns: the auto-proposal (one team's not-started milestones, placed by the pure kernel), the cross-team run (that proposal over a set of teams), the scope token, the accept, the check, the saved proposals and their vectors. Not here: the plan structure, the `plan_state` lock, milestones, the pin, the batch schedule write and capacity periods (`planning-model.md`), the guard order and existence disclosure (`authorization.md` "Rules"), the audit event catalogue (`observability.md`), the page mechanics (`web-internals.md`, `timeline.md`), the product intent and the user's answers (`product.md`).
 
 ## Rules
 
@@ -14,6 +14,7 @@ Owns: the auto-proposal (one team's not-started milestones, placed by the pure k
 - **The cross-team routes read the team set from the body**, so the body decodes first, then `validateTeamIds`, every team ACTIVE (404 for every caller), then `requireTeamManagerOfAllOrAdmin` (403); the accept re-guards under the lock in ascending team id ("The run endpoint", "The accept", "The check"; the order is `authorization.md`'s).
 - **A stale item is skipped and the rest land** (`GONE`, `NOT_ON_TEAM`, `NO_WORKING_DAY`, `STALE`: data in the `200`); the accept is ONE plan write and ONE bump ("The accept").
 - **Dependencies and capacity only warn**: a violated link after the moves is reported by the post-check, never a refusal ("The check").
+- **A saved proposal is the server's own re-computation and is not plan state.** The save recomputes the run under the accept's `409`s and stores THAT (never a client document), takes no plan lock, moves no revision and writes no plan row; the accept is unchanged ("Saved proposals").
 - The user's answers behind these rules are `product.md` "Domain decisions"; this doc says what the code does.
 
 ## The auto-proposal
@@ -178,6 +179,21 @@ Each block is the per-team proposal's shape without the run-level fields: `{team
 - **What it cannot do.** The check cannot anticipate a skip (`STALE`, `NO_WORKING_DAY`); it describes the ticked subset as written. For the spans of a per-team proposal the answer equals that proposal's `weeks` and `dependencies`. Both pages call it, debounced: the cross-team page with the run's set, the team page with its one team.
 - **Order of checks** (the team set is in the body): decode `400` → `validateTeamIds` `400` → every team ACTIVE else `404` → `requireTeamManagerOfAllOrAdmin` `403` → the items' shape `400` (`validateScheduleCheck`, after the guard) → ONE read-only REPEATABLE READ snapshot (no lock, no audit, nothing stored; a team deleted in the gap is the same `404`)
   → an item whose milestone is not an ACTIVE milestone of a listed team (unknown, deleted, another team's) is a `400` naming the ids (a client bug: ignoring it would make the verdicts describe another subset).
+
+### Saved proposals
+
+Files: `planning/SavedProposal.kt` (DTOs, `STORED_PROPOSAL_FORMAT`), `SavedProposalService.kt`, `SavedProposalRows.kt` (the header, the state), `SavedProposalRoutes.kt`; V32 (`persistence.md`). Pinned by: `SavedProposalTest`, `SavedProposalStateTest`, `SavedProposalRetentionTest`, `StoredProposalFormatTest`, `PlanStateTest`.
+
+A saved run lets a second manager open what a first one computed (the user's answers: every signed-in user may read one; the newest 20 are kept). A computation kept, never a write to the plan. **Retention is global:** any save removes the globally oldest row beyond 20, whoever saved it; the delete guard stops a targeted delete only. A save is rate limited per login (`schedule-proposal-save`, 10 a minute, before the guard).
+
+- **`/api/v1/saved-schedule-proposals`:** `POST {name, asOf, teamIds, expectedRevision, scopeHash, selectedMilestoneIds}` (the run's token and the ticks, no document) answers `201` + `Location` + the summary; `GET` `{items}` (at most 20, newest first, no document); `GET /{id}` the record; `DELETE /{id}` `204`, a hard delete. The order of checks: `authorization.md` "Schedule proposals".
+- **The save is ONE read-write REPEATABLE READ transaction and no plan lock.** `LOCK TABLE … SHARE ROW EXCLUSIVE` comes first (a snapshot starts at the first query, so a waiting save reads what its predecessor committed and two never prune one row; readers are not blocked), then the manager-of-every-team guard again (`403` for a manager cleared while it waited, nothing stored), then the plan revision, `409 stale-revision` (`expectedRevision` above it), the teams' names (gone = `404`), `loadCrossTeamSnapshot`,
+  `409 stale-scope` (the fresh token, `asOf` included, differs from `scopeHash`, or ANY milestone of a run team has `schedule_revision` above `expectedRevision`: `reschedulesOutsideBatch` with no items; a changed holiday is stale, there is no look-again),
+  `assembleProposal` (`proposeMany` + `postCheckMany`, the run endpoint's own assembly), a ticked id that is no move `400`, for a PARTIAL selection `checkResponse` over the ticked moves (else `check` is null), the insert, the prune beyond the newest 20 by `id`.
+- **`state` is derived at every read, never stored.** CURRENT: the current structure and holidays digests equal the stored token's AND no run-team milestone has `schedule_revision` above the proposal's `planRevision`. CHANGED: otherwise (a run team gone, a rename, a pin, a link, a capacity period). UNREADABLE: `format` is not `STORED_PROPOSAL_FORMAT` (no state is computed; `proposal` and `check` are null).
+- **`can`** is `PlanPermissions.canDeleteSavedProposal` and `canAcceptSavedProposal`: ADMIN or the manager of every stored team, and for Accept also CURRENT. A hint: Accept is the unchanged `POST /schedule-proposals/accept`, which re-checks everything.
+- **`STORED_PROPOSAL_FORMAT`** is the shape version of the stored `CrossTeamProposal`, `ScheduleCheckResponse` and the `teams`/`selected` columns. `StoredProposalFormatTest` fingerprints their serial descriptors (every list element type walked): a DTO change without a bump and a new fingerprint line fails; the old rows then read UNREADABLE, no migration.
+- **Audit:** `schedule_proposal.saved` and `.deleted` (`observability.md`); reads emit none.
 
 ### Hand-counted vectors
 

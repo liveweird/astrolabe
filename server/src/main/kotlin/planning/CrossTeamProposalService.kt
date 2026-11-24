@@ -38,33 +38,7 @@ class CrossTeamProposalService(private val database: R2dbcDatabase) {
             val names = activeTeamNames(teamIds)
             if (names.size != teamIds.size) return@suspendTransaction null
             val snapshot = loadCrossTeamSnapshot(names)
-            val inputs = snapshot.inputs(asOf)
-            val result = ScheduleKernels.proposeMany(inputs)
-            val checks = ScheduleKernels.postCheckMany(inputs, result)
-            val snapshots = snapshot.teams.associateBy { it.teamId }
-            CrossTeamProposal(
-                revision = revision,
-                asOf = asOf.toString(),
-                passes = result.passes,
-                settled = result.settled,
-                teams = result.order.map { teamId ->
-                    val team = snapshots.getValue(teamId)
-                    val check = checks.getValue(teamId)
-                    val lists = proposalLists(team.rows, result.byTeam.getValue(teamId), snapshot.calendar, asOf)
-                    CrossTeamProposalTeam(
-                        teamId = teamId,
-                        name = team.name,
-                        moves = lists.moves,
-                        unchanged = lists.unchanged,
-                        unplaced = lists.unplaced,
-                        pinned = lists.pinned,
-                        weeks = check.weeks.map { it.toView() },
-                        weeksTruncated = check.weeksTruncated,
-                        dependencies = proposalLinks(snapshot.links, check),
-                    )
-                },
-                scopeHash = snapshot.scopeDigests().token(asOf),
-            )
+            snapshot.assembleProposal(revision, asOf)
         }
 
     /**
@@ -85,14 +59,7 @@ class CrossTeamProposalService(private val database: R2dbcDatabase) {
         suspendTransaction(database, SNAPSHOT, readOnly = true) {
             val names = activeTeamNames(teamIds)
             if (names.size != teamIds.size) return@suspendTransaction null
-            val snapshot = loadCrossTeamSnapshot(names)
-            val checks = ScheduleKernels.checkMany(snapshot.checkInputs(), snapshot.hypotheticalSpans(items))
-            ScheduleCheckResponse(
-                teamIds.map { teamId ->
-                    val check = checks.getValue(teamId)
-                    ScheduleCheckTeam(teamId, check.weeks.map { it.toView() }, check.weeksTruncated, proposalLinks(snapshot.links, check))
-                },
-            )
+            loadCrossTeamSnapshot(names).checkResponse(teamIds, items)
         }
 
     /**
@@ -119,6 +86,56 @@ class CrossTeamProposalService(private val database: R2dbcDatabase) {
             truncated = rows.size > limit,
         )
     }
+}
+
+/**
+ * The run's document over this snapshot as of [asOf] (`revision` is the snapshot's own, read first): [ScheduleKernels.proposeMany], its
+ * post-check over the run's final dates, one block per team in placement order and the run's `scopeHash`. Reads only the link ends
+ * ([proposalLinks]), inside the caller's transaction; the
+ * run endpoint and the proposal save ([SavedProposalService]) build the document through here, so a saved one is the run's own.
+ */
+internal suspend fun CrossTeamSnapshot.assembleProposal(revision: Long, asOf: LocalDate): CrossTeamProposal {
+    val inputs = inputs(asOf)
+    val result = ScheduleKernels.proposeMany(inputs)
+    val checks = ScheduleKernels.postCheckMany(inputs, result)
+    val snapshots = teams.associateBy { it.teamId }
+    return CrossTeamProposal(
+        revision = revision,
+        asOf = asOf.toString(),
+        passes = result.passes,
+        settled = result.settled,
+        teams = result.order.map { teamId ->
+            val team = snapshots.getValue(teamId)
+            val check = checks.getValue(teamId)
+            val lists = proposalLists(team.rows, result.byTeam.getValue(teamId), calendar, asOf)
+            CrossTeamProposalTeam(
+                teamId = teamId,
+                name = team.name,
+                moves = lists.moves,
+                unchanged = lists.unchanged,
+                unplaced = lists.unplaced,
+                pinned = lists.pinned,
+                weeks = check.weeks.map { it.toView() },
+                weeksTruncated = check.weeksTruncated,
+                dependencies = proposalLinks(links, check),
+            )
+        },
+        scopeHash = scopeDigests().token(asOf),
+    )
+}
+
+/**
+ * The check document of the hypothetical spans [items] describe over this snapshot, one block per team of [teamIds] in that order
+ * ([ScheduleKernels.checkMany]; a 400 for an item whose milestone is not on a run team, [hypotheticalSpans]).
+ */
+internal suspend fun CrossTeamSnapshot.checkResponse(teamIds: List<UInt>, items: List<ValidatedBatchItem>): ScheduleCheckResponse {
+    val checks = ScheduleKernels.checkMany(checkInputs(), hypotheticalSpans(items))
+    return ScheduleCheckResponse(
+        teamIds.map { teamId ->
+            val check = checks.getValue(teamId)
+            ScheduleCheckTeam(teamId, check.weeks.map { it.toView() }, check.weeksTruncated, proposalLinks(links, check))
+        },
+    )
 }
 
 /**

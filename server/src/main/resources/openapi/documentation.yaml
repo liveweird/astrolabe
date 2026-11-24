@@ -2496,6 +2496,111 @@ paths:
                 $ref: '#/components/schemas/ProposalTeamList'
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/saved-schedule-proposals:
+    get:
+      tags: [plan]
+      operationId: listSavedScheduleProposals
+      summary: List the saved cross-team proposals
+      description: >-
+        Lists the saved proposals, newest first (at most 20; ANY save removes the oldest, whoever saved it). Any authenticated user
+        may read them. A saved proposal holds names, dates and load that every login reads in the plan, but also the run's OUTPUT
+        (proposed dates, unplaced reasons, the post-check, the ticks, the saver and when), which `POST /schedule-proposals` refuses
+        a caller who manages none of its teams; team names stay as saved until the proposal is evicted or deleted. A bounded
+        `{items}` set, not paged, without the proposals' documents. `can.delete` is the caller's right to delete that proposal
+        (ADMIN, or the active manager of every team it names).
+      responses:
+        '200':
+          description: The saved proposals
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedProposalList'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      tags: [plan]
+      operationId: saveScheduleProposal
+      summary: Save a cross-team run (the server's own re-computation, nothing of the plan changes)
+      description: >-
+        Saves the run named by `teamIds` and `asOf` as the server computes it now, with the ticked moves (`selectedMilestoneIds`);
+        no client document is stored. Not plan state: no revision bump, no milestone moves, no accept. ADMIN or the active manager of
+        every listed team. Rate limited per user (10 a minute, spent first): `429`. Order, because the team set is in the body: the
+        body decodes (`400`), `teamIds` shape `400`, every listed team active else `404` for every caller (naming the ids), `403`
+        unless the caller manages every one, then the rest of the shape `400`. Then, in one transaction, the guard again once the
+        save's lock is won (`403`), and `409`, nothing stored: `expectedRevision` above the plan revision
+        (`urn:astrolabe:problem:stale-revision`), or the plan the run read changed (`urn:astrolabe:problem:stale-scope`); a team
+        deleted meanwhile is `404`; a selected id that is not a move of the run is `400`. The newest 20 proposals are kept: any save
+        removes the older ones, whoever saved them.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavedProposalSaveRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '201':
+          description: Saved; `Location` points at the new proposal
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedProposalSummary'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: >-
+            `expectedRevision` is above the current plan revision (`type` is `urn:astrolabe:problem:stale-revision`), or the plan the
+            run read changed (`type` is `urn:astrolabe:problem:stale-scope`); nothing was stored
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/saved-schedule-proposals/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      tags: [plan]
+      operationId: getSavedScheduleProposal
+      summary: Get a saved cross-team proposal with its state
+      description: >-
+        Any authenticated user; `404` for an unknown id. `state` is derived at read, never stored: `CURRENT` while the plan still
+        matches what the run read, `CHANGED` otherwise (a listed team gone included), `UNREADABLE` when the proposal was stored in
+        a shape this server no longer reads (then `proposal` and `check` are null). `check` is the stored check of the ticked moves
+        and is null when every move was ticked. `can.accept` is the caller's right to accept it (ADMIN, or the active manager of
+        every listed team) while it is `CURRENT`; the accept itself is `POST /schedule-proposals/accept` and re-checks everything.
+      responses:
+        '200':
+          description: The saved proposal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedProposalRecord'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      tags: [plan]
+      operationId: deleteSavedScheduleProposal
+      summary: Delete a saved cross-team proposal
+      description: >-
+        Removes the proposal (a hard delete; nothing of the plan changes). ADMIN or the active manager of every team the proposal
+        names, as stored: a missing id is `404` for every caller, then `403` for anyone else.
+      responses:
+        '204':
+          description: Deleted
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/public-holidays:
     get:
       tags: [calendar]
@@ -7338,6 +7443,147 @@ components:
           maxItems: 1000
           items: { $ref: '#/components/schemas/TeamRef' }
         truncated: { type: boolean, description: True when additional eligible teams were left out. }
+    SavedProposalSaveRequest:
+      type: object
+      required: [name, asOf, teamIds, expectedRevision, scopeHash, selectedMilestoneIds]
+      description: The run of `POST /schedule-proposals` (`asOf`, `teamIds`, its `revision` and `scopeHash`) with a name and the ticked moves.
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100, description: 'Trimmed; a control character is a `400`. Not unique.' }
+        asOf:
+          type: string
+          format: date
+          description: The run's `asOf` (1900-01-01 to 2990-01-05; a later day is `400`).
+        teamIds:
+          type: array
+          minItems: 1
+          maxItems: 50
+          uniqueItems: true
+          items: { type: integer, format: int32, minimum: 0 }
+          description: 'The run''s teams: one to 50, each once. The caller must manage every one, or be ADMIN.'
+        expectedRevision:
+          type: integer
+          format: int64
+          minimum: 0
+          description: The run's `revision`. Negative is `400`; above the current plan revision is `409`.
+        scopeHash:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+          description: >-
+            The run's `scopeHash`, sent back unchanged (else `400`). The save is refused (`409`, `stale-scope`) when the run it
+            would compute carries another one, or a milestone of a listed team was scheduled after `expectedRevision`.
+        selectedMilestoneIds:
+          type: array
+          minItems: 1
+          maxItems: 2000
+          uniqueItems: true
+          items: { type: integer, format: int32, minimum: 0 }
+          description: >-
+            The ticked moves: milestones the run proposes to move (one that is not a move is `400`), each once. Every move ticked
+            stores no check document; a subset stores the check of exactly those moves.
+    SavedProposalTeam:
+      type: object
+      required: [id, name]
+      description: A team of a saved proposal, named as it was at the save.
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+    SavedProposalListCan:
+      type: object
+      required: [delete]
+      properties:
+        delete: { type: boolean, description: 'The caller may delete the proposal (ADMIN, or the active manager of every team it names).' }
+    SavedProposalCan:
+      type: object
+      required: [accept, delete]
+      properties:
+        accept:
+          type: boolean
+          description: >-
+            The caller may accept it: ADMIN or the active manager of every team, and its `state` is `CURRENT`. A client must also
+            require the proposal's `asOf` to be today before offering Accept (the state does not read the clock).
+        delete: { type: boolean, description: 'The caller may delete the proposal.' }
+    SavedProposalSummary:
+      type: object
+      required: [id, name, asOf, planRevision, createdAt, createdBy, teams, moveCount, selectedCount, passes, settled, can]
+      description: One saved proposal's facts, without its documents.
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string, minLength: 1, maxLength: 100 }
+        asOf: { type: string, format: date }
+        planRevision: { type: integer, format: int64, minimum: 0, description: The plan revision the run was computed at. }
+        createdAt: { type: integer, format: int64, description: Epoch millis }
+        createdBy:
+          nullable: true
+          description: Null when the login that saved it is gone.
+          allOf:
+            - $ref: '#/components/schemas/BaselineCreator'
+        teams:
+          type: array
+          maxItems: 50
+          description: The run's teams as named at the save, by id.
+          items: { $ref: '#/components/schemas/SavedProposalTeam' }
+        moveCount: { type: integer, format: int32, minimum: 0, description: The moves the run proposed. }
+        selectedCount: { type: integer, format: int32, minimum: 1, description: The moves ticked at the save. }
+        passes: { type: integer, format: int32, minimum: 1 }
+        settled: { type: boolean }
+        can:
+          $ref: '#/components/schemas/SavedProposalListCan'
+    SavedProposalList:
+      type: object
+      required: [items]
+      description: The saved proposals, newest first - a bounded set (at most 20), not paged.
+      properties:
+        items:
+          type: array
+          maxItems: 20
+          items: { $ref: '#/components/schemas/SavedProposalSummary' }
+    SavedProposalState:
+      type: string
+      enum: [CURRENT, CHANGED, UNREADABLE]
+      description: >-
+        Derived at read: CURRENT = the plan still matches what the run read; CHANGED = it moved (a listed team gone included);
+        UNREADABLE = stored in a shape this server no longer reads.
+    SavedProposalRecord:
+      type: object
+      required: [id, name, asOf, planRevision, createdAt, createdBy, teams, moveCount, selectedCount, passes, settled, state, selectedMilestoneIds, proposal, check, can]
+      description: One saved proposal with its state and its stored documents.
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string, minLength: 1, maxLength: 100 }
+        asOf: { type: string, format: date }
+        planRevision: { type: integer, format: int64, minimum: 0 }
+        createdAt: { type: integer, format: int64, description: Epoch millis }
+        createdBy:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/BaselineCreator'
+        teams:
+          type: array
+          maxItems: 50
+          items: { $ref: '#/components/schemas/SavedProposalTeam' }
+        moveCount: { type: integer, format: int32, minimum: 0 }
+        selectedCount: { type: integer, format: int32, minimum: 1 }
+        passes: { type: integer, format: int32, minimum: 1 }
+        settled: { type: boolean }
+        state:
+          $ref: '#/components/schemas/SavedProposalState'
+        selectedMilestoneIds:
+          type: array
+          maxItems: 2000
+          description: The ticked moves, ascending.
+          items: { type: integer, format: int32, minimum: 0 }
+        proposal:
+          nullable: true
+          description: The server's run as stored (its `revision` and `scopeHash` are the save's); null when `state` is `UNREADABLE`.
+          allOf:
+            - $ref: '#/components/schemas/CrossTeamProposal'
+        check:
+          nullable: true
+          description: The stored check of the ticked moves when only a subset was ticked; null when every move was, or when `state` is `UNREADABLE`.
+          allOf:
+            - $ref: '#/components/schemas/ScheduleCheckResponse'
+        can:
+          $ref: '#/components/schemas/SavedProposalCan'
 
     ProblemDetail:
       type: object

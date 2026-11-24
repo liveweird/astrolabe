@@ -53,6 +53,7 @@ class MigrationChecksumTest {
         "V29__jira_gone_probed_key.sql" to 1806262247,
         "V30__drop_jira_binding_ack_columns.sql" to -159218806,
         "V31__flow_sprint_snapshot_completeness.sql" to -1947069968,
+        "V32__saved_schedule_proposals.sql" to -1131957739,
     )
 
     @Test

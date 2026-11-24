@@ -5,7 +5,7 @@ Owns: the database stack (Flyway, Exposed + R2DBC, the pool), the migrations lis
 ## Rules
 
 - PostgreSQL is the only database. Runtime access is Exposed over R2DBC; the `org.postgresql:postgresql` JDBC driver is on the classpath solely for Flyway. Migrations are the single source of the schema: never call `SchemaUtils.create`; Exposed table objects are for queries only, never DDL.
-- **An applied migration's bytes are immutable, comments included.** Flyway validates stored checksums at startup, so any edit to an existing `V*.sql` makes every long-lived database refuse to boot (a failure no fresh-container CI run can see). `MigrationChecksumTest` pins every file's checksum; a new migration adds one manifest line; a red pin means REVERT the edit (clarifications go into this doc), never update the pinned value. V1 to V31 today.
+- **An applied migration's bytes are immutable, comments included.** Flyway validates stored checksums at startup, so any edit to an existing `V*.sql` makes every long-lived database refuse to boot (a failure no fresh-container CI run can see). `MigrationChecksumTest` pins every file's checksum; a new migration adds one manifest line; a red pin means REVERT the edit (clarifications go into this doc), never update the pinned value. V1 to V32 today.
 - Exposed table `object`s are nested in their service (`UserService.Users`). Each service lives next to its feature and is published into `Application.attributes` by `infra/db/Database.kt`, the one composition root. Route handlers never touch tables; services only.
 - Ids are `UIntIdTable`, unsigned end to end (the spec declares `minimum: 0`; `ErrorHandling.kt` 400s a negative path segment before it could wrap).
 - **The matrix is the permission.** A service may query or write another feature's table when the operation must run inside its own transaction (a join, an atomic snapshot, a soft delete that must also close a dependent row). A new cross-feature read or write adds its matrix cell and its protocol line in the same commit; the Migrations table, the soft-delete list and the matrix grow in the same commit as each migration.
@@ -67,6 +67,7 @@ One row a file. The files are the DDL; `MigrationChecksumTest` pins their bytes.
 | V29 | `jira_observations.gone_probed_key` (no CHECK on purpose: "The Jira sync tables (V21)") | `jira/` |
 | V30 | drops V22's three `jira_bindings.ack_*` columns with their CHECKs and foreign key | `jira/` |
 | V31 | `flow_teams.sprints_complete` (existing rows conservatively false until a complete refresh) | `flow/` |
+| V32 | `saved_schedule_proposals` (the server's own cross-team run, kept; not plan state) | `planning/` |
 
 ## Connection pool
 
@@ -154,15 +155,16 @@ a write through the owner's exported function (`deleteCapacityPeriodsOf`, `remov
 | `people` | `people/PersonService` | `users/UserService` (`linkedPersonIds`), `teams/`, `planning/`, `flow/CapacityAcknowledgeService`, `jira/` | `users/UserRoutes` (`PersonService.create`) | people, teams, planning plan |
 | `teams` | `teams/TeamService` | `people/`, `planning/`, `jira/`, `flow/` | none | teams, planning plan, flow, jira |
 | `team_capacity_periods` | `teams/TeamCapacityService` | `planning/`, `flow/CapacityImportService`, `flow/CapacityDeviationService` | `teams/TeamService` (`deleteCapacityPeriodsOf`), `flow/` (`applyImport` only) | teams |
-| `plan_state` | `planning/PlanState.kt` | every `planning/` view, `ScheduleProposalService`, `CrossTeamProposalService`, `jira/DeviationViewService`, `jira/JiraImportService` | `jira/JiraImportService.apply`; every `planning/` plan write | planning plan |
+| `plan_state` | `planning/PlanState.kt` | every `planning/` view, `ScheduleProposalService`, `CrossTeamProposalService`, `SavedProposalService`, `jira/DeviationViewService`, `jira/JiraImportService` | `jira/JiraImportService.apply`; every `planning/` plan write | planning plan |
 | `work_streams` | `planning/WorkStreamService` | `planning/`, `jira/`, `people/` (`ownsActivePlanNode`) | none | planning plan |
 | `programs` | `planning/ProgramService` | `WorkStreamService`, `planning/`, `jira/`, `people/` | `jira/` (`insertProgramRow`) | planning plan, jira |
 | `projects` | `planning/ProjectService` | `ProgramService`, `planning/`, `jira/`, `people/` | `jira/` (`insertProjectRow`) | planning plan, jira |
 | `milestones` | `planning/MilestoneService` | `planning/`, `teams/TeamService` (`hasActiveMilestones`), `jira/` | `ProjectService` (`deleteMilestonesOf`), `TeamScheduleService` (`writeSchedules`), `jira/` (`insertMilestoneRow`, `writeSchedules`) | planning plan, jira |
-| `dependencies` | `planning/DependencyService` | the timeline views, the dependency list, `ScheduleProposalService`, `CrossTeamProposalService`, `TeamScheduleService`, `BaselineService` | `MilestoneService`, `ProjectService` (`deleteDependenciesOf`) | planning plan |
-| `roadmap_entries` | `planning/RoadmapService` | the roadmap, programs, team and home views, both proposal services, `BaselineService` | `ProjectService` (`removeFromRanking`) | planning plan |
-| `team_milestone_orders`, `team_order_state` | `planning/TeamOrderService` | `TeamViewService`, both proposal services, `TeamScheduleService` | `MilestoneService` (`removeFromTeamOrder`), `ProjectService` (`removeFromTeamOrders`): `team_milestone_orders` only | planning plan |
+| `dependencies` | `planning/DependencyService` | the timeline views, the dependency list, the three proposal services, `TeamScheduleService`, `BaselineService` | `MilestoneService`, `ProjectService` (`deleteDependenciesOf`) | planning plan |
+| `roadmap_entries` | `planning/RoadmapService` | the roadmap, programs, team and home views, the three proposal services, `BaselineService` | `ProjectService` (`removeFromRanking`) | planning plan |
+| `team_milestone_orders`, `team_order_state` | `planning/TeamOrderService` | `TeamViewService`, the three proposal services, `TeamScheduleService` | `MilestoneService` (`removeFromTeamOrder`), `ProjectService` (`removeFromTeamOrders`): `team_milestone_orders` only | planning plan |
 | `public_holidays` | `planning/PublicHolidayService` | `planning/`, `jira/` (`DeviationViewService`, `JiraImportService`), `flow/` (`CapacityImportService`, `CapacityDeviationService`), all through `loadWorkingCalendar()` | none | planning views |
+| `saved_schedule_proposals` | `planning/SavedProposalService` | none | none (not plan state: no plan write, no lock but its own table lock) | planning proposals and baselines |
 | `baselines`, `baseline_projects`, `baseline_milestones` | `planning/BaselineService` | the timeline views with `?baseline=N` (`BaselineRows.kt`), `BaselineViewService` | none (frozen: the V20 triggers refuse any change) | planning views, planning proposals and baselines |
 
 ### The matrix: integrations and telemetry
@@ -189,7 +191,7 @@ Files: `users/UserService.kt` (with `users/UserGrants.kt`: the feature and permi
 - `auth/PasswordResetService` READS `Users` (the `active()` / `credential_revision` / `email` predicate of a grant's liveness, and `FOR NO KEY UPDATE` on the user row, `lockUser`) and WRITES `users.password_hash`, `password_changed_at` and `credential_revision` through `updatePasswordInTransaction` inside its own transaction, the same one that consumes the grant.
 - `plugins/Health.kt` (`GET /api/v1/ready`) READS `Users` (`id`, `LIMIT 1`): a bounded round trip that proves the database answers; it writes nothing and returns no row.
 - Other readers of `users`: `people/` (the active-login check, the login's email), `teams/` (`isActiveManager` and its twins join it), `planning/` (`creatorsOf`, which `jira/` and `flow/CapacityAcknowledgeService` use for the acknowledging login's name).
-- `flow_capacity_acknowledgements.ack_by_user_id`, `jira_deviation_acknowledgements.ack_by_user_id`, `sync_runs.requested_by_user_id` and the bindings' `created_by_user_id` reference `users` (no `ON DELETE`: users are only soft-deleted).
+- `flow_capacity_acknowledgements.ack_by_user_id`, `jira_deviation_acknowledgements.ack_by_user_id`, `sync_runs.requested_by_user_id` the bindings' `created_by_user_id` and `saved_schedule_proposals.created_by_user_id` reference `users` (no `ON DELETE`: users are only soft-deleted).
 - `UserService.hasPermission` reads `user_permissions` per call, never cached and never a token claim (`authorization.md`).
 - `UserService.list` and `read` read `people` back (`UserPersonLinks.kt` `linkedPersonIds`: `user_id` and `id` of the ACTIVE person per login, batched) inside their own transaction, unlocked, for `UserResponse.personId`.
 
@@ -284,7 +286,7 @@ Measured cost: `timeline.md` "Measured figures". Pinned by: `PackageBoundaryTest
 
 ### Planning proposals and baselines
 
-Files: `planning/ScheduleProposalService.kt`, `CrossTeamProposalService.kt`, `BaselineService.kt`, `BaselineRows.kt`.
+Files: `planning/ScheduleProposalService.kt`, `CrossTeamProposalService.kt`, `SavedProposalService.kt`, `BaselineService.kt`, `BaselineRows.kt`.
 
 - **`ScheduleProposalService`** (`POST /teams/{id}/schedule-proposal`) is a computation: ONE `READ ONLY REPEATABLE READ` snapshot, the plan revision first, no lock, nothing written, nothing stored. It READS the team (`Teams`, name and `active()`), its milestone rows with their chain and rank (`teamMilestoneRows`), `positionsOf`, `teamCapacityRows`, every ACTIVE milestone (`milestoneFacts`: the other teams' dates are the fixed constraints), `linkFacts`, the calendar (right after the revision) and, through `resolveEndpoints`, the touched links' ends.
 - **`CrossTeamProposalService`** (`POST /schedule-proposals`, `GET /schedule-proposals/teams`) is the same kind of reader for N teams: ONE snapshot, the revision FIRST. `loadCrossTeamSnapshot` reads the calendar, then per run team `teamMilestoneRows`, `positionsOf` and `teamCapacityRows`, and the plan-wide `milestoneFacts` and `linkFacts` ONCE (not once per team); the run teams' names come from `Teams` (`active()`) inside the same snapshot.
@@ -294,6 +296,9 @@ Files: `planning/ScheduleProposalService.kt`, `CrossTeamProposalService.kt`, `Ba
   (`POST /schedule-proposals/check`) reads the same snapshot and rows (it answers no revision, so `activeTeamNames` is its first statement), writes nothing and overlays
   the request's spans in memory.
   The accept is `TeamScheduleService.acceptRun` ("Planning plan: orders, schedules and lists").
+- **`SavedProposalService`** (`/saved-schedule-proposals`, `scheduling.md` "Saved proposals") owns `saved_schedule_proposals` and writes nothing else. Its save is ONE read-write REPEATABLE READ transaction whose FIRST statement is `LOCK TABLE saved_schedule_proposals IN SHARE ROW EXCLUSIVE MODE` (a snapshot starts at the first query: a save that waited then reads what the one before it committed, and two never prune the same row, which REPEATABLE READ would fail as a serialization error;
+  readers are not blocked, a delete waits one save). Then the route's manager guard again, the plan revision and the run's own readers (`loadCrossTeamSnapshot`, `milestoneFacts`, `linkFacts`, the proposal assembly), the insert and the prune. NO plan lock and no bump.
+  It holds the table lock and, at the insert, `FOR KEY SHARE` on the saving user's row until commit (`created_by_user_id → users`, no `ON DELETE`); nothing it waits for is held by a writer of either, so no cycle. A read is one read-only snapshot (the list never selects `document`, `check_document` or `selected`); the delete is two short transactions (the header read, then the delete). `creatorsOf` names the saver.
 - **`BaselineService`** WRITES only its own tables: `baselines` (create, rename, the soft-delete flag), `baseline_projects` and `baseline_milestones` (FROZEN: one multi-row `insertRows` each at create, never updated or deleted; the V20 triggers refuse both). Only inside `withPlanWrite`, so a baseline is the plan at ONE revision and every baseline write bumps the revision; the caller's guard (`requireRoadmapEditorOrAdmin`, the grant re-read through `UserService.hasPermission` in the same transaction) re-runs inside the lock.
 - `create` READS, under the lock, everything the roadmap view reads through `loadRoadmapSnapshot` (links and calendar included, for the rolled-up links it does not keep) plus `baselineMilestoneFacts` (the active milestones with name and estimate); the response reads ACTIVE `Users` and `People` for `createdBy`. The frozen rows hold NO foreign key to any live row (`baselines.created_by_user_id → users(id)` is the only FK out of the three tables). The read loaders (`BaselineRows.kt`) are what the views read inside their snapshot after `readPlanRevision()`.
 
@@ -469,6 +474,7 @@ Join and token tables, registries, mirrors and operational history. A new one ne
 | `jira_issues`, `flow_teams`, `flow_sprints`, `flow_members` | mirrors: the latest observed census or document of a connection, overwritten (the Flow mirror replaced wholesale by every run in one transaction), pruned by the run, removed with the connection in the connection delete's transaction |
 | `flow_capacity_acknowledgements` | a stamp keyed by binding and sprint: an un-acknowledge, a prune of a row that left the list and the connection delete remove it; a re-acknowledge rewrites; no history |
 | `jira_deviation_acknowledgements` | a stamp keyed by binding and kind: a withdrawal deletes it, a re-acknowledge rewrites it; no prune, and the rows of an unbound binding stay as history; the unique index is only the backstop (every writer holds the binding row lock) |
+| `saved_schedule_proposals` | an immutable working artefact, not history: the newest 20 are kept, ANY save beyond them prunes the globally oldest in its own transaction, a delete removes the row; nothing references it, so a flag would only keep rows the cap prunes anyway |
 | `ops.telemetry_*` | regenerated, high-volume observations with no reader once old: pruned by a fixed window ("Telemetry (V9)") |
 
 #### Frozen rows
@@ -647,3 +653,9 @@ no `ON DELETE` rule: bindings and users are only soft-deleted, so unbinding keep
 `flow_capacity_acknowledgements` (`flow/CapacityAcknowledgeService.kt`; `flow-sync.md` "Acknowledge"). `sprint_id` is Flow's sprint id; **NULL is the binding's `TEAM_GONE` row** (the one deviation a gone team has), so `uq_flow_capacity_acks_key ON (binding_id, sprint_id) NULLS NOT DISTINCT` (Postgres 18, the V15/V21 idiom) makes the team row collide with itself. `ck_flow_capacity_acks_sprint` (NULL or >= 1) and `ck_flow_capacity_acks_fingerprint` (`^[0-9a-f]{64}$`).
 **Hard rows, no `marked_as_deleted`** (a stamp like `jira_observations`): an un-acknowledge DELETEs, a re-acknowledge rewrites `fingerprint`, `ack_at` and `ack_by_user_id` (acknowledge-all deletes the named keys and re-inserts them in one multi-row statement, so those rows get a new `id`; both under the binding row lock); the stored fingerprint is compared with the row's on every read, so a stale row is simply an open one again.
 **A row lives only while its deviation row is listed** (the prune: "Flow capacity acknowledgements"), so the table is bounded by the listed rows, plus the plan-side residual of a deleted team. Not plan state: no plan lock, no revision.
+
+### The saved proposals (V32)
+
+`saved_schedule_proposals` (`planning/SavedProposalService.kt`; semantics: `scheduling.md` "Saved proposals"). One row is the SERVER's own `CrossTeamProposal` (`document`) and, for a partial selection, its `ScheduleCheckResponse` (`check_document`, NULL = every move ticked), stored through `jsonb` and `canonicalJson`. `format` is `STORED_PROPOSAL_FORMAT`: a row of another format is UNREADABLE (never decoded); `StoredProposalFormatTest` fingerprints the two documents' serial shape.
+`teams` is `[{id,name}]` as of the save and `selected` the ticked ids; `move_count`, `selected_count`, `passes` and `settled` repeat what the list shows so it never reads a document.
+No foreign key to a plan row (the proposal says what the plan was; its `state` is derived at read), only `created_by_user_id`. Immutable: no `updated_at`; names are not unique. Pinned by `SavedProposalTest`, `SavedProposalRetentionTest` and `MigrationChecksumTest`.

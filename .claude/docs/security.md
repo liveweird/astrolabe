@@ -346,6 +346,7 @@ with the generic `429` problem, `Retry-After` and the coalesced `rate_limit.exce
 | `jira-import` | user | 5/min every mode | `RateLimits.JIRA_IMPORT` |
 | `password-change` | user | 10/min every mode | `RateLimits.PASSWORD_CHANGE` |
 | `sync-run` | user | 10 per fixed 60 s window, every mode | no config key |
+| `schedule-proposal-save` | user | 10/min every mode | `RateLimits.SCHEDULE_PROPOSAL_SAVE` |
 
 ### Per-IP buckets
 

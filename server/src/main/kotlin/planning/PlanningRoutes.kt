@@ -30,10 +30,10 @@ import io.ktor.server.routing.routing
  * registered by this ONE
  * module function and split per entity (`WorkStreamRoutes.kt`, `ProgramRoutes.kt`, `ProjectRoutes.kt`, `MilestoneRoutes.kt`,
  * `DependencyRoutes.kt`, `PlanViewRoutes.kt`, `RoadmapRoutes.kt`, `TeamOrderRoutes.kt`, `TeamScheduleRoutes.kt`,
- * `CrossTeamScheduleRoutes.kt`, and since V19
+ * `CrossTeamScheduleRoutes.kt`, since 1.26 `SavedProposalRoutes.kt` (`/saved-schedule-proposals`, not plan state), and since V19
  * `PublicHolidayRoutes.kt` - the ADMIN registry `/public-holidays`, guard-before-read, whose writes are plan writes, and since V20
  * `BaselineRoutes.kt` - the registry `/baselines`, written by ADMIN or a `ROADMAP_EDITOR`, guard-before-read like the ranking) — the first
- * deliberate exception to the one-routes-file template (`conventions.md`): eleven resources with different guards would blow the
+ * deliberate exception to the one-routes-file template (`conventions.md`): twelve resources with different guards would blow the
  * 400-line file cap. Every node route is READ-BEFORE-GUARD (chain -> 404, guard -> 403, body -> 400, validate -> 400, write;
  * `authorization.md`): plan ids are sequential and every signed-in user reads the whole plan anyway, so existence is no secret.
  * The guard before the body is for ORDERING only: a request can be held open after it (a slow body), so the write RE-GUARDS under
@@ -71,9 +71,11 @@ fun Application.configurePlanningRoutes() {
             crossTeam = attributes[CrossTeamProposalServiceKey],
         ),
     )
-    // Not in PlanRouteDeps: the two registries, each read by ONE route file (the baselines' routes take the deps for the caller's flags).
+    // Not in PlanRouteDeps: the registries, each read by ONE route file (the baselines' and the saved proposals' routes take the deps
+    // for the caller's flags and guards).
     val holidays = attributes[PublicHolidayServiceKey]
     val baselines = attributes[BaselineServiceKey]
+    val savedProposals = attributes[SavedProposalServiceKey]
     routing {
         authenticate {
             workStreamRoutes(deps)
@@ -88,6 +90,7 @@ fun Application.configurePlanningRoutes() {
             crossTeamScheduleRoutes(deps)
             publicHolidayRoutes(holidays)
             baselineRoutes(deps, baselines)
+            savedProposalRoutes(deps, savedProposals)
         }
     }
 }

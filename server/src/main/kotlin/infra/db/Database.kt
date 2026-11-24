@@ -70,6 +70,8 @@ import ch.nokillswit.planning.RoadmapService
 import ch.nokillswit.planning.PublicHolidayService
 import ch.nokillswit.planning.PublicHolidayServiceKey
 import ch.nokillswit.planning.RoadmapServiceKey
+import ch.nokillswit.planning.SavedProposalService
+import ch.nokillswit.planning.SavedProposalServiceKey
 import ch.nokillswit.planning.RoadmapViewService
 import ch.nokillswit.planning.RoadmapViewServiceKey
 import ch.nokillswit.planning.ScheduleProposalService
@@ -154,6 +156,7 @@ private fun Application.wirePlan(database: R2dbcDatabase) {
     attributes.put(PublicHolidayServiceKey, PublicHolidayService(database))
     attributes.put(BaselineServiceKey, BaselineService(database))
     attributes.put(BaselineViewServiceKey, BaselineViewService(database))
+    attributes.put(SavedProposalServiceKey, SavedProposalService(database))
 }
 
 /** The connector-agnostic sync side: the run registry (answered, both connectors' registries read it) and the empty connector registry. */

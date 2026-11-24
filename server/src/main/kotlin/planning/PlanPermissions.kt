@@ -99,4 +99,18 @@ object PlanPermissions {
 
     /** `PUT /teams/{id}/milestone-order`: ADMIN or the ACTIVE manager of THAT team (`requireTeamManagerOrAdmin`), as [canSchedule]. */
     fun canEditTeamOrder(actor: PlanActor, teamId: UInt): Boolean = canSchedule(actor, teamId)
+
+    /**
+     * A team SET in a body or a stored proposal (`POST /schedule-proposals*`, the saved proposals' save and delete): ADMIN, or the
+     * ACTIVE manager of EVERY team (`requireTeamManagerOfAllOrAdmin`), [canSchedule] over each member; an empty set passes, as there.
+     */
+    fun canScheduleAll(actor: PlanActor, teamIds: Collection<UInt>): Boolean =
+        actor.isAdmin || teamIds.all { it in actor.managedTeamIds }
+
+    /** `DELETE /saved-schedule-proposals/{id}`: [canScheduleAll] over the proposal's stored teams (a deleted team is not managed). */
+    fun canDeleteSavedProposal(actor: PlanActor, teamIds: Collection<UInt>): Boolean = canScheduleAll(actor, teamIds)
+
+    /** A saved proposal's Accept: [canScheduleAll] over its teams AND the proposal still CURRENT ([SavedProposalState]). */
+    fun canAcceptSavedProposal(actor: PlanActor, teamIds: Collection<UInt>, state: SavedProposalState): Boolean =
+        state == SavedProposalState.CURRENT && canScheduleAll(actor, teamIds)
 }

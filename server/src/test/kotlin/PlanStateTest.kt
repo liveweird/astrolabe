@@ -21,6 +21,7 @@ import ch.nokillswit.planning.ProjectResponse
 import ch.nokillswit.planning.ProjectUpdateRequest
 import ch.nokillswit.planning.RankingResponse
 import ch.nokillswit.planning.RankingUpdateRequest
+import ch.nokillswit.planning.SavedProposalSummary
 import ch.nokillswit.planning.TargetWindowRequest
 import ch.nokillswit.planning.TeamScheduleBatchItem
 import ch.nokillswit.planning.TeamScheduleBatchRequest
@@ -36,6 +37,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import java.sql.Connection
@@ -46,6 +48,9 @@ import java.sql.Connection
  * atomic with a write — "count the children, then delete", "the owner is still active" — are, pinned with the same barrier.
  */
 class PlanStateTest {
+    private companion object {
+        const val SAVED_NO_WAIT_MILLIS = 20_000L
+    }
 
     @Test
     fun `every plan write bumps the revision by one and a rejected or read-only request leaves it alone`() = testApplication {
@@ -282,6 +287,31 @@ class PlanStateTest {
                 CrossTeamAcceptRequest(TestPlan.revision(), hash, teams + t.teamId, listOf(item(first)))
             }
         }
+
+    @Test
+    fun `a saved proposal is not plan state - its save and delete bump nothing and wait for no plan lock`() = testApplication {
+        val s = savedWorld("svps")
+        val run = s.both.client.savedRun(s.pair)
+        val before = TestPlan.revision()
+        PostgresTestSupport.connect().use { raw ->
+            raw.autoCommit = false
+            raw.createStatement().use { it.executeQuery("SELECT revision FROM plan_state WHERE id = 1 FOR UPDATE").close() }
+            try {
+                // A plan write would wait here for the lock this raw session holds; a save and a delete answer at once (a regression
+                // is a timeout, not a hang of the whole class).
+                withTimeout(SAVED_NO_WAIT_MILLIS) {
+                    val saved = s.both.client.saveProposal(run, s.pair)
+                    assertEquals(HttpStatusCode.Created, saved.status)
+                    val id = saved.body<SavedProposalSummary>().id
+                    assertEquals(HttpStatusCode.OK, s.both.client.get("$SAVED_PATH/$id").status)
+                    assertEquals(HttpStatusCode.NoContent, s.both.client.delete("$SAVED_PATH/$id").status)
+                }
+            } finally {
+                raw.rollback()
+            }
+        }
+        assertEquals(before, TestPlan.revision(), "neither moved the plan revision")
+    }
 
     @Test
     fun `a dependency write bumps the revision by one, a refused cycle or duplicate or forbidden write does not`() = testApplication {

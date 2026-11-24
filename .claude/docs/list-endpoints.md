@@ -58,5 +58,5 @@ Every ordinary resource list keeps the envelope; **work streams, programs, proje
 A record's own unbounded sub-collection is paged like any other list; the plain `{items}`
 wrapper is reserved for bounded, curated sets — a team's capacity periods (`GET /teams/{id}/capacity`, a handful a year), the public-holiday dictionary (`GET
 /public-holidays`, ≈ 14 a year), the teams a run may include (`GET /schedule-proposals/teams`, at most 1,000 plus `truncated`), the baselines (`GET /baselines` → `{items,
-can}`, ≤ 100) and a connection's sync runs (`GET /integrations/sync/runs`, newest first, ≤ 50) and the Flow origins a connection may name (`GET
+can}`, ≤ 100), a connection's sync runs (`GET /integrations/sync/runs`, newest first, ≤ 50), the saved cross-team proposals (`GET /saved-schedule-proposals` → `{items}`, newest first, ≤ 20, no document) and the Flow origins a connection may name (`GET
 /integrations/flow/origins`, ADMIN, the operator's allow-list: a handful). No facet counts yet (port Covenant's pattern when a list needs them).

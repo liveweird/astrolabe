@@ -123,11 +123,6 @@ class TeamScheduleService(private val database: R2dbcDatabase) {
         return Decided(accepted, skipped, toWrite, stored.mapValues { it.value.teamId })
     }
 
-    private fun staleRevision(expectedRevision: Long, advice: String) = ConflictException(
-        "The view revision $expectedRevision is ahead of the plan; $advice",
-        problemType = STALE_REVISION_PROBLEM,
-    )
-
     /**
      * The scope check of a run accept ([hash] is the run's, under the plan lock, nothing written yet): the SAME [loadCrossTeamSnapshot]
      * and [CrossTeamSnapshot.scopeDigests] the run used, but with the teams' CURRENT names (the names are IN the fingerprint: a blank
@@ -203,26 +198,6 @@ class TeamScheduleService(private val database: R2dbcDatabase) {
             )
         }
         return snapshot
-    }
-
-    /** Whether an ACTIVE milestone of ANY of [teamIds] that is not among [batchIds] was scheduled after [expectedRevision]. */
-    private suspend fun reschedulesOutsideBatch(teamIds: Collection<UInt>, expectedRevision: Long, batchIds: List<UInt>): Boolean {
-        val milestones = MilestoneService.Milestones
-        val projects = ProjectService.Projects
-        val programs = ProgramService.Programs
-        val streams = WorkStreamService.WorkStreams
-        return milestones.innerJoin(projects, { milestones.projectId }, { projects.id })
-            .innerJoin(programs, { projects.programId }, { programs.id })
-            .innerJoin(streams, { programs.workStreamId }, { streams.id })
-            .select(milestones.id)
-            .where {
-                (milestones.teamId inList teamIds) and (milestones.scheduleRevision greater expectedRevision) and
-                    (milestones.id notInList batchIds) and milestones.active() and projects.active() and programs.active() and
-                    streams.active()
-            }
-            .limit(1)
-            .toList()
-            .isNotEmpty()
     }
 
     private fun skipReason(

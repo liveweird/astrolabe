@@ -63,10 +63,10 @@ internal class RateLimitAuditThrottle(
 }
 
 /**
- * Every token bucket the routes ride (per client IP, except [TELEMETRY], [JIRA_BIND], [JIRA_IMPORT], [PASSWORD_CHANGE] and [SYNC_RUN]:
- * per signed-in user), named in one place so a feature module never has to know another's constant (the auth module used to import
- * the try-it bucket's name — a layering inversion the checkup removed). Route files reference these names; only this plugin
- * installs them.
+ * Every token bucket the routes ride (per client IP, except [TELEMETRY], [JIRA_BIND], [JIRA_IMPORT], [PASSWORD_CHANGE], [SYNC_RUN]
+ * and [SCHEDULE_PROPOSAL_SAVE]: per signed-in user), named in one place so a feature module never has to know another's
+ * constant (the auth module used to import the try-it bucket's name — a layering inversion the checkup removed). Route files
+ * reference these names; only this plugin installs them.
  */
 object RateLimits {
     const val LOGIN = "login"
@@ -129,6 +129,13 @@ object RateLimits {
      * security audit's L1). It rides the route node, so it runs before the guard and a refused press spends a token too.
      */
     const val SYNC_RUN = "sync-run"
+    /**
+     * `POST /api/v1/saved-schedule-proposals` (`planning/SavedProposalRoutes.kt`): 10/min per SIGNED-IN USER in every mode. A save runs
+     * the whole cross-team kernel (hundreds of milliseconds) under a table lock that every other save and delete waits for, and
+     * any save evicts the globally oldest saved proposal, so one account is bounded. It rides the route node, so it runs before the
+     * guard and a refused save spends a token too.
+     */
+    const val SCHEDULE_PROPOSAL_SAVE = "schedule-proposal-save"
 
     const val DEFAULT_REFRESH_PER_MINUTE = 30
     /**
@@ -143,6 +150,7 @@ object RateLimits {
     private const val JIRA_IMPORT_PER_MINUTE = 5
     private const val PASSWORD_CHANGE_PER_MINUTE = 10
     private const val SYNC_RUN_PER_MINUTE = 10
+    private const val SCHEDULE_PROPOSAL_SAVE_PER_MINUTE = 10
     private const val MFA_PER_MINUTE = 10
     private const val PASSWORD_RESET_CONFIRM_PER_MINUTE = 10
     private const val JIRA_TEST_PER_MINUTE = 10
@@ -178,6 +186,7 @@ object RateLimits {
     internal fun jiraImportLimit() = JIRA_IMPORT_PER_MINUTE
     internal fun passwordChangeLimit() = PASSWORD_CHANGE_PER_MINUTE
     internal fun syncRunLimit() = SYNC_RUN_PER_MINUTE
+    internal fun scheduleProposalSaveLimit() = SCHEDULE_PROPOSAL_SAVE_PER_MINUTE
     internal fun mfaLimit() = MFA_PER_MINUTE
     internal fun passwordResetConfirmLimit() = PASSWORD_RESET_CONFIRM_PER_MINUTE
     /** The shipped manifests keep 10; the e2e stacks (compose, the OrbStack overlay) pin 30. Capped at 100: each call fans out to Jira. */
@@ -191,10 +200,10 @@ object RateLimits {
 
 /**
  * The buckets (see application.yaml `security.rateLimit` and security.md): per IP, except the per-USER buckets (telemetry,
- * jira-bind, jira-import, password-change, sync-run). Login and password-reset follow the mode — production keeps them tight, development
- * lifts them so one host driving the e2e suite is not throttled (the per-account lockout and the per-email throttle are the
- * abuse defences in both modes); refresh, ready, MFA and the password-reset confirm are the same in every mode. Installed here,
- * before the feature modules, so any route may ride any bucket regardless of module order.
+ * jira-bind, jira-import, password-change, sync-run, schedule-proposal-save). Login and password-reset follow the mode — production
+ * keeps them tight, development lifts them so one host driving the e2e suite is not throttled (the per-account lockout and the
+ * per-email throttle are the abuse defences in both modes); refresh, ready, MFA and the password-reset confirm are the same in
+ * every mode. Installed here, before the feature modules, so any route may ride any bucket regardless of module order.
  */
 fun Application.configureRateLimits() {
     val buckets = perIpBuckets()
@@ -212,9 +221,9 @@ fun Application.configureRateLimits() {
                 }
             }
         }
-        // The per-USER buckets (telemetry, jira-bind, jira-import, password-change, sync-run). The routes mount them INSIDE
-        // `authenticate {}` (telemetry/TelemetryRoutes.kt, jira/JiraBindingRoutes.kt, users/UserSettingsRoutes.kt,
-        // sync/SyncRoutes.kt), so this key
+        // The per-USER buckets (telemetry, jira-bind, jira-import, password-change, sync-run, schedule-proposal-save). The routes mount
+        // them INSIDE `authenticate {}` (telemetry/TelemetryRoutes.kt, jira/JiraBindingRoutes.kt, users/UserSettingsRoutes.kt,
+        // sync/SyncRoutes.kt, planning/SavedProposalRoutes.kt), so this key
         // runs only for a verified token: an anonymous call is a 401 that never reaches it
         // and never creates a limiter. The plugin keeps one limiter per key and drops it after its refill period, so memory is
         // bounded by the accounts active within a minute.
@@ -255,6 +264,7 @@ internal fun Application.perUserBuckets(): Map<String, Int> = with(RateLimits) {
         JIRA_IMPORT to jiraImportLimit(),
         PASSWORD_CHANGE to passwordChangeLimit(),
         SYNC_RUN to syncRunLimit(),
+        SCHEDULE_PROPOSAL_SAVE to scheduleProposalSaveLimit(),
     )
 }
 

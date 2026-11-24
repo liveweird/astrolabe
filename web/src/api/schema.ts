@@ -1337,6 +1337,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/saved-schedule-proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the saved cross-team proposals
+         * @description Lists the saved proposals, newest first (at most 20; ANY save removes the oldest, whoever saved it). Any authenticated user may read them. A saved proposal holds names, dates and load that every login reads in the plan, but also the run's OUTPUT (proposed dates, unplaced reasons, the post-check, the ticks, the saver and when), which `POST /schedule-proposals` refuses a caller who manages none of its teams; team names stay as saved until the proposal is evicted or deleted. A bounded `{items}` set, not paged, without the proposals' documents. `can.delete` is the caller's right to delete that proposal (ADMIN, or the active manager of every team it names).
+         */
+        get: operations["listSavedScheduleProposals"];
+        put?: never;
+        /**
+         * Save a cross-team run (the server's own re-computation, nothing of the plan changes)
+         * @description Saves the run named by `teamIds` and `asOf` as the server computes it now, with the ticked moves (`selectedMilestoneIds`); no client document is stored. Not plan state: no revision bump, no milestone moves, no accept. ADMIN or the active manager of every listed team. Rate limited per user (10 a minute, spent first): `429`. Order, because the team set is in the body: the body decodes (`400`), `teamIds` shape `400`, every listed team active else `404` for every caller (naming the ids), `403` unless the caller manages every one, then the rest of the shape `400`. Then, in one transaction, the guard again once the save's lock is won (`403`), and `409`, nothing stored: `expectedRevision` above the plan revision (`urn:astrolabe:problem:stale-revision`), or the plan the run read changed (`urn:astrolabe:problem:stale-scope`); a team deleted meanwhile is `404`; a selected id that is not a move of the run is `400`. The newest 20 proposals are kept: any save removes the older ones, whoever saved them.
+         */
+        post: operations["saveScheduleProposal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/saved-schedule-proposals/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Get a saved cross-team proposal with its state
+         * @description Any authenticated user; `404` for an unknown id. `state` is derived at read, never stored: `CURRENT` while the plan still matches what the run read, `CHANGED` otherwise (a listed team gone included), `UNREADABLE` when the proposal was stored in a shape this server no longer reads (then `proposal` and `check` are null). `check` is the stored check of the ticked moves and is null when every move was ticked. `can.accept` is the caller's right to accept it (ADMIN, or the active manager of every listed team) while it is `CURRENT`; the accept itself is `POST /schedule-proposals/accept` and re-checks everything.
+         */
+        get: operations["getSavedScheduleProposal"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a saved cross-team proposal
+         * @description Removes the proposal (a hard delete; nothing of the plan changes). ADMIN or the active manager of every team the proposal names, as stored: a missing id is `404` for every caller, then `403` for anyone else.
+         */
+        delete: operations["deleteSavedScheduleProposal"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public-holidays": {
         parameters: {
             query?: never;
@@ -5082,6 +5132,120 @@ export interface components {
             items: components["schemas"]["TeamRef"][];
             /** @description True when additional eligible teams were left out. */
             truncated: boolean;
+        };
+        /** @description The run of `POST /schedule-proposals` (`asOf`, `teamIds`, its `revision` and `scopeHash`) with a name and the ticked moves. */
+        SavedProposalSaveRequest: {
+            /** @description Trimmed; a control character is a `400`. Not unique. */
+            name: string;
+            /**
+             * Format: date
+             * @description The run's `asOf` (1900-01-01 to 2990-01-05; a later day is `400`).
+             */
+            asOf: string;
+            /** @description The run's teams: one to 50, each once. The caller must manage every one, or be ADMIN. */
+            teamIds: number[];
+            /**
+             * Format: int64
+             * @description The run's `revision`. Negative is `400`; above the current plan revision is `409`.
+             */
+            expectedRevision: number;
+            /** @description The run's `scopeHash`, sent back unchanged (else `400`). The save is refused (`409`, `stale-scope`) when the run it would compute carries another one, or a milestone of a listed team was scheduled after `expectedRevision`. */
+            scopeHash: string;
+            /** @description The ticked moves: milestones the run proposes to move (one that is not a move is `400`), each once. Every move ticked stores no check document; a subset stores the check of exactly those moves. */
+            selectedMilestoneIds: number[];
+        };
+        /** @description A team of a saved proposal, named as it was at the save. */
+        SavedProposalTeam: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+        };
+        SavedProposalListCan: {
+            /** @description The caller may delete the proposal (ADMIN, or the active manager of every team it names). */
+            delete: boolean;
+        };
+        SavedProposalCan: {
+            /** @description The caller may accept it: ADMIN or the active manager of every team, and its `state` is `CURRENT`. A client must also require the proposal's `asOf` to be today before offering Accept (the state does not read the clock). */
+            accept: boolean;
+            /** @description The caller may delete the proposal. */
+            delete: boolean;
+        };
+        /** @description One saved proposal's facts, without its documents. */
+        SavedProposalSummary: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            /** Format: date */
+            asOf: string;
+            /**
+             * Format: int64
+             * @description The plan revision the run was computed at.
+             */
+            planRevision: number;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            createdAt: number;
+            /** @description Null when the login that saved it is gone. */
+            createdBy: components["schemas"]["BaselineCreator"] | null;
+            /** @description The run's teams as named at the save, by id. */
+            teams: components["schemas"]["SavedProposalTeam"][];
+            /**
+             * Format: int32
+             * @description The moves the run proposed.
+             */
+            moveCount: number;
+            /**
+             * Format: int32
+             * @description The moves ticked at the save.
+             */
+            selectedCount: number;
+            /** Format: int32 */
+            passes: number;
+            settled: boolean;
+            can: components["schemas"]["SavedProposalListCan"];
+        };
+        /** @description The saved proposals, newest first - a bounded set (at most 20), not paged. */
+        SavedProposalList: {
+            items: components["schemas"]["SavedProposalSummary"][];
+        };
+        /**
+         * @description Derived at read: CURRENT = the plan still matches what the run read; CHANGED = it moved (a listed team gone included); UNREADABLE = stored in a shape this server no longer reads.
+         * @enum {string}
+         */
+        SavedProposalState: "CURRENT" | "CHANGED" | "UNREADABLE";
+        /** @description One saved proposal with its state and its stored documents. */
+        SavedProposalRecord: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            /** Format: date */
+            asOf: string;
+            /** Format: int64 */
+            planRevision: number;
+            /**
+             * Format: int64
+             * @description Epoch millis
+             */
+            createdAt: number;
+            createdBy: components["schemas"]["BaselineCreator"] | null;
+            teams: components["schemas"]["SavedProposalTeam"][];
+            /** Format: int32 */
+            moveCount: number;
+            /** Format: int32 */
+            selectedCount: number;
+            /** Format: int32 */
+            passes: number;
+            settled: boolean;
+            state: components["schemas"]["SavedProposalState"];
+            /** @description The ticked moves, ascending. */
+            selectedMilestoneIds: number[];
+            /** @description The server's run as stored (its `revision` and `scopeHash` are the save's); null when `state` is `UNREADABLE`. */
+            proposal: components["schemas"]["CrossTeamProposal"] | null;
+            /** @description The stored check of the ticked moves when only a subset was ticked; null when every move was, or when `state` is `UNREADABLE`. */
+            check: components["schemas"]["ScheduleCheckResponse"] | null;
+            can: components["schemas"]["SavedProposalCan"];
         };
         /** @description RFC 7807 problem detail. Served as `application/problem+json`; instance is the request path without query parameters. */
         ProblemDetail: {
@@ -9691,6 +9855,121 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    listSavedScheduleProposals: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The saved proposals */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedProposalList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    saveScheduleProposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavedProposalSaveRequest"];
+            };
+        };
+        responses: {
+            /** @description Saved; `Location` points at the new proposal */
+            201: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedProposalSummary"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description `expectedRevision` is above the current plan revision (`type` is `urn:astrolabe:problem:stale-revision`), or the plan the run read changed (`type` is `urn:astrolabe:problem:stale-scope`); nothing was stored */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getSavedScheduleProposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The saved proposal */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedProposalRecord"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    deleteSavedScheduleProposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
             500: components["responses"]["InternalServerError"];
         };
     };

@@ -13,6 +13,7 @@ import ch.nokillswit.authz.requireTeamManagerOfAllOrAdmin
 import ch.nokillswit.authz.requireTeamManagerOrAdmin
 import ch.nokillswit.planning.PlanActor
 import ch.nokillswit.planning.PlanPermissions
+import ch.nokillswit.planning.SavedProposalState
 import ch.nokillswit.users.Permission
 import ch.nokillswit.users.UserRole
 import kotlinx.coroutines.runBlocking
@@ -298,5 +299,24 @@ class PlanPermissionsTest {
         val twoTeams = actors.first { it.label == "manager of teams A and B, stranger person" }.asPlanActor()
         assertTrue(listOf(teamA, teamB).all { PlanPermissions.canSchedule(twoTeams, it) })
         assertFalse(listOf(teamA, teamB, teamC).all { PlanPermissions.canSchedule(twoTeams, it) }, "one team short refuses the set")
+    }
+
+    @Test
+    fun `the saved-proposal flags equal requireTeamManagerOfAllOrAdmin over the stored teams - accept also needs the proposal CURRENT`() {
+        val sets = listOf(listOf(teamA), listOf(teamA, teamB), listOf(teamB, teamC), listOf(teamA, teamB, teamC))
+        var cells = 0
+        for (actor in actors) for (set in sets) {
+            val lookup: suspend (UInt) -> Set<UInt> = { userId -> if (userId == actor.caller.userId) actor.managed else emptySet() }
+            val guard = allowed { runBlocking { requireTeamManagerOfAllOrAdmin(actor.caller, set, lookup) } }
+            val plan = actor.asPlanActor()
+            assertEquals(guard, PlanPermissions.canScheduleAll(plan, set), "scheduleAll: ${actor.label} on $set")
+            assertEquals(guard, PlanPermissions.canDeleteSavedProposal(plan, set), "delete: ${actor.label} on $set")
+            for (state in SavedProposalState.entries) {
+                val expected = guard && state == SavedProposalState.CURRENT
+                assertEquals(expected, PlanPermissions.canAcceptSavedProposal(plan, set, state), "accept $state: ${actor.label} on $set")
+            }
+            cells++
+        }
+        assertEquals(actors.size * sets.size, cells)
     }
 }
