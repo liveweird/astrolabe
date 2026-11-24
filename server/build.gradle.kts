@@ -116,10 +116,10 @@ kover {
         }
         verify {
             rule {
-                // Line-coverage floor (measured 2026-11-22: 99.17; raise once the actual clears 99.2).
+                // Line-coverage floor (measured 2026-11-24, 1.26.0: 99.198, 129 missed of 16,089; a margin of about 31 lines).
                 // Re-measure with `:server:koverXmlReport` and RAISE, never lower.
-                minBound(98)
-                // Branch-coverage floor (measured 2026-11-22: 89.41). NOTE: `check` runs only koverVerify -
+                minBound(99)
+                // Branch-coverage floor (measured 2026-11-24, 1.26.0: 89.59, 981 missed of 9,424). NOTE: `check` runs only koverVerify -
                 // run `:server:koverXmlReport` for fresh actuals.
                 minBound(89, coverageUnits = kotlinx.kover.gradle.plugin.dsl.CoverageUnit.BRANCH)
             }
