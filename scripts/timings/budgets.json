@@ -1,5 +1,5 @@
 {
-  "_readme": "The ONE place for time budgets (seconds). target = what it SHOULD take; alarm = hard ceiling. Measured at the 1.0.0 re-baseline (2026-11-05; .claude/docs/build-times.md Astrolabe WHY 1). A breach or a rising trend is an investigation entry in .claude/docs/build-times.md, never a reason to raise a number here silently.",
+  "_readme": "The ONE place for time budgets (seconds). target = what it SHOULD take; alarm = hard ceiling. The ci.* and ci-steps server/web/e2e-static rows and local.server-build were re-baselined on 2026-11-24 by the rule in .claude/docs/build-times.md (Rules; Astrolabe WHY 3): target = the median of at least ten green master runs rounded up to 30 s, alarm = the larger of 1.5 x target and 1.2 x the slowest run rounded up to a minute. The nightly e2e rows and the one-off local rows still carry their 1.0.0 figures (Astrolabe WHY 1) until ten runs exist. A breach or a rising trend is an investigation entry in .claude/docs/build-times.md, never a reason to raise a number here silently.",
   "trend": {
     "window": 5,
     "ratio": 1.25,
@@ -17,47 +17,47 @@
       "changes": {
         "target": 15,
         "alarm": 30,
-        "why": "Measured 2026-11-05: 14 master runs, median 6 s, max 23 s: one checkout + one git diff"
+        "why": "Kept at 15 s / 30 s on 2026-11-24 (WHY 3): the last ten green master ci runs on the final workflow (#280-#287, #289 on its re-run, #290: 260aca8..06fb28a), median 9 s, range 4-15 s; the rule would loosen it to 30 s / 60 s, and it was never breached (it is one checkout + one git diff)"
       },
       "server-tests": {
-        "target": 180,
-        "alarm": 480,
-        "why": "Measured 2026-11-05: 2m55s for 1,109 tests on 4 vCPU, single fork, at abed03f: just inside the target; a breach is the cue to try CI with two forks (the fork balancing is ported, build-times.md)"
+        "target": 420,
+        "alarm": 780,
+        "why": "Re-baselined 2026-11-24 (build-times.md Astrolabe WHY 3): the test span (earliest class start to latest end, the Test time report step) of the last ten green master ci runs on the final workflow (#280-#287, #289 on its re-run, #290: 260aca8..06fb28a): median 6m36s, range 5m47s-10m13s, at two forks; the EPYC 7763 runners took 9m22s and 10m13s, the Xeon 8573C one 8m32s, the Xeon 6975P ones 5m47s-6m29s"
       },
       "server": {
-        "target": 360,
-        "alarm": 600,
-        "why": "Measured 2026-11-05: 14 master runs, median 5m16s, range 3m18s-7m22s: compile + detekt + tests + Kover on 4 vCPU"
+        "target": 600,
+        "alarm": 1080,
+        "why": "Re-baselined 2026-11-24 (build-times.md Astrolabe WHY 3): the last ten green master ci runs on the final workflow (#280-#287, #289 on its re-run, #290: 260aca8..06fb28a), median 9m51s, range 9m04s-14m36s; by runner: Xeon 6975P 5 runs 9m04s-10m02s, EPYC 9V45 and 9V74 9m39s and 10m37s, Xeon 8573C 12m34s, EPYC 7763 13m28s and 14m36s; compile + detekt + tests (two forks) + Kover on 4 vCPU"
       },
       "gradle-vulnerability-scan": {
         "target": 60,
         "alarm": 120,
-        "why": "Measured 2026-11-05: 14 master runs, last five median 55 s, max 1m16s: 50 s of it is the settings-plugin audit under --no-daemon"
+        "why": "Re-baselined 2026-11-24 (build-times.md Astrolabe WHY 3): the last ten green master ci runs on the final workflow (#280-#287, #289 on its re-run, #290: 260aca8..06fb28a), median 52 s, range 38-80 s: the rule gives the figures it had (60 s / 120 s); 50 s of it is the settings-plugin audit under --no-daemon"
       },
       "web": {
-        "target": 120,
-        "alarm": 240,
-        "why": "Measured 2026-11-05: 14 master runs, median 1m45s, range 1m02s-3m12s; 80 s with both caches hit, 192 s when a lockfile and config change misses the npm and ESLint caches (WHY 1)"
+        "target": 210,
+        "alarm": 360,
+        "why": "Re-baselined 2026-11-24 (build-times.md Astrolabe WHY 3): the last ten green master ci runs on the final workflow (#280-#287, #289 on its re-run, #290: 260aca8..06fb28a), median 3m10s, range 3m03s-4m29s; Xeon 6975P 5 runs 3m03s-3m11s, EPYC 9V45 and 9V74 3m09s and 3m25s, EPYC 7763 2 runs 4m28s-4m29s, Xeon 8573C 4m00s; vitest is CPU-bound on the runner (WHY 3 evidence 2)"
       },
       "e2e-static": {
-        "target": 60,
-        "alarm": 120,
-        "why": "Measured 2026-11-05: 14 master runs, median 47 s, range 19-70 s; npm ci alone took 42 s on a cache hit, 28 s for the whole job on another hit"
+        "target": 90,
+        "alarm": 180,
+        "why": "Re-baselined 2026-11-24 (build-times.md Astrolabe WHY 3): the last ten green master ci runs on the final workflow (#280-#287, #289 on its re-run, #290: 260aca8..06fb28a), median 70 s, range 67-87 s; one more run took 6m06s because its checkout step stalled for 300 s (a fetch, not the job; 66 s net), so that run counts as 66 s in the slowest figure"
       },
       "images": {
         "target": 210,
-        "alarm": 300,
-        "why": "Measured 2026-11-05: 14 master runs, last five median 3m21s, range 2m33s-3m41s: a plain docker compose build (2m45s) + the Trivy image scan (39 s)"
+        "alarm": 360,
+        "why": "Re-baselined 2026-11-24 (build-times.md Astrolabe WHY 3): the last ten green master ci runs on the final workflow (#280-#287, #289 on its re-run, #290: 260aca8..06fb28a), median 3m07s, range 2m47s-3m41s; EPYC 7763 2 runs 3m38s and 3m41s, the rest 2m47s-3m21s: a plain docker compose build + the Trivy image scan"
       },
       "k8s-static": {
         "target": 20,
         "alarm": 45,
-        "why": "Measured 2026-11-05: 14 master runs, median about 8 s, max 28 s: one checkout + kubeconform download + validating the manifests, raw and rendered"
+        "why": "Kept at 20 s / 45 s on 2026-11-24 (WHY 3): the last ten green master ci runs on the final workflow (#280-#287, #289 on its re-run, #290: 260aca8..06fb28a), median 10.5 s, range 6-16 s; the rule would loosen it to 30 s / 60 s, and it was never breached (one checkout + kubeconform + validating the manifests)"
       },
       "e2e": {
         "target": 480,
         "alarm": 900,
-        "why": "Measured 2026-11-05: 4 nightly runs, median 7m32s, range 6m03s-9m56s: images build + compose up + Playwright (113 tests at the time)"
+        "why": "Unchanged since 2026-11-05 (WHY 1; WHY 3 left it): only 7 green nightlies exist on the final workflow (2026-11-16..23: median 12m31s, range 10m22s-16m49s, over the 8m / 15m row), so it waits for ten (build-times.md WHY 3 outcome)"
       }
     },
     "ci-steps": {
@@ -86,33 +86,48 @@
         "target": 300,
         "alarm": 540,
         "why": "Measured 2026-11-05: 4m48s in one run (6953b44, 113 tests): the Playwright specs alone against a running stack"
+      },
+      "server/Build and test (Gradle)": {
+        "target": 600,
+        "alarm": 1080,
+        "why": "Re-baselined 2026-11-24 (build-times.md Astrolabe WHY 3): ten green master ci runs #278-#287 on the final workflow: median 9m53s, range 8m32s-14m24s (the Gradle step alone: compile, detekt, tests at two forks, Kover, installDist)"
+      },
+      "web/Install dependencies": {
+        "target": 30,
+        "alarm": 60,
+        "why": "Re-baselined 2026-11-24 (build-times.md Astrolabe WHY 3): ten green master ci runs #278-#287 on the final workflow: median 8 s, range 7-16 s (npm ci --no-audit --no-fund, cache hit; 7c3642b removed the audit that took 30 s)"
+      },
+      "e2e-static/Install dependencies": {
+        "target": 30,
+        "alarm": 60,
+        "why": "Re-baselined 2026-11-24 (build-times.md Astrolabe WHY 3): ten green master ci runs #278-#287 on the final workflow: median 2 s, range 1-2 s (npm ci --no-audit --no-fund of the e2e workspace)"
       }
     },
     "local": {
       "server-build": {
-        "target": 180,
+        "target": 240,
         "alarm": 360,
-        "why": "Measured 2026-11-05: Apple M5 Max, 93 runs, last five median 2m05s, previous five 2m29s, max 2m59s: cleanTest check :server:installDist -Pforks=1; since the fork-balancing port gates.sh runs -Pforks=2 by default (2m06s on 2026-11-07, build-times.md)"
+        "why": "Re-baselined 2026-11-24 (build-times.md Astrolabe WHY 3): Apple M5 Max, the last ten green gates.sh runs (-Pforks=2, 2026-11-23 and 24, 4b1b0cf..8f51403): median 3m34s, range 3m27s-4m29s, with other gates and agents running beside them; the 1.0.0 figure was 2m05s at -Pforks=1 for 1,109 tests"
       },
       "server-test": {
         "target": 180,
         "alarm": 300,
-        "why": "Measured 2026-11-05: one run, 2m40s for 1,109 tests: ./gradlew :server:test --rerun against one shared Postgres container"
+        "why": "Unchanged since 2026-11-05 (WHY 1; WHY 3 left it): no recorded series, one run only (2m40s for 1,109 tests); not a gates.sh activity"
       },
       "web-gates": {
         "target": 45,
         "alarm": 90,
-        "why": "Measured 2026-11-05: Apple M5 Max, 106 runs, last five median 22 s, max 41 s: lint:api + check:api + lint + knip + test:coverage + build"
+        "why": "Kept at 45 s / 90 s on 2026-11-24 (WHY 3): the last ten green runs (2026-11-15) have median 36 s, range 28-53 s; the rule would loosen it to 60 s / 90 s, and none of the ten breached the alarm"
       },
       "e2e-static": {
         "target": 15,
         "alarm": 30,
-        "why": "Measured 2026-11-05: Apple M5 Max, 43 runs, last five median 4.2 s, max 6.5 s: lint + knip + typecheck + check:scenarios and the small self-tests"
+        "why": "Kept at 15 s / 30 s on 2026-11-24 (WHY 3): the last ten green runs (2026-11-14..15) have median 9.0 s, range 7.4-9.7 s; the rule would loosen it to 30 s / 60 s, and none of the ten breached the target"
       },
       "e2e-playwright": {
         "target": 180,
         "alarm": 360,
-        "why": "Measured 2026-11-05: one run, 2m24s for 123 tests against the running compose stack"
+        "why": "Unchanged since 2026-11-05 (WHY 1; WHY 3 left it): no recorded series, one run only (2m24s for 123 tests); gates.sh does not run Playwright"
       }
     }
   }

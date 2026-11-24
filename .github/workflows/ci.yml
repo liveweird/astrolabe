@@ -71,8 +71,8 @@ jobs:
     if: needs.changes.outputs.server == 'true'
     # ubuntu-24.04 ships a Docker daemon — Testcontainers starts the pinned PostgreSQL 18 image on it.
     runs-on: ubuntu-24.04
-    # The timeout is headroom for runner variance, not a target (`.claude/docs/build-times.md`); re-baseline
-    # once v0.1.0's job times are measured.
+    # The timeout is headroom for runner variance, not a target (`.claude/docs/build-times.md`); the job's own
+    # budget (`ci.server` in `scripts/timings/budgets.json`, re-baselined from measured runs in 1.26 G5) sits well under it.
     timeout-minutes: 25
     env:
       # One fork count for the build (-Pforks) and the fork-balance report, so the report's ideal never drifts. Two forks since 1.24 (G2):
@@ -114,7 +114,7 @@ jobs:
       - name: Build and test (Gradle)
         run: ./gradlew --dependency-verification strict check :server:installDist --no-daemon --stacktrace -Pforks="$TEST_FORKS"
       # Time visibility, never a gate: the slowest test classes/cases go to the job summary, and a
-      # ::warning:: annotation fires when the test time exceeds the `ci.server` alarm in
+      # ::warning:: annotation fires when the test time exceeds the `ci.server-tests` alarm in
       # scripts/timings/budgets.json. Uses the runner's preinstalled node (>= 20; the script needs 18+,
       # built-ins only). `if: always()` so a failed or timed-out build still shows where the time went.
       - name: Test time report (job summary)
