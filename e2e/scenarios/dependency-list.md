@@ -2,7 +2,7 @@
 
 - **Spec**: [tests/dependency-list.spec.ts](../tests/dependency-list.spec.ts)
 - **Actors**: the seed administrator (`admin@astrolabe.local`) in the browser; the same account through the API for seeding and teardown
-- **Owns** (exclusive server-side state): its throwaway person, ONE team (no manager), work stream, program and two projects (unique `e2e-deplist-*` names), all seeded through the API in the test and removed through the API in the afterEach (the projects first, their milestones and links go with them, then program, work stream, team, person), even after a failure. The first project holds milestones A (2027-06-07 to 2027-06-11), B (2027-05-24 to 2027-05-28) and C (2027-06-21 to 2027-06-25), the second D (not scheduled), all of the one team; the links are A to B (finish-to-start: B ends long before A does, violated by weeks whatever a holiday does), A to C (finish-to-start, kept with a week to spare) and D to C (D is not scheduled). The 1.22 scenario seeds the same world with two throwaway USER logins (`e2e-deplist-owner-*`, whose person owns the work stream and so every project, and `e2e-deplist-nobody-*`, linked to no person), created and removed through the API too (the logins last). June 2027 on purpose: no far-off year, nothing here depends on a specific number of working days (the shortfall is matched by a pattern). It writes no ranking, no holiday and no connection, and needs no lock. The plan is shared by four workers, so every count is taken after the page is narrowed to the spec's own project or team. The Team select lists every team of the plan (read to the end, 1.21), so other specs' teams cannot hide the spec's own from it.
+- **Owns** (exclusive server-side state): its throwaway person, ONE team (no manager), work stream, program and two projects (unique `e2e-deplist-*` names), all seeded through the API in the test and removed through the API in the afterEach (the projects first, their milestones and links go with them, then program, work stream, team, person), even after a failure. The first project holds milestones A (2027-06-07 to 2027-06-11), B (2027-05-24 to 2027-05-28) and C (2027-06-21 to 2027-06-25), the second D (not scheduled), all of the one team; the links are A to B (finish-to-start: B ends long before A does, violated by weeks whatever a holiday does), A to C (finish-to-start, kept with a week to spare) and D to C (D is not scheduled). The 1.22 scenario seeds the same world with two throwaway USER logins (`e2e-deplist-owner-*`, whose person owns the work stream and so every project, and `e2e-deplist-nobody-*`, linked to no person), created and removed through the API too (the logins last). The 1.27 scenario seeds that world again, plus one more throwaway person with its own work stream, program and project (`e2e-deplist-foreign-*`, which the owner does not manage; removed first, in reverse creation order), and adds ONE link (between a milestone of each project, written on the second project), which goes with the projects. June 2027 on purpose: no far-off year, nothing here depends on a specific number of working days (the shortfall is matched by a pattern). It writes no ranking, no holiday and no connection, and needs no lock. The plan is shared by four workers, so every count is taken after the page is narrowed to the spec's own project or team. The Team select lists every team of the plan (read to the end, 1.21), so other specs' teams cannot hide the spec's own from it.
 
 ## Scenario: the Dependencies page lists a project's links with the violated one first, and the status filter narrows them
 
@@ -33,9 +33,23 @@
 4. The second login (linked to no person) signs in and opens the same address.
    - *Expected*: the two rows are listed, no row has a button and the table has no "Operations" column.
 
+## Scenario: a project owner adds a dependency from the Dependencies page choosing among the projects they manage, and a user who owns nothing is offered no button
+
+1. The owner (a throwaway login whose person owns the spec's whole work stream) signs in and opens `/dependencies?projectId=<the first project>`.
+   - *Expected*: the chip "Project: <name>" (so the plan has been read) and exactly three rows; the page header has the button "Add dependency".
+2. They click it.
+   - *Expected*: the dialog "Add dependency" opens with the Successor's project select already on the first project. Its options are the two projects of the owner's work stream and no more: the foreign project (another person's work stream) is not among them.
+3. They choose the second project, open the Successor select and pick milestone D, then find milestone B of the first project by name in the Predecessor select.
+   - *Expected*: the Successor select lists only the second project's one milestone (D); the Predecessor option reads "<B> · <first project>"; the Type is "Finish → Start (FS)".
+4. They save.
+   - *Expected*: the `POST /api/v1/projects/<second project>/dependencies` answers `201`; the dialog closes; the list now has four rows, the new one (B and D, "Not scheduled yet") among them exactly once; the address still has `projectId=<the first project>` and the chip; the focus is back on the "Add dependency" button.
+5. A second throwaway login (linked to no person) signs in and opens the same address.
+   - *Expected*: the chip and the four rows show (the plan has been read), and the page has no "Add dependency" button.
+
 ## Not covered here (and why)
 
 - The values of `totals` and of Home's figure: four workers share the plan; vitest and `DependencyListViewTest` pin them.
 - "Yours" on Home (vitest pins the hrefs), the Programs page's menu item (vitest; the Roadmap's is the same component), the cut note (vitest and `DependencyListViewTest`) and the Polish text (vitest).
 - The cycle `409` and the `403` of the edit dialog (vitest and `DependencyListViewTest`), a row whose two flags differ (they cannot today) and the Polish text (vitest).
 - The page's axe scans: `accessibility.spec.ts` (the page joins its list, light and dark).
+- The cycle, the duplicate pair, a refused write (`403`/`404`), a whole project as the successor, the prefill from a project the caller may not manage and the lag (vitest, `Dependencies.add.test.tsx`, `DependencyAddModal.test.tsx`; the server pins `can.createDependency` against the guard in `PlanViewTest` and `PlanPermissionsTest`).

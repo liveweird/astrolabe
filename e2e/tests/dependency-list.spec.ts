@@ -9,6 +9,7 @@
 // no lock. The shortfall is matched by a pattern, never a number. The Team select lists every team of the plan (read to the end, 1.21), so the number
 // of other specs' teams cannot hide this spec's own from it. The 1.22 test (edit and delete from the list) also owns two throwaway logins
 // (`e2e-deplist-owner-*`, whose person owns the whole tree, and `e2e-deplist-nobody-*`, linked to no person), created and removed through the API too.
+// The 1.27 test (add from the list) also owns a foreign person, work stream, program and project (`e2e-deplist-foreign-*`) and the one link it adds.
 import { randomUUID } from "node:crypto";
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import { apiAsAdmin, deleteViaApi, expect, login, openFilters, rowOperation, test, uniqueText } from "./helpers";
@@ -108,6 +109,24 @@ async function seedWorld(withLogins = false): Promise<World | (World & Logins)> 
     await link(dId, cId, first.id);
     const world = { team, teamId, programId, first, second, a, b, c, d };
     return owner === null || nobody === null ? world : { ...world, owner: owner.account, nobody: nobody.account };
+  } finally {
+    await api.dispose();
+  }
+}
+
+/**
+ * A project the owner of the world may NOT manage: its own person, work stream, program and project (unique `e2e-deplist-foreign-*` names), seeded after the
+ * world so the teardown, in reverse, removes it first. Answers the project's name.
+ */
+async function seedForeignProject(): Promise<string> {
+  const { api } = await apiAsAdmin();
+  try {
+    const person = await seed(api, "/api/v1/people", { name: uniqueText("e2e-deplist-foreign-person") }, "/api/v1/people");
+    const stream = await seed(api, "/api/v1/work-streams", { name: uniqueText("e2e-deplist-foreign-stream"), ownerPersonId: person, startDate: "2026-01-05" }, "/api/v1/work-streams");
+    const program = await seed(api, `/api/v1/work-streams/${stream}/programs`, { name: uniqueText("e2e-deplist-foreign-program"), ownerPersonId: person }, "/api/v1/programs");
+    const name = uniqueText("e2e-deplist-foreign-proj");
+    await seed(api, `/api/v1/programs/${program}/projects`, { name, ownerPersonId: person }, "/api/v1/projects");
+    return name;
   } finally {
     await api.dispose();
   }
@@ -256,4 +275,71 @@ test("the owner of the successor's project changes a dependency's type and delet
   await expect(rows(page)).toHaveCount(2);
   await expect(rows(page).getByRole("button")).toHaveCount(0);
   await expect(page.getByRole("columnheader", { name: "Operations", exact: true })).toHaveCount(0);
+});
+
+// 1.27: the page adds a link. The button shows to whoever may manage at least one project (the plan view's `can.createDependency`), the dialog's first
+// field picks the SUCCESSOR's project among those only, and the link is written on that project. The spec's own project is the page's scope, so no other
+// worker's row is counted; the owner's two projects are the whole of the picker (their person owns this world's work stream and nothing else).
+test("a project owner adds a dependency from the Dependencies page choosing among the projects they manage, and a user who owns nothing is offered no button", async ({ page }) => {
+  const world = await seedWorld(true);
+  const foreign = await seedForeignProject();
+  const addButton = page.getByRole("button", { name: "Add dependency", exact: true });
+
+  // The owner opens the page narrowed to the first project; the chip names it only once the plan view has been read, which is also what the button waits for.
+  await login(page, world.owner.email, world.owner.password);
+  await page.goto(`/dependencies?projectId=${world.first.id}`);
+  await expect(heading(page)).toBeVisible();
+  await expect(page.getByText(`Project: ${world.first.name}`, { exact: true })).toBeVisible();
+  await expect(rows(page)).toHaveCount(3);
+  await expect(addButton).toBeVisible();
+  await addButton.click();
+
+  // The dialog opens on the page's project; its picker offers the two projects the owner manages and not the foreign one.
+  const dialog = page.getByRole("dialog", { name: "Add dependency" });
+  await expect(dialog).toBeVisible();
+  const projectSelect = dialog.getByRole("combobox", { name: "Successor's project", exact: true });
+  await expect(projectSelect).toHaveValue(world.first.name);
+  await projectSelect.click();
+  const options = page.getByRole("option");
+  await expect(options.filter({ hasText: world.second.name })).toHaveCount(1);
+  await expect(options.filter({ hasText: world.first.name })).toHaveCount(1);
+  await expect(options.filter({ hasText: foreign })).toHaveCount(0);
+  await expect(options).toHaveCount(2);
+
+  // The second project: its only milestone D is the successor (the picker lists that project's milestones alone); B of the first project is the predecessor
+  // (any project of the plan), so B -> D is written on the second project, whatever the page is filtered to.
+  await page.getByRole("option", { name: world.second.name, exact: true }).click();
+  await expect(projectSelect).toHaveValue(world.second.name);
+  const successor = dialog.getByRole("combobox", { name: "Successor", exact: true });
+  await successor.click();
+  await expect(page.getByRole("option")).toHaveCount(1);
+  await page.getByRole("option", { name: `${world.d} · ${world.second.name}`, exact: true }).click();
+  const predecessor = dialog.getByRole("combobox", { name: "Predecessor", exact: true });
+  await predecessor.click();
+  await predecessor.fill(world.b);
+  await page.getByRole("option", { name: `${world.b} · ${world.first.name}`, exact: true }).click();
+  await expect(dialog.getByRole("combobox", { name: "Type", exact: true })).toHaveValue("Finish → Start (FS)");
+  await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "POST" && new RegExp(`/api/v1/projects/${world.second.id}/dependencies$`).test(r.url()) && r.status() === 201),
+    dialog.getByRole("button", { name: "Save", exact: true }).click(),
+  ]);
+
+  // The dialog is gone, the list refreshed (four links now touch the first project, the new one among them: D is not scheduled), the filter stays and the
+  // focus is back on the button that opened it.
+  await expect(dialog).toHaveCount(0);
+  await expect(rows(page)).toHaveCount(4);
+  const added = rows(page).filter({ hasText: world.b }).filter({ hasText: world.d });
+  await expect(added).toHaveCount(1);
+  await expect(added).toContainText("Not scheduled yet");
+  await expect(page).toHaveURL(new RegExp(`/dependencies\\?projectId=${world.first.id}$`));
+  await expect(page.getByText(`Project: ${world.first.name}`, { exact: true })).toBeVisible();
+  await expect(addButton).toBeFocused();
+
+  // A login linked to no person manages no project: the same page, read to the end (the chip names the project), has no button.
+  await login(page, world.nobody.email, world.nobody.password);
+  await page.goto(`/dependencies?projectId=${world.first.id}`);
+  await expect(heading(page)).toBeVisible();
+  await expect(page.getByText(`Project: ${world.first.name}`, { exact: true })).toBeVisible();
+  await expect(rows(page)).toHaveCount(4);
+  await expect(addButton).toHaveCount(0);
 });
