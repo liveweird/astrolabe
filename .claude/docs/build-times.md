@@ -163,6 +163,10 @@ Measured 2026-11-07 (1.3.0 C5).
 `JiraFlagsScaleTest` builds ONE sample-plan-sized world through the same MockEngine import (20/100/1,000, all bound, 15 teams), reads the four views plain and with `?baseline=` and with the connection disabled, and prints the `scale-figure` lines of `timeline.md` "Measured figures".
 **6.0 s in the full gate (12.5 s when run alone, cold)**; with the 21 other new 1.3 C5 tests the class additions cost about 11 s of the 3m27s server gate (the CDS, Kover and detekt steps unchanged).
 
+### Baselines, saved proposals and the team chain at scale
+
+Measured 2026-11-25 (1.27; single-fork run, 2,912 tests, 7m27s): `SavedProposalReadScaleTest` 2.3 s, `BaselineScaleTest` 1.0 s, `CrossTeamProposalSizeTest` 0.7 s, `TeamChainScaleTest` 0.5 s; the two-fork server gate is 3m54s.
+
 ### Jira flags at scale with roll-ups
 
 Measured 2026-11-07 (1.4.0 C6), Apple M5 Max.
