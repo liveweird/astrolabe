@@ -34,7 +34,14 @@ private val SORTABLE_COLUMNS: Map<String, Column<*>> = mapOf(
     // The joined tables' names (Lettuce's `teamName` entry): the Milestones page sorts by its project and team columns.
     "projectName" to ProjectService.Projects.name,
     "teamName" to TeamService.Teams.name,
+    // The project's global rank position (the LEFT-joined `roadmap_entries`; null = unranked) and the milestone's own start (null =
+    // unscheduled): both NULLS LAST in both directions ([NULLS_LAST_SORT_FIELDS]).
+    "rankPosition" to RoadmapService.RoadmapEntries.position,
+    "startDate" to MilestoneService.Milestones.startDate,
 )
+
+/** The sort keys whose NULLs (an unranked project, an unscheduled milestone) come last whichever way they sort. */
+private val NULLS_LAST_SORT_FIELDS = setOf("rankPosition", "startDate")
 
 /** The ONE sortable whitelist of `GET /milestones`, derived from the column map so the two can never drift. */
 val MILESTONE_SORT_FIELDS: Set<String> = SORTABLE_COLUMNS.keys
@@ -77,29 +84,35 @@ class MilestoneService(private val database: R2dbcDatabase) {
 
     /**
      * The paged milestone list (the dependency pickers and, since 1.19, the Milestones page): ACTIVE milestones of an ACTIVE project,
-     * program and work stream, one predicate (name, schedule, team and project filters, ANDed) for the count and the rows in ONE read
-     * transaction (no lock, no revision). The project's and the team's names ride the joins, and are sortable.
+     * program and work stream, one predicate (name, schedule, team, project, program and work stream filters, ANDed) for the count and
+     * the rows in ONE read transaction (no lock, no revision). The project's and the team's names ride the joins, and are sortable; so is
+     * the project's rank (`rankPosition`, from a LEFT join to `roadmap_entries`: an unranked project's rows come last both ways).
      */
     suspend fun list(filter: MilestoneListFilter, paging: PageRequest): MilestoneListResult = pagedRead(database) {
         val projects = ProjectService.Projects
         val programs = ProgramService.Programs
         val streams = WorkStreamService.WorkStreams
         val teams = TeamService.Teams
+        val ranks = RoadmapService.RoadmapEntries
         var predicate: Op<Boolean> = Milestones.active() and projects.active() and programs.active() and streams.active()
         filter.name?.takeIf { it.isNotBlank() }?.let { predicate = predicate and Milestones.name.containsNormalized(it) }
         // `ck_milestones_schedule` makes the date pair both-or-neither, so the start date alone says whether a milestone is scheduled.
         filter.scheduled?.let { predicate = predicate and (if (it) Milestones.startDate.isNotNull() else Milestones.startDate.isNull()) }
         filter.teamId?.let { predicate = predicate and (Milestones.teamId eq it) }
         filter.projectId?.let { predicate = predicate and (Milestones.projectId eq it) }
+        filter.programId?.let { predicate = predicate and (projects.programId eq it) }
+        filter.workStreamId?.let { predicate = predicate and (programs.workStreamId eq it) }
         // The team joins without an `active()` filter: an active milestone's team is always active (`TeamService.delete`'s 409).
         val joined = Milestones.innerJoin(projects, { Milestones.projectId }, { projects.id })
             .innerJoin(programs, { projects.programId }, { programs.id })
             .innerJoin(streams, { programs.workStreamId }, { streams.id })
             .innerJoin(teams, { Milestones.teamId }, { teams.id })
+            // A project's entry is unique (primary key), so the LEFT join never multiplies a row; no entry = unranked.
+            .join(ranks, JoinType.LEFT, onColumn = Milestones.projectId, otherColumn = ranks.projectId)
         val total = joined.selectAll().where { predicate }.count()
-        val rows = joined.select(Milestones.columns + projects.name + teams.name)
+        val rows = joined.select(Milestones.columns + projects.name + teams.name + ranks.position)
             .where { predicate }
-            .applyPaging(paging, SORTABLE_COLUMNS)
+            .applyPaging(paging, SORTABLE_COLUMNS, NULLS_LAST_SORT_FIELDS)
             .toList()
         MilestoneListResult(
             items = rows.map { row ->
@@ -111,6 +124,7 @@ class MilestoneService(private val database: R2dbcDatabase) {
                     description = row[Milestones.description],
                     teamId = row[Milestones.teamId].value,
                     teamName = row[teams.name],
+                    rankPosition = row.getOrNull(ranks.position), // null: the LEFT JOIN found no entry (unranked)
                     estimateMd = row[Milestones.estimateMd].toDouble(),
                     startDate = row[Milestones.startDate]?.toString(),
                     endDate = row[Milestones.endDate]?.toString(),

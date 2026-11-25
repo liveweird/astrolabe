@@ -2,12 +2,14 @@ package ch.nokillswit
 
 import ch.nokillswit.planning.HomeView
 import ch.nokillswit.planning.MilestonePageResponse
+import ch.nokillswit.planning.RankingUpdateRequest
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.HttpStatusCode
+import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import java.util.UUID
 import kotlin.test.Test
@@ -17,10 +19,13 @@ import kotlin.test.assertTrue
 
 /**
  * `GET /api/v1/milestones` (v0.4.0 C2, the dependency pickers' milestone search; 1.19.0 C2, the Milestones page's list): any
- * authenticated user, paged per `list-endpoints.md`, the filters `name` (case- and accent-insensitive), `scheduled`, `teamId` and
- * `projectId` (ANDed), the sorts `projectName` and `teamName`, the project's and team's name on every row, ACTIVE rows under an active
- * project chain only. The plan tables are SHARED suite state - every row carries a unique marker or a filter naming the test's own
- * team or project, and every assertion filters on it (a plan-wide figure is compared with another read of the same test).
+ * authenticated user, paged per `list-endpoints.md`, the filters `name` (case- and accent-insensitive), `scheduled`, `teamId`,
+ * `projectId`, `programId` and `workStreamId` (ANDed), the sorts `projectName`, `teamName`, `rankPosition` and `startDate` (the last two
+ * with their nulls last both ways), the project's and team's name and rank position on every row, ACTIVE rows under an active project
+ * chain only. The plan tables are SHARED suite state - every row carries a unique marker or a filter naming the test's own team,
+ * project, program or work stream, and every assertion filters on it (a plan-wide figure is compared with another read of the same
+ * test). The global ranking is shared too: the rank tests rewrite it wholesale (the `ProgramsViewTest` idiom) and read only their own
+ * program.
  */
 class MilestoneListTest {
     private val ok = HttpStatusCode.OK
@@ -54,17 +59,23 @@ class MilestoneListTest {
         assertEquals(badRequest, client.milestones("page" to "x").status)
         assertEquals(badRequest, client.milestones("pageSize" to "101").status)
         assertEquals(badRequest, client.milestones("pageSize" to "0").status)
-        assertEquals(badRequest, client.milestones("sort" to "startDate").status, "the dates are not sortable")
+        assertEquals(badRequest, client.milestones("sort" to "endDate").status, "the end date is not sortable")
+        assertEquals(badRequest, client.milestones("sort" to "-rank").status, "the key is rankPosition")
         assertEquals(badRequest, client.milestones("sort" to "-estimateMd").status, "the estimate is not sortable")
         assertEquals(badRequest, client.milestones("name" to "a", "name" to "b").status, "a repeated scalar key is a 400")
         assertEquals(badRequest, client.milestones("scheduled" to "yes").status, "scheduled is a strict boolean")
         assertEquals(badRequest, client.milestones("scheduled" to "TRUE").status, "scheduled is a strict boolean")
         assertEquals(badRequest, client.milestones("teamId" to "abc").status)
         assertEquals(badRequest, client.milestones("projectId" to "-1").status)
+        assertEquals(badRequest, client.milestones("programId" to "abc").status)
+        assertEquals(badRequest, client.milestones("workStreamId" to "-1").status)
         assertEquals(badRequest, client.milestones("scheduled" to "true", "scheduled" to "true").status, "a repeated key is a 400")
         assertEquals(badRequest, client.milestones("teamId" to "1", "teamId" to "1").status, "a repeated key is a 400")
         assertEquals(badRequest, client.milestones("projectId" to "1", "projectId" to "1").status, "a repeated key is a 400")
-        assertEquals(ok, client.milestones("scheduled" to "", "teamId" to "", "projectId" to "").status, "blank filters are absent")
+        assertEquals(badRequest, client.milestones("programId" to "1", "programId" to "1").status, "a repeated key is a 400")
+        assertEquals(badRequest, client.milestones("workStreamId" to "1", "workStreamId" to "1").status, "a repeated key is a 400")
+        val blank = client.milestones("scheduled" to "", "teamId" to "", "projectId" to "", "programId" to "", "workStreamId" to "")
+        assertEquals(ok, blank.status, "blank filters are absent")
     }
 
     @Test
@@ -234,7 +245,7 @@ class MilestoneListTest {
     fun `an id that names nothing is an empty page, not a 404`() = testApplication {
         usePostgresTestcontainer()
         val client = planCaller("ml-nothing").client
-        for (param in listOf("teamId", "projectId")) {
+        for (param in listOf("teamId", "projectId", "programId", "workStreamId")) {
             val response = client.milestones(param to "2147483647")
             assertEquals(ok, response.status, param)
             val page = response.body<MilestonePageResponse>()
@@ -265,6 +276,143 @@ class MilestoneListTest {
         assertEquals(listOf(second, third, first), order("teamName"), "equal team names fall back to id ascending")
         assertEquals(listOf(first, second, third), order("-teamName"))
         assertEquals(listOf(first, third, second), order("projectName,-teamName"), "a multi-field sort applies in order")
+    }
+
+    @Test
+    fun `programId and workStreamId narrow through the chain and combine with each other and with the other filters`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("ml-chain")
+        val owner = w.projectOwner.personId!!
+        val teamA = TestTeams.seed(planName("ml-team-a"))
+        val teamB = TestTeams.seed(planName("ml-team-b"))
+        // Stream S1 holds programs P1 (the world's own, project J1) and P2 (J2); stream S2 holds P3 (J3).
+        val programTwo = TestPlan.program(w.streamId, w.programOwner.personId!!)
+        val projectTwo = TestPlan.project(programTwo, owner)
+        val streamTwo = TestPlan.workStream(w.streamOwner.personId!!)
+        val programThree = TestPlan.program(streamTwo, w.programOwner.personId)
+        val projectThree = TestPlan.project(programThree, owner)
+        val inOne = TestPlan.milestone(w.projectId, teamA, name = "One ${marker()}")
+        val inOneB = TestPlan.milestone(w.projectId, teamB, name = "One-b ${marker()}")
+        val inTwo = TestPlan.milestone(projectTwo, teamA, name = "Two ${marker()}")
+        val inThree = TestPlan.milestone(projectThree, teamA, name = "Three ${marker()}")
+        TestPlan.schedule(inTwo, "2027-04-05", "2027-04-09")
+        val client = w.stranger.client
+
+        fun ids(page: MilestonePageResponse) = page.items.map { it.id }.toSet()
+        suspend fun ask(vararg params: Pair<String, String>) = client.milestones(*params, "sort" to "id").body<MilestonePageResponse>()
+
+        assertEquals(setOf(inOne, inOneB), ids(ask("programId" to "${w.programId}")))
+        assertEquals(setOf(inTwo), ids(ask("programId" to "$programTwo")))
+        assertEquals(setOf(inThree), ids(ask("programId" to "$programThree")))
+        assertEquals(setOf(inOne, inOneB, inTwo), ids(ask("workStreamId" to "${w.streamId}")), "a work stream spans its programs")
+        assertEquals(setOf(inThree), ids(ask("workStreamId" to "$streamTwo")))
+        assertEquals(setOf(inTwo), ids(ask("workStreamId" to "${w.streamId}", "programId" to "$programTwo")))
+        val outsideStream = ask("workStreamId" to "$streamTwo", "programId" to "$programTwo")
+        assertEquals(emptySet(), ids(outsideStream), "a program outside the stream matches nothing")
+        assertEquals(setOf(inOne, inOneB), ids(ask("programId" to "${w.programId}", "projectId" to "${w.projectId}")))
+        val outsideProgram = ask("programId" to "${w.programId}", "projectId" to "$projectTwo")
+        assertEquals(emptySet(), ids(outsideProgram), "a project outside the program matches nothing")
+        assertEquals(setOf(inOne), ids(ask("workStreamId" to "${w.streamId}", "programId" to "${w.programId}", "teamId" to "$teamA")))
+        assertEquals(setOf(inOne), ids(ask("programId" to "${w.programId}", "teamId" to "$teamA", "scheduled" to "false")))
+        assertEquals(setOf(inTwo), ids(ask("workStreamId" to "${w.streamId}", "scheduled" to "true")))
+        // `total` is counted after the new filters, before the page.
+        val firstPage = client.milestones("workStreamId" to "${w.streamId}", "pageSize" to "1").body<MilestonePageResponse>()
+        assertEquals(1, firstPage.items.size)
+        assertEquals(3L, firstPage.total)
+        // A deleted project's milestones leave the program and work stream lists with it.
+        assertEquals(HttpStatusCode.NoContent, w.projectOwner.client.delete("/api/v1/projects/$projectTwo").status)
+        assertEquals(emptySet(), ids(ask("programId" to "$programTwo")))
+        assertEquals(setOf(inOne, inOneB), ids(ask("workStreamId" to "${w.streamId}")))
+    }
+
+    /** The world's program with five projects: two ranked (B first, A second) and two unranked (Ada, Uma), and the milestones below. */
+    private class RankedWorld(val w: PlanWorld, val projects: Map<String, UInt>, val milestones: Map<String, UInt>) {
+        fun ids(page: MilestonePageResponse) = page.items.map { it.id }
+        fun names(page: MilestonePageResponse) = page.items.map { it.name.substringBefore(' ') }
+    }
+
+    private suspend fun ApplicationTestBuilder.rankedWorld(prefix: String): RankedWorld {
+        val w = planWorld(prefix)
+        val tag = marker()
+        val owner = w.projectOwner.personId!!
+        val team = TestTeams.seed(planName("$prefix-team"))
+        val projects = listOf("B", "A", "Uma", "Ada").associateWith { TestPlan.project(w.programId, owner, name = "$it $tag") }
+        suspend fun milestone(project: String, name: String, start: String? = null): Pair<String, UInt> {
+            val id = TestPlan.milestone(projects.getValue(project), team, name = "$name $tag")
+            if (start != null) TestPlan.schedule(id, start, start)
+            return name to id
+        }
+        // B's milestones: Zeta starts 03-01, Beta 02-01, Alpha is unscheduled (the page's order: start with nulls last, then name).
+        val milestones = mapOf(
+            milestone("B", "Zeta", "2027-03-01"),
+            milestone("B", "Alpha"),
+            milestone("B", "Beta", "2027-02-01"),
+            milestone("A", "Only"),
+            milestone("Uma", "Umbra"),
+            milestone("Ada", "Adagio"),
+        )
+        return RankedWorld(w, projects, milestones)
+    }
+
+    private suspend fun HttpClient.rank(ids: List<UInt>) {
+        assertEquals(ok, putJson("/api/v1/roadmap/ranking", RankingUpdateRequest(TestPlan.revision(), ids)).status)
+    }
+
+    @Test
+    fun `rankPosition sorts both ways with the unranked projects last, by project name, and rows carry the position`() = testApplication {
+        usePostgresTestcontainer()
+        val r = rankedWorld("ml-rank")
+        val client = r.w.stranger.client
+        val program = "programId" to "${r.w.programId}"
+        r.w.admin.client.rank(listOf(r.projects.getValue("B"), r.projects.getValue("A")))
+        val m = r.milestones
+
+        suspend fun page(sort: String) = client.milestones(program, "sort" to sort).body<MilestonePageResponse>()
+
+        // The page's own strings: only the FIRST key flips, so the unranked rows stay last, by project name, in both directions.
+        val asc = page("rankPosition,projectName,startDate,name")
+        assertEquals(listOf("Beta", "Zeta", "Alpha", "Only", "Adagio", "Umbra"), r.names(asc), "rank, then start (unscheduled last)")
+        assertEquals(listOf(1, 1, 1, 2, null, null), asc.items.map { it.rankPosition })
+        val desc = page("-rankPosition,projectName,startDate,name")
+        assertEquals(listOf("Only", "Beta", "Zeta", "Alpha", "Adagio", "Umbra"), r.names(desc), "the unranked stay last, not first")
+        assertEquals(listOf(2, 1, 1, 1, null, null), desc.items.map { it.rankPosition })
+        assertEquals(setOf(m.getValue("Adagio"), m.getValue("Umbra")), r.ids(desc).takeLast(2).toSet())
+
+        // The key alone (id as the tiebreaker): nulls last both ways, ranked rows in position order.
+        assertEquals(listOf(1, 1, 1, 2, null, null), page("rankPosition").items.map { it.rankPosition })
+        assertEquals(listOf(2, 1, 1, 1, null, null), page("-rankPosition").items.map { it.rankPosition })
+        // Paging keeps the order: the second page of two continues it.
+        val second = client.milestones(program, "sort" to "-rankPosition,projectName,startDate,name", "pageSize" to "2", "page" to "2")
+            .body<MilestonePageResponse>()
+        assertEquals(listOf("Zeta", "Alpha"), r.names(second))
+        assertEquals(6L, second.total)
+
+        // A rewritten ranking is read at once: A alone is ranked, B joins the unranked.
+        r.w.admin.client.rank(listOf(r.projects.getValue("A")))
+        val after = page("rankPosition,projectName,startDate,name")
+        assertEquals(listOf("Only", "Adagio", "Beta", "Zeta", "Alpha", "Umbra"), r.names(after), "B joins the unranked, by project name")
+        assertEquals(listOf(1, null, null, null, null, null), after.items.map { it.rankPosition })
+    }
+
+    @Test
+    fun `startDate sorts both ways with the unscheduled milestones last, then by id`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("ml-start")
+        val teamId = TestTeams.seed(planName("ml-team"))
+        val tag = marker()
+        val late = TestPlan.milestone(w.projectId, teamId, name = "Late $tag")
+        val soon = TestPlan.milestone(w.projectId, teamId, name = "Soon $tag")
+        val noneOne = TestPlan.milestone(w.projectId, teamId, name = "None one $tag")
+        val noneTwo = TestPlan.milestone(w.projectId, teamId, name = "None two $tag")
+        TestPlan.schedule(late, "2027-03-01", "2027-03-05")
+        TestPlan.schedule(soon, "2027-02-01", "2027-02-05")
+        val client = w.stranger.client
+
+        suspend fun order(sort: String) = client.milestones("projectId" to "${w.projectId}", "sort" to sort)
+            .body<MilestonePageResponse>().items.map { it.id }
+
+        assertEquals(listOf(soon, late, noneOne, noneTwo), order("startDate"))
+        assertEquals(listOf(late, soon, noneOne, noneTwo), order("-startDate"), "descending keeps the unscheduled last, in id order")
     }
 
     @Test

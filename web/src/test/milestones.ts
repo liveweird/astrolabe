@@ -14,6 +14,7 @@ export function milestoneItem(over: Partial<Item> = {}): Item {
     description: null,
     teamId: 3,
     teamName: "Backend",
+    rankPosition: 2,
     estimateMd: 5,
     startDate: "2026-03-02",
     endDate: "2026-03-13",

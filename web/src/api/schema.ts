@@ -787,7 +787,7 @@ export interface paths {
         };
         /**
          * List milestones
-         * @description Lists the active milestones whose project, program and work stream are active, each with its `projectName`. Any authenticated user. Paged; sortable by `id` (default, also the tiebreaker), `name`, `createdAt`, `updatedAt`, `projectName` and `teamName`. Filters, combined with AND: `name` (case- and accent-insensitive substring), `scheduled`, `teamId` and `projectId`; an id that names no active team or project matches nothing (an empty page, never `404`). A malformed or repeated filter is `400`. A project's own milestones are read through the project view.
+         * @description Lists the active milestones whose project, program and work stream are active, each with its `projectName`. Any authenticated user. Paged; sortable by `id` (default, also the tiebreaker), `name`, `createdAt`, `updatedAt`, `projectName`, `teamName`, `rankPosition` (the project's place in the global rank) and `startDate`; the last two put their nulls (an unranked project, an unscheduled milestone) after every value, ascending or descending. Filters, combined with AND: `name` (case- and accent-insensitive substring), `scheduled`, `teamId`, `projectId`, `programId` and `workStreamId`; an id that names no active node matches nothing (an empty page, never `404`). A malformed or repeated filter is `400`. A project's own milestones are read through the project view.
          */
         get: operations["listMilestones"];
         put?: never;
@@ -3372,6 +3372,11 @@ export interface components {
             /** Format: int32 */
             teamId: number;
             teamName: string;
+            /**
+             * Format: int32
+             * @description The project's position in the global project rank; null = the project is unranked.
+             */
+            rankPosition: number | null;
             /**
              * Format: double
              * @description Man-days with at most two decimals.
@@ -8971,6 +8976,10 @@ export interface operations {
                 teamId?: number;
                 /** @description Only the milestones of this project. */
                 projectId?: number;
+                /** @description Only the milestones of the projects of this program. */
+                programId?: number;
+                /** @description Only the milestones of the projects of this work stream's programs. */
+                workStreamId?: number;
             };
             header?: never;
             path?: never;

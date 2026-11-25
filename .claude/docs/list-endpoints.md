@@ -21,7 +21,7 @@
 
 **Implementation shape:** `ApplicationCall.parsePaging(sortable = setOf(...))` parses
 `page`/`pageSize`/`sort` from the query string against the per-endpoint whitelist into a
-`PageRequest` (appending the `id`-asc tiebreaker); `Query.applyPaging(req, columns)` applies
+`PageRequest` (appending the `id`-asc tiebreaker); `Query.applyPaging(req, columns)` (`nullsLast` = keys whose nulls come last both ways) applies
 `.orderBy(...)` + `.limit(...).offset(...)` to an Exposed `Query` via the service's file-level
 `SORTABLE_COLUMNS` map (the two whitelists must agree — a missing column is an `error()`, a
 500-grade invariant). Validation failures throw `BadRequestException` → `400` +
