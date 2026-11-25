@@ -17,6 +17,20 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.26.1",
+    date: "2026-11-25",
+    en: `**Updated libraries and images**
+
+- The web app and the server run on current patch and minor versions of their libraries, among them Mantine 9.8, Jackson 2.23, Flyway 13.12.2 and OpenTelemetry 1.68.
+- The containers use a refreshed PostgreSQL 18.6 image, and the web app is built with Node 24.22.3.
+- No feature, API or stored data changes.`,
+    pl: `**Zaktualizowane biblioteki i obrazy**
+
+- Aplikacja w przeglądarce i serwer działają na bieżących wersjach bibliotek, między innymi Mantine 9.8, Jackson 2.23, Flyway 13.12.2 i OpenTelemetry 1.68.
+- Kontenery używają odświeżonego obrazu PostgreSQL 18.6, a aplikacja w przeglądarce powstaje na Node 24.22.3.
+- Bez zmian w funkcjach, API i zapisanych danych.`,
+  },
+  {
     version: "1.26.0",
     date: "2026-11-24",
     en: `**Saved proposals and baselines that remember links and capacity**

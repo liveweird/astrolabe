@@ -16,7 +16,7 @@ team manager schedules milestones (manual drag/resize, or accept a server propos
 **Roadmap:** 0.1–0.9 the plan, timelines, dependencies, capacity, auto-proposal, baselines · 1.0.0 checkup · 1.1–1.4 Jira sync, import, polling, coverage · 1.5–1.6 Flow, capacity · 1.7–1.8 planning, cross-team run · 1.9–1.13 follow-ups and fixes · 1.13.3 overnight fixes · 1.13.4 import search · 1.14.0 import under a linked node, coverage · 1.15.0 import entry points, suggested matches · 1.16.0 timeline extras ·
 1.17.0 1.16 follow-ups, deploy notice · 1.18.0 Home figures and "Yours" · 1.19.0 Home links, Milestones, Team load · 1.20.0 Dependencies · 1.21.0 filters, Team load by week ·
 1.22.0 view ETags, dependencies edited from their list, Team load from this week on · 1.23.0 database time limit, Flow capacity flag on project rows, Home "Yours" by owner chain ·
-1.24.0 technical checkup: docs, spec, refactors, CI · 1.25.0 reliability fixes, navigation and Home refresh · 1.25.1 a new logo · **1.26.0 (current)** saved proposals, baselines of links and capacity. Per-version scope, decisions, assumptions: `.claude/docs/product.md`. Open items: `BACKLOG.md`.
+1.24.0 technical checkup: docs, spec, refactors, CI · 1.25.0 reliability fixes, navigation and Home refresh · 1.25.1 a new logo · 1.26.0 saved proposals, baselines of links and capacity · **1.26.1 (current)** dependency updates. Per-version scope, decisions, assumptions: `.claude/docs/product.md`. Open items: `BACKLOG.md`.
 
 Brand: deep cyan (the `astrolabe` colour tuple in `web/src/theme.ts`, `primaryShade: { light: 8, dark: 9 }`); the logo a stylised astrolabe.
 
@@ -29,7 +29,7 @@ Brand: deep cyan (the `astrolabe` colour tuple in `web/src/theme.ts`, `primarySh
 
 Gradle wrapper: `./gradlew`. JDK 21 toolchain is required
 (auto-provisioned via foojay-resolver; the local dev JDK is pinned in `mise.toml` —
-`temurin-21.0.13+9.0.LTS`, Node 24.22.1). Run `mise install` once, then `mise exec -- <command>`
+`temurin-21.0.13+9.0.LTS`, Node 24.22.3). Run `mise install` once, then `mise exec -- <command>`
 or activate mise. If `./gradlew` resolves the wrong JDK, point it explicitly: `JAVA_HOME=$(mise where java) ./gradlew build`.
 
 - All local gates, timed like CI: `scripts/gates.sh [server|web|e2e|all]` (stops at the first failure; `ASTROLABE_FORKS=N` test forks, default 2, CI runs 2; `.claude/docs/build-times.md`)

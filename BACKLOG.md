@@ -1,6 +1,6 @@
 # Product backlog
 
-Updated 2026-11-24 (1.26.0 released). This file tracks **outstanding work only**. Implemented behaviour and release history belong elsewhere:
+Updated 2026-11-25 (1.26.1 released). This file tracks **outstanding work only**. Implemented behaviour and release history belong elsewhere:
 - [README.md](README.md);
 - the [application changelog](web/src/changelog/entries.ts);
 - the topic guides under `.claude/docs/`.
@@ -160,3 +160,5 @@ Each increment gets its own plan (architect) before implementation. The domain s
 - [new] **A saved proposal's read decodes the whole stored document (1.26).** `GET /saved-schedule-proposals/{id}` selects the stored run (and its check) and recomputes its state from the run teams' scope under one snapshot; the list never selects the document. Not measured at 15 teams (the run's own size gate is 600 KB), and no scale test covers it; the state is derived at read so the cost is paid on every open.
 - [new] **Nine create paths repeat the same insert-then-read-back projection (1.26, from the 1.25 review).** Since 1.25 each service that answers a created row reads it back inside the write transaction, and the nine services spell it out one by one; a shared helper would need a shape that fits the per-table columns, so the review left it.
 - [new] **`SerializableDtoBehaviorTest` is a line scanner, not a parser (1.26).** It recognises this repository's declaration style: an `@Serializable` annotation alone on its line, members at the body's top depth starting with `fun`, `val`, `var` or `init`. A one-line `@Serializable data class`, a member with a modifier (`private val`, `override val`), a secondary constructor and a companion's members pass unseen; harden it (or take the check to a real parser) if such a DTO appears.
+- [new] **Exposed 1.6.1 held back: it grows the heap (1.26.1).** It compiles and passes every test, but the test JVMs' live heap grows by about a fifth and the Kover report runs out of memory at the default 512 MiB test heap (`gradle/libs.versions.toml`, `dependencies.md` "Dependency history"). Find which 1.6.1 change does it and whether the server's own heap grows too, wait for 1.6.2, or raise the test heap deliberately; Dependabot keeps proposing it until then.
+- [new] **Toolchain pins Dependabot does not cover (1.26.1).** Newer on 2026-11-25: the JDK respin 21.0.13.1+2 (three pins together), trivy 0.76.2 (three copies, with the digest), Gradle 9.9.2; and `commons-lang3` 3.22.0 in the `server` buildscript lock, which every `--write-locks` proposes.
