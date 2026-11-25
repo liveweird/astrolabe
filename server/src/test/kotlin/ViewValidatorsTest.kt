@@ -108,6 +108,7 @@ class ViewValidatorsTest {
             // The query parameters change the document, not the contract.
             client.assertRevalidates("/api/v1/views/project/${w.projectId}?baseline=$baselineId", "project?baseline")
             client.assertRevalidates("/api/v1/views/team/${t.teamId}?baseline=$baselineId", "team?baseline")
+            client.assertRevalidates("/api/v1/views/team/${t.teamId}?criticalChain=true", "team?criticalChain")
             val both = "baseline=$baselineId&criticalPath=${w.projectId}"
             client.assertRevalidates("/api/v1/views/roadmap?$both", "roadmap?baseline&criticalPath")
             client.assertRevalidates("/api/v1/views/programs?$both", "programs?baseline&criticalPath")
@@ -185,6 +186,7 @@ class ViewValidatorsTest {
             listOf(
                 "/api/v1/views/project/${w.projectId}?baseline=x",
                 "/api/v1/views/team/${t.teamId}?baseline=x",
+                "/api/v1/views/team/${t.teamId}?criticalChain=x",
                 "/api/v1/views/roadmap?baseline=x",
                 "/api/v1/views/roadmap?criticalPath=x",
                 "/api/v1/views/programs?baseline=x",

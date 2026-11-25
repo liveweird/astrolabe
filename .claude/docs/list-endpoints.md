@@ -47,7 +47,7 @@ theme-level `foldedOptionsFilter` (`web/src/utils/text.ts`).
 - The four timeline views (`/views/roadmap`, `/views/project/{id}`, `/views/team/{id}`, `/views/programs`) and `GET /views/baseline/{id}`.
 - The integration views (`GET /views/deviations`, `GET /views/jira-links`, `GET /integrations/flow/teams`, `GET /views/capacity-deviations`).
 
-Every view has capped sub-lists (the spec documents each cap) and, except the links reads (`GET /views/jira-links`, `GET /integrations/flow/teams`: no plan state), a `revision` and `can` flags; the timeline views take `?baseline=N`. Ten of them answer through a validator (`ETag`, `If-None-Match`, `304`; `planning-model.md` "View validators"); shapes: `planning-model.md` "The view documents", `jira-sync.md`, `flow-sync.md`.
+Every view has capped sub-lists (the spec documents each cap) and, except the links reads (`GET /views/jira-links`, `GET /integrations/flow/teams`: no plan state), a `revision` and `can` flags; the timeline views take `?baseline=N` (the team view also `?criticalChain=true`). Ten of them answer through a validator (`ETag`, `If-None-Match`, `304`; `planning-model.md` "View validators"); shapes: `planning-model.md` "The view documents", `jira-sync.md`, `flow-sync.md`.
 
 Every ordinary resource list keeps the envelope; **work streams, programs, projects and milestones have a paged list**.
 

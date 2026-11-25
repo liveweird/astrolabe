@@ -2,6 +2,7 @@ package ch.nokillswit.planning
 
 import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.orNotFound
+import ch.nokillswit.infra.paging.optionalBoolean
 import ch.nokillswit.infra.paging.optionalUInt
 import ch.nokillswit.plugins.respondRevalidated
 import io.ktor.resources.Resource
@@ -56,8 +57,9 @@ internal fun ApplicationCall.baselineParam(): UInt? = request.queryParameters.op
  * open to read); the caller's rights ride in the `can` flags. The view services travel in
  * [PlanRouteDeps.views] ([PlanViewServices]). The project, team, programs (here) and
  * roadmap (`RoadmapRoutes.kt`) views take `?baseline=N`, and the roadmap and programs views (1.16) `?criticalPath=N`
- * (`criticalPathParam`); `GET /views/baseline/{id}` is the comparison document (404 for an unknown or
- * deleted baseline: it is the addressed resource), with `?against=N` (1.7) comparing it with a second baseline instead of the live plan
+ * (`criticalPathParam`), and the team view (1.27) `?criticalChain=true` (a strict boolean: the chain's members of other teams);
+ * `GET /views/baseline/{id}` is the comparison document (404 for an unknown or deleted baseline: it is the addressed resource),
+ * with `?against=N` (1.7) comparing it with a second baseline instead of the live plan
  * (a repeated or malformed value is a `400` here, an unknown or deleted id the view's typed `400` after the path id's `404`). Any
  * authenticated user; a read: no audit event. `GET /views/home` (1.18.0) takes no parameter: it is always the CALLER's own (their
  * linked person's items, resolved inside the view's snapshot with no role branch); the plan block is the same for everyone.
@@ -95,7 +97,8 @@ internal fun Route.planViewRoutes(d: PlanRouteDeps) {
     get<TeamViewRoute> { route ->
         val caller = call.caller()
         val baseline = call.baselineParam()
-        val view = d.views.team.view(route.id, d.actor(caller, withManagedTeams = true), baseline)
+        val chain = call.request.queryParameters.optionalBoolean("criticalChain") == true
+        val view = d.views.team.view(route.id, d.actor(caller, withManagedTeams = true), baseline, chain)
         call.respondRevalidated(caller.userId, view.orNotFound("Team"))
     }
     get<BaselineViewRoute> { route ->

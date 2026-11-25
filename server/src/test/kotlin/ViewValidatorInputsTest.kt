@@ -174,6 +174,32 @@ class ViewValidatorInputsTest {
     }
 
     @Test
+    fun `a rename of a chain member's team moves the team view's tag with the chain parameter and not without it`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("vich", teams = true)
+        val t = w.requireTeams()
+        // x1 (a third team) -> y1 -> p1 (the viewed team): x1 is a member two hops away and is named in no dependencies[] row.
+        val far = TestTeams.seed("0vi-${planName("far")}", null)
+        val x = secondProject(w, "vich-x")
+        val y = secondProject(w, "vich-y")
+        val x1 = TestPlan.milestone(x.projectId, far, "x1").also { TestPlan.schedule(it, "2027-02-01", "2027-02-05") }
+        val y1 = TestPlan.milestone(y.projectId, t.otherTeamId, "y1").also { TestPlan.schedule(it, "2027-02-08", "2027-02-12") }
+        val p1 = TestPlan.milestone(w.projectId, t.teamId, "p1").also { TestPlan.schedule(it, "2027-02-15", "2027-02-19") }
+        TestPlan.dependency(milestoneRef(x1), milestoneRef(y1))
+        TestPlan.dependency(milestoneRef(y1), milestoneRef(p1))
+        val plain = "/api/v1/views/team/${t.teamId}"
+        val withChain = "$plain?criticalChain=true"
+        val client = w.stranger.client
+        val plainTag = client.assertRevalidates(plain)
+        assertNotEquals(plainTag, client.assertRevalidates(withChain), "the tags with and without the parameter differ")
+        val renamed = "0vi-renamed-${planName("far")}"
+        client.followsWrite(mapOf(withChain to renamed)) {
+            w.admin.client.putJson("/api/v1/teams/$far", TeamUpdateRequest(renamed, null, null)).ok("rename the member's team")
+        }
+        assertEquals(HttpStatusCode.NotModified, client.conditional(plain, plainTag).status, "the plain document holds no such name")
+    }
+
+    @Test
     fun `a holiday is a plan write - the revision and the tag both move`() = testApplication {
         usePostgresTestcontainer()
         val w = planWorld("viho")

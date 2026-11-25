@@ -201,9 +201,9 @@ Pinned by: `MilestoneTest`, `MilestoneScheduleTest`, `MilestonePinTest`, `PlanPe
 | `DELETE /dependencies/{id}` | the same | `dependencyChain` ?: 404 → `requireOwnerOrAdmin` → (under the lock) chain re-read 404 → the guard again 403 → 204 |
 
 - **The `can` flags** (arithmetic: `planning-model.md` "The project view's dependencies"): `can.edit` and `can.delete` are `canManage` on the chain of the project that holds the link's SUCCESSOR, so the predecessor's project owner sees `delete: false` on the link into someone else's project.
-- **`createDependency`** is the same `canManage` on the project as SUCCESSOR's project, on the project view and (1.27) on each plan-view project; the Dependencies page offers only such projects as the successor's and any project as the predecessor.
+- **`createDependency`** is the same `canManage` on the project as SUCCESSOR's project, on the project view and (1.27) on each plan-view project; the Dependencies page offers only such projects as the successor's.
 
-Pinned by: `DependencyTest`, `DependencyUpdateTest`, `PlanPermissionsTest`, `ProjectViewDependenciesTest`.
+Pinned by: `DependencyTest`, `DependencyUpdateTest`, `PlanPermissionsTest`, `ProjectViewDependenciesTest`, `PlanViewTest`.
 
 ### Ranking, team order and schedules
 
@@ -252,9 +252,9 @@ Every plan view is a read for any authenticated user: `call.caller()` and nothin
 
 | Operation | Who | Order and notes |
 |---|---|---|
-| `GET /views/plan` | any authenticated user | the `can:{}` flags of "Plan nodes" |
+| `GET /views/plan` | any authenticated user | the `can:{}` flags of "Plan nodes", `createDependency` ("Dependencies") |
 | `GET /views/project/{id}` | any authenticated user | 404 when the project or any ancestor is gone, for every caller; the `can` flags of "Milestones" and "Dependencies" |
-| `GET /views/team/{id}` | any authenticated user | 404 when the team is deleted; `team.can.schedule`, `editCapacity`, `editOrder` ("Ranking, team order and schedules") |
+| `GET /views/team/{id}` | any authenticated user | 404 when the team is deleted; `team.can.schedule`, `editCapacity`, `editOrder` ("Ranking, team order and schedules"); `criticalChain`: no caller-scoped member |
 | `GET /views/roadmap` | any authenticated user | `can.editRank` and each project's `can.editTargetWindow`; `400` for an unknown or deleted `criticalPath` project id (ids are no secret, every login reads the plan) |
 | `GET /views/programs` | any authenticated user | project rows carry the roadmap's `can.editTargetWindow`; programs and work streams carry no `can`; no `404`; `?criticalPath=N` is the roadmap's rule (the block names only project ids the same document lists) |
 | `GET /views/home` | any authenticated user | `call.caller()` only; no `can`; "Yours" and `me` below |

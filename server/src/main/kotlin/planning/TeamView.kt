@@ -28,7 +28,7 @@ data class TeamView(
     val unscheduled: List<TeamMilestone>,
     /**
      * Every ACTIVE link with a MILESTONE end among the team's milestones, both ends resolved and checked, VIOLATED first - the project
-     * view's [ProjectDependency] shape. Ends are resolved, not listed: there are no ghost rows.
+     * view's [ProjectDependency] shape. Ends are resolved, not listed: no ghost rows here ([criticalChain] lists the chain's).
      */
     val dependencies: List<ProjectDependency>,
     /** The runs of 3 or more working days inside the scheduled milestones' derived span on which none of them is in progress, by start. */
@@ -38,6 +38,12 @@ data class TeamView(
     /** Present only for `?baseline=N`: the team against that baseline ([TeamBaseline]); absent otherwise (the bytes are unchanged). */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val baseline: TeamBaseline? = null,
+    /**
+     * Present only for `?criticalChain=true` (1.27): the chain's members of other teams and the links between them
+     * ([TeamCriticalChain]); absent otherwise (the bytes are unchanged).
+     */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val criticalChain: TeamCriticalChain? = null,
 )
 
 /** The [ch.nokillswit.teams.TeamResponse] fields plus what the caller may do with the team's plan. */

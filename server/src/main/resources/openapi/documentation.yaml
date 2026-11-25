@@ -1908,6 +1908,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/IfNoneMatch'
         - $ref: '#/components/parameters/BaselineQuery'
+        - $ref: '#/components/parameters/CriticalChainQuery'
       description: >-
         Answers one team's milestones, its weekly load against capacity and WIP, its dependencies and idle gaps, in one document
         bounded by that team. Any authenticated user; `404` when the team is deleted, for every caller. `scheduled` (the timeline
@@ -1916,7 +1917,8 @@ paths:
         `team.can` and each dependency's `can` are the actions this caller may take, by the rules the writes enforce. `dependencies`
         are the project view's links with an end among the team's milestones. Milestones carry the critical-path figures toward their
         own project's end and the Jira flags of `GET /views/roadmap`. `revision` is the plan revision read before the rows; the team's
-        order revision is `order.revision`. With `?baseline=N` the document gains `baseline` (`TeamBaseline`).
+        order revision is `order.revision`. With `?baseline=N` the document gains `baseline` (`TeamBaseline`); with
+        `?criticalChain=true`, `criticalChain` (`TeamCriticalChain`), the chain's members of other teams.
       responses:
         '200':
           description: The team view
@@ -4108,6 +4110,15 @@ components:
         The id of an ACTIVE baseline to compare the view with; absent: no comparison. A repeated key or a value that is not a non-negative
         integer is a `400`, as is an id that is unknown or soft-deleted (`type` `urn:astrolabe:problem:unknown-baseline`), answered after
         the view's own rules, so a deleted project or team is still `404`. The comparison is computed in the view's snapshot.
+    CriticalChainQuery:
+      name: criticalChain
+      in: query
+      required: false
+      schema: { type: boolean }
+      description: >-
+        Strictly `true` or `false`; `true` adds `criticalChain` to the team view, absent, blank or `false` leaves it out (the document is
+        then byte-identical to one without the parameter). A repeated key or another value is a plain `400`, answered before the team's
+        `404` and before an unknown baseline's typed `400`.
     CriticalPathQuery:
       name: criticalPath
       in: query
@@ -6092,7 +6103,8 @@ components:
           type: array
           description: >-
             The active links with an end among the team's milestones, violated first (the largest shortfall first), then OK, then
-            unscheduled; within a group by successor name, predecessor name and id. Ends are resolved, not listed: there are no ghost rows.
+            unscheduled; within a group by successor name, predecessor name and id. Ends are resolved, not listed: there are no ghost rows
+            here (`criticalChain` lists the chain's).
           items:
             $ref: '#/components/schemas/ProjectDependency'
         idleGaps:
@@ -6111,6 +6123,71 @@ components:
             $ref: '#/components/schemas/JiraSite'
         baseline:
           $ref: '#/components/schemas/TeamBaseline'
+        criticalChain:
+          $ref: '#/components/schemas/TeamCriticalChain'
+    TeamCriticalChain:
+      type: object
+      required: [members, links, truncated]
+      description: >-
+        Present only with `?criticalChain=true`: the critical chain THROUGH the team's milestones, measured toward the end of each project
+        the team works on (as `critical` is), minus the team's own milestones. A member lies on a zero-slack path that runs through one of
+        those milestones: everything that drives it, back to the chain's origin and through upstream projects, or everything it drives,
+        up to the project's end (never both at once: a sibling branch that merely meets the chain is left out). The same for every caller.
+      properties:
+        members:
+          type: array
+          maxItems: 100
+          description: >-
+            The milestones of other teams, and a project as a whole when a chain link names it, one per kind and id whatever number of
+            the team's milestones or projects share it, nearest first (`hops`, start date, end date, name case-insensitively, kind, id).
+            At most 100: the cut keeps every member with fewer hops, so it shortens the far end of the chain and opens no gap.
+          items:
+            $ref: '#/components/schemas/TeamChainMember'
+        links:
+          type: array
+          maxItems: 500
+          description: >-
+            The chain's links with NO end among the team's milestones, both ends listed in `members`, one per id, nearest first (the larger
+            of its two ends' `hops`, then id). A chain link with an end among the team's milestones is in `dependencies` with
+            `critical: true` and is not repeated. At most 500.
+          items:
+            $ref: '#/components/schemas/TeamChainLink'
+        truncated: { type: boolean, description: 'True when either list was cut at its cap.' }
+    TeamChainMember:
+      type: object
+      required: [kind, id, name, projectId, projectName, teamId, teamName, startDate, endDate, hops, chainOf]
+      description: A milestone of another team, or a whole project, on the chain through the team's milestones.
+      properties:
+        kind: { $ref: '#/components/schemas/EndpointKind' }
+        id: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        projectId: { type: integer, format: int32, minimum: 0, description: 'Its own project (for a project, its own id).' }
+        projectName: { type: string }
+        teamId: { type: integer, format: int32, minimum: 0, nullable: true, description: 'Its team; null for a project.' }
+        teamName: { type: string, nullable: true }
+        startDate: { type: string, format: date, description: The stored start (a project's derived span start). }
+        endDate: { type: string, format: date }
+        hops:
+          type: integer
+          format: int32
+          minimum: 0
+          description: >-
+            The fewest links between it and one of the team's milestones (containment and a milestone's own start-to-end cost nothing, so
+            0 is a project that holds one of them and is named by a chain link).
+        chainOf:
+          type: array
+          description: The ids of the team's projects, ascending, whose chain holds it (at least one).
+          items: { type: integer, format: int32, minimum: 0 }
+    TeamChainLink:
+      type: object
+      required: [id, predecessor, successor, type, lagDays]
+      description: A link of the chain between two listed members; the members carry the names and dates.
+      properties:
+        id: { type: integer, format: int32, minimum: 0 }
+        predecessor: { $ref: '#/components/schemas/EndpointRef' }
+        successor: { $ref: '#/components/schemas/EndpointRef' }
+        type: { $ref: '#/components/schemas/DependencyType' }
+        lagDays: { type: integer, format: int32, minimum: -365, maximum: 365, description: Working days; negative = a lead. }
     IdleGap:
       type: object
       required: [start, end, workingDays]

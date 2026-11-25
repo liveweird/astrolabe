@@ -89,13 +89,35 @@ internal suspend fun loadCriticalPath(projectId: UInt, calendar: WorkingCalendar
 }
 
 /**
+ * What [loadCriticalPaths] read: the kernel's answer per project, and the rows it already holds ([milestones] with their
+ * team's name, the active [projectNames], the [links]), which the team view's chain block names its members and links from.
+ */
+internal class CriticalPathsLoad(
+    val results: Map<UInt, CriticalPathResult>,
+    val milestones: List<MilestoneFactRow>,
+    val projectNames: Map<UInt, String>,
+    val links: List<PlanLinkFact>,
+) {
+    companion object {
+        val EMPTY = CriticalPathsLoad(emptyMap(), emptyList(), emptyMap(), emptyList())
+    }
+}
+
+/**
  * The critical path of every project of [projectIds] over ONE load of the plan graph and ONE build of the kernel's edges
  * ([CriticalPathKernels.analyseAll]), INSIDE the caller's snapshot: the same graph and the same figures as [loadCriticalPath] per
- * project, without the upstream entries' names (a team view reads only the slack and the chain's ids).
+ * project, without the upstream entries' names (a team view reads only the slack and the chain's ids). [chainSeeds] (the team's
+ * milestone ids, only when the chain block is asked for) adds each result's chain through them; no extra statement either way.
  */
-internal suspend fun loadCriticalPaths(projectIds: Collection<UInt>, calendar: WorkingCalendar): Map<UInt, CriticalPathResult> {
-    if (projectIds.isEmpty()) return emptyMap()
+internal suspend fun loadCriticalPaths(
+    projectIds: Collection<UInt>,
+    calendar: WorkingCalendar,
+    chainSeeds: Set<UInt> = emptySet(),
+): CriticalPathsLoad {
+    if (projectIds.isEmpty()) return CriticalPathsLoad.EMPTY
     val projectNames = activeProjectNames()
-    val facts = milestoneFacts().map { it.fact }.filter { it.projectId in projectNames }
-    return CriticalPathKernels.analyseAll(projectIds, facts, linkFacts(), calendar)
+    val rows = milestoneFacts().filter { it.fact.projectId in projectNames }
+    val links = linkFacts()
+    val results = CriticalPathKernels.analyseAll(projectIds, rows.map { it.fact }, links, calendar, chainSeeds)
+    return CriticalPathsLoad(results, rows, projectNames, links)
 }

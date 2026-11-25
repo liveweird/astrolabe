@@ -17,18 +17,25 @@ val TeamViewServiceKey = AttributeKey<TeamViewService>("TeamViewService")
  * ACTIVE milestones (the team's own positions, read from those milestones, never by iterating the order table), [weeklyLoad] over the
  * scheduled ones for the window of [loadWindow] against the stored capacity periods, and [DependencyKernels.check] per link
  * ([viewDependencies]), and reads the critical path of each project the team works on ([loadCriticalPaths], 1.7: slack toward the
- * milestone's OWN project's end; a link is critical when it lies on the chain of one of those projects). The team must be active
- * (null = the route's 404). Reads `Teams`, `People`, the plan tables, `RoadmapEntries`,
- * the order tables, `CapacityPeriods`, `Dependencies` and `PublicHolidays` (the working calendar, [loadWorkingCalendar], read right
- * after the revision) and writes nothing (`persistence.md`). The milestones' Jira links and flags (1.3) and the team's Flow capacity
- * flag and marked weeks (1.9) come from [external] inside the same snapshot, after the calendar: through the seam the Flow source reads
- * `FlowConnections`, `FlowTeamBindings`, `CapacityPeriods`, the Flow mirror (`flow_teams`, `flow_sprints`), the Flow capacity
- * acknowledgements and the acknowledging logins' names (`persistence.md` matrix).
+ * milestone's OWN project's end; a link is critical when it lies on the chain of one of those projects) and, for `criticalChain`
+ * (1.27), the chain's members of other teams through the team's milestones ([teamCriticalChain], the same read, no extra statement;
+ * [maxChainMembers] and [maxChainLinks] cap it). The team must be active (null = the route's 404). Reads `Teams`, `People`, the plan
+ * tables, `RoadmapEntries`, the order tables, `CapacityPeriods`, `Dependencies` and `PublicHolidays` (the working calendar,
+ * [loadWorkingCalendar], read right after the revision) and writes nothing (`persistence.md`). The milestones' Jira links and flags (1.3)
+ * and the team's Flow capacity flag and marked weeks (1.9) come from [external] inside the same snapshot, after the calendar: through
+ * the seam the Flow source reads `FlowConnections`, `FlowTeamBindings`, `CapacityPeriods`, the Flow mirror (`flow_teams`,
+ * `flow_sprints`), the Flow capacity acknowledgements and the acknowledging logins' names (`persistence.md` matrix).
  */
-class TeamViewService(private val database: R2dbcDatabase, private val external: ExternalFlagSource = NoExternalFlags) {
+class TeamViewService(
+    private val database: R2dbcDatabase,
+    private val external: ExternalFlagSource = NoExternalFlags,
+    private val maxChainMembers: Int = MAX_TEAM_CHAIN_MEMBERS,
+    private val maxChainLinks: Int = MAX_TEAM_CHAIN_LINKS,
+) {
     suspend fun view(
         teamId: UInt, actor: PlanActor,
         baselineId: UInt? = null,
+        criticalChain: Boolean = false,
     ): TeamView? = suspendTransaction(database, SNAPSHOT, readOnly = true) {
         val revision = readPlanRevision()
         val calendar = loadWorkingCalendar()
@@ -43,7 +50,10 @@ class TeamViewService(private val database: R2dbcDatabase, private val external:
         val positions = positionsOf(teamId)
         val rawRows = teamMilestoneRows(teamId, team[teams.name], positions, calendar)
         // The critical path (1.7): each milestone's slack toward its OWN project's end, one graph build for every project of the team.
-        val paths = loadCriticalPaths(rawRows.map { it.view.projectId }.distinct(), calendar)
+        // The chain block (1.27, on request only): the same read, seeded with the team's milestone ids.
+        val seeds: Set<UInt> = if (criticalChain) rawRows.mapTo(HashSet()) { it.view.id } else emptySet()
+        val critical = loadCriticalPaths(rawRows.map { it.view.projectId }.distinct(), calendar, seeds)
+        val paths = critical.results
         val rows = rawRows.map { it.withCriticalPath(paths[it.view.projectId]) }
         val criticalLinks = paths.values.flatMapTo(HashSet()) { it.criticalDependencies }
         // Inside the snapshot, after the calendar: each milestone's Jira link and flags (1.3), the team's own flag and marked days (1.9);
@@ -89,6 +99,7 @@ class TeamViewService(private val database: R2dbcDatabase, private val external:
             baseline = baseline?.let {
                 teamBaseline(it, teamId, team[teams.name], rows.map { r -> r.live() }, calendar)
             },
+            criticalChain = if (criticalChain) teamCriticalChain(critical, maxChainMembers, maxChainLinks) else null,
         )
     }
 

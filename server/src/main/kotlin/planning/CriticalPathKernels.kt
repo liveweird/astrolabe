@@ -9,16 +9,32 @@ import ch.nokillswit.infra.time.WorkingCalendar
  */
 data class UpstreamRef(val ref: EndpointRef, val slackDays: Long, val critical: Boolean, val hops: Int)
 
+/** One entity named by a chain link ([CriticalChain]): [hops] is the fewest links to one of the seed milestones. */
+data class ChainRef(val ref: EndpointRef, val hops: Int)
+
+/**
+ * The part of a viewed project's chain that runs THROUGH the seed milestones ([CriticalPathKernels.analyseAll]'s `chainSeeds`): the
+ * [linkIds] of its critical links and the [members] those links name, the seeds themselves left out, ordered by hops, kind, id.
+ */
+data class CriticalChain(val members: List<ChainRef>, val linkIds: Set<UInt>) {
+    companion object {
+        /** No seeds, or none on the chain. */
+        val NONE = CriticalChain(emptyList(), emptySet())
+    }
+}
+
 /**
  * What [CriticalPathKernels.analyse] answers for ONE viewed project: the [slackByMilestone] of its SCHEDULED milestones (an
  * unscheduled one is absent), the [criticalMilestones] (those with zero slack), the [criticalDependencies] (ids of the driving links
- * of the whole graph that lie on the chain) and the [upstream] entities of other projects, unordered.
+ * of the whole graph that lie on the chain) and the [upstream] entities of other projects, unordered; [chain] (1.27) is
+ * [CriticalChain.NONE] unless seeds were asked for.
  */
 data class CriticalPathResult(
     val slackByMilestone: Map<UInt, Long>,
     val criticalMilestones: Set<UInt>,
     val criticalDependencies: Set<UInt>,
     val upstream: List<UpstreamRef>,
+    val chain: CriticalChain = CriticalChain.NONE,
 ) {
     companion object {
         /** The answer when nothing in the project is scheduled: no slack, no chain. */
@@ -84,17 +100,19 @@ object CriticalPathKernels {
     /**
      * [analyse] for every id of [projectIds] over ONE build of the values and the edges (the graph does not depend on the root; only
      * the walk does): the answer of `analyseAll(ids, …)[id]` equals `analyse(id, …)`. Every requested id is a key, an id without
-     * scheduled work maps to [CriticalPathResult.EMPTY].
+     * scheduled work maps to [CriticalPathResult.EMPTY]. A non-empty [chainSeeds] (milestone ids) adds each result's
+     * [CriticalPathResult.chain]; every other member is the same with or without seeds.
      */
     fun analyseAll(
         projectIds: Collection<UInt>,
         milestones: Collection<PlanMilestoneFact>,
         links: Collection<PlanLinkFact>,
         calendar: WorkingCalendar,
+        chainSeeds: Set<UInt> = emptySet(),
     ): Map<UInt, CriticalPathResult> {
         val values = Values(milestones, calendar)
         val incoming = incomingEdges(values, milestones, links)
-        return projectIds.distinct().associateWith { analyseRoot(it, values, incoming, milestones) }
+        return projectIds.distinct().associateWith { analyseRoot(it, values, incoming, milestones, chainSeeds) }
     }
 
     private fun analyseRoot(
@@ -102,6 +120,7 @@ object CriticalPathKernels {
         values: Values,
         incoming: Map<TimePoint, List<Edge>>,
         milestones: Collection<PlanMilestoneFact>,
+        chainSeeds: Set<UInt>,
     ): CriticalPathResult {
         val root = TimePoint(EndpointRef(EndpointKind.PROJECT, projectId), TimeSide.END)
         if (values.of(root) == null) return CriticalPathResult.EMPTY
@@ -117,7 +136,83 @@ object CriticalPathKernels {
             processed++
         }
         check(processed == upstream.size) { CYCLE_MESSAGE }
-        return result(projectId, milestones, walk.linked, walk.float, walk.hops, walk.criticalLinks)
+        val answer = result(projectId, milestones, walk.linked, walk.float, walk.hops, walk.criticalLinks)
+        return if (chainSeeds.isEmpty()) answer else answer.copy(chain = chainOf(chainSeeds, upstream, incoming, walk.float))
+    }
+
+    /**
+     * The chain THROUGH [seedMilestones] (the team's own milestones): the seed points are their zero-float points (none = no chain).
+     * The critical edges are those of slack 0 into a zero-float point; the backward closure from the seeds holds everything that
+     * drives them, the forward one everything they drive, up to the viewed project's end. A critical LINK is on the chain when its
+     * `to` point is in the backward closure or its `from` point in the forward one; members are the entities such links name minus
+     * the seeds (a project met only through containment is named by no link, so it is no member). `hops` = the fewest LINKS from a
+     * seed (containment and a milestone's start-to-end cost nothing), the minimum over the entity's points.
+     */
+    private fun chainOf(
+        seedMilestones: Set<UInt>,
+        upstream: Set<TimePoint>,
+        incoming: Map<TimePoint, List<Edge>>,
+        float: Map<TimePoint, Long>,
+    ): CriticalChain {
+        val seeds = seedMilestones.flatMap { id ->
+            TimeSide.entries.map { TimePoint(EndpointRef(EndpointKind.MILESTONE, id), it) }.filter { float[it] == 0L }
+        }
+        if (seeds.isEmpty()) return CriticalChain.NONE
+        val into = HashMap<TimePoint, List<Edge>>()
+        val out = HashMap<TimePoint, MutableList<Edge>>()
+        for (v in upstream) {
+            if (float.getValue(v) != 0L) continue
+            val critical = incoming[v].orEmpty().filter { it.slack == 0L }
+            into[v] = critical
+            for (e in critical) out.getOrPut(e.from) { ArrayList() }.add(e)
+        }
+        val back = hopsFrom(seeds, into) { it.from }
+        val forward = hopsFrom(seeds, out) { it.to }
+        val linkIds = HashSet<UInt>()
+        val named = HashSet<EndpointRef>()
+        for ((head, edges) in into) {
+            for (e in edges) {
+                val id = e.linkId ?: continue
+                if (head !in back && e.from !in forward) continue
+                linkIds.add(id)
+                named.add(e.from.entity)
+                named.add(head.entity)
+            }
+        }
+        val members = named.filterNot { it.kind == EndpointKind.MILESTONE && it.id in seedMilestones }.map { ref ->
+            val points = TimeSide.entries.map { TimePoint(ref, it) }
+            ChainRef(ref, (points.mapNotNull { back[it] } + points.mapNotNull { forward[it] }).min())
+        }
+        return CriticalChain(members.sortedWith(compareBy({ it.hops }, { it.ref.kind }, { it.ref.id })), linkIds)
+    }
+
+    /**
+     * The fewest links from [seeds] to every point they reach over [edges] (keyed by the point an edge is left from; [next] is its
+     * other end): a 0-1 search, a link costs 1 and containment or a milestone's start-to-end 0. The graph is acyclic, so it ends.
+     */
+    private fun hopsFrom(
+        seeds: Collection<TimePoint>,
+        edges: Map<TimePoint, List<Edge>>,
+        next: (Edge) -> TimePoint,
+    ): Map<TimePoint, Int> {
+        val hops = HashMap<TimePoint, Int>()
+        val queue = ArrayDeque<TimePoint>()
+        for (seed in seeds) {
+            hops[seed] = 0
+            queue.addLast(seed)
+        }
+        while (queue.isNotEmpty()) {
+            val v = queue.removeFirst()
+            val here = hops.getValue(v)
+            for (e in edges[v].orEmpty()) {
+                val cost = if (e.linkId != null) 1 else 0
+                val w = next(e)
+                if (here + cost >= (hops[w] ?: Int.MAX_VALUE)) continue
+                hops[w] = here + cost
+                if (cost == 0) queue.addFirst(w) else queue.addLast(w)
+            }
+        }
+        return hops
     }
 
     /** The reverse-topological relaxation: [visit] settles a point whose every outgoing edge is done and relaxes the edges into it. */

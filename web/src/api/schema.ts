@@ -1038,7 +1038,7 @@ export interface paths {
         };
         /**
          * One team's milestones, weekly load against capacity, and WIP
-         * @description Answers one team's milestones, its weekly load against capacity and WIP, its dependencies and idle gaps, in one document bounded by that team. Any authenticated user; `404` when the team is deleted, for every caller. `scheduled` (the timeline rows) and `unscheduled` (the tray) both come in the team's effective order (`order`). `weeks` holds the load, capacity and WIP of each ISO week, at most 520; an overloaded week and one over the WIP limit are warnings only, nothing is ever moved. `team.can` and each dependency's `can` are the actions this caller may take, by the rules the writes enforce. `dependencies` are the project view's links with an end among the team's milestones. Milestones carry the critical-path figures toward their own project's end and the Jira flags of `GET /views/roadmap`. `revision` is the plan revision read before the rows; the team's order revision is `order.revision`. With `?baseline=N` the document gains `baseline` (`TeamBaseline`).
+         * @description Answers one team's milestones, its weekly load against capacity and WIP, its dependencies and idle gaps, in one document bounded by that team. Any authenticated user; `404` when the team is deleted, for every caller. `scheduled` (the timeline rows) and `unscheduled` (the tray) both come in the team's effective order (`order`). `weeks` holds the load, capacity and WIP of each ISO week, at most 520; an overloaded week and one over the WIP limit are warnings only, nothing is ever moved. `team.can` and each dependency's `can` are the actions this caller may take, by the rules the writes enforce. `dependencies` are the project view's links with an end among the team's milestones. Milestones carry the critical-path figures toward their own project's end and the Jira flags of `GET /views/roadmap`. `revision` is the plan revision read before the rows; the team's order revision is `order.revision`. With `?baseline=N` the document gains `baseline` (`TeamBaseline`); with `?criticalChain=true`, `criticalChain` (`TeamCriticalChain`), the chain's members of other teams.
          */
         get: operations["getTeamView"];
         put?: never;
@@ -3928,13 +3928,69 @@ export interface components {
             scheduled: components["schemas"]["TeamMilestone"][];
             /** @description The milestones without dates (the tray) in the team's effective order (the dates are null, so name and id decide within a project). */
             unscheduled: components["schemas"]["TeamMilestone"][];
-            /** @description The active links with an end among the team's milestones, violated first (the largest shortfall first), then OK, then unscheduled; within a group by successor name, predecessor name and id. Ends are resolved, not listed: there are no ghost rows. */
+            /** @description The active links with an end among the team's milestones, violated first (the largest shortfall first), then OK, then unscheduled; within a group by successor name, predecessor name and id. Ends are resolved, not listed: there are no ghost rows here (`criticalChain` lists the chain's). */
             dependencies: components["schemas"]["ProjectDependency"][];
             /** @description The idle gaps inside the span of the team's scheduled milestones: the maximal runs of 3 or more working days on which none of them is in progress (weekends and public holidays neither count nor break a run), by start date; empty when there are none. */
             idleGaps: components["schemas"]["IdleGap"][];
             /** @description The Jira connections, enabled or not, that a binding in this document's scope links to (a roadmap or programs document also lists a connection that only has milestone bindings), by connection id, once per document; the client builds a row's browse URL as `siteUrl + "/browse/" + jira.issueKey`. Empty when nothing is linked. */
             jiraSites: components["schemas"]["JiraSite"][];
             baseline?: components["schemas"]["TeamBaseline"];
+            criticalChain?: components["schemas"]["TeamCriticalChain"];
+        };
+        /** @description Present only with `?criticalChain=true`: the critical chain THROUGH the team's milestones, measured toward the end of each project the team works on (as `critical` is), minus the team's own milestones. A member lies on a zero-slack path that runs through one of those milestones: everything that drives it, back to the chain's origin and through upstream projects, or everything it drives, up to the project's end (never both at once: a sibling branch that merely meets the chain is left out). The same for every caller. */
+        TeamCriticalChain: {
+            /** @description The milestones of other teams, and a project as a whole when a chain link names it, one per kind and id whatever number of the team's milestones or projects share it, nearest first (`hops`, start date, end date, name case-insensitively, kind, id). At most 100: the cut keeps every member with fewer hops, so it shortens the far end of the chain and opens no gap. */
+            members: components["schemas"]["TeamChainMember"][];
+            /** @description The chain's links with NO end among the team's milestones, both ends listed in `members`, one per id, nearest first (the larger of its two ends' `hops`, then id). A chain link with an end among the team's milestones is in `dependencies` with `critical: true` and is not repeated. At most 500. */
+            links: components["schemas"]["TeamChainLink"][];
+            /** @description True when either list was cut at its cap. */
+            truncated: boolean;
+        };
+        /** @description A milestone of another team, or a whole project, on the chain through the team's milestones. */
+        TeamChainMember: {
+            kind: components["schemas"]["EndpointKind"];
+            /** Format: int32 */
+            id: number;
+            name: string;
+            /**
+             * Format: int32
+             * @description Its own project (for a project, its own id).
+             */
+            projectId: number;
+            projectName: string;
+            /**
+             * Format: int32
+             * @description Its team; null for a project.
+             */
+            teamId: number | null;
+            teamName: string | null;
+            /**
+             * Format: date
+             * @description The stored start (a project's derived span start).
+             */
+            startDate: string;
+            /** Format: date */
+            endDate: string;
+            /**
+             * Format: int32
+             * @description The fewest links between it and one of the team's milestones (containment and a milestone's own start-to-end cost nothing, so 0 is a project that holds one of them and is named by a chain link).
+             */
+            hops: number;
+            /** @description The ids of the team's projects, ascending, whose chain holds it (at least one). */
+            chainOf: number[];
+        };
+        /** @description A link of the chain between two listed members; the members carry the names and dates. */
+        TeamChainLink: {
+            /** Format: int32 */
+            id: number;
+            predecessor: components["schemas"]["EndpointRef"];
+            successor: components["schemas"]["EndpointRef"];
+            type: components["schemas"]["DependencyType"];
+            /**
+             * Format: int32
+             * @description Working days; negative = a lead.
+             */
+            lagDays: number;
         };
         /** @description A run of idle working days, answered as its first and last working day. */
         IdleGap: {
@@ -7243,6 +7299,8 @@ export interface components {
         ResourceId: number;
         /** @description The id of an ACTIVE baseline to compare the view with; absent: no comparison. A repeated key or a value that is not a non-negative integer is a `400`, as is an id that is unknown or soft-deleted (`type` `urn:astrolabe:problem:unknown-baseline`), answered after the view's own rules, so a deleted project or team is still `404`. The comparison is computed in the view's snapshot. */
         BaselineQuery: number;
+        /** @description Strictly `true` or `false`; `true` adds `criticalChain` to the team view, absent, blank or `false` leaves it out (the document is then byte-identical to one without the parameter). A repeated key or another value is a plain `400`, answered before the team's `404` and before an unknown baseline's typed `400`. */
+        CriticalChainQuery: boolean;
         /** @description The id of an ACTIVE project to show the critical chain toward; absent, or blank (`?criticalPath=`): no `criticalPath` block. A repeated key, a value that is not a non-negative integer and an id that is unknown or soft-deleted are a plain `400`. With `baseline` also given, its errors come first (malformed `400`; unknown or deleted: the typed `unknown-baseline` `400`). */
         CriticalPathQuery: number;
         /** @description 1-based page index. Defaults to 1. */
@@ -9464,6 +9522,8 @@ export interface operations {
             query?: {
                 /** @description The id of an ACTIVE baseline to compare the view with; absent: no comparison. A repeated key or a value that is not a non-negative integer is a `400`, as is an id that is unknown or soft-deleted (`type` `urn:astrolabe:problem:unknown-baseline`), answered after the view's own rules, so a deleted project or team is still `404`. The comparison is computed in the view's snapshot. */
                 baseline?: components["parameters"]["BaselineQuery"];
+                /** @description Strictly `true` or `false`; `true` adds `criticalChain` to the team view, absent, blank or `false` leaves it out (the document is then byte-identical to one without the parameter). A repeated key or another value is a plain `400`, answered before the team's `404` and before an unknown baseline's typed `400`. */
+                criticalChain?: components["parameters"]["CriticalChainQuery"];
             };
             header?: {
                 /** @description A previously received view `ETag` (or a list of them, or `*`). A weak match answers `304` with no body. Evaluated only after authentication, request validation and the view's own `404`/`400`: a refused request is never `304`. The view itself is still computed; the `304` saves the transfer. */
