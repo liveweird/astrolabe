@@ -5,7 +5,7 @@
 // the user is removed through the Users page). The move test also ranks two of its own projects (the global ranking is shared: it
 // asserts only their order relative to each other; deleting a project takes it out of the ranking).
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
-import { apiAsAdmin, createUserViaUi, deleteUserRow, deleteViaApi, expect, login, rowOperation, signOut, test, uniqueText, updateRankingViaApi } from "./helpers";
+import { apiAsAdmin, createUserViaUi, deleteUserRow, deleteViaApi, expect, login, rowOperation, signOut, test, uniqueText, updateRankingViaApi, fillDate } from "./helpers";
 
 // Registered in creation order; torn down in reverse (a project before its program before its stream before the people).
 const teardown: string[] = [];
@@ -19,12 +19,6 @@ async function seed(api: APIRequestContext, path: string, data: object, tear: st
   const id = ((await response.json()) as { id: number }).id;
   teardown.push(`${tear}/${id}`);
   return id;
-}
-
-/** Type an ISO date and leave the field by clicking the dialog title: Tab would focus the next date input and open its calendar over the footer. */
-async function fillDate(dialog: Locator, label: string, value: string): Promise<void> {
-  await dialog.getByRole("textbox", { name: label, exact: true }).fill(value);
-  await dialog.getByRole("heading").first().click();
 }
 
 async function pickOwner(page: Page, dialog: Locator, name: string): Promise<void> {

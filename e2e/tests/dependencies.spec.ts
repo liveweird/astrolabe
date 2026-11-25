@@ -7,7 +7,7 @@
 // program, work stream, team, people, users).
 import { randomUUID } from "node:crypto";
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
-import { apiAsAdmin, axeViolations, deleteViaApi, expect, login, rowOperation, test, uniqueText } from "./helpers";
+import { apiAsAdmin, axeViolations, deleteViaApi, expect, login, rowOperation, test, uniqueText, fillDate } from "./helpers";
 
 // Registered in creation order; torn down in reverse (the projects before their program before its stream before the team and the people).
 const teardown: string[] = [];
@@ -90,12 +90,6 @@ async function seedWorld(): Promise<World> {
   const a = await project("a", "2027-02-01", "2027-02-05");
   const b = await project("b", "2027-02-08", "2027-02-12");
   return { api, owner: owner.account, manager: manager.account, teamId, a, b };
-}
-
-/** Type an ISO date and leave the field by clicking the dialog title: Tab would focus the next date input and open its calendar over the footer. */
-async function fillDate(dialog: Locator, label: string, value: string): Promise<void> {
-  await dialog.getByLabel(label).fill(value);
-  await dialog.getByRole("heading").first().click();
 }
 
 async function openProject(page: Page, project: Project): Promise<void> {

@@ -5,8 +5,8 @@
 // afterEach below (the project first - its milestones go with it - then program, work stream, team (its capacity periods go with it),
 // people, users).
 import { randomUUID } from "node:crypto";
-import type { APIRequestContext, Locator, Page } from "@playwright/test";
-import { apiAsAdmin, deleteViaApi, expect, login, rowOperation, test, uniqueText } from "./helpers";
+import type { APIRequestContext, Page } from "@playwright/test";
+import { apiAsAdmin, deleteViaApi, expect, login, rowOperation, test, uniqueText, fillDate } from "./helpers";
 
 // Registered in creation order; torn down in reverse (a project before its program before its stream before the team and the people).
 const teardown: string[] = [];
@@ -75,12 +75,6 @@ async function scheduleViaApi(world: World, milestoneId: number, startDate: stri
   const { revision } = (await view.json()) as { revision: number };
   const response = await world.api.put(`/api/v1/milestones/${milestoneId}/schedule`, { data: { expectedRevision: revision, startDate, endDate } });
   expect(response.status(), await response.text()).toBe(200);
-}
-
-/** Type an ISO date and leave the field by clicking the dialog title: Tab would focus the next date input and open its calendar over the footer. */
-async function fillDate(dialog: Locator, label: string, value: string): Promise<void> {
-  await dialog.getByLabel(label).fill(value);
-  await dialog.getByRole("heading").first().click();
 }
 
 const settled = (page: Page) => expect(page.locator('[aria-busy="true"]')).toHaveCount(0);

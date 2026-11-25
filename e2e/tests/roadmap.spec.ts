@@ -15,7 +15,7 @@
 // Roadmap with the unranked projects only, and a link that names a flag severity lists the projects that have one.
 import { randomUUID } from "node:crypto";
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
-import { addDays, apiAsAdmin, createUserViaUi, deleteUserRow, deleteViaApi, expect, login, openFilters, rowOperation, signOut, test, uniqueText, updateRankingViaApi } from "./helpers";
+import { addDays, apiAsAdmin, createUserViaUi, deleteUserRow, deleteViaApi, expect, login, openFilters, rowOperation, signOut, test, uniqueText, updateRankingViaApi, fillDate } from "./helpers";
 
 // Registered in creation order; torn down in reverse (a project before its program before its stream before the person).
 const teardown: string[] = [];
@@ -332,12 +332,6 @@ async function seedWindowWorld(): Promise<WindowWorld> {
   } finally {
     await api.dispose();
   }
-}
-
-/** Type an ISO date and leave the field by clicking the dialog title: Tab would focus the next date input and open its calendar over the footer. */
-async function fillDate(dialog: Locator, label: string, value: string): Promise<void> {
-  await dialog.getByLabel(label).fill(value);
-  await dialog.getByRole("heading").first().click();
 }
 
 /** The next PUT of a project's target window. */

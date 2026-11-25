@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { type APIRequestContext, expect, type Page, request as playwrightRequest, test } from "@playwright/test";
+import { type APIRequestContext, expect, type Locator, type Page, request as playwrightRequest, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -176,6 +176,16 @@ export function addDays(iso: string, days: number): string {
   const date = new Date(`${iso}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Type an ISO date and leave the field by a blur, which closes its calendar. Tab would focus the next date input and open its calendar, and
+ * a click on the dialog title can be covered: the calendar opens above the field when the month it opened with has six rows.
+ */
+export async function fillDate(dialog: Locator, label: string, value: string): Promise<void> {
+  const field = dialog.getByRole("textbox", { name: label, exact: true });
+  await field.fill(value);
+  await field.blur();
 }
 
 /**
