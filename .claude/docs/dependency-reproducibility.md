@@ -138,7 +138,7 @@ buildscript locks, `settings-gradle.lockfile`) and fails on a superseded entry b
 
 The trade-off, stated plainly: whether a lingering entry is still READ (a conflict loser's BOM, a third-party artifact's old
 parent) lives in POM contents, which neither the metadata nor the locks carry, so no offline rule separates "forgotten" from
-"still imported". The rules flag both, and the 9 entries a clean regeneration legitimately keeps (3 `jackson-bom`, `opentelemetry-bom`
+"still imported". The rules flag both, and the 10 entries a clean regeneration legitimately keeps (3 `jackson-bom`, `netty-bom` 4.2.20, `opentelemetry-bom`
 1.49.0 and 1.67.0, 2 `kotlinx-coroutines-bom`, 2 `guava-parent` `-android`; traced 2026-11-25) sit in the `keptSuperseded`
 map in the root `build.gradle.kts`, one line each naming the POM that still reads it. **The keys are `group:name@version`, never
 `group:name:version`**: Dependabot's Gradle parser reads every three-part `"g:n:v"` literal in a build script as a dependency and
@@ -180,5 +180,5 @@ This establishes a consistent integrity baseline and rules out reliance on one p
 cache; it does not authenticate publisher identity. Signature verification is not enabled.
 
 The control behavior and commands follow Gradle's official documentation for
-[dependency locking](https://docs.gradle.org/9.9.1/userguide/dependency_locking.html) and
-[dependency verification](https://docs.gradle.org/9.9.1/userguide/dependency_verification.html).
+[dependency locking](https://docs.gradle.org/9.9.2/userguide/dependency_locking.html) and
+[dependency verification](https://docs.gradle.org/9.9.2/userguide/dependency_verification.html).
