@@ -67,6 +67,7 @@
     "program": "Program: {{name}}",
     "projectUnknown": "Project {{id}}",
     "programUnknown": "Program {{id}}",
+    "workStreamUnknown": "Work stream {{id}}",
     "removeProject": "Remove the project filter",
     "removeProgram": "Remove the program filter",
     "showAll": "Show everything",

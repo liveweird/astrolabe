@@ -12,6 +12,7 @@
     "scheduled": "Scheduled"
   },
   "column": {
+    "rank": "Rank",
     "milestone": "Milestone",
     "estimate": "Estimate (man-days)",
     "start": "Start",

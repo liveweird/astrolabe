@@ -42,6 +42,8 @@
     "clearName": "Clear name filter",
     "project": "Project",
     "clearProject": "Clear project filter",
+    "program": "Program",
+    "clearProgram": "Clear the program filter",
     "teamUnknown": "Team {{id}}"
   },
   "table": {

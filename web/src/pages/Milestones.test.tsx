@@ -17,7 +17,7 @@ const PLAN = {
 const TEAMS = { items: [{ id: 3, name: "Backend" }, { id: 4, name: "Frontend" }], page: 1, pageSize: 100, total: 2 };
 
 const SCHEDULED = milestoneItem({ id: 1, name: "Design" });
-const UNSCHEDULED = milestoneItem({ id: 2, name: "Rollout", projectId: 8, projectName: "Payments", teamId: 4, teamName: "Frontend", estimateMd: 2.5, startDate: null, endDate: null });
+const UNSCHEDULED = milestoneItem({ id: 2, name: "Rollout", projectId: 8, projectName: "Payments", teamId: 4, teamName: "Frontend", rankPosition: null, estimateMd: 2.5, startDate: null, endDate: null });
 
 let answer: (url: string) => Response | Promise<Response>;
 let mockFetch: FetchMock;
@@ -102,10 +102,10 @@ describe("Milestones page", () => {
   });
 
   test("a malformed filter in the URL is dropped", async () => {
-    renderPage("/milestones?scheduled=yes&teamId=abc&projectId=-1");
+    renderPage("/milestones?scheduled=yes&teamId=abc&workStreamId=x&programId=0&projectId=-1");
     await screen.findByText("Design");
     const query = lastQuery();
-    expect(["scheduled", "teamId", "projectId", "name"].filter((key) => query.has(key))).toEqual([]);
+    expect(["scheduled", "teamId", "workStreamId", "programId", "projectId", "name"].filter((key) => query.has(key))).toEqual([]);
   });
 
   test("a project's and a team's name are links to their pages, named by the row", async () => {
@@ -127,7 +127,7 @@ describe("Milestones page", () => {
     const rolloutRow = within(table).getByText("Rollout").closest("tr")!;
     expect(within(rolloutRow).getByText("Not scheduled")).toBeInTheDocument();
     expect(within(rolloutRow).getByText("2.5")).toBeInTheDocument();
-    expect(rolloutRow.querySelectorAll("td")).toHaveLength(5);
+    expect(rolloutRow.querySelectorAll("td")).toHaveLength(6);
   });
 
   test("the Schedule select rewrites the URL by replace and re-reads", async () => {
@@ -349,6 +349,8 @@ describe("Milestones page", () => {
     expect(await screen.findByText("2 kamienie milowe")).toBeInTheDocument();
     expect(screen.getByText("Design")).toBeInTheDocument();
     expect(screen.getByText("Szacunek (osobodni)")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Ranking" })).toBeInTheDocument();
+    expect(screen.getByText("Bez rankingu")).toBeInTheDocument(); // the roadmap's own word for "not ranked"
     expect(screen.getByText("Niezaplanowany")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Otwórz zespół Backend" })).toBeInTheDocument();
   });

@@ -3,7 +3,7 @@ import { Select } from "@mantine/core";
 import { useTeamOptions } from "../hooks/useTeamOptions";
 import { narrowingCount, type DependencyListFilter, type DependencyListStatus } from "../utils/dependencyListFilters";
 import FilterPanel from "./FilterPanel";
-import ProjectFilterSelect from "./ProjectFilterSelect";
+import PlanFilterSelect from "./PlanFilterSelect";
 import ProjectScopeChip from "./ProjectScopeChip";
 import TeamFilterSelect from "./TeamFilterSelect";
 
@@ -38,7 +38,7 @@ export default function DependencyListFilters({ filter, onChange }: { filter: De
         allowDeselect={false}
       />
       <TeamFilterSelect teamId={filter.teamId} onChange={(teamId) => onChange({ teamId })} teams={teams.teams} settled={teams.settled} />
-      <ProjectFilterSelect projectId={filter.projectId} onChange={(projectId) => onChange({ projectId })} />
+      <PlanFilterSelect level="project" value={filter.projectId} onChange={(projectId) => onChange({ projectId })} />
     </FilterPanel>
   );
 }

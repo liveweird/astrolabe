@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink, useSearchParams } from "react-router-dom";
-import { Anchor, Button, Group, Stack, Table, Text } from "@mantine/core";
+import { Anchor, Button, Group, Stack, Table, Text, VisuallyHidden } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { IconTimelineEvent } from "@tabler/icons-react";
@@ -11,19 +11,19 @@ import PageHeader from "../components/PageHeader";
 import RegistryListTable from "../components/RegistryListTable";
 import SortHeader from "../components/SortHeader";
 import { FILTER_DEBOUNCE_MS, useClampPage, usePagedSort } from "../hooks/usePagedSort";
-import { milestoneFilterParams, narrowingCount, parseMilestoneFilter, type MilestoneFilter } from "../utils/milestoneFilters";
+import { milestoneFilterParams, milestoneSortParam, narrowingCount, parseMilestoneFilter, type MilestoneFilter } from "../utils/milestoneFilters";
 import { projectPath } from "../utils/planLinks";
 import { teamPath } from "../utils/teamLinks";
 
-const SORT_FIELDS = ["name", "projectName", "teamName"] as const;
+const SORT_FIELDS = ["name", "projectName", "teamName", "rankPosition"] as const;
 type SortField = (typeof SORT_FIELDS)[number];
 
 const SETTINGS_KEY = "milestones";
-const COLUMN_COUNT = 6;
+const COLUMN_COUNT = 7;
 
 /**
  * The Milestones page (`/milestones`, everyone): every milestone of the plan from the paged `GET /milestones`, with the Schedule (All / Not
- * scheduled / Scheduled), team, project and name filters in the URL (`utils/milestoneFilters.ts`; a change `replace`s the entry, so a link from
+ * scheduled / Scheduled), team, work stream, program, project and name filters in the URL (`utils/milestoneFilters.ts`; a change `replace`s the entry, so a link from
  * Home, a reload and Back all restore the view). It lists and links; a milestone has no page of its own, so its project and team names are the
  * ways in, and the dates are set on the team's page.
  */
@@ -51,15 +51,30 @@ export default function Milestones() {
   }
   const [debouncedName] = useDebouncedValue(typed.trim(), FILTER_DEBOUNCE_MS);
 
-  const { page, setPage, pageSize, setPageSize, sortField, sortDir, sortParam, toggleSort } = usePagedSort<SortField>(
+  const { page, setPage, pageSize, setPageSize, sortField, sortDir, toggleSort } = usePagedSort<SortField>(
     "projectName",
-    [debouncedName, filter.scheduled, filter.teamId, filter.projectId],
+    [debouncedName, filter.scheduled, filter.teamId, filter.workStreamId, filter.programId, filter.projectId],
     { key: SETTINGS_KEY, sortFields: SORT_FIELDS },
   );
+  // The Rank header sends a key list (the project's rank, then name, start, milestone name), not just its own field: `milestoneSortParam`.
+  const sortParam = milestoneSortParam(sortField, sortDir);
 
   // Under ["plan"]: a schedule or plan write made elsewhere in the tab refreshes the list. The dependency pickers' own reads are not this key.
   const { data, isLoading, isError, error, isPlaceholderData } = useQuery({
-    queryKey: ["plan", "milestones", "list", page, pageSize, sortParam, filter.scheduled ?? null, filter.teamId ?? null, filter.projectId ?? null, debouncedName],
+    queryKey: [
+      "plan",
+      "milestones",
+      "list",
+      page,
+      pageSize,
+      sortParam,
+      filter.scheduled ?? null,
+      filter.teamId ?? null,
+      filter.workStreamId ?? null,
+      filter.programId ?? null,
+      filter.projectId ?? null,
+      debouncedName,
+    ],
     queryFn: () =>
       listMilestones({
         page,
@@ -68,6 +83,8 @@ export default function Milestones() {
         name: debouncedName || undefined,
         scheduled: filter.scheduled,
         teamId: filter.teamId,
+        workStreamId: filter.workStreamId,
+        programId: filter.programId,
         projectId: filter.projectId,
       }),
     placeholderData: keepPreviousData,
@@ -125,9 +142,10 @@ export default function Milestones() {
         columnCount={COLUMN_COUNT}
         emptyIcon={IconTimelineEvent}
         emptyLabel={narrowing ? t("milestoneList.noMatch") : t("milestoneList.empty")}
-        scrollMinWidth={760}
+        scrollMinWidth={820}
         header={
           <Table.Tr>
+            <SortHeader field="rankPosition" label={t("milestoneList.column.rank")} activeField={sortField} activeDir={sortDir} onToggle={toggleSort} />
             <SortHeader field="name" label={t("milestoneList.column.milestone")} activeField={sortField} activeDir={sortDir} onToggle={toggleSort} />
             <SortHeader field="projectName" label={t("roadmap.column.project")} activeField={sortField} activeDir={sortDir} onToggle={toggleSort} />
             <SortHeader field="teamName" label={t("project.column.team")} activeField={sortField} activeDir={sortDir} onToggle={toggleSort} />
@@ -138,6 +156,19 @@ export default function Milestones() {
         }
         rows={rows.map((milestone) => (
           <Table.Tr key={milestone.id}>
+            <Table.Td>
+              {milestone.rankPosition === null ? (
+                // The project is not in the global ranking: a dash for the eye, the words for assistive technology.
+                <>
+                  <Text size="sm" c="dimmed" aria-hidden="true">
+                    –
+                  </Text>
+                  <VisuallyHidden>{t("roadmap.unrankedDivider")}</VisuallyHidden>
+                </>
+              ) : (
+                <Text size="sm">{milestone.rankPosition}</Text>
+              )}
+            </Table.Td>
             <Table.Td>
               <Text size="sm" fw={500}>
                 {milestone.name}

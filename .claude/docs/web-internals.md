@@ -302,7 +302,7 @@ list-page building blocks". The pieces behind them were copied from Lettuce (`pa
 - The project options are every project of the plan view (`utils/planNames.ts` `projectOptions`: two of one name carry their program, as the program pick
   does). An id from a link that a SETTLED list does not hold is one more option, "Team 12" / "Project 12"; while a read runs or failed the field is blank,
   because nothing is said about a team or project from data that has not arrived.
-- The Project select owns its plan read (a panel's fields mount only while it is open); `TeamSelect` / `ProjectSelect` stay the dialogs' search-as-you-type pickers.
+- `PlanFilterSelect` owns its plan read (a panel's fields mount only while it is open); `TeamSelect` / `ProjectSelect` stay the dialogs' search-as-you-type pickers.
 - **Refresh after a mutation**: `refreshQueriesAfterMutation(queryClient, ["area"], ...)` (`utils/queryRefresh.ts`) cancels all affected query groups before
   invalidating them, because a newly keyed initial fetch has no cached data even when `keepPreviousData` displays rows, so default invalidation alone may
   reuse a pre-mutation response. Refresh stays out of failed mutation paths.
@@ -1210,9 +1210,9 @@ following the fold, the pick and its shared key, Year zoom, empty and failed loa
 
 ## Milestones
 
-Files: `pages/Milestones.tsx`; `api/milestones.ts` (`listMilestones`); `utils/milestoneFilters.ts` (pure: `parseMilestoneFilter`, `milestoneFilterParams`, `narrowingCount`, the Schedule choice);
+Files: `pages/Milestones.tsx`; `api/milestones.ts` (`listMilestones`); `utils/milestoneFilters.ts` (pure: `parseMilestoneFilter`, `milestoneFilterParams`, `narrowingCount`, the Schedule choice, `cascadePatch`, `milestoneSortParam`);
 `utils/milestoneLinks.ts` (`milestonesPath`, `unscheduledMilestonesPath({teamId?, projectId?})`, the builder Home's "not scheduled" figures use); `components/MilestonesFilters.tsx`;
-`components/TeamFilterSelect.tsx`, `components/ProjectFilterSelect.tsx`, `components/ProjectScopeChip.tsx` (the last also on Dependencies); `hooks/useTeamOptions.ts`; `utils/planNames.ts`.
+`components/TeamFilterSelect.tsx`, `components/PlanFilterSelect.tsx` (`level`, optional `within`; its project level also on Dependencies), `components/ProjectScopeChip.tsx` (also on Dependencies); `hooks/useTeamOptions.ts`; `utils/planNames.ts`.
 
 ### Route and data
 
@@ -1220,18 +1220,18 @@ Files: `pages/Milestones.tsx`; `api/milestones.ts` (`listMilestones`); `utils/mi
 search, so a milestone under a deleted project or program is absent. It is the list-page template ("Shared list-page and dialog mechanics": `FilterPanel`, `SortHeader`,
 `RegistryListTable`) with the filters in the URL instead of `useStoredState` (the Deviations idiom, no remembered filter).
 
-- Query: key `["plan","milestones","list", page, pageSize, sortParam, scheduled, teamId, projectId, name]` (under `["plan"]`, so a schedule or plan write refreshes it; the pickers' own
-  search is not a query), `placeholderData: keepPreviousData`. Sortable Milestone / Project / Team (`name`, `projectName`, `teamName`), initial sort project name; sort and page size are
+- Query: key `["plan","milestones","list", page, pageSize, sortParam, scheduled, teamId, workStreamId, programId, projectId, name]` (under `["plan"]`, so a schedule or plan write refreshes it; the pickers' own
+  search is not a query), `placeholderData: keepPreviousData`. Sortable Rank / Milestone / Project / Team, initial sort project name; the Rank header sends `rankPosition,projectName,startDate,name`, descending `-rankPosition,…` (`milestoneSortParam`: only the first key flips, so unranked projects come last both ways, by name); sort and page size are
   remembered per browser (`usePagedSort`, key `milestones`).
-- Rows: milestone name (text: a milestone has no page), project (link, `plan.openProjectAria`), team (link, `teams.openAria`), estimate in man-days, start, end; a milestone without dates
+- Rows: the project's rank ("–", hidden "Not ranked", if none), milestone name (text: a milestone has no page), project (link, `plan.openProjectAria`), team (link, `teams.openAria`), estimate in man-days, start, end; a milestone without dates
   shows one dimmed "Not scheduled" across the two date cells. Under the title: "N milestones" (the server's `total`); the empty states carry a "Clear the filters" button.
 
 ### Filters
 
-- In the URL: `scheduled` (the exact words `true`/`false`; `false` is the unscheduled list), `teamId`, `projectId` (positive integers, `idOf`) and `name`. A malformed value is dropped, a
+- In the URL: `scheduled` (the exact words `true`/`false`; `false` is the unscheduled list), `teamId`, `workStreamId`, `programId`, `projectId` (positive integers, `idOf`) and `name`. A malformed value is dropped, a
   change `replace`s the entry, so a link, a reload and Back restore the view.
 - Controls: the Schedule select (All / Not scheduled / Scheduled, never clearable), the team select (EVERY team: `useTeamOptions`, key `["teams","options"]`, shared with the Deviations
-  panel), the Project select (every project of the plan view) and the name search (`ClearableTextInput`).
+  panel), the Work stream, Program and Project selects (the plan view's nodes, no chips for the first two; each offers what lies under the picks above it, and a work stream or program pick drops an earlier pick outside it, `cascadePatch`; an id the plan lacks is never dropped) and the name search (`ClearableTextInput`).
 - A `projectId` is also a removable chip beside the toggle (`ProjectScopeChip`: "Project: Invoices", named from `GET /views/plan` under `["plan","view"]` through `utils/planNames.ts`, the
   Deviations page's strings), so the scope shows with the panel closed; the select and the chip are two views of one parameter.
 - The name input keeps the text as typed and writes it trimmed to the URL at once; the REQUEST waits 300 ms (the debounced value is in the query key), and a URL change from elsewhere
