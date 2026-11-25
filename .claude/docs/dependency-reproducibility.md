@@ -138,9 +138,12 @@ buildscript locks, `settings-gradle.lockfile`) and fails on a superseded entry b
 
 The trade-off, stated plainly: whether a lingering entry is still READ (a conflict loser's BOM, a third-party artifact's old
 parent) lives in POM contents, which neither the metadata nor the locks carry, so no offline rule separates "forgotten" from
-"still imported". The rules flag both, and the 10 entries a clean regeneration legitimately keeps (4 `jackson-bom`, `netty-bom`
-4.2.19.Final, `opentelemetry-bom` 1.49.0, 2 `kotlinx-coroutines-bom`, 2 `guava-parent` `-android`) sit in the `keptSuperseded`
-map in the root `build.gradle.kts`, one line each naming the POM that still reads it. The check fails on a **stale** line as
+"still imported". The rules flag both, and the 9 entries a clean regeneration legitimately keeps (3 `jackson-bom`, `opentelemetry-bom`
+1.49.0 and 1.67.0, 2 `kotlinx-coroutines-bom`, 2 `guava-parent` `-android`; traced 2026-11-25) sit in the `keptSuperseded`
+map in the root `build.gradle.kts`, one line each naming the POM that still reads it. **The keys are `group:name@version`, never
+`group:name:version`**: Dependabot's Gradle parser reads every three-part `"g:n:v"` literal in a build script as a dependency and
+rewrites it (PRs #30, #31 and #40 each bumped these records to a new version), so the `@` keeps the map out of its sight; the
+"superseded" lines of a failure still print the colon form (as the lockfiles spell it), the "stale" lines the key as written. The check fails on a **stale** line as
 well (allowlisted but absent or no longer flagged). That catches a line whose entry vanished, not one whose named referrer no longer
 reads it, so the lines still need a human re-trace (step 5 below).
 
@@ -177,5 +180,5 @@ This establishes a consistent integrity baseline and rules out reliance on one p
 cache; it does not authenticate publisher identity. Signature verification is not enabled.
 
 The control behavior and commands follow Gradle's official documentation for
-[dependency locking](https://docs.gradle.org/9.8.2/userguide/dependency_locking.html) and
-[dependency verification](https://docs.gradle.org/9.8.2/userguide/dependency_verification.html).
+[dependency locking](https://docs.gradle.org/9.9.1/userguide/dependency_locking.html) and
+[dependency verification](https://docs.gradle.org/9.9.1/userguide/dependency_verification.html).

@@ -80,12 +80,14 @@ abstract class CheckVerificationMetadata : DefaultTask() {
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val lockfiles: ConfigurableFileCollection
 
-    /** `group:name:version` -> why a clean regeneration keeps the entry although the rules flag it. */
+    /** `group:name@version` -> why a clean regeneration keeps the entry although the rules flag it. */
     @get:Input
     abstract val keptSuperseded: MapProperty<String, String>
 
     private data class Entry(val group: String, val name: String, val version: String, val pomOnly: Boolean) {
         val coordinate get() = "$group:$name:$version"
+        /** The allowlist key: `@`, not a third `:`, so Dependabot's Gradle parser never reads it as a dependency to bump. */
+        val allowKey get() = "$group:$name@$version"
     }
 
     @TaskAction
@@ -136,13 +138,13 @@ abstract class CheckVerificationMetadata : DefaultTask() {
             }
         }
         val allowed = keptSuperseded.get()
-        val unexplained = flagged.filter { it.first.coordinate !in allowed }
-        val stale = allowed.keys - flagged.map { it.first.coordinate }.toSet()
+        val unexplained = flagged.filter { it.first.allowKey !in allowed }
+        val stale = allowed.keys - flagged.map { it.first.allowKey }.toSet()
         check(unexplained.isEmpty() && stale.isEmpty()) {
             buildString {
                 append("gradle/verification-metadata.xml is not free of superseded entries.")
                 if (unexplained.isNotEmpty()) {
-                    append("\nSuperseded, remove (or allowlist with a reason if a clean regeneration keeps it):")
+                    append("\nSuperseded, remove (or allowlist as group:name@version with a reason if a clean regeneration keeps it):")
                     unexplained.forEach { (entry, why) -> append("\n  ${entry.coordinate}: $why") }
                 }
                 if (stale.isNotEmpty()) {
@@ -171,20 +173,20 @@ val checkVerificationMetadata = tasks.register<CheckVerificationMetadata>("check
             "server/gradle.lockfile", "server/buildscript-gradle.lockfile",
         ).map { layout.projectDirectory.file(it) },
     )
-    // Each line names the POM/module in the clean-regeneration cache that still reads the entry (traced 2026-11-12), so the line
-    // can be re-checked and dropped the day its referrer goes.
+    // Each line names the POM/module in the clean-regeneration cache that still reads the entry (traced 2026-11-25), so the line
+    // can be re-checked and dropped the day its referrer goes. Keys are `group:name@version`, NOT `group:name:version`: Dependabot's
+    // Gradle parser reads any three-part literal as a dependency and rewrites it (PRs #30, #31, #40 did), so keep the `@`.
     keptSuperseded.putAll(
         mapOf(
-            "com.fasterxml.jackson:jackson-bom:2.19.2" to "imported by log4j 2.26.1's parent POM",
-            "com.fasterxml.jackson:jackson-bom:2.21.1" to "imported by the jib-gradle-plugin 3.5.4 POM",
-            "com.fasterxml.jackson:jackson-bom:2.21.3" to "imported by openapi-request-validator 3.0.0",
-            "com.fasterxml.jackson:jackson-bom:2.22.1" to "imported by swagger-parser-project 2.1.48",
-            "io.netty:netty-bom:4.2.19.Final" to "imported by flyway-parent 13.12.0",
-            "io.opentelemetry:opentelemetry-bom:1.49.0" to "imported by httpclient5-parent 5.6.4",
-            "org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.6.4" to "the BOM of kotlinx-coroutines-core-jvm 1.6.4, a losing transitive version",
-            "org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.8.0" to "the BOM of kotlinx-coroutines-core-jvm 1.8.0, a losing transitive version",
-            "com.google.guava:guava-parent:26.0-android" to "the parent of listenablefuture 9999.0-empty-to-avoid-conflict-with-guava",
-            "com.google.guava:guava-parent:33.4.0-android" to "the parent of failureaccess 1.0.3",
+            "com.fasterxml.jackson:jackson-bom@2.19.2" to "imported by log4j 2.26.1's parent POM",
+            "com.fasterxml.jackson:jackson-bom@2.21.1" to "imported by the jib-gradle-plugin 3.5.4 POM",
+            "com.fasterxml.jackson:jackson-bom@2.21.3" to "imported by openapi-request-validator 3.0.0",
+            "io.opentelemetry:opentelemetry-bom@1.49.0" to "imported by httpclient5-parent 5.6.4",
+            "io.opentelemetry:opentelemetry-bom@1.67.0" to "imported by flyway-parent 13.12.2",
+            "org.jetbrains.kotlinx:kotlinx-coroutines-bom@1.6.4" to "the BOM of kotlinx-coroutines-core-jvm 1.6.4, a losing transitive version",
+            "org.jetbrains.kotlinx:kotlinx-coroutines-bom@1.8.0" to "the BOM of kotlinx-coroutines-core-jvm 1.8.0, a losing transitive version",
+            "com.google.guava:guava-parent@26.0-android" to "the parent of listenablefuture 9999.0-empty-to-avoid-conflict-with-guava",
+            "com.google.guava:guava-parent@33.4.0-android" to "the parent of failureaccess 1.0.3",
         ),
     )
 }

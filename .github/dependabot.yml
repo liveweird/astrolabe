@@ -24,6 +24,10 @@ updates:
         update-types: [minor, patch]
         # These families carry compatibility pins; review their updates independently.
         exclude-patterns: ["io.opentelemetry:*", "io.opentelemetry.instrumentation:*", "io.netty:*", "io.projectreactor.netty:*", "org.jetbrains.exposed:*"]
+    # Exposed 1.6.1 grows the heap past the test workers' 512 MiB (libs.versions.toml, held 2026-11-25); 1.6.2 is proposed again.
+    ignore:
+      - dependency-name: "org.jetbrains.exposed:*"
+        versions: ["1.6.1"]
   - package-ecosystem: npm
     directory: /web
     schedule:

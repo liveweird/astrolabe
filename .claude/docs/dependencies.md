@@ -130,7 +130,7 @@ ships. Dependabot covers none of the pins in the first three rows — bump them 
 | Pin / gate | Where | Bump rule |
 |---|---|---|
 | JDK `21.0.13` (`actions/setup-java` `java-version`, both Gradle jobs) | `ci.yml` | the exact patch of `mise.toml`'s `java` and the Dockerfile's `eclipse-temurin:21.0.13_9` tags — one PR moves all three. A Temurin respin (`21.0.12.1+1`) is `temurin-21.0.12+101.0.LTS` in mise (Adoptium folds the respin into the build number); `setup-java` resolves `21.0.12` to its newest respin, so `ci.yml` names the patch only, while the Dockerfile tag names the respin. `node scripts/check-toolchain-pins.mjs` (an `e2e-static` step) fails the build with one line per mismatch if the JDK or node pins diverge |
-| Node `24.22.1` (`node-version-file: .nvmrc`, web/e2e-static/e2e jobs) | `.nvmrc` | mirrors `mise.toml`'s `node` and the Dockerfile's `node:24.22.1-alpine` (guarded by the same script); `.nvmrc` holds the bare version, no `v` |
+| Node `24.22.3` (`node-version-file: .nvmrc`, web/e2e-static/e2e jobs) | `.nvmrc` | mirrors `mise.toml`'s `node` and the Dockerfile's `node:24.22.3-alpine` (guarded by the same script); `.nvmrc` holds the bare version, no `v` |
 | Gradle `distributionSha256Sum` | `gradle/wrapper/gradle-wrapper.properties` | the wrapper validates the downloaded distribution against it (CI, local, and the Docker build's `./gradlew --version`). On a Gradle bump take the value from `https://services.gradle.org/distributions/gradle-<version>-bin.zip.sha256` (the `bin` type the URL uses), confirm it against a `shasum -a 256` of the downloaded zip, and change URL and checksum in the same commit |
 | `npm audit --omit=dev --audit-level=high` | `ci.yml` `web` | runtime dependencies only (a dev-tool advisory never reaches the bundle). The LAST step of the job, so an overnight advisory cannot hide the real gate results |
 | `npm audit --audit-level=high` | `ci.yml` `e2e-static` | every e2e dependency is a dev tool, so the whole tree. Also the last step |
@@ -185,6 +185,26 @@ Flow's batch-by-batch bump log (2026-09 .. 2026-10) is not carried over: Astrola
 Jira/GitLab-only clients), and its own rounds are recorded below, newest first, as they happen. The v0.1.0 lockfiles and `gradle/verification-metadata.xml` were
 regenerated from an empty `GRADLE_USER_HOME` per `dependency-reproducibility.md`.
 
+- 2026-11-25 (1.26.1, dependency maintenance; Dependabot PRs #29, #30, #31 and #40 superseded by one hand-assembled change). **Taken:** Flyway 13.12.2, logback 1.6.7, Jackson 2.23.0
+  (catalog plus the `server` buildscript constraints, `jackson-annotations` 2.23, which is versioned by minor), swagger-parser-v3 2.1.49 (brings swagger-core 2.2.55 and, on the test
+  classpaths only, snakeyaml 2.7), `plexus-utils` 4.2.0 (buildscript constraint), Gradle 9.9.1 (wrapper jar equal to `gradle-9.9.1-wrapper.jar.sha256` and `distributionSha256Sum` equal to
+  `gradle-9.9.1-bin.zip.sha256`, both fetched from `services.gradle.org`), and OpenTelemetry 1.68.0 **together with** the instrumentation line 2.34.0-alpha (PR #29 alone bumped only the
+  SDK: the instrumentation BOM 2.33.1 is built on SDK 1.67.0, 2.34.0 on 1.68.0, read off the BOM POMs; the pair moves as one). **Held back: Exposed 1.6.1 (PR #21).** Its CI failure was
+  NOT a compile error: `:server:compileKotlin` (in the Docker build) and `:server:checkDependencyAlignment` both stopped on "Dependency verification failed" for
+  `exposed-core-1.6.1.module` / `exposed-r2dbc-1.6.1.module`, because the PR carried no regenerated `verification-metadata.xml`. With the metadata regenerated the source compiles
+  unchanged and all 2,870 tests pass, but the live heap of the test JVMs grows by about a fifth, so at the default 512 MiB test-worker heap the Kover agent runs out of memory merging the
+  two forks' reports at shutdown and `koverVerify` reads 0.8-95% coverage instead of 99.2% (four runs out of four on 1.6.1, none on 1.6.0 with everything else bumped; `-Xmx1g` on the test
+  task passes the whole gate on 1.6.1); the catalog note carries the numbers. 1.6.1's POM still asks `kotlinx-datetime-jvm` 0.7.1-0.6.x-compat, so the constraint below stays. **Our
+  code:** none changed except the root `keptSuperseded` map (PRs #30, #31 and #40 let Dependabot rewrite its `"group:name:version"` keys; they are `"group:name@version"` now,
+  `dependency-reproducibility.md` "Pruning superseded entries"), re-traced for jackson and opentelemetry: `netty-bom` 4.2.19 (flyway-parent 13.12.0's import) and `jackson-bom` 2.22.1
+  (swagger-parser-project 2.1.48) went with their referrers, `opentelemetry-bom` 1.67.0 is new (imported by flyway-parent 13.12.2), the other seven lines still have their referrer.
+  **Locks and metadata** from a clean regeneration (empty `GRADLE_USER_HOME`, the metadata file deleted first, scratch copy), then a strict cold build from a second empty home. The lock
+  diff is exactly the requested families plus three explained transitive families: `okhttp`/`okhttp-jvm` 5.5.0 to 5.5.1 in `core` (`opentelemetry-exporter-sender-okhttp` 1.68.0 requires 5.5.1),
+  `snakeyaml` 2.6 to 2.7 (test classpaths, swagger-parser-project 2.1.49) and `kotlin-stdlib` 2.4.10 to 2.4.21 in the root and `server` buildscript locks (Gradle 9.9.1 embeds Kotlin
+  2.4.21). `--write-locks` also re-resolved `commons-lang3` in the `server` buildscript classpath to 3.22.0 (3.21.0 locked): left out again, nothing asked for it. The metadata diff is 56
+  components added and 60 dropped, no checksum changed for an existing coordinate. **Provenance:** every one of the 101 artifacts the metadata gained was compared with Maven Central's own
+  checksum file: 94 equal the published `.sha256`, 7 have only a `.sha1`, which equals the sha1 of the downloaded file whose sha256 equals the metadata entry; none mismatched.
+  **Images and npm in the same round:** PostgreSQL 18.6-alpine keeps its tag and moves its digest in the three pins (PRs #34, #36), Node 24.22.3 with its pins and Dockerfile digest (#35), Mailpit 1.34.0 (#37), `setup-java` 6.3.0 (#32), the vitest pair 5.1.1 (#33), the e2e group (#38) and the web group with every `@mantine/*` on 9.8.1 (#39); each digest equals the registry's (`docker buildx imagetools inspect`).
 - 2026-11 (1.14, kotlinx-datetime skew): `kotlinx-datetime` is transitive only and resolved to 0.7.1-0.6.x-compat on the compile classpath but 0.8.0-0.6.x-compat at runtime. Cause: Exposed 1.6.0 declares
   `kotlinx-datetime-jvm` 0.7.1 in its API scope, while `ktor-openapi-schema` 3.6.1 (via `ktor-serialization-kotlinx`) declares 0.8.0 in its runtime scope only, so only the runtime graph sees the higher request. Fixed with a
   `server` `implementation` constraint on both coordinates (`kotlinx-datetime`, `kotlinx-datetime-jvm`) at the 0.8.0 the runtime already ran (catalog key `kotlinx-datetime`, rationale there), and `checkDependencyAlignment`
