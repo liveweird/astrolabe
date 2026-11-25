@@ -1,4 +1,5 @@
 // Fixtures for the plan view: whole documents as GET /views/plan answers them, typed over the schema.
+import { screen } from "@testing-library/react";
 import type { PlanProgram, PlanProject, PlanView, PlanWorkStream } from "../api/plan";
 
 /** An empty plan the caller may add a work stream to. Override any member (`can` and `workStreams` are replaced whole). */
@@ -83,3 +84,6 @@ export function planOf(streams: readonly StreamSpec[], over: Partial<PlanView> =
     ),
   });
 }
+
+/** Waits for the Plan page's table (its accessible name is the one `plan.tree.tableAria` says in English). */
+export const findPlanTree = () => screen.findByRole("table", { name: "Work streams, programs and projects" });

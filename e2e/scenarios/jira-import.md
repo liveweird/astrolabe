@@ -54,7 +54,7 @@ under IMF-16, an Initiative that is in no listing and answers 404 by id (the par
 2. They pick themselves (the person) as the owner of the new items and the team as the default team, and press **Preview**.
    - *Expected*: the totals read "Jira items: 9", "To create: 8", "To link: 0", "Skipped: 1" (the skipped row's own text is redacted for a non-admin and is not asserted).
 3. They press **Import (8)** and close the dialog.
-   - *Expected*: the outcome reads "Created: 8"; the Plan page lists "IMP Program" under the stream, and the plan read through the API holds exactly that program under it.
+   - *Expected*: the outcome reads "Created: 8"; the Plan table lists "IMP Program" as a row of the stream, and the plan read through the API holds exactly that program under it.
 
 ## Scenario: unticking a parent leaves its children out of the import, with the reason shown
 

@@ -574,18 +574,15 @@ builder (`roadmapFilteredPath`, `unscheduledMilestonesPath`, `teamLoadWarningPat
 
 ## Plan
 
-Files: `pages/Plan.tsx`; `components/PlanWorkStreamSection.tsx`, `PlanProgramBlock.tsx`; the editors `WorkStreamEditorModal.tsx`, `ProgramEditorModal.tsx`, `ProjectEditorModal.tsx` over
-`PlanNodeFields.tsx`; `PlanMoveModal.tsx`; `PlanDateInput.tsx`, `AppDatesProvider.tsx`; `api/plan.ts`; `hooks/usePlanJiraImport.ts`; `utils/planActions.ts` (the row-to-page callback
-contract), `planMove.ts`, `planForm.ts` (rules and wire mappers).
+Files: `pages/Plan.tsx` (composition only), `components/PlanTree.tsx`, `PlanTreeRow.tsx`, `PlanRowMenu.tsx`, `PlanToolbar.tsx`, `PlanDialogs.tsx`; `hooks/usePlanDialogs.ts`, `usePlanFolds.ts`, `usePlanJiraImport.ts`; `utils/planTree.ts` (pure rows and folds), `planActions.ts` (the row-to-page callback contract), `planMove.ts`, `planForm.ts`; the editors `WorkStreamEditorModal.tsx`, `ProgramEditorModal.tsx`, `ProjectEditorModal.tsx` over
+`PlanNodeFields.tsx`; `PlanMoveModal.tsx`; `PlanDateInput.tsx`, `AppDatesProvider.tsx`; `api/plan.ts`.
 
 ### Route and data
 
-`/plan` (nav section Planning, everyone) renders `GET /views/plan` (V12) under `["plan", "view"]` as the tree work stream (h3, `PlanWorkStreamSection`) → program (h4,
-`PlanProgramBlock`) → projects table. A read for everyone whose actions are gated by the view's `can:{}` flags, which the server computes with the guards' own arithmetic.
+`/plan` (nav section Planning, everyone) renders `GET /views/plan` (V12) under `["plan", "view"]` as ONE tree table, in the server's order ("The Plan page's tree" in `plan-tree.md`: rows, folds, the row menu). A read for everyone whose actions are gated by the view's `can:{}` flags, which the server computes with the guards' own arithmetic.
 
-- `Plan.tsx` owns the query, which editor is open (`EditorState`: work stream / program under its stream / project under its program), one `useDeleteConfirm` for all three delete
-  levels (the confirm texts come from the `DELETE_TEXT` map, a 409 says "delete the children first") and the close/reopen mutation. Every success refreshes `["plan"]` through
-  `refreshQueriesAfterMutation`.
+- `usePlanDialogs` owns the open editor (`EditorState`: work stream / program under its stream / project under its program), the move dialog, the Jira imports, one `useDeleteConfirm` for all three delete
+  levels (`DELETE_TEXT`; a 409 says "delete the children first") and the close/reopen mutation; `PlanDialogs` draws them. Every success refreshes `["plan"]` through `refreshQueriesAfterMutation`.
 - The server's 403/409/400 reach the modals through `planSaveErrorMessage`/`saveErrorMessage` (a name clash marks the name field, everything else is an inline alert).
 - The three editors share `PlanNodeFields` (name, description, owner via `PersonSelect` - required on every node).
 - **Import from Jira…** (all in `hooks/usePlanJiraImport.ts`; "The import modal" under the Jira sections): a stream's menu (`can.edit`; the connections are read from the deviations
@@ -639,7 +636,7 @@ arithmetic is `utils/planMove.ts`: `projectMoveTargets` groups the eligible prog
 
 ### Tests
 
-The co-located `Plan*.test.tsx`, `AppDatesProvider.test.tsx` and the `planMove`/`planForm` `utils/` tests.
+The co-located `Plan*.test.tsx` (`Plan.rows`, `Plan.tree`), `AppDatesProvider.test.tsx` and the `planTree`/`planMove`/`planForm` `utils/` tests.
 
 ## Project view
 
@@ -1752,9 +1749,9 @@ passes the deviations view's `connections[]` filtered to `enabled && mappingOk` 
   `useJiraImport(connectionId | null)` does nothing while null and Preview is disabled until a connection is chosen. The connection of the preview and outcome phases is kept even if a later refetch drops it.
 - `initialWorkStreamId` presets the stream (`emptyScope(keys, workStreamId)`) and the stream Select is `readOnly`.
 - **Entry points** (six): the connection page's button and its program and project rows ("The bindings list"), the work stream's menu, a linked program's menu, a linked project's row menu and
-  a linked project's page header. The stream's (`PlanActions.importFromJira`, `PlanWorkStreamSection`) is a `Menu.Item` "Import from Jira…" (aria "Import from Jira into {name}") under
+  a linked project's page header. The stream's (`PlanActions.importFromJira`, `PlanRowMenu`) is a `Menu.Item` "Import from Jira…" (aria "Import from Jira into {name}") under
   `can.edit`, after Close/Reopen. The connection page's button beside "Link a node…" is disabled until the connection is enabled and has a stored discovery.
-- `hooks/usePlanJiraImport.ts` holds the Plan page's import state (`importing`: a stream, a program with its link OR a project with its link; `Plan.tsx` calls
+- `hooks/usePlanJiraImport.ts` holds the Plan page's import state (`importing`: a stream, a program with its link OR a project with its link; `usePlanDialogs` calls
   `useDialogFocus(jiraImport.modal !== null)`) and reads the connections with `useJiraConnections({workStreamId}, importing is a stream)` (`hooks/useDeviations.ts`, key
   `["jira","deviations","connections",filter]`; `useJiraLinks` is its one-line project wrapper) - the request appears only after the click. Every mount site keys the modal by its source
   (`stream:<id>`, `program:<id>`, `project:<id>`), so its form state never carries over.
@@ -1781,7 +1778,7 @@ passes the deviations view's `connections[]` filtered to `enabled && mappingOk` 
 - It is enabled only while the plan view holds a program with `can.createProject` or a project with `can.createMilestone` (an optimisation, never the rule); a failed read hides both entries and
   shows no error. `PlanActions.canImportChildren(program)` = the program's `can.createProject` AND a program link, `canImportMilestones(project)` = the project's `can.createMilestone` AND a
   project link.
-- `PlanProgramBlock` shows a `Menu.Item` "Import from Jira…" (aria "Import from Jira what is listed under {name}": it starts with the visible text, label-in-name; `IconFileImport`) after "Move
+- `PlanRowMenu` shows a `Menu.Item` "Import from Jira…" (aria "Import from Jira what is listed under {name}": it starts with the visible text, label-in-name; `IconFileImport`) after "Move
   to…" in the program's menu and in the project row's menu; each kebab's own condition includes the import right, so an owner with `canImportChildren` or `canImportMilestones` alone still gets the menu. Both roots are built by `rootOf(level, node, link)` (`utils/jiraImportRoot.ts`: the node's `workStreamId`,
   `ownerPersonId`/`ownerName`, the link's `issueKey`/`connectionId`/`gone`).
 - A link through a connection that is not usable still shows the entry (the dialog says why), and so does a link whose Jira item the read already says is gone (`link.gone` -> `root.gone`):
@@ -2522,6 +2519,7 @@ When a feature needs one of these, port the sibling's `web/` implementation and 
   pages' `…filter.*` and `…filtersOpen`, and the timeline and planning keys below.
 - **The Roadmap's six filter keys** (`roadmap.filter.workStream|team|owner|flagged|severity|unranked`) and `planning.programPick` are MEMORY, not state: the address holds the state and only the user's
   own change writes them ("The URL holds the filters" under "Roadmap"); the Programs page reads and writes `planning.programPick` alone on the same terms.
+- **`plan.collapsed`** (the Plan page's folded node keys, `ws:<id>` / `pg:<id>`; `usePlanFolds`): a first visit and a new node are open.
 - **Timeline view settings** (`timeline.*`, shared by the pages that show them): `zoom` (project, team), `planZoom` (roadmap, programs), `criticalPath` (project and team, default false;
   `hooks/useCriticalPathPick.ts`), `baseline` (all four, an id or none; `hooks/useBaselinePick.ts`), and **`jiraBars`** (all four pages; a boolean, **default true**: the "Jira dates" toggle of the
   Jira shadow bar, `hooks/useJiraBarsPick.ts`; a stored non-boolean reads as the default).

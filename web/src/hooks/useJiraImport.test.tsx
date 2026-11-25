@@ -64,4 +64,22 @@ describe("useJiraImport", () => {
     gate.release?.(jsonResponse(200, { revision: 13, created: [], bound: [], skipped: [] }));
     await waitFor(() => expect(refreshedKeys(invalidate)).toEqual(expect.arrayContaining(['["jira"]', '["plan"]', '["roadmap"]'])));
   });
+  test("onApplied is told once when an apply answers, and never for a preview or a failed apply", async () => {
+    const onApplied = vi.fn();
+    let applyAnswer = jsonResponse(500, { title: "x", status: 500 });
+    installImportApi({ preview: () => jsonResponse(200, previewOf(PREVIEW_ITEMS)), apply: () => applyAnswer });
+    const { result } = renderHook(() => useJiraImport(1, onApplied), { wrapper });
+    await act(async () => {
+      await result.current.runPreview(SCOPE);
+    });
+    await act(async () => {
+      await result.current.runApply(BODY);
+    });
+    expect(onApplied).not.toHaveBeenCalled();
+    applyAnswer = jsonResponse(200, { revision: 13, created: [], bound: [], skipped: [] });
+    await act(async () => {
+      await result.current.runApply(BODY);
+    });
+    expect(onApplied).toHaveBeenCalledTimes(1);
+  });
 });

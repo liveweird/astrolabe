@@ -13,12 +13,14 @@
    - *Expected*: the page heading is "Plan".
 2. They click **New work stream**, fill a unique name, pick the first person as **Owner**, type the start date
    `2026-01-05`, and Create.
-   - *Expected*: the stream appears under its name as a section heading, with "Owner: <the first person> · From 2026-01-05".
-3. They click **New program in <the stream>**, fill a name, pick the first person, and Create.
-   - *Expected*: the program appears as a heading inside the stream.
+   - *Expected*: the stream appears as a row of the Plan table under its name, with the first person as owner and "From 2026-01-05".
+3. They click **New program in <the stream>** (the "+" of the stream's row), fill a name, pick the first person, and Create.
+   - *Expected*: the program appears as a row whose parent is the stream.
 4. They click **New project in <the program>**, fill a name, pick the second person as owner, type the target
    window `2026-02-02` to `2026-03-31`, and Create.
-   - *Expected*: the program's projects table has a row with the project, the second person and "2026-02-02 – 2026-03-31".
+   - *Expected*: the project's row has the second person and "2026-02-02 – 2026-03-31".
+   - They fold the work stream with its disclosure button: the program's and the project's rows are gone and the button says it is collapsed;
+     after a page reload the stream is still folded (folds are remembered in the browser); opening it brings the rows back.
 5. They open the project's row menu, rename it, hand it over to the first person and extend the target window to `2026-04-15`.
    - *Expected*: Save sends one details update. The row shows the new name, the first person and "2026-02-02 – 2026-04-15".
 6. They try to delete the work stream from its menu.
@@ -32,7 +34,7 @@
    a second person (the "lead"), a work stream and a program owned by the lead, and two projects with a target
    window — one owned by the user's person, one by the lead. The admin signs out.
 2. The user signs in and opens the Plan page.
-   - *Expected*: the stream, the program and both projects are visible; there is no **New work stream**, no **New program in …**, no
+   - *Expected*: the stream (its disclosure button says it is expanded), the program and both projects are visible; there is no **New work stream**, no **New program in …**, no
      **New project in …**, no row menu on the stream, the program or the lead's project; the user's own project has a row menu.
 3. They open their project's row menu and choose Edit.
    - *Expected*: the name is editable; **Target start** and **Target end** are disabled, with the note that only an administrator, an owner
@@ -50,11 +52,11 @@
    - *Expected*: the dialog "Move project" says the project is currently in the first program; its **New program** options leave out that
      program.
 3. They pick the second program and press **Move**.
-   - *Expected*: the toast "Project moved"; the dialog closes; the project's row is now in the second program's table and no longer in the first.
+   - *Expected*: the toast "Project moved"; the dialog closes; the project's row now names the second program as its parent.
 4. They open the project through its name.
    - *Expected*: the page header line names the second program, the work stream A and the lead, and the milestone is still in the Unscheduled tray.
 5. Back on the Plan page they open the second program's menu and choose **Move to…**, pick work stream B (work stream A is not offered) and press **Move**.
-   - *Expected*: the toast "Program moved"; the program's heading is now inside work stream B's section and no longer in A's; opening the project shows
+   - *Expected*: the toast "Program moved"; the program's row now names work stream B as its parent; opening the project shows
      the header line with B.
 6. *Expected*: through the API, the two ranked projects are still in the same relative order (a move leaves the global ranking alone).
 7. The admin signs back in and deletes the user (the plan nodes, the team and the people are removed through the API).

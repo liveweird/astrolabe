@@ -264,6 +264,106 @@ table.table {
   outline-offset: 2px;
 }
 
+/* The Plan page's tree table (one table: work stream -> program -> project). Each level indents 1.25rem; a work stream row opens with a 2px rule
+   (no tints, no per-level colours); the name cell is a row header, so it resets the header look; a description is ONE clamped line. */
+.planTreeRow[data-kind="workStream"]:not(:first-child) > :is(th, td) {
+  border-top: 2px solid light-dark(var(--mantine-color-gray-4), var(--mantine-color-dark-3));
+}
+
+.planTreeName {
+  min-width: 0;
+  font-weight: 400;
+  text-align: start;
+}
+
+.planTreeIndent {
+  min-width: 0;
+  padding-inline-start: calc(var(--plan-depth, 0) * 1.25rem);
+}
+
+.planTreeHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--mantine-spacing-xs);
+}
+
+/* The disclosure button holds the chevron and the name; a childless node and a project keep the chevron's room so names line up. */
+.planTreeToggle {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  text-align: start;
+  border-radius: var(--mantine-radius-sm);
+}
+
+.planTreeToggle svg {
+  flex: none;
+  align-self: center;
+}
+
+.planTreeToggle:focus-visible {
+  outline: 2px solid var(--astrolabe-accent-ink);
+  outline-offset: 2px;
+}
+
+/* The table's own `overflow: hidden` (the card frame above) would make the table the sticky container of the actions column, which never scrolls:
+   the ScrollRegion around it is the scrollport, so this one table lets its cells overflow and rounds the corners of its edge cells itself. */
+.planTreeTable {
+  overflow: visible;
+}
+
+.planTreeTable thead tr:first-child > :first-child {
+  border-start-start-radius: var(--mantine-radius-md);
+}
+
+.planTreeTable thead tr:first-child > :last-child {
+  border-start-end-radius: var(--mantine-radius-md);
+}
+
+.planTreeTable tbody tr:last-child > :first-child {
+  border-end-start-radius: var(--mantine-radius-md);
+}
+
+.planTreeTable tbody tr:last-child > :last-child {
+  border-end-end-radius: var(--mantine-radius-md);
+}
+
+/* The actions column (the "+" and the menu) stays at the scroller's right edge, so a narrow screen never scrolls it away. Its cells paint the page
+   surface (the header's own tint on the header), so the text slides UNDER it, and on a row hover the row's tint is laid over that surface. */
+.planTreeActions {
+  position: sticky;
+  inset-inline-end: 0;
+  z-index: 1;
+  background-color: var(--mantine-color-body);
+}
+
+.planTreeActionsHead {
+  background-color: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6));
+}
+
+@media (hover: hover) {
+  .planTreeRow:hover > .planTreeActions {
+    background-image: linear-gradient(var(--tr-hover-bg), var(--tr-hover-bg));
+  }
+}
+
+/* Below 48em the table scrolls sideways: a hairline marks where the pinned column begins. */
+@media (max-width: 48em) {
+  .planTreeActions {
+    box-shadow: -1px 0 0 light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  }
+}
+
+.planTreeLeaf {
+  padding-inline-start: 22px;
+}
+
+.planTreeDescription {
+  padding-inline-start: 22px;
+}
+
 /* Form sections: a flat block under a small-caps legend on a hairline (v1.20.0) —
    `Fieldset variant="unstyled"` keeps the fieldset/legend semantics without the frame. */
 .formSection {

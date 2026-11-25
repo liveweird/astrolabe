@@ -372,9 +372,9 @@ test("a program's owner imports the projects and milestones under their linked p
   await expect(dialog).toHaveCount(0);
 
   // The Plan page lists both projects under the program; the API agrees, and no program was created.
-  const table = page.getByRole("table", { name: `Projects of ${world.programName}` });
-  await expect(table.getByRole("link", { name: "Open IMC Initiative North" })).toBeVisible();
-  await expect(table.getByRole("link", { name: "Open IMC Initiative South" })).toBeVisible();
+  const projectRows = page.locator(`tr[data-kind="project"][data-parent="pg:${world.programId}"]`);
+  await expect(projectRows.getByRole("link", { name: "Open IMC Initiative North" })).toBeVisible();
+  await expect(projectRows.getByRole("link", { name: "Open IMC Initiative South" })).toBeVisible();
   const planned = await projectsOf(world.programId);
   expect(planned).toEqual([
     { name: "IMC Initiative North", scheduled: [], unscheduled: ["IMC Epic One"] },
@@ -680,10 +680,10 @@ test("a renamed item is offered as a link to the unlinked plan project, and link
   await expect(dialog).toHaveCount(0);
 
   // The Plan page lists the plan's own project and the new South one, and no duplicate "IMC Initiative North".
-  const table = page.getByRole("table", { name: `Projects of ${world.programName}` });
-  await expect(table.getByRole("link", { name: `Open ${PLAIN_PROJECT}`, exact: true })).toBeVisible();
-  await expect(table.getByRole("link", { name: "Open IMC Initiative South", exact: true })).toBeVisible();
-  await expect(table.getByRole("link", { name: "Open IMC Initiative North", exact: true })).toHaveCount(0);
+  const projectRows = page.locator(`tr[data-kind="project"][data-parent="pg:${world.programId}"]`);
+  await expect(projectRows.getByRole("link", { name: `Open ${PLAIN_PROJECT}`, exact: true })).toBeVisible();
+  await expect(projectRows.getByRole("link", { name: "Open IMC Initiative South", exact: true })).toBeVisible();
+  await expect(projectRows.getByRole("link", { name: "Open IMC Initiative North", exact: true })).toHaveCount(0);
   expect(await projectsOf(world.programId)).toEqual([
     { name: "IMC Initiative South", scheduled: [], unscheduled: ["IMC Epic Three"] },
     { name: PLAIN_PROJECT, scheduled: [], unscheduled: ["IMC Epic One"] },

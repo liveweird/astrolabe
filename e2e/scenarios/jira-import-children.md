@@ -33,7 +33,7 @@ put it without a default project). `IMC-11..13` hang under another Program and a
      note reads "done items, and items not updated for more than 365 days"; rows exist for `IMC-2`, `IMC-3`, `IMC-5`, `IMC-7` and `IMC-3` reads "Kept as a parent of an item shown here"; none for the
      root `IMC-1`, for `IMC-4`, `IMC-6`, `IMC-8`, `IMC-10` (left out), `IMC-11..13` (not under the root) or `IMC-9` (its skipped row is redacted for a non-admin under a filter: one "Hidden" key cell).
 4. They press **Import (4)** and close the dialog.
-   - *Expected*: the outcome reads "Created: 4", "Linked: 0", "Scheduled: 0" (the login manages no team), "Skipped: 0"; the Plan page lists "IMC Initiative North" and "IMC Initiative South" under the
+   - *Expected*: the outcome reads "Created: 4", "Linked: 0", "Scheduled: 0" (the login manages no team), "Skipped: 0"; the Plan table lists "IMC Initiative North" and "IMC Initiative South" as rows of the
      program; the API shows North holding "IMC Epic One" and South "IMC Epic Three", both unscheduled, and the stream's programs unchanged (no program was created).
 5. They open the entry again, pick the default team and press **Preview**.
    - *Expected*: "Jira items: 5", "To create: 0", "To link: 0", "Skipped: 5", "0 of 0 selected"; `IMC-2` reads "Already linked"; **Import (0)** is disabled; the plan is exactly as after step 4.
@@ -106,7 +106,7 @@ put it without a default project). `IMC-11..13` hang under another Program and a
 3. They press **Preview again** in the banner.
    - *Expected*: the banner is gone; "Jira items: 5", "To create: 3", "To link: 1", "Skipped: 1"; `IMC-2` reads "Linked to a plan item with a different name, as you confirmed" with **Create instead: IMC-2 as a new item**; `IMC-5` reads "Under Initiative North"; `IMC-7` is still unticked ("3 of 4 selected") and `IMC-2` is ticked; Import is enabled; the plan is still unchanged.
 4. They tick `IMC-7` again, press **Import (4)** and close the dialog.
-   - *Expected*: "Created: 3", "Linked: 1", "Skipped: 0"; the Plan page lists "Initiative North" and "IMC Initiative South" under the program and NO "IMC Initiative North"; the API shows "Initiative North" holding "IMC Epic One" and South holding "IMC Epic Three", both unscheduled.
+   - *Expected*: "Created: 3", "Linked: 1", "Skipped: 0"; the Plan table lists "Initiative North" and "IMC Initiative South" as rows of the program and NO "IMC Initiative North"; the API shows "Initiative North" holding "IMC Epic One" and South holding "IMC Epic Three", both unscheduled.
 
 ## Scenario: the import preview with a possible match has no WCAG A/AA violations
 

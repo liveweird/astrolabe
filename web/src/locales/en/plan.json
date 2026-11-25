@@ -10,17 +10,37 @@
   "emptyHint": "An administrator creates the first work stream.",
   "emptyHintCreate": "Create the first work stream to start planning.",
   "loadFailed": "Could not load the plan",
-  "noPrograms": "No programs yet",
-  "noProjects": "No projects yet",
   "closed": "Closed",
-  "ownerLine": "Owner: {{name}}",
   "datesOpen": "From {{start}}",
   "window": "{{start}} – {{end}}",
   "noWindow": "Not set",
-  "projectsTableAria": "Projects of {{name}}",
   "openProjectAria": "Open {{name}}",
   "column": {
-    "project": "Project"
+    "name": "Work stream, program, project",
+    "dates": "Dates"
+  },
+  "tree": {
+    "tableAria": "Work streams, programs and projects",
+    "streamAria": "Work stream {{name}}",
+    "programAria": "Program {{name}}",
+    "streamKind": "Work stream",
+    "programKind": "Program",
+    "programs_one": "{{count}} program",
+    "programs_other": "{{count}} programs",
+    "projects_one": "{{count}} project",
+    "projects_other": "{{count}} projects",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all",
+    "targetWindowLabel": "Target window:"
+  },
+  "announce": {
+    "expandedStream_one": "{{name}} expanded, {{count}} program",
+    "expandedStream_other": "{{name}} expanded, {{count}} programs",
+    "expandedProgram_one": "{{name}} expanded, {{count}} project",
+    "expandedProgram_other": "{{name}} expanded, {{count}} projects",
+    "collapsed": "{{name}} collapsed",
+    "expandedAll": "Every work stream and program expanded",
+    "collapsedAll": "Every work stream and program collapsed"
   },
   "targetStart": "Target start",
   "targetEnd": "Target end",

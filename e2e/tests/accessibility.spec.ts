@@ -375,7 +375,7 @@ test.describe("detail pages and overlays", () => {
     test(`/plan with a work stream, a program and a project has no WCAG A/AA violations${suffix}`, async ({ page }) => {
       await login(page);
       await page.goto("/plan");
-      await expect(page.getByRole("heading", { level: 4, name: programName })).toBeVisible();
+      await expect(page.locator(`tr[data-kind="program"]`).filter({ hasText: programName })).toBeVisible();
       await expectScheme(page, scheme);
       await scan(page);
     });

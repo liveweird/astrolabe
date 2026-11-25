@@ -37,8 +37,8 @@ export default function PlanMoveModal({
   data: ComboboxItem[] | ComboboxItemGroup<ComboboxItem>[];
   /** The node's live `can.move` is false: the caller may no longer move it. */
   forbidden: boolean;
-  /** The move happened (or the node is gone): close the dialog and reload the plan. */
-  onDone: () => Promise<void>;
+  /** The move happened (with the id of the program or work stream it went to) or the node is gone (no id): close the dialog and reload the plan. */
+  onDone: (target?: number) => Promise<void>;
   /** The plan changed under the dialog: reload it, keep the dialog. */
   onRefresh: () => Promise<void>;
   onClose: () => void;
@@ -73,7 +73,7 @@ export default function PlanMoveModal({
       return;
     }
     showSuccessToast(t(isProject ? "plan.toast.projectMoved" : "plan.toast.programMoved"));
-    await onDone();
+    await onDone(Number(picked));
   }
 
   /** Say what went wrong in the dialog and, where the plan changed under it, reload the plan. */

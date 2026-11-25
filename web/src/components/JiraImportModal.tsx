@@ -28,11 +28,14 @@ export default function JiraImportModal({
   source,
   initialWorkStreamId,
   root,
+  onApplied,
   onClose,
 }: {
   source: ImportSource;
   initialWorkStreamId?: number;
   root?: ImportRoot;
+  /** Called once an apply has answered (the Plan page uses it to open the folded parents the import wrote under). */
+  onApplied?: () => void;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
@@ -46,7 +49,7 @@ export default function JiraImportModal({
   const [known, setKnown] = useState<ImportConnection | null>(picked);
   if (picked !== null && picked !== known) setKnown(picked);
   const connection = picked ?? known;
-  const run = useJiraImport(connection?.id ?? null);
+  const run = useJiraImport(connection?.id ?? null, onApplied);
   const [form, setForm] = useState<ScopeForm>(() => emptyScope(connection?.projectKeys ?? [], root?.workStreamId ?? initialWorkStreamId, root?.owner));
   const [keysOf, setKeysOf] = useState<number | null>(connection?.id ?? null);
   if (picked !== null && picked.id !== keysOf) {

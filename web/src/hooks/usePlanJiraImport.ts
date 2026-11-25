@@ -3,6 +3,7 @@ import type { JiraNodeLink } from "../api/jira";
 import type { PlanProgram, PlanProject, PlanView, PlanWorkStream } from "../api/plan";
 import { importSourceOf, type ImportRoot, type ImportSource } from "../utils/jiraImport";
 import { rootOf } from "../utils/jiraImportRoot";
+import { programKey, streamKey } from "../utils/planTree";
 import { useJiraConnections } from "./useDeviations";
 import { useJiraPlanLinks } from "./useJiraPlanLinks";
 
@@ -15,7 +16,7 @@ type ImportState =
 const nodeIdOf = (state: ImportState): number => (state.kind === "stream" ? state.stream.id : state.kind === "program" ? state.program.id : state.project.id);
 
 /** The props the Plan page hands `JiraImportModal`. */
-type ModalProps = { source: ImportSource; initialWorkStreamId?: number; root?: ImportRoot; onClose: () => void };
+type ModalProps = { source: ImportSource; initialWorkStreamId?: number; root?: ImportRoot; onApplied: () => void; onClose: () => void };
 
 /**
  * The Plan page's three Jira imports. A work stream's (1.10) reads the usable connections from the deviations view only after the click. A linked
@@ -24,18 +25,24 @@ type ModalProps = { source: ImportSource; initialWorkStreamId?: number; root?: I
  * project to or a project the caller may add a milestone to, and a failed read just leaves the entries out. `modal` (and its `modalKey`,
  * `stream:<id>` / `program:<id>` / `project:<id>`) is null while no dialog is open.
  */
-export function usePlanJiraImport(plan: PlanView | undefined) {
+export function usePlanJiraImport(plan: PlanView | undefined, reveal: (...keys: string[]) => void) {
   const [importing, setImporting] = useState<ImportState | null>(null);
   const jira = useJiraConnections({ workStreamId: importing?.kind === "stream" ? importing.stream.id : undefined }, importing?.kind === "stream");
   const wantsLinks =
     plan?.workStreams.some((stream) => stream.programs.some((program) => program.can.createProject || program.projects.some((project) => project.can.createMilestone))) ?? false;
   const links = useJiraPlanLinks(wantsLinks);
   const close = () => setImporting(null);
+  // What an import writes lands under the node it was opened from: that node and its ancestors must be open to show it.
+  const revealParents = () => {
+    if (importing?.kind === "stream") reveal(streamKey(importing.stream.id));
+    else if (importing?.kind === "program") reveal(streamKey(importing.program.workStreamId), programKey(importing.program.id));
+    else if (importing?.kind === "project") reveal(streamKey(importing.project.workStreamId), programKey(importing.project.programId));
+  };
 
   let modal: ModalProps | null = null;
-  if (importing?.kind === "stream") modal = { source: importSourceOf(jira), initialWorkStreamId: importing.stream.id, onClose: close };
-  if (importing?.kind === "program") modal = { source: importSourceOf(links), root: rootOf("PROGRAM", importing.program, importing.link), onClose: close };
-  if (importing?.kind === "project") modal = { source: importSourceOf(links), root: rootOf("PROJECT", importing.project, importing.link), onClose: close };
+  if (importing?.kind === "stream") modal = { source: importSourceOf(jira), initialWorkStreamId: importing.stream.id, onApplied: revealParents, onClose: close };
+  if (importing?.kind === "program") modal = { source: importSourceOf(links), root: rootOf("PROGRAM", importing.program, importing.link), onApplied: revealParents, onClose: close };
+  if (importing?.kind === "project") modal = { source: importSourceOf(links), root: rootOf("PROJECT", importing.project, importing.link), onApplied: revealParents, onClose: close };
 
   // The modal's `key` follows its source, so its form state (`useState` initialisers) never carries over from one import to another.
   const modalKey = importing === null ? null : `${importing.kind}:${nodeIdOf(importing)}`;

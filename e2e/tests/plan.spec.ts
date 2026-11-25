@@ -37,6 +37,11 @@ async function createAndGetId(page: Page, dialog: Locator, path: RegExp): Promis
   return ((await response.json()) as { id: number }).id;
 }
 
+/** A row of the Plan table by level and name (the row header holds the name; `data-parent` names the row's parent by kind and id, `ws:<id>` / `pg:<id>`). */
+function treeRow(page: Page, kind: "workStream" | "program" | "project", name: string): Locator {
+  return page.locator(`tr[data-kind="${kind}"]`).filter({ hasText: name });
+}
+
 async function confirmDelete(page: Page, path: RegExp): Promise<void> {
   await Promise.all([
     page.waitForResponse((r) => r.request().method() === "DELETE" && path.test(r.url()) && r.ok()),
@@ -63,9 +68,12 @@ test("admin builds a work stream, a program and a project, assigns owners, and d
   await dialog.getByLabel("Name").fill(streamName);
   await pickOwner(page, dialog, anna);
   await fillDate(dialog, "Start date", "2026-01-05");
-  teardown.push(`/api/v1/work-streams/${await createAndGetId(page, dialog, /\/api\/v1\/work-streams$/)}`);
-  await expect(page.getByRole("heading", { level: 3, name: streamName })).toBeVisible();
-  await expect(page.getByText(`Owner: ${anna} · From 2026-01-05`)).toBeVisible();
+  const streamId = await createAndGetId(page, dialog, /\/api\/v1\/work-streams$/);
+  teardown.push(`/api/v1/work-streams/${streamId}`);
+  const streamRow = treeRow(page, "workStream", streamName);
+  await expect(streamRow).toBeVisible();
+  await expect(streamRow).toContainText(anna);
+  await expect(streamRow).toContainText("From 2026-01-05");
 
   // Program under it, owned by the same person.
   const programName = uniqueText("e2e-plan-program");
@@ -74,7 +82,7 @@ test("admin builds a work stream, a program and a project, assigns owners, and d
   await dialog.getByLabel("Name").fill(programName);
   await pickOwner(page, dialog, anna);
   teardown.push(`/api/v1/programs/${await createAndGetId(page, dialog, /\/api\/v1\/work-streams\/\d+\/programs$/)}`);
-  await expect(page.getByRole("heading", { level: 4, name: programName })).toBeVisible();
+  await expect(treeRow(page, "program", programName)).toHaveAttribute("data-parent", `ws:${streamId}`);
 
   // Project under the program, owned by the second person, with a target window.
   const projectName = uniqueText("e2e-plan-project");
@@ -85,9 +93,22 @@ test("admin builds a work stream, a program and a project, assigns owners, and d
   await fillDate(dialog, "Target start", "2026-02-02");
   await fillDate(dialog, "Target end", "2026-03-31");
   teardown.push(`/api/v1/projects/${await createAndGetId(page, dialog, /\/api\/v1\/programs\/\d+\/projects$/)}`);
-  const table = page.getByRole("table", { name: `Projects of ${programName}` });
-  await expect(table.getByRole("row", { name: new RegExp(projectName) })).toContainText(ben);
-  await expect(table.getByRole("row", { name: new RegExp(projectName) })).toContainText("2026-02-02 – 2026-03-31");
+  await expect(treeRow(page, "project", projectName)).toContainText(ben);
+  await expect(treeRow(page, "project", projectName)).toContainText("2026-02-02 – 2026-03-31");
+
+  // The stream folds away what is under it, the fold is remembered across a reload, and opening it brings the rows back.
+  const streamToggle = page.getByRole("button", { name: `Work stream ${streamName}`, exact: true });
+  await expect(streamToggle).toHaveAttribute("aria-expanded", "true");
+  await streamToggle.click();
+  await expect(streamToggle).toHaveAttribute("aria-expanded", "false");
+  await expect(treeRow(page, "program", programName)).toHaveCount(0);
+  await expect(treeRow(page, "project", projectName)).toHaveCount(0);
+  await page.reload();
+  await expect(streamToggle).toHaveAttribute("aria-expanded", "false");
+  await expect(treeRow(page, "program", programName)).toHaveCount(0);
+  await streamToggle.click();
+  await expect(streamToggle).toHaveAttribute("aria-expanded", "true");
+  await expect(treeRow(page, "project", projectName)).toBeVisible();
 
   // Hand the project over, rename it and extend the target window in the same save.
   const renamed = `${projectName}-renamed`;
@@ -101,7 +122,7 @@ test("admin builds a work stream, a program and a project, assigns owners, and d
     page.waitForResponse((r) => r.request().method() === "PUT" && /\/api\/v1\/projects\/\d+\/details$/.test(r.url()) && r.ok()),
     dialog.getByRole("button", { name: "Save", exact: true }).click(),
   ]);
-  const row = table.getByRole("row", { name: new RegExp(renamed) });
+  const row = treeRow(page, "project", renamed);
   await expect(row).toContainText(anna);
   await expect(row).toContainText("2026-02-02 – 2026-04-15");
 
@@ -116,10 +137,10 @@ test("admin builds a work stream, a program and a project, assigns owners, and d
   await expect(page.getByText(renamed)).toHaveCount(0);
   await rowOperation(page, programName, `Delete ${programName}`);
   await confirmDelete(page, /\/api\/v1\/programs\/\d+$/);
-  await expect(page.getByRole("heading", { level: 4, name: programName })).toHaveCount(0);
+  await expect(treeRow(page, "program", programName)).toHaveCount(0);
   await rowOperation(page, streamName, `Delete ${streamName}`);
   await confirmDelete(page, /\/api\/v1\/work-streams\/\d+$/);
-  await expect(page.getByRole("heading", { level: 3, name: streamName })).toHaveCount(0);
+  await expect(treeRow(page, "workStream", streamName)).toHaveCount(0);
 });
 
 test("a project owner edits their project but is offered no target window and no other actions", async ({ page }) => {
@@ -144,8 +165,8 @@ test("a project owner edits their project but is offered no target window and no
 
   await login(page, account.email, account.password);
   await page.goto("/plan");
-  await expect(page.getByRole("heading", { level: 3, name: streamName })).toBeVisible();
-  // Everything is readable, but only their own project offers actions.
+  await expect(treeRow(page, "workStream", streamName)).toBeVisible();
+  // Everything is readable, the folds included (a reader's table is the same table), but only their own project offers actions.
   await expect(page.getByRole("button", { name: "New work stream" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: `New program in ${streamName}` })).toHaveCount(0);
   await expect(page.getByRole("button", { name: `New project in ${programName}` })).toHaveCount(0);
@@ -153,6 +174,7 @@ test("a project owner edits their project but is offered no target window and no
   await expect(page.getByRole("button", { name: `Operations for ${programName}` })).toHaveCount(0);
   await expect(page.getByRole("button", { name: `Operations for ${foreignProject}` })).toHaveCount(0);
   await expect(page.getByRole("button", { name: `Operations for ${ownProject}` })).toBeVisible();
+  await expect(page.getByRole("button", { name: `Work stream ${streamName}`, exact: true })).toHaveAttribute("aria-expanded", "true");
 
   // Edit: the fields are theirs, the target window is not.
   await rowOperation(page, ownProject, `Edit ${ownProject}`);
@@ -205,7 +227,7 @@ test("a work stream owner moves a project to another program and a program to an
   const sibling = uniqueText("e2e-plan-sibling");
   const milestone = uniqueText("e2e-plan-milestone");
   const streamAId = await seed(api, "/api/v1/work-streams", { name: streamA, ownerPersonId: mineId, startDate: "2026-01-05" }, "/api/v1/work-streams");
-  await seed(api, "/api/v1/work-streams", { name: streamB, ownerPersonId: mineId, startDate: "2026-01-05" }, "/api/v1/work-streams");
+  const streamBId = await seed(api, "/api/v1/work-streams", { name: streamB, ownerPersonId: mineId, startDate: "2026-01-05" }, "/api/v1/work-streams");
   const programOneId = await seed(api, `/api/v1/work-streams/${streamAId}/programs`, { name: programOne, ownerPersonId: leadId }, "/api/v1/programs");
   const programTwoId = await seed(api, `/api/v1/work-streams/${streamAId}/programs`, { name: programTwo, ownerPersonId: leadId }, "/api/v1/programs");
   const projectId = await seed(api, `/api/v1/programs/${programOneId}/projects`, { name: project, ownerPersonId: leadId }, "/api/v1/projects");
@@ -219,7 +241,7 @@ test("a work stream owner moves a project to another program and a program to an
 
   await login(page, account.email, account.password);
   await page.goto("/plan");
-  await expect(page.getByRole("heading", { level: 3, name: streamA })).toBeVisible();
+  await expect(treeRow(page, "workStream", streamA)).toBeVisible();
 
   // The project moves from program one to program two (same stream): the offered targets leave out its own program.
   await rowOperation(page, project, `Move ${project} to another program`);
@@ -235,8 +257,7 @@ test("a work stream owner moves a project to another program and a program to an
   ]);
   await expect(page.getByText("Project moved")).toBeVisible();
   await expect(dialog).toHaveCount(0);
-  await expect(page.getByRole("table", { name: `Projects of ${programTwo}` }).getByRole("row", { name: new RegExp(project) })).toBeVisible();
-  await expect(page.getByRole("table", { name: `Projects of ${programOne}` }).getByRole("row", { name: new RegExp(project) })).toHaveCount(0);
+  await expect(treeRow(page, "project", project)).toHaveAttribute("data-parent", `pg:${programTwoId}`);
 
   // The project view shows the new program, and the milestone came along.
   await page.getByRole("link", { name: `Open ${project}`, exact: true }).click();
@@ -257,8 +278,7 @@ test("a work stream owner moves a project to another program and a program to an
   ]);
   await expect(page.getByText("Program moved")).toBeVisible();
   await expect(dialog).toHaveCount(0);
-  await expect(page.getByRole("region", { name: streamB }).getByRole("heading", { level: 4, name: programTwo })).toBeVisible();
-  await expect(page.getByRole("region", { name: streamA }).getByRole("heading", { level: 4, name: programTwo })).toHaveCount(0);
+  await expect(treeRow(page, "program", programTwo)).toHaveAttribute("data-parent", `ws:${streamBId}`);
   await page.getByRole("link", { name: `Open ${project}`, exact: true }).click();
   await expect(page.getByText(`${programTwo} · ${streamB} · Owner: ${lead}`)).toBeVisible();
 

@@ -5,6 +5,7 @@ import { QueryClient } from "@tanstack/react-query";
 import Plan from "./Plan";
 import type { PlanProgram, PlanProject, PlanView, PlanWorkStream } from "../api/plan";
 import { jsonResponse } from "../test/http";
+import { findPlanTree } from "../test/planView";
 import { renderWithProviders } from "../test/render";
 import { showSuccessToast } from "../utils/toast";
 
@@ -128,7 +129,7 @@ describe("Plan page: Move to…", () => {
   test("a node's Move to… follows its own can.move flag, even when it is the only action", async () => {
     const user = userEvent.setup();
     renderWithProviders(<Plan />);
-    await screen.findByRole("heading", { level: 3, name: "Platform" });
+    await findPlanTree();
     // Taxes: move only (no edit, no delete) - the kebab exists for it alone; Audit: edit and delete but no move
     await user.click(screen.getByRole("button", { name: "Operations for Taxes" }));
     expect(await screen.findByRole("menuitem", { name: "Move Taxes to another program" })).toHaveTextContent("Move to…");
@@ -146,7 +147,7 @@ describe("Plan page: Move to…", () => {
     view.workStreams[1].programs[0].can = { edit: false, delete: false, createProject: false, move: false };
     const user = userEvent.setup();
     renderWithProviders(<Plan />);
-    await screen.findByRole("heading", { level: 3, name: "Platform" });
+    await findPlanTree();
     await user.click(screen.getByRole("button", { name: "Operations for Identity" }));
     expect(await screen.findByRole("menuitem", { name: "Edit Identity" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: /^Move/ })).toBeNull();
@@ -212,7 +213,7 @@ describe("Plan page: Move to…", () => {
     for (const ws of view.workStreams) for (const pr of ws.programs) pr.can.createProject = false;
     const user = userEvent.setup();
     renderWithProviders(<Plan />);
-    await screen.findByRole("heading", { level: 3, name: "Platform" });
+    await findPlanTree();
     // Taxes (move only) loses its kebab; Invoices keeps Edit and Delete but no Move, and no divider is left dangling
     expect(screen.queryByRole("button", { name: "Operations for Taxes" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Operations for Invoices" }));

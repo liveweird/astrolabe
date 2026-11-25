@@ -25,8 +25,9 @@ export type PreviewState = { scope: JiraImportScope; data: JiraImportPreview };
  * PREVIEW only, when the user cancels or the modal unmounts - an apply is never cancelled by the client (it may already be writing).
  * After an apply the plan views and the Jira queries are refreshed - also after an answer that leaves the write in doubt (`applyMayHaveLanded`).
  * `connectionId` is null until the modal has a connection (the Plan page's list arrives asynchronously, or several are offered): both calls then do nothing.
+ * `onApplied` (optional) is told once an apply has answered (the Plan page opens the folded parents the import wrote under).
  */
-export function useJiraImport(connectionId: number | null) {
+export function useJiraImport(connectionId: number | null, onApplied?: () => void) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [phase, setPhase] = useState<ImportPhase>("scope");
@@ -110,6 +111,7 @@ export function useJiraImport(connectionId: number | null) {
           setResult(value);
           setPhase("outcome");
           void refreshAfterApply();
+          onApplied?.();
         },
       ),
     /** Stops a preview that is still reading Jira. */

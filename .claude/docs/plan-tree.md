@@ -1,6 +1,6 @@
 # Plan tree
 
-Owns: the shared order of the work streams and of each stream's programs: the order tables (V34), the two PUTs, the revision guard, the delete and move hooks, the stale-row repair, the audit events, the effective order and what the views read of it. Not here: the DDL (`V34__plan_tree_order.sql`, `persistence.md`), the lock protocol and the plan view (`planning-model.md`), the guard order in general (`authorization.md` "Rules"), the event catalogue (`observability.md`), the ranking and the team order this order copies (`planning-model.md` "The global project rank", "The team milestone order").
+Owns: the shared order of the work streams and of each stream's programs: the order tables (V34), the two PUTs, the revision guard, the delete and move hooks, the stale-row repair, the audit, the effective order and what the views read, and the Plan page's tree table (rows, folds, menu). Not here: the DDL (`persistence.md`), the lock protocol and the plan view (`planning-model.md`), the guard order (`authorization.md` "Rules"), the event catalogue (`observability.md`), the ranking and the team order this order copies (`planning-model.md` "The global project rank", "The team milestone order").
 
 ## Rules
 
@@ -80,8 +80,22 @@ Every accepted PUT is audited, a no-op list and a reset included; a 409, a 400 o
 
 The hooks emit nothing of their own: `work_stream.deleted`, `program.deleted` and `program.moved` cover them.
 
+## The Plan page's tree
+
+`/plan` is ONE native table (`PlanTree`), not a `treegrid`: row headers, disclosure buttons and ordinary links, "+" buttons and menus in cells. Pure model `utils/planTree.ts` (`planRows`, `foldableKeys`, `toggledCollapsed`; no React, no i18n); the page only composes ("Plan" in `web-internals.md`).
+
+- **Rows.** One `<tr>` per visible node in the server's order, keyed `ws:<id>` / `pg:<id>` / `pj:<id>` (kind + id, never an index). A row carries `data-key`, `data-parent` (the parent's key), `data-kind`, `data-scope` and, once filters exist, `data-context`; `PlanTreeRow` takes a `scope` ("tree" or "pinned") so the pinned section can reuse it.
+- **Name cell** (`<th scope="row">`): indent 1.25rem a level, then a disclosure button (chevron and name, `aria-expanded`, `aria-label` "Work stream X" / "Program X", no `aria-controls`) when the node has children, plain text with a hidden kind word when it has none, the project link ("Open X") for a project. After it: the count with its unit ("3 programs", dimmed, outside the button's name), a gray "Closed" badge, one clamped dimmed description line (the full text in the DOM and in `title`). Weights 600 / 500 / 400; a 2px rule above each work stream row; no tints, no per-level colours.
+- **Other cells.** Owner; Dates (a stream "From ..." or its range, a program none, a project's window behind a hidden "Target window:" or a dimmed "Not set"); actions (an icon-only "+" under today's names "New program in X" / "New project in X", and the row menu). The table is `layout="fixed"` with a `colgroup` and scrolls in the house `ScrollRegion` (min width 800); the actions column (its `col` too), the toolbar and the chevron icons are `data-print="hide"`.
+- **Sticky actions.** The actions cells are `position: sticky` at the scroller's right edge (an opaque surface, the row's hover tint laid over it, a hairline below 48em). The plan table sets `overflow: visible`: the theme's `overflow: hidden` frame would make the table, not the ScrollRegion, the sticky container.
+- **Row menu** (`PlanRowMenu`): groups with a divider between the groups that exist: edit (Edit, Close or Reopen, Move to..., Import from Jira...), then delete. View (show only this, pin) and order (move up, down) groups go before them. Every item keeps its `aria-label` and its `can` gate; a row with no allowed item has no menu.
+- **Folds** (`usePlanFolds`, `astrolabe.viewSettings.plan.collapsed`): the stored set holds the FOLDED keys, so a first visit shows everything open and a new node is open. A key of a node the plan no longer holds matches nothing and is dropped at the user's next change. Expand all stores `[]`, Collapse all the keys of the nodes that have children. A node created, moved or imported (an apply's answer) under a folded parent opens that parent and its stream, so it is never out of sight.
+- **Announcements.** The page's one polite status region says "X expanded, 3 programs", "X collapsed", "Every work stream and program expanded / collapsed". A toggle never moves the focus: the row stays in the list, so the button is the same DOM node.
+
 ## Pinned by
 
 `PlanOrderTest` (the guard matrix and its order, the 400s, both 409 directions, each list's own revision, a partial list and the reset, the audit), `PlanOrderLifecycleTest` (the hooks and the dense positions, create and close writing nothing, the deferrable constraints, the same-revision race, a stream deleted or an owner demoted at the lock, the stale-row repair), `PlanStateTest` (the one bump a PUT), `MigrationChecksumTest`.
+
+The Plan page: `planTree.test.ts` (rows, folds, pruning), `Plan.rows.test.tsx` and `Plan.tree.test.tsx` (the table, the folds, their storage, the announcements, a reader with no rights), `PlanMove.test.tsx`.
 
 The read side: `PlanOrderKernelsTest` (the comparator against the old one, closed last, the stale slot), `PlanOrderViewTest` (both views follow, the revisions, the flags against the PUTs), `ProgramsTreeTest`, `ViewValidatorInputsTest`.

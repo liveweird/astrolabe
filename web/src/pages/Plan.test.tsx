@@ -4,11 +4,11 @@ import { screen, waitFor, within } from "@testing-library/react";
 import Plan from "./Plan";
 import type { PlanProgram, PlanProject, PlanView, PlanWorkStream } from "../api/plan";
 import { QueryClient } from "@tanstack/react-query";
-import { headingOutline } from "../test/headings";
 import { DEV_CONNECTION, view as deviationsOf } from "../test/deviations";
 import { LINK_CONNECTION, linksView, nodeLink } from "../test/jiraLinks";
 import type { JiraLinksView, JiraNodeLink } from "../api/jira";
 import { jsonResponse } from "../test/http";
+import { findPlanTree } from "../test/planView";
 import { renderWithProviders } from "../test/render";
 
 type FetchMock = ReturnType<typeof vi.fn>;
@@ -145,36 +145,6 @@ describe("Plan page", () => {
     localStorage.clear();
   });
 
-  test("renders the tree: stream h3, program h4, projects in a named table, the heading outline pinned", async () => {
-    renderWithProviders(<Plan />);
-    await screen.findByRole("heading", { level: 3, name: "Platform" });
-    expect(headingOutline()).toEqual([
-      [2, "Plan"],
-      [3, "Platform"],
-      [4, "Billing"],
-      [4, "Identity"],
-      [3, "Legacy"],
-    ]);
-    expect(screen.getByText("The core platform")).toBeInTheDocument();
-    expect(screen.getByText("Owner: Ola Owner · From 2026-01-05")).toBeInTheDocument();
-    const table = screen.getByRole("table", { name: "Projects of Billing" });
-    const row = within(table).getByRole("row", { name: /Invoices/ });
-    expect(within(row).getByText("Piotr Project")).toBeInTheDocument();
-    expect(within(row).getByText("2026-02-01 – 2026-03-31")).toBeInTheDocument();
-    expect(within(table).getByRole("row", { name: /Taxes/ })).toHaveTextContent("Not set");
-    expect(screen.getByText("No projects yet")).toBeInTheDocument();
-  });
-
-  test("a closed work stream shows the Closed badge and its dates; an open one does not", async () => {
-    renderWithProviders(<Plan />);
-    await screen.findByRole("heading", { level: 3, name: "Legacy" });
-    expect(screen.getAllByText("Closed")).toHaveLength(1);
-    expect(screen.getByText("Owner: Ola Owner · 2024-01-01 – 2025-12-31")).toBeInTheDocument();
-    expect(screen.getByText("No programs yet")).toBeInTheDocument();
-    // A closed stream still takes programs.
-    expect(screen.getByRole("button", { name: "New program in Legacy" })).toBeInTheDocument();
-  });
-
   test("shows only the actions the can flags allow", async () => {
     view = {
       revision: 1,
@@ -193,7 +163,7 @@ describe("Plan page", () => {
     };
     const user = userEvent.setup();
     renderWithProviders(<Plan />);
-    await screen.findByRole("heading", { level: 3, name: "Platform" });
+    await findPlanTree();
     expect(screen.queryByRole("button", { name: /new work stream/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /new program/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /new project/i })).not.toBeInTheDocument();
@@ -572,7 +542,7 @@ describe("Plan page: Import from Jira", () => {
   test("the entry is in the stream's menu under can.edit only, and the stream's connections are asked for only after the click (the links view is the page's own read, never the deviations view)", async () => {
     const user = userEvent.setup();
     renderWithProviders(<Plan />);
-    await screen.findByRole("heading", { level: 3, name: "Platform" });
+    await findPlanTree();
     await waitFor(() => expect(linkCalls(mockFetch)).toEqual([LINKS_URL]));
     expect(deviationCalls(mockFetch)).toEqual([]);
     await user.click(screen.getByRole("button", { name: "Operations for Platform" }));
@@ -608,7 +578,7 @@ describe("Plan page: Import from Jira", () => {
   test("a stream without can.edit has no menu and so no entry", async () => {
     view = { revision: 1, workStreamOrderRevision: 0, can: { createWorkStream: false, orderWorkStreams: false }, workStreams: [stream({ id: 1, name: "Platform", can: { edit: false, delete: false, createProgram: false, orderPrograms: false } })] };
     renderWithProviders(<Plan />);
-    await screen.findByRole("heading", { level: 3, name: "Platform" });
+    await findPlanTree();
     expect(screen.queryByRole("button", { name: "Operations for Platform" })).not.toBeInTheDocument();
     expect(deviationCalls(mockFetch)).toEqual([]);
     expect(linkCalls(mockFetch)).toEqual([]);
@@ -702,7 +672,7 @@ describe("Plan page: Import from a linked program (1.14)", () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const user = userEvent.setup();
     renderWithProviders(<Plan />, { queryClient });
-    await screen.findByRole("heading", { level: 3, name: "Platform" });
+    await findPlanTree();
     await waitFor(() => expect(queryClient.getQueryState(LINKS_KEY)?.status).toBe("error"));
     expect(linkCalls(mockFetch)).toEqual([LINKS_URL]);
     await user.click(await screen.findByRole("button", { name: "Operations for Billing" }));
@@ -867,7 +837,7 @@ describe("Plan page: Import from a linked project (1.15)", () => {
       ],
     };
     renderWithProviders(<Plan />);
-    await screen.findByRole("heading", { level: 3, name: "Platform" });
+    await findPlanTree();
     await screen.findByRole("link", { name: "Open Taxes" });
     expect(linkCalls(mockFetch)).toEqual([]);
     expect(deviationCalls(mockFetch)).toEqual([]);
@@ -915,7 +885,7 @@ describe("Plan page: Import from a linked project (1.15)", () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const user = userEvent.setup();
     renderWithProviders(<Plan />, { queryClient });
-    await screen.findByRole("heading", { level: 3, name: "Platform" });
+    await findPlanTree();
     await waitFor(() => expect(queryClient.getQueryState(LINKS_KEY)?.status).toBe("error"));
     await user.click(await screen.findByRole("button", { name: "Operations for Taxes" }));
     await screen.findByRole("menuitem", { name: "Edit Taxes" });
