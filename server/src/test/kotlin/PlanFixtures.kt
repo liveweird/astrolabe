@@ -12,6 +12,8 @@ import ch.nokillswit.planning.EndpointRef
 import ch.nokillswit.planning.MilestoneCreateRequest
 import ch.nokillswit.planning.MilestoneScheduleRequest
 import ch.nokillswit.planning.MilestoneService
+import ch.nokillswit.planning.PlanOrderService
+import ch.nokillswit.planning.ProgramOrderUpdateRequest
 import ch.nokillswit.planning.ProgramCreateRequest
 import ch.nokillswit.planning.ProgramService
 import ch.nokillswit.planning.ProjectCreateRequest
@@ -19,6 +21,7 @@ import ch.nokillswit.planning.ProjectService
 import ch.nokillswit.planning.TeamOrderService
 import ch.nokillswit.planning.TeamOrderUpdateRequest
 import ch.nokillswit.planning.WorkStreamCreateRequest
+import ch.nokillswit.planning.WorkStreamOrderUpdateRequest
 import ch.nokillswit.planning.WorkStreamService
 import ch.nokillswit.teams.CapacityPeriodValues
 import ch.nokillswit.teams.CapacityWriteListeners
@@ -132,6 +135,14 @@ suspend fun HttpClient.putDependency(id: UInt, type: DependencyType, lagDays: In
 suspend fun HttpClient.putTeamOrder(teamId: UInt, expectedRevision: Long, ids: List<UInt>): HttpResponse =
     putJson("/api/v1/teams/$teamId/milestone-order", TeamOrderUpdateRequest(expectedRevision, ids))
 
+/** `PUT /work-stream-order` with a typed body. */
+suspend fun HttpClient.putWorkStreamOrder(expectedRevision: Long, ids: List<UInt>): HttpResponse =
+    putJson("/api/v1/work-stream-order", WorkStreamOrderUpdateRequest(expectedRevision, ids))
+
+/** `PUT /work-streams/{streamId}/program-order` with a typed body. */
+suspend fun HttpClient.putProgramOrder(streamId: UInt, expectedRevision: Long, ids: List<UInt>): HttpResponse =
+    putJson("/api/v1/work-streams/$streamId/program-order", ProgramOrderUpdateRequest(expectedRevision, ids))
+
 /** A second project under the world's program, owned by a NEW caller (a person-linked login) who owns nothing else: cross-owner cases. */
 class SecondProject(val projectId: UInt, val owner: PlanCaller)
 
@@ -150,6 +161,7 @@ object TestPlan {
     private val dependencies by lazy { DependencyService(sharedDatabaseForTests()) }
     private val capacity by lazy { capacityService(sharedDatabaseForTests()) }
     private val teamOrders by lazy { TeamOrderService(sharedDatabaseForTests()) }
+    private val planOrders by lazy { PlanOrderService(sharedDatabaseForTests()) }
     private val baselines by lazy { BaselineService(sharedDatabaseForTests()) }
     private val seedAdminId by lazy { scalar("SELECT id FROM users WHERE email = 'admin@astrolabe.local'") { it.getInt(1) }.toUInt() }
 
@@ -232,6 +244,54 @@ object TestPlan {
     fun teamOrderRevision(teamId: UInt): Long? = PostgresTestSupport.connect().use { c ->
         c.createStatement().use { st ->
             st.executeQuery("SELECT revision FROM team_order_state WHERE team_id = $teamId").use { rs ->
+                if (rs.next()) rs.getLong(1) else null
+            }
+        }
+    }
+
+    /**
+     * Replaces the GLOBAL work stream order with [ids] past the guard (the service: the plan lock, the revision check — the current plan
+     * revision is always a valid `expectedRevision` — and the bump apply). The order is shared state: a test that writes it ends with
+     * [resetWorkStreamOrder].
+     */
+    suspend fun workStreamOrder(ids: List<UInt>): Long =
+        planOrders.replaceWorkStreamOrder(WorkStreamOrderUpdateRequest(revision(), ids)).revisionTo
+
+    /** Empties the global work stream order (a `[]` PUT past the guard), so a test leaves the shared order as it found it. */
+    suspend fun resetWorkStreamOrder() {
+        workStreamOrder(emptyList())
+    }
+
+    /** Replaces [workStreamId]'s program order with [ids] past the guard (like [teamOrder]); the answer is the revision it left behind. */
+    suspend fun programOrder(workStreamId: UInt, ids: List<UInt>): Long =
+        planOrders.replaceProgramOrder(workStreamId, ProgramOrderUpdateRequest(revision(), ids)) { }.revisionTo // past the guard
+
+    /** The raw `work_stream_orders` rows as (position, work stream id), by position. */
+    fun workStreamOrderRows(): List<Pair<Int, UInt>> = PostgresTestSupport.connect().use { c ->
+        c.createStatement().use { st ->
+            st.executeQuery("SELECT position, work_stream_id FROM work_stream_orders ORDER BY position").use { rs ->
+                buildList { while (rs.next()) add(rs.getInt(1) to rs.getInt(2).toUInt()) }
+            }
+        }
+    }
+
+    /** The raw `program_orders` rows of [workStreamId] as (position, program id), by position. */
+    fun programOrderRows(workStreamId: UInt): List<Pair<Int, UInt>> = PostgresTestSupport.connect().use { c ->
+        c.createStatement().use { st ->
+            val sql = "SELECT position, program_id FROM program_orders WHERE work_stream_id = $workStreamId ORDER BY position"
+            st.executeQuery(sql).use { rs ->
+                buildList { while (rs.next()) add(rs.getInt(1) to rs.getInt(2).toUInt()) }
+            }
+        }
+    }
+
+    /** The raw `plan_state.work_stream_order_revision`. */
+    fun workStreamOrderRevision(): Long = scalar("SELECT work_stream_order_revision FROM plan_state WHERE id = 1") { it.getLong(1) }
+
+    /** The raw `program_order_state.revision` of [workStreamId], or null when its program order was never written. */
+    fun programOrderRevision(workStreamId: UInt): Long? = PostgresTestSupport.connect().use { c ->
+        c.createStatement().use { st ->
+            st.executeQuery("SELECT revision FROM program_order_state WHERE work_stream_id = $workStreamId").use { rs ->
                 if (rs.next()) rs.getLong(1) else null
             }
         }

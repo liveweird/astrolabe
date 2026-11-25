@@ -397,6 +397,33 @@ class PlanStateTest {
     }
 
     @Test
+    fun `a plan order write bumps the revision by one, a stale, forbidden, unknown or invalid one does not`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("pordrev")
+        val a = w.programId
+        val b = TestPlan.program(w.streamId, w.programOwner.personId!!)
+        val before = TestPlan.revision()
+        assertEquals(HttpStatusCode.OK, w.streamOwner.client.putProgramOrder(w.streamId, before, listOf(a, b)).status)
+        assertEquals(before + 1, TestPlan.revision(), "an accepted program order PUT is ONE plan write")
+        assertEquals(HttpStatusCode.OK, w.streamOwner.client.putProgramOrder(w.streamId, before + 1, emptyList()).status)
+        assertEquals(before + 2, TestPlan.revision(), "the reset too")
+        try {
+            assertEquals(HttpStatusCode.OK, w.admin.client.putWorkStreamOrder(before + 2, listOf(w.streamId)).status)
+            assertEquals(before + 3, TestPlan.revision(), "an accepted work stream order PUT is ONE plan write")
+            assertEquals(HttpStatusCode.Conflict, w.admin.client.putWorkStreamOrder(before + 2, listOf(w.streamId)).status)
+            assertEquals(HttpStatusCode.Conflict, w.streamOwner.client.putProgramOrder(w.streamId, before, listOf(a)).status)
+            assertEquals(HttpStatusCode.Forbidden, w.stranger.client.putProgramOrder(w.streamId, before + 3, listOf(a)).status)
+            assertEquals(HttpStatusCode.Forbidden, w.streamOwner.client.putWorkStreamOrder(before + 3, listOf(w.streamId)).status)
+            assertEquals(HttpStatusCode.BadRequest, w.streamOwner.client.putProgramOrder(w.streamId, before + 3, listOf(a, a)).status)
+            assertEquals(HttpStatusCode.BadRequest, w.admin.client.putWorkStreamOrder(before + 3, listOf(999_999u)).status)
+            assertEquals(HttpStatusCode.NotFound, w.streamOwner.client.putProgramOrder(999999u, before + 3, listOf(a)).status)
+            assertEquals(before + 3, TestPlan.revision(), "no rejected request moved it")
+        } finally {
+            TestPlan.resetWorkStreamOrder()
+        }
+    }
+
+    @Test
     fun `a plan write waits for the plan_state lock, then completes and bumps the revision once`() = testApplication {
         usePostgresTestcontainer()
         val w = planWorld("lock")

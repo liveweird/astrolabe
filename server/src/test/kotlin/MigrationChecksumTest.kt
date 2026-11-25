@@ -55,6 +55,7 @@ class MigrationChecksumTest {
         "V31__flow_sprint_snapshot_completeness.sql" to -1947069968,
         "V32__saved_schedule_proposals.sql" to -1131957739,
         "V33__baseline_links_and_capacity.sql" to 1458802957,
+        "V34__plan_tree_order.sql" to 1128241177,
     )
 
     @Test

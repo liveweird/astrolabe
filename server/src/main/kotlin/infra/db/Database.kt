@@ -56,6 +56,8 @@ import ch.nokillswit.planning.HomeViewService
 import ch.nokillswit.planning.HomeViewServiceKey
 import ch.nokillswit.planning.MilestoneService
 import ch.nokillswit.planning.MilestoneServiceKey
+import ch.nokillswit.planning.PlanOrderService
+import ch.nokillswit.planning.PlanOrderServiceKey
 import ch.nokillswit.planning.PlanViewService
 import ch.nokillswit.planning.PlanViewServiceKey
 import ch.nokillswit.planning.ProgramService
@@ -150,6 +152,7 @@ private fun Application.wirePlan(database: R2dbcDatabase) {
     attributes.put(PlanViewServiceKey, PlanViewService(database))
     attributes.put(RoadmapServiceKey, RoadmapService(database))
     attributes.put(TeamOrderServiceKey, TeamOrderService(database))
+    attributes.put(PlanOrderServiceKey, PlanOrderService(database))
     attributes.put(TeamScheduleServiceKey, TeamScheduleService(database))
     attributes.put(ScheduleProposalServiceKey, ScheduleProposalService(database))
     attributes.put(CrossTeamProposalServiceKey, CrossTeamProposalService(database))

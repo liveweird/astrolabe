@@ -1072,6 +1072,88 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/work-streams/{id}/program-order:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    put:
+      tags: [plan]
+      operationId: replaceProgramOrder
+      summary: Replace a work stream's program order
+      description: >-
+        Replaces the order of the work stream's programs wholesale: the listed programs get positions 1 to n, the stream's other
+        programs follow them by name, and an empty list resets to name order. The order is shared: the Plan and Programs pages draw
+        it. The stream's owner or ADMIN; `404` for an unknown or deleted work stream before the `403`, then the body (a forbidden
+        caller's malformed body is `403`); the chain and the guard are re-checked under the write, so a stream deleted or an owner
+        demoted meanwhile is `404` or `403`, nothing written. `expectedRevision` is this stream's program order revision, so no other
+        write stales it; `409` `urn:astrolabe:problem:stale-revision`, nothing written, when it is below the stored one or above the
+        current plan revision (an unordered stream accepts any value up to it). `400` for an id listed twice, naming no program, a
+        deleted one or one of another work stream, more than 1000 ids, or a negative `expectedRevision`. Every accepted PUT, a no-op
+        included, bumps the plan revision by one; the answer carries it, now this stream's program order revision. Deleting or moving
+        a program takes it out of the list without changing this order's revision.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProgramOrderUpdateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '200':
+          description: The order was replaced; the body carries the new plan revision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanOrderResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: '`expectedRevision` is stale for THIS stream''s program order (`type` is `urn:astrolabe:problem:stale-revision`)'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /api/v1/work-stream-order:
+    put:
+      tags: [plan]
+      operationId: replaceWorkStreamOrder
+      summary: Replace the work stream order
+      description: >-
+        Replaces the order of the work streams wholesale: the listed streams get positions 1 to n, the other streams follow them by
+        name, and an empty list resets to name order. Closed work streams are always shown after the open ones, whatever their stored
+        position. The order is shared: the Plan page and the Programs page draw it. ADMIN only; every other caller gets `403` before
+        the body is read. `expectedRevision` is the work stream order's revision, so no other write stales it; `409`
+        `urn:astrolabe:problem:stale-revision`, nothing written, when it is below the stored one or above the current plan revision (an
+        order never written accepts any value up to the plan revision). `400` for an id listed twice, naming no work stream or a
+        deleted one, more than 1000 ids, or a negative `expectedRevision`. Every accepted PUT, one that keeps the order included,
+        bumps the plan revision by one; the answer carries it, now the work stream order's revision. Deleting a work stream takes it out of
+        the list without changing this order's revision.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkStreamOrderUpdateRequest'
+      responses:
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '200':
+          description: The order was replaced; the body carries the new plan revision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanOrderResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: '`expectedRevision` is stale for the work stream order (`type` is `urn:astrolabe:problem:stale-revision`)'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   /api/v1/programs:
     get:
       tags: [plan]
@@ -7325,6 +7407,45 @@ components:
       required: [revision]
       properties:
         revision: { type: integer, format: int64, minimum: 0, description: The plan revision after this write - the team's order revision from now on. }
+    WorkStreamOrderUpdateRequest:
+      type: object
+      required: [expectedRevision, workStreamIds]
+      properties:
+        expectedRevision:
+          type: integer
+          format: int64
+          minimum: 0
+          description: The work stream order's revision the client's list was read at; a stale one is a `409`.
+        workStreamIds:
+          type: array
+          maxItems: 1000
+          uniqueItems: true
+          items: { type: integer, format: int32, minimum: 0 }
+          description: >-
+            The listed work streams in order, first first - every one an ACTIVE work stream. The streams not listed follow them by name.
+            An empty list resets the order to name order. Closed streams are shown last whatever their position.
+    ProgramOrderUpdateRequest:
+      type: object
+      required: [expectedRevision, programIds]
+      properties:
+        expectedRevision:
+          type: integer
+          format: int64
+          minimum: 0
+          description: This work stream's program order revision the client's list was read at; a stale one is a `409`.
+        programIds:
+          type: array
+          maxItems: 1000
+          uniqueItems: true
+          items: { type: integer, format: int32, minimum: 0 }
+          description: >-
+            The listed programs of the work stream in order, first first - every one an ACTIVE program OF THIS work stream. Its other
+            programs follow them by name. An empty list resets the order to name order.
+    PlanOrderResponse:
+      type: object
+      required: [revision]
+      properties:
+        revision: { type: integer, format: int64, minimum: 0, description: The plan revision after this write - the written list's order revision from now on. }
     TeamScheduleBatchRequest:
       type: object
       required: [expectedRevision, items]

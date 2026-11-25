@@ -29,7 +29,8 @@ import io.ktor.server.routing.routing
  * `POST /teams/{id}/milestone-schedules` and `POST /teams/{id}/schedule-proposal`, since 1.8 the plan-scoped `/schedule-proposals`),
  * registered by this ONE
  * module function and split per entity (`WorkStreamRoutes.kt`, `ProgramRoutes.kt`, `ProjectRoutes.kt`, `MilestoneRoutes.kt`,
- * `DependencyRoutes.kt`, `PlanViewRoutes.kt`, `RoadmapRoutes.kt`, `TeamOrderRoutes.kt`, `TeamScheduleRoutes.kt`,
+ * `DependencyRoutes.kt`, `PlanViewRoutes.kt`, `RoadmapRoutes.kt`, `TeamOrderRoutes.kt`, since V34 `PlanOrderRoutes.kt` (`PUT
+ * /work-stream-order` and `PUT /work-streams/{id}/program-order`), `TeamScheduleRoutes.kt`,
  * `CrossTeamScheduleRoutes.kt`, since 1.26 `SavedProposalRoutes.kt` (`/saved-schedule-proposals`, not plan state), and since V19
  * `PublicHolidayRoutes.kt` - the ADMIN registry `/public-holidays`, guard-before-read, whose writes are plan writes, and since V20
  * `BaselineRoutes.kt` - the registry `/baselines`, written by ADMIN or a `ROADMAP_EDITOR`, guard-before-read like the ranking) — the first
@@ -71,11 +72,12 @@ fun Application.configurePlanningRoutes() {
             crossTeam = attributes[CrossTeamProposalServiceKey],
         ),
     )
-    // Not in PlanRouteDeps: the registries, each read by ONE route file (the baselines' and the saved proposals' routes take the deps
-    // for the caller's flags and guards).
+    // Not in PlanRouteDeps: the registries and the plan order, each read by ONE route file (the baselines', the saved proposals' and the
+    // plan order's routes take the deps for the caller's flags and guards).
     val holidays = attributes[PublicHolidayServiceKey]
     val baselines = attributes[BaselineServiceKey]
     val savedProposals = attributes[SavedProposalServiceKey]
+    val planOrder = attributes[PlanOrderServiceKey]
     routing {
         authenticate {
             workStreamRoutes(deps)
@@ -86,6 +88,7 @@ fun Application.configurePlanningRoutes() {
             planViewRoutes(deps)
             roadmapRoutes(deps)
             teamOrderRoutes(deps)
+            planOrderRoutes(deps, planOrder)
             teamScheduleRoutes(deps)
             crossTeamScheduleRoutes(deps)
             publicHolidayRoutes(holidays)

@@ -14,7 +14,7 @@ Owns: the planning domain as built: people, permissions and dates, the plan stru
 - **Who writes what.** Plan fields follow the owner chain; dates follow the milestone's team manager, never the project's owner; the rank and any project's target window follow `ROADMAP_EDITOR`; registries (people, teams, holidays) are ADMIN.
 - Every mutation emits an audit event (`observability.md`); an owner change, a window change and a team change are their own trail lines (rights paths); whether a no-op emits is per event (`observability.md`): the moves, `dependency.updated`, `milestone.scheduled`, `baseline.updated` and the pin fire only on a change, the others on every accepted write.
 - **Scheduling is `scheduling.md`.** The auto-proposal (one team) and the cross-team run are pure kernels over this plan: a proposal never writes, the accept is one plan write under the lock, and a stale scope is a `409` decided there.
-- Work streams, programs, projects and milestones have a paged list ("The picker and milestone lists"); the plan view reads the whole tree.
+- Work streams, programs, projects and milestones have a paged list ("The picker and milestone lists"); the plan view reads the whole tree; the order of work streams and programs is `plan-tree.md`.
 - The user's decisions behind a rule are `product.md` "Domain decisions"; this doc says what the code does.
 
 ## People
@@ -61,7 +61,7 @@ Every node also has name, description and `owner_person_id`. The name indexes ar
 
 `R2dbcDatabase.withPlanWrite { revision -> … }` = one transaction: `SELECT revision FROM plan_state WHERE id = 1 FOR UPDATE`, run the block, `UPDATE plan_state SET revision = revision + 1`.
 
-**Every mutation of `work_streams`, `programs`, `projects`, `roadmap_entries`, `milestones`, `dependencies`, `team_milestone_orders` / `team_order_state`, `public_holidays` and the `baselines` registry with its frozen rows runs inside it.** People and teams are not plan state. The Jira import's apply is such a writer too: the ONE Jira write that takes `withPlanWrite`, after every HTTP call; it takes the bind's advisory lock right after the plan lock (`persistence.md`).
+**Every mutation of `work_streams`, `programs`, `projects`, `roadmap_entries`, `milestones`, `dependencies`, `team_milestone_orders` / `team_order_state`, `work_stream_orders` / `program_orders` / `program_order_state`, `public_holidays` and the `baselines` registry with its frozen rows runs inside it.** The Jira import's apply is such a writer too: the ONE Jira write that takes `withPlanWrite`, after every HTTP call; it takes the bind's advisory lock right after the plan lock (`persistence.md`).
 
 A block that throws (404/409/400 found after the lock) rolls back the bump with everything else; a no-op PUT still bumps (conservative). Consequences the code relies on:
 
@@ -74,7 +74,7 @@ A block that throws (404/409/400 found after the lock) rolls back the bump with 
   - re-runs `requireOwnerOrAdmin` / `requireTargetWindowEditorOrAdmin`, re-reading the `ROADMAP_EDITOR` grant in the same transaction; ADMIN short-circuits.
 - A `ForbiddenException` there rolls back with no revision bump and is audited centrally as `authz.denied`. No lock cycle: person and team writers never take `plan_state`.
 - **A view reads the revision FIRST, then the rows**, in one read-only `REPEATABLE READ` snapshot (`persistence.md`), so the revision, the rows and the calendar agree.
-- **Three per-thing revisions** guard the ranking (`plan_state.ranking_revision`), a milestone's schedule (`schedule_revision`) and a team's order (`team_order_state.revision`). Each is stamped with the new plan revision by the writes that change the thing it guards, so a plan write elsewhere never stales it; the plan revision stays the upper bound of each (a value above it is a view from the future). A stale one answers `409` with `type = urn:astrolabe:problem:stale-revision`.
+- **Five per-thing revisions** guard the ranking (`plan_state.ranking_revision`), a milestone's schedule (`schedule_revision`), a team's order (`team_order_state.revision`), the work stream order (`plan_state.work_stream_order_revision`) and a stream's program order (`program_order_state.revision`). Each is stamped with the new plan revision by the writes that change what it guards, so a plan write elsewhere never stales it; the plan revision is the upper bound of each (a larger value is a view from the future). A stale one answers `409` with `type = urn:astrolabe:problem:stale-revision`.
 - A view's validator (`ETag`) is a hash of its rendered document and the caller's user id, not a stamp of inputs ("View validators"). A baseline records the `revision` it was taken at.
 
 Pinned by: `PlanStateTest`.
@@ -90,7 +90,7 @@ Routes, bodies and statuses are `openapi/documentation.yaml` (tag `plan`), the g
 - The caller owns something ABOVE the node (the node's own owner alone may not take it out of where it is) AND something on the TARGET chain, or is ADMIN. Both guards re-run under the plan lock against chains re-read there.
 - A missing or deleted target is a `400` on the body field, never a `404`. A closed work stream still takes children, so it is a valid target.
 - One `UPDATE … SET program_id / work_stream_id` plus `updated_at` in a `withPlanWrite`. A project's name must be free in the target program (the partial index's `409`); program names are global, so a program move cannot clash.
-- Milestones ride along (their FK is the project) and the global ranking is untouched (it is by project, not by place). Spans and views are derived by joins, so every chain-derived read follows at once.
+- Milestones ride along (their FK is the project) and the global ranking is untouched (it is by project, not by place); a moved program leaves its old stream's program order and is unlisted in the target (`plan-tree.md` "Hooks"). Spans and views are derived by joins, so every chain-derived read follows at once.
 - A move to the current parent is a no-op `204` for a caller who passes both guards: no `UPDATE`, no audit (the revision still bumps). No `expectedRevision`: it sets a parent, it does not merge a client's view.
 - `can.move` on every program and project is `PlanPermissions.canMove` (= the source guard); the SPA pairs it with the candidate's `can.createProject` / `can.createProgram`.
 

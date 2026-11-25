@@ -13,7 +13,8 @@ import org.jetbrains.exposed.v1.r2dbc.update
  * monotonic and bumped by every plan mutation; it is the upper BOUND of both wholesale PUTs' `expectedRevision` (a value above it is
  * stale) and the expectation of neither: the ranking PUT (V13) compares against [rankingRevision] (V18, the plan revision at which
  * `roadmap_entries` was last written) and the team-order PUT (V17) against its own team's `team_order_state.revision`, so a plan
- * write elsewhere never stales either. It is also the seed of the future view ETags and the anchor baselines record.
+ * write elsewhere never stales either (the Plan tree's two orders, V34, follow the same rule: [workStreamOrderRevision] and
+ * `program_order_state.revision`). It is also the seed of the future view ETags and the anchor baselines record.
  */
 object PlanState : Table("plan_state") {
     val id = short("id")
@@ -21,6 +22,9 @@ object PlanState : Table("plan_state") {
 
     /** The plan revision at which the ranking was last written (V18); never above [revision]. */
     val rankingRevision = long("ranking_revision")
+
+    /** The plan revision at which the work stream order was last written (V34); never above [revision]. */
+    val workStreamOrderRevision = long("work_stream_order_revision")
     val updatedAt = long("updated_at")
     override val primaryKey = PrimaryKey(id)
 }
@@ -33,10 +37,10 @@ data class PlanWrite<T>(val value: T, val revision: Long)
 /**
  * Runs [block] as ONE plan write: a transaction that first takes `plan_state` `FOR UPDATE` (every writer of the work streams,
  * programs, projects, milestones (V14), dependencies (V15), the team milestone orders (V17), the public holidays (V19), the
- * baselines (V20) and — from V13 — the ranking serializes here, so a read-then-write inside [block], such as "count the active
- * children, then delete", cannot interleave with another plan writer), hands [block] the revision it started from, and bumps the
- * revision by one when it returns. A [block] that throws (a 404, 409 or 400 found after the lock) rolls the whole transaction back,
- * so a rejected write never moves the revision.
+ * baselines (V20), the work stream and program orders (V34) and — from V13 — the ranking serializes here, so a read-then-write inside
+ * [block], such as "count the active children, then delete", cannot interleave with another plan writer), hands [block] the revision
+ * it started from, and bumps the revision by one when it returns. A [block] that throws (a 404, 409 or 400 found after the lock) rolls
+ * the whole transaction back, so a rejected write never moves the revision.
  *
  * Plain `FOR UPDATE`, not `FOR NO KEY UPDATE` (persistence.md "Row locks vs. FK locks"): nothing references `plan_state` by a
  * foreign key, so no FK check's `FOR KEY SHARE` can queue behind (or in front of) the lock, and the row's key is never changed.
@@ -73,4 +77,16 @@ suspend fun readRankingRevision(): Long =
 /** Stamps the ranking as written at [revision], the plan revision the enclosing [withPlanWrite] leaves behind (`revision + 1`). */
 internal suspend fun stampRankingRevision(revision: Long) {
     PlanState.update({ PlanState.id eq PLAN_STATE_ID }) { it[rankingRevision] = revision }
+}
+
+/**
+ * The work stream order's revision (V34), read WITHOUT the lock inside the caller's transaction (inside [withPlanWrite]'s block the same
+ * read is exact, because every order writer holds the lock).
+ */
+suspend fun readWorkStreamOrderRevision(): Long = PlanState.select(PlanState.workStreamOrderRevision)
+    .where { PlanState.id eq PLAN_STATE_ID }.toList().single()[PlanState.workStreamOrderRevision]
+
+/** Stamps the work stream order as written at [revision], the plan revision the enclosing [withPlanWrite] leaves behind. */
+internal suspend fun stampWorkStreamOrderRevision(revision: Long) {
+    PlanState.update({ PlanState.id eq PLAN_STATE_ID }) { it[workStreamOrderRevision] = revision }
 }

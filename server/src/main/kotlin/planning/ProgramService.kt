@@ -164,7 +164,8 @@ class ProgramService(private val database: R2dbcDatabase) {
      * Moves the program under [workStreamId] under the plan lock. The SOURCE chain is re-read (missing = 404) and the source guard
      * re-run on it (the work stream's owner), then the TARGET work stream's chain (missing = 400, a body field) and the target guard
      * on that too: both must pass. Program names are globally unique, so a move cannot clash; its projects (and their milestones) ride
-     * along, the ranking is untouched, and a move to the current work stream writes nothing (the outcome says so).
+     * along, the ranking is untouched, the program leaves its old stream's program order (V34), and a move to the current work stream
+     * writes nothing (the outcome says so).
      */
     suspend fun move(id: UInt, workStreamId: UInt, guards: MoveGuards): MoveOutcome = database.withPlanWrite {
         guards.source(programChain(id).orNotFound("Program"))
@@ -176,6 +177,8 @@ class ProgramService(private val database: R2dbcDatabase) {
                 it[this.workStreamId] = workStreamId
                 it[updatedAt] = nowMillis()
             }
+            // The program leaves the source stream's order (the gap closes) and is unlisted in the target (V34).
+            removeFromProgramOrder(id)
         }
         MoveOutcome(from, workStreamId)
     }.value
@@ -192,6 +195,7 @@ class ProgramService(private val database: R2dbcDatabase) {
                 it[markedAsDeleted] = true
                 it[updatedAt] = nowMillis()
             }
+            removeFromProgramOrder(id) // the program leaves its stream's order in the same transaction (V34)
         }
     }
 }

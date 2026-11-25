@@ -158,7 +158,7 @@ class WorkStreamService(private val database: R2dbcDatabase) {
      * Soft delete under the plan lock: 409 while the stream has ACTIVE programs. The count runs under the lock, which is what makes
      * "count the children, then delete" race-free against a concurrent program create (a child INSERT's FK check takes only
      * `FOR KEY SHARE`, which a row lock on the stream would not block; `persistence.md` "Row locks vs. FK locks"). A missing
-     * stream is a 404.
+     * stream is a 404. The stream's row of the work stream order is removed and the gap closed in the same transaction.
      */
     suspend fun delete(id: UInt, guard: PlanGuard) {
         database.withPlanWrite {
@@ -171,6 +171,7 @@ class WorkStreamService(private val database: R2dbcDatabase) {
                 it[markedAsDeleted] = true
                 it[updatedAt] = nowMillis()
             }
+            removeFromWorkStreamOrder(id) // the stream leaves the shared order in the same transaction (V34)
         }
     }
 }

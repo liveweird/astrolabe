@@ -546,6 +546,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/work-streams/{id}/program-order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace a work stream's program order
+         * @description Replaces the order of the work stream's programs wholesale: the listed programs get positions 1 to n, the stream's other programs follow them by name, and an empty list resets to name order. The order is shared: the Plan and Programs pages draw it. The stream's owner or ADMIN; `404` for an unknown or deleted work stream before the `403`, then the body (a forbidden caller's malformed body is `403`); the chain and the guard are re-checked under the write, so a stream deleted or an owner demoted meanwhile is `404` or `403`, nothing written. `expectedRevision` is this stream's program order revision, so no other write stales it; `409` `urn:astrolabe:problem:stale-revision`, nothing written, when it is below the stored one or above the current plan revision (an unordered stream accepts any value up to it). `400` for an id listed twice, naming no program, a deleted one or one of another work stream, more than 1000 ids, or a negative `expectedRevision`. Every accepted PUT, a no-op included, bumps the plan revision by one; the answer carries it, now this stream's program order revision. Deleting or moving a program takes it out of the list without changing this order's revision.
+         */
+        put: operations["replaceProgramOrder"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/work-stream-order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace the work stream order
+         * @description Replaces the order of the work streams wholesale: the listed streams get positions 1 to n, the other streams follow them by name, and an empty list resets to name order. Closed work streams are always shown after the open ones, whatever their stored position. The order is shared: the Plan page and the Programs page draw it. ADMIN only; every other caller gets `403` before the body is read. `expectedRevision` is the work stream order's revision, so no other write stales it; `409` `urn:astrolabe:problem:stale-revision`, nothing written, when it is below the stored one or above the current plan revision (an order never written accepts any value up to the plan revision). `400` for an id listed twice, naming no work stream or a deleted one, more than 1000 ids, or a negative `expectedRevision`. Every accepted PUT, one that keeps the order included, bumps the plan revision by one; the answer carries it, now the work stream order's revision. Deleting a work stream takes it out of the list without changing this order's revision.
+         */
+        put: operations["replaceWorkStreamOrder"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/programs": {
         parameters: {
             query?: never;
@@ -5094,6 +5136,31 @@ export interface components {
              */
             revision: number;
         };
+        WorkStreamOrderUpdateRequest: {
+            /**
+             * Format: int64
+             * @description The work stream order's revision the client's list was read at; a stale one is a `409`.
+             */
+            expectedRevision: number;
+            /** @description The listed work streams in order, first first - every one an ACTIVE work stream. The streams not listed follow them by name. An empty list resets the order to name order. Closed streams are shown last whatever their position. */
+            workStreamIds: number[];
+        };
+        ProgramOrderUpdateRequest: {
+            /**
+             * Format: int64
+             * @description This work stream's program order revision the client's list was read at; a stale one is a `409`.
+             */
+            expectedRevision: number;
+            /** @description The listed programs of the work stream in order, first first - every one an ACTIVE program OF THIS work stream. Its other programs follow them by name. An empty list resets the order to name order. */
+            programIds: number[];
+        };
+        PlanOrderResponse: {
+            /**
+             * Format: int64
+             * @description The plan revision after this write - the written list's order revision from now on.
+             */
+            revision: number;
+        };
         TeamScheduleBatchRequest: {
             /**
              * Format: int64
@@ -8573,6 +8640,87 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    replaceProgramOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramOrderUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description The order was replaced; the body carries the new plan revision */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanOrderResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description `expectedRevision` is stale for THIS stream's program order (`type` is `urn:astrolabe:problem:stale-revision`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    replaceWorkStreamOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkStreamOrderUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description The order was replaced; the body carries the new plan revision */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanOrderResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description `expectedRevision` is stale for the work stream order (`type` is `urn:astrolabe:problem:stale-revision`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
             500: components["responses"]["InternalServerError"];
