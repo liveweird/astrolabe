@@ -6,13 +6,11 @@ import i18n from "../i18n";
 import { renderWithProviders, screen, waitFor, within } from "../test/render";
 import { headingOutline } from "../test/headings";
 import { jsonResponse } from "../test/http";
+import { planOf } from "../test/planView";
 import { dependencyListView, dependencyRow, milestoneEnd, projectEnd, unscheduledRow, violatedRow } from "../test/dependencyList";
 import Dependencies from "./Dependencies";
 
-const PLAN = {
-  revision: 1,
-  workStreams: [{ id: 700, name: "Platform", programs: [{ id: 70, name: "Billing", projects: [{ id: 3, name: "Checkout" }, { id: 6, name: "Billing" }] }] }],
-};
+const PLAN = planOf([{ id: 700, name: "Platform", programs: [{ id: 70, name: "Billing", projects: [{ id: 3, name: "Checkout" }, { id: 6, name: "Billing" }] }] }]);
 const TEAMS = { items: [{ id: 4, name: "Backend" }, { id: 7, name: "Frontend" }], page: 1, pageSize: 100, total: 2 };
 
 // Three milestone links of different status and one whole-project successor, in the server's order (violated first).

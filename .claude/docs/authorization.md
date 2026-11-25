@@ -201,6 +201,7 @@ Pinned by: `MilestoneTest`, `MilestoneScheduleTest`, `MilestonePinTest`, `PlanPe
 | `DELETE /dependencies/{id}` | the same | `dependencyChain` ?: 404 → `requireOwnerOrAdmin` → (under the lock) chain re-read 404 → the guard again 403 → 204 |
 
 - **The `can` flags** (arithmetic: `planning-model.md` "The project view's dependencies"): `can.edit` and `can.delete` are `canManage` on the chain of the project that holds the link's SUCCESSOR, so the predecessor's project owner sees `delete: false` on the link into someone else's project.
+- **`createDependency`** is the same `canManage` on the project as SUCCESSOR's project, on the project view and (1.27) on each plan-view project; the Dependencies page offers only such projects as the successor's and any project as the predecessor.
 
 Pinned by: `DependencyTest`, `DependencyUpdateTest`, `PlanPermissionsTest`, `ProjectViewDependenciesTest`.
 

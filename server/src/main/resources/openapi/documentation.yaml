@@ -5797,13 +5797,14 @@ components:
         updatedAt: { type: integer, format: int64 }
         can:
           type: object
-          required: [edit, delete, editTargetWindow, move, createMilestone]
+          required: [edit, delete, editTargetWindow, move, createMilestone, createDependency]
           properties:
             edit: { type: boolean }
             delete: { type: boolean, description: 'A rights flag: the caller may delete the node. The server can still answer 409 while it has active children.' }
             editTargetWindow: { type: boolean, description: 'The caller may set the target window (ADMIN, an owner above the project, or a roadmap editor).' }
             move: { type: boolean, description: 'The caller may move this project to another program (ADMIN, or an owner of its program or work stream - the project''s own owner alone may not); offer the programs whose `createProject` is set.' }
             createMilestone: { type: boolean, description: 'The caller may add milestones to this project (ADMIN, or an owner of its chain, the project''s own owner included): the project view''s flag of the same name, and the guard of a rooted Jira import under it.' }
+            createDependency: { type: boolean, description: 'The caller may add a dependency whose successor is this project or one of its milestones (ADMIN, or an owner of its chain, the project''s own owner included): the project view''s flag of the same name. The predecessor''s owner is asked nothing.' }
 
     ProjectView:
       type: object

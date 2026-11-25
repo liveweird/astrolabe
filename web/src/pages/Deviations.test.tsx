@@ -10,15 +10,13 @@ import { connectionIn, DEV_CONNECTION, detail, item, NOW, view } from "../test/d
 import { NO_FLOW_VIEW, capacityItem, capacityView, differsRow, missingRow } from "../test/flow";
 import type { CapacityDeviationView } from "../api/capacityDeviations";
 import type { DeviationView } from "../api/deviations";
+import { planOf } from "../test/planView";
 import Deviations from "./Deviations";
 
 const ROLES_KEY = "astrolabe.auth.roles";
 type FetchMock = ReturnType<typeof vi.fn>;
 
-const PLAN = {
-  revision: 1,
-  workStreams: [{ id: 700, name: "Platform", programs: [{ id: 70, name: "Billing", projects: [{ id: 7, name: "Invoices" }] }] }],
-};
+const PLAN = planOf([{ id: 700, name: "Platform", programs: [{ id: 70, name: "Billing", projects: [{ id: 7, name: "Invoices" }] }] }]);
 const TEAMS = { items: [{ id: 3, name: "Backend" }], page: 1, pageSize: 100, total: 1 };
 
 let doc: DeviationView;

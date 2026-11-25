@@ -3673,6 +3673,8 @@ export interface components {
                 move: boolean;
                 /** @description The caller may add milestones to this project (ADMIN, or an owner of its chain, the project's own owner included): the project view's flag of the same name, and the guard of a rooted Jira import under it. */
                 createMilestone: boolean;
+                /** @description The caller may add a dependency whose successor is this project or one of its milestones (ADMIN, or an owner of its chain, the project's own owner included): the project view's flag of the same name. The predecessor's owner is asked nothing. */
+                createDependency: boolean;
             };
         };
         ProjectView: {

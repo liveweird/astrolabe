@@ -68,6 +68,7 @@ class PlanViewService(private val database: R2dbcDatabase) {
                                         editTargetWindow = PlanPermissions.canEditTargetWindow(actor, projectChain),
                                         move = PlanPermissions.canMove(actor, projectChain),
                                         createMilestone = PlanPermissions.canCreateMilestone(actor, projectChain),
+                                        createDependency = PlanPermissions.canCreateDependency(actor, projectChain),
                                     ),
                                 )
                             }

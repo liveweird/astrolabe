@@ -98,6 +98,7 @@ class PlanViewTest {
                 assertEquals(rights.project, project.can.edit, "$label: project.edit")
                 assertEquals(rights.project, project.can.delete, "$label: project.delete")
                 assertEquals(rights.window, project.can.editTargetWindow, "$label: project.editTargetWindow")
+                assertEquals(rights.project, project.can.createDependency, "$label: project.createDependency")
             }
         }
 
@@ -171,5 +172,65 @@ class PlanViewTest {
         }
         assertTrue(w.projectOwner.view().stream(w.streamId).programs.single().projects.single().can.createMilestone)
         assertFalse(w.stranger.view().stream(w.streamId).programs.single().projects.single().can.createMilestone)
+    }
+
+    @Test
+    fun `createDependency equals the project view's flag of the same project for every caller`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("pcd", teams = true)
+        val t = w.requireTeams()
+        val everyone = listOf(
+            "admin" to w.admin, "stream owner" to w.streamOwner, "program owner" to w.programOwner,
+            "project owner" to w.projectOwner, "team manager" to t.manager, "stranger" to w.stranger,
+            "personless" to w.personless, "editor" to w.editor,
+        )
+        for ((label, caller) in everyone) {
+            val planFlag = caller.view().stream(w.streamId).programs.single { it.id == w.programId }.projects
+                .single { it.id == w.projectId }.can.createDependency
+            val projectFlag = caller.client.get("/api/v1/views/project/${w.projectId}").body<ProjectView>().project.can.createDependency
+            assertEquals(projectFlag, planFlag, "$label: the plan view's createDependency is the project view's")
+        }
+        assertTrue(w.projectOwner.view().stream(w.streamId).programs.single().projects.single().can.createDependency)
+        assertFalse(w.stranger.view().stream(w.streamId).programs.single().projects.single().can.createDependency)
+        assertFalse(t.manager.view().stream(w.streamId).programs.single().projects.single().can.createDependency, "a team manager as such")
+
+        // A project under a CLOSED work stream: the flag is the same arithmetic there, and equals the project view's.
+        val closed = TestPlan.workStream(w.streamOwner.personId!!, "${planName("pcdc")}-closed", endDate = "2026-06-30")
+        val closedProgram = TestPlan.program(closed, w.programOwner.personId!!)
+        val closedProject = TestPlan.project(closedProgram, w.projectOwner.personId!!)
+        for ((label, caller) in everyone) {
+            val planFlag = caller.view().stream(closed).programs.single().projects.single { it.id == closedProject }.can.createDependency
+            val projectFlag = caller.client.get("/api/v1/views/project/$closedProject").body<ProjectView>().project.can.createDependency
+            assertEquals(projectFlag, planFlag, "$label: the closed stream's project, plan view against project view")
+        }
+        assertTrue(w.projectOwner.view().stream(closed).programs.single().projects.single().can.createDependency)
+        assertFalse(w.stranger.view().stream(closed).programs.single().projects.single().can.createDependency)
+    }
+
+    @Test
+    fun `createDependency is set exactly where the real POST gets past its guard, another project's owner is refused`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("pcdw", teams = true)
+        val t = w.requireTeams()
+        val other = secondProject(w, "pcdw")
+        val everyone = listOf(
+            "admin" to w.admin, "stream owner" to w.streamOwner, "program owner" to w.programOwner,
+            "project owner" to w.projectOwner, "other project's owner" to other.owner, "team manager" to t.manager,
+            "stranger" to w.stranger, "personless" to w.personless, "editor" to w.editor,
+        )
+        for ((label, caller) in everyone) {
+            val project = caller.view().stream(w.streamId).programs.single { it.id == w.programId }.projects
+                .single { it.id == w.projectId }
+            // A self-link is a body 400 that comes AFTER the guard and writes nothing: 400 = past the guard, 403 = refused.
+            val status = caller.client.postDependency(w.projectId, projectRef(w.projectId), projectRef(w.projectId)).status
+            assertEquals(
+                if (project.can.createDependency) HttpStatusCode.BadRequest else HttpStatusCode.Forbidden,
+                status,
+                "$label: the POST agrees with the flag",
+            )
+        }
+        val seenByOther = other.owner.view().stream(w.streamId).programs.single().projects
+        assertFalse(seenByOther.single { it.id == w.projectId }.can.createDependency, "the predecessor's owner may not link into A")
+        assertTrue(seenByOther.single { it.id == other.projectId }.can.createDependency, "and may link into their own project")
     }
 }

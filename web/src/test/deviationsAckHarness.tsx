@@ -7,13 +7,14 @@ import { renderWithProviders } from "./render";
 import { jsonResponse } from "./http";
 import { endLater, item, stamped, view } from "./deviations";
 import { NO_FLOW_VIEW } from "./flow";
+import { planOf } from "./planView";
 import type { DeviationItem, DeviationView } from "../api/deviations";
 import Deviations from "../pages/Deviations";
 
 // The Deviations page's acknowledge tests share this harness (one file would be too long for the lint's function-size cap): the page over a
 // stubbed fetch whose document and acknowledge route each test sets, a QueryClient it can spy on, and the rows that name their buttons.
 
-const PLAN = { revision: 1, workStreams: [{ id: 700, name: "Platform", programs: [{ id: 70, name: "Billing", projects: [{ id: 7, name: "Invoices" }] }] }] };
+const PLAN = planOf([{ id: 700, name: "Platform", programs: [{ id: 70, name: "Billing", projects: [{ id: 7, name: "Invoices" }] }] }]);
 const TEAMS = { items: [{ id: 3, name: "Backend" }], page: 1, pageSize: 100, total: 1 };
 export const AT = Date.UTC(2026, 10, 6, 12, 30);
 export const STALE_PROBLEM = { type: "urn:astrolabe:problem:stale-deviations", title: "Conflict", status: 409, detail: "The deviations changed" };

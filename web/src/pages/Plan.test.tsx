@@ -23,7 +23,7 @@ const project = (over: Partial<PlanProject> & Pick<PlanProject, "id" | "name">):
   targetEnd: null,
   createdAt: 1,
   updatedAt: 2,
-  can: { edit: true, delete: true, editTargetWindow: true, move: true, createMilestone: true },
+  can: { edit: true, delete: true, editTargetWindow: true, move: true, createMilestone: true, createDependency: true },
   ...over,
 });
 
@@ -54,8 +54,8 @@ const stream = (over: Partial<PlanWorkStream> & Pick<PlanWorkStream, "id" | "nam
 
 const INVOICES = project({ id: 100, name: "Invoices", targetStart: "2026-02-01", targetEnd: "2026-03-31", description: "Monthly invoicing" });
 // An owner without the window right, and a roadmap editor (window only) — the two halves of the project modal.
-const TAXES = project({ id: 101, name: "Taxes", ownerName: "Tania Tax", can: { edit: true, delete: false, editTargetWindow: false, move: true, createMilestone: true } });
-const AUDIT = project({ id: 102, name: "Audit", targetStart: "2026-04-01", targetEnd: "2026-04-30", can: { edit: false, delete: false, editTargetWindow: true, move: false, createMilestone: false } });
+const TAXES = project({ id: 101, name: "Taxes", ownerName: "Tania Tax", can: { edit: true, delete: false, editTargetWindow: false, move: true, createMilestone: true, createDependency: true } });
+const AUDIT = project({ id: 102, name: "Audit", targetStart: "2026-04-01", targetEnd: "2026-04-30", can: { edit: false, delete: false, editTargetWindow: true, move: false, createMilestone: false, createDependency: false } });
 
 const VIEW: PlanView = {
   revision: 5,
@@ -183,7 +183,7 @@ describe("Plan page", () => {
           name: "Platform",
           can: { edit: false, delete: false, createProgram: false },
           programs: [
-            program({ id: 10, name: "Billing", can: { edit: false, delete: false, createProject: false, move: false }, projects: [TAXES, AUDIT, INVOICES].map((p) => ({ ...p, can: { edit: p.id === 101, delete: false, editTargetWindow: p.id === 102, move: p.id === 101, createMilestone: p.id === 101 } })) }),
+            program({ id: 10, name: "Billing", can: { edit: false, delete: false, createProject: false, move: false }, projects: [TAXES, AUDIT, INVOICES].map((p) => ({ ...p, can: { edit: p.id === 101, delete: false, editTargetWindow: p.id === 102, move: p.id === 101, createMilestone: p.id === 101, createDependency: p.id === 101 } })) }),
           ],
         }),
       ],
@@ -826,7 +826,7 @@ describe("Plan page: Import from a linked project (1.15)", () => {
               id: 10,
               name: "Billing",
               can: { edit: false, delete: false, createProject: false, move: false },
-              projects: [project({ id: 101, name: "Taxes", can: { edit: false, delete: false, editTargetWindow: false, move: false, createMilestone: true } })],
+              projects: [project({ id: 101, name: "Taxes", can: { edit: false, delete: false, editTargetWindow: false, move: false, createMilestone: true, createDependency: true } })],
             }),
           ],
         }),
@@ -853,7 +853,7 @@ describe("Plan page: Import from a linked project (1.15)", () => {
               id: 10,
               name: "Billing",
               can: { edit: false, delete: false, createProject: false, move: false },
-              projects: [project({ id: 101, name: "Taxes", can: { edit: true, delete: false, editTargetWindow: false, move: false, createMilestone: false } })],
+              projects: [project({ id: 101, name: "Taxes", can: { edit: true, delete: false, editTargetWindow: false, move: false, createMilestone: false, createDependency: false } })],
             }),
           ],
         }),

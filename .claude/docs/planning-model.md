@@ -83,7 +83,7 @@ Pinned by: `PlanStateTest`.
 
 Routes, bodies and statuses are `openapi/documentation.yaml` (tag `plan`), the guards `authorization.md`. PUTs are full replaces (omitted optional = unset; `204`); creates answer `201` + `Location` + the record, which carries `ownerPersonId` + `ownerName`.
 
-**The plan view** (`GET /views/plan`, any authenticated user; about 5 streams / 20 programs / 100 projects) nests work streams → programs → projects with a `can` on every node and one on the document; open work streams first, then closed ones; each level by name (case-insensitive, then id).
+**The plan view** (`GET /views/plan`, any authenticated user; about 5 streams / 20 programs / 100 projects) nests work streams → programs → projects with a `can` on every node and one on the document; open work streams first, then closed ones; each level by name (case-insensitive, then id). A project's `can` also has `createDependency` (`canCreateDependency`, the project as the SUCCESSOR's project: the Dependencies page's "Add dependency" and its picker).
 
 **Moves** (`ProjectService.move`, `ProgramService.move`; bodies `{programId}` / `{workStreamId}`; `204`): a node changes parent only here.
 

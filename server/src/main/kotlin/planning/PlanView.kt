@@ -77,4 +77,6 @@ data class PlanProjectCan(
     val move: Boolean,
     /** 1.15: `POST /projects/{id}/milestones` (the project view's `can.createMilestone`, the same kernel function). */
     val createMilestone: Boolean,
+    /** 1.27: `POST /projects/{id}/dependencies` (the project view's `can.createDependency`, the same kernel function). */
+    val createDependency: Boolean,
 )

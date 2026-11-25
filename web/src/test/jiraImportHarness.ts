@@ -3,21 +3,10 @@
 import { expect, vi } from "vitest";
 import type userEvent from "@testing-library/user-event";
 import { screen, waitFor } from "@testing-library/react";
-import type { PlanView } from "../api/plan";
 import { jsonResponse } from "./http";
+import { planOf } from "./planView";
 
-const PLAN = {
-  revision: 4,
-  can: { createWorkStream: true },
-  workStreams: [
-    {
-      id: 3,
-      name: "Platform",
-      endDate: null,
-      programs: [{ id: 4, name: "Billing", projects: [{ id: 9, name: "Invoices" }] }],
-    },
-  ],
-} as unknown as PlanView;
+const PLAN = planOf([{ id: 3, name: "Platform", programs: [{ id: 4, name: "Billing", projects: [{ id: 9, name: "Invoices" }] }] }], { revision: 4 });
 
 const PEOPLE = {
   items: [
