@@ -14,12 +14,14 @@ val PlanViewServiceKey = AttributeKey<PlanViewService>("PlanViewService")
  * The plan tree (`GET /views/plan`): ONE read-only REPEATABLE READ transaction ([SNAPSHOT], the timeline views' protocol) that takes
  * the revision FIRST and the rows after, takes no lock and writes nothing, so the revision, the three levels and the owners' names are
  * one snapshot and a write committing between the selects cannot tear the tree. They are folded together in memory (bounded by the
- * plan's scale) with the caller's `can` flags from [PlanPermissions]. Order: open work streams before closed ones, every level by
- * name (case-insensitive, then id).
+ * plan's scale) with the caller's `can` flags from [PlanPermissions]. The shared order tables ([readPlanOrder]) are read in the same
+ * snapshot, right after the revision, in four selects whatever the number of streams: the work streams and each stream's programs
+ * follow [PlanOrderKernels] (no stored row = by name, case-insensitive then id, closed streams last always); the projects stay by name.
  */
 class PlanViewService(private val database: R2dbcDatabase) {
     suspend fun view(actor: PlanActor): PlanView = suspendTransaction(database, SNAPSHOT, readOnly = true) {
         val revision = readPlanRevision()
+        val order = readPlanOrder()
         val streams = WorkStreamService.WorkStreams
         val programs = ProgramService.Programs
         val projects = ProjectService.Projects
@@ -34,15 +36,16 @@ class PlanViewService(private val database: R2dbcDatabase) {
         val projectsByProgram = projectRows.groupBy { it[projects.programId].value }
         val programsByStream = programRows.groupBy { it[programs.workStreamId].value }
 
-        val tree = streamRows
-            .sortedWith(
-                compareBy<ResultRow>({ it[streams.endDate] != null }, { it[streams.name].lowercase() }, { it[streams.id].value }),
-            )
+        val tree = PlanOrderKernels
+            .orderWorkStreams(streamRows, order.order, { it[streams.id].value }, { it[streams.name] }, { it[streams.endDate] != null })
             .map { stream ->
                 val streamId = stream[streams.id].value
                 val streamChain = OwnerChain(listOf(stream[streams.ownerPersonId].value))
-                val programNodes = programsByStream[streamId].orEmpty()
-                    .sortedWith(compareBy<ResultRow>({ it[programs.name].lowercase() }, { it[programs.id].value }))
+                val programNodes = PlanOrderKernels
+                    .orderPrograms(
+                        programsByStream[streamId].orEmpty(), order.order,
+                        { it[programs.id].value }, { it[programs.workStreamId].value }, { it[programs.name] },
+                    )
                     .map { program ->
                         val programId = program[programs.id].value
                         val programChain = OwnerChain(streamChain.owners + program[programs.ownerPersonId].value)
@@ -104,10 +107,13 @@ class PlanViewService(private val database: R2dbcDatabase) {
                         edit = PlanPermissions.canManage(actor, streamChain),
                         delete = PlanPermissions.canManage(actor, streamChain),
                         createProgram = PlanPermissions.canManage(actor, streamChain),
+                        orderPrograms = PlanPermissions.canOrderPrograms(actor, streamChain),
                     ),
+                    programOrderRevision = order.programRevision(streamId),
                     programs = programNodes,
                 )
             }
-        PlanView(revision, PlanViewCan(PlanPermissions.canCreateWorkStream(actor)), tree)
+        val can = PlanViewCan(PlanPermissions.canCreateWorkStream(actor), PlanPermissions.canOrderWorkStreams(actor))
+        PlanView(revision, order.workStreamRevision, can, tree)
     }
 }

@@ -3,6 +3,8 @@ import { Button, Group, MultiSelect, NumberInput, Select, Stack, Switch, Text } 
 import { useQuery } from "@tanstack/react-query";
 import { getPlanView, planViewKey } from "../api/plan";
 import type { ImportFailure } from "../utils/jiraImportText";
+import { openFirstByName } from "../utils/planNames";
+import { byNameThenId } from "../utils/text";
 import { MAX_IMPORT_UPDATED_DAYS, MIN_IMPORT_UPDATED_DAYS, toScope, updatedWithinOf, type ImportConnection, type ImportRoot, type ImportSource, type ScopeForm } from "../utils/jiraImport";
 import ErrorAlert from "./ErrorAlert";
 import JiraImportConnectionField from "./JiraImportConnectionField";
@@ -73,10 +75,12 @@ export default function JiraImportScopeStep({
 }) {
   const { t } = useTranslation();
   const plan = useQuery({ queryKey: planViewKey, queryFn: getPlanView });
-  const streams = plan.data?.workStreams ?? [];
+  // Explicit sorts: the plan view's order is the shared one a hand arrangement changes, never a picker's (`openFirstByName`).
+  const streams = openFirstByName(plan.data?.workStreams ?? []);
   const stream = streams.find((candidate) => String(candidate.id) === form.workStreamId);
-  const programs = (stream?.programs ?? []).map((program) => ({ value: String(program.id), label: program.name }));
-  const projects = (stream?.programs ?? []).flatMap((program) =>
+  const streamPrograms = [...(stream?.programs ?? [])].sort(byNameThenId);
+  const programs = streamPrograms.map((program) => ({ value: String(program.id), label: program.name }));
+  const projects = streamPrograms.flatMap((program) =>
     program.projects.map((project) => ({ value: String(project.id), label: t("jira.import.scope.projectOption", { name: project.name, program: program.name }) })),
   );
   const rootProjects = (stream?.programs.find((program) => program.id === root?.nodeId)?.projects ?? []).map((project) => ({ value: String(project.id), label: project.name }));

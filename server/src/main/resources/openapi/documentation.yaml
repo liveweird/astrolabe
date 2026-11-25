@@ -1839,9 +1839,12 @@ paths:
       operationId: getPlanView
       summary: The whole plan tree with the caller's actions
       description: >-
-        Answers the whole plan tree: every active work stream with its programs and projects, open work streams first and then closed
-        ones, each level by name. Any authenticated user. Every node carries `can`, the actions this caller may take, computed by the
-        rules the writes enforce. `revision` is the plan revision read before the rows.
+        Answers the whole plan tree: every active work stream with its programs and projects. Work streams follow the shared work
+        stream order (those listed by `PUT /work-stream-order` first, then the others by name), closed ones always after the open
+        ones; a stream's programs follow its program order, listed first, then the others by name; projects by name. Any
+        authenticated user. Every node carries `can`, the actions this caller may take, computed by the rules the writes enforce.
+        `revision` is the plan revision read before the rows; `workStreamOrderRevision` and each stream's `programOrderRevision`
+        are the revisions the two order writes compare (0 while never written).
       parameters:
         - $ref: '#/components/parameters/IfNoneMatch'
       responses:
@@ -2033,8 +2036,9 @@ paths:
         - $ref: '#/components/parameters/CriticalPathQuery'
       description: >-
         Answers the plan tree with derived spans, flag roll-ups and each project's roadmap row, read in one snapshot. Any
-        authenticated user. `workStreams` lists every active work stream, open before closed, each level by name (case-insensitive)
-        then id; empty programs and work streams are present. A program's `projects` are the roadmap's project rows, ranked projects
+        authenticated user. `workStreams` lists every active work stream in the shared work stream order, closed ones always last,
+        each stream's `programs` in its program order (see `GET /views/plan`); unlisted ones follow by name (case-insensitive) then
+        id; empty programs and work streams are present. A program's `projects` are the roadmap's project rows, ranked projects
         first in rank order, then the unranked by name and id; `teams` and `links` are `GET /views/roadmap`'s for the same plan. A
         program's `span` is derived from its projects' spans and a work stream's from its programs'; `flags` roll the projects'
         WARNING and INFO flags (Jira and Flow ones included) up. `revision` is the plan revision, informational: no write consumes it.
@@ -5809,25 +5813,31 @@ components:
         updatedAt: { type: integer, format: int64, description: Epoch millis }
     PlanView:
       type: object
-      required: [revision, can, workStreams]
+      required: [revision, workStreamOrderRevision, can, workStreams]
       properties:
         revision:
           type: integer
           format: int64
           minimum: 0
           description: The plan revision, read before the rows; bumped by every plan write.
+        workStreamOrderRevision:
+          type: integer
+          format: int64
+          minimum: 0
+          description: The work stream order's own revision, the `expectedRevision` of `PUT /work-stream-order` (0 while the order was never written).
         can:
           type: object
-          required: [createWorkStream]
+          required: [createWorkStream, orderWorkStreams]
           properties:
             createWorkStream: { type: boolean, description: The caller may create a work stream (ADMIN). }
+            orderWorkStreams: { type: boolean, description: The caller may replace the work stream order (ADMIN); the guard of `PUT /work-stream-order`. }
         workStreams:
           type: array
           items:
             $ref: '#/components/schemas/PlanWorkStream'
     PlanWorkStream:
       type: object
-      required: [id, name, description, ownerPersonId, ownerName, startDate, endDate, createdAt, updatedAt, can, programs]
+      required: [id, name, description, ownerPersonId, ownerName, startDate, endDate, createdAt, updatedAt, can, programOrderRevision, programs]
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
@@ -5840,11 +5850,13 @@ components:
         updatedAt: { type: integer, format: int64 }
         can:
           type: object
-          required: [edit, delete, createProgram]
+          required: [edit, delete, createProgram, orderPrograms]
           properties:
             edit: { type: boolean }
             delete: { type: boolean, description: 'A rights flag: the caller may delete the node. The server can still answer 409 while it has active children.' }
             createProgram: { type: boolean }
+            orderPrograms: { type: boolean, description: 'The caller may replace this work stream''s program order (ADMIN or the stream''s owner); the guard of `PUT /work-streams/{id}/program-order`.' }
+        programOrderRevision: { type: integer, format: int64, minimum: 0, description: 'This stream''s program order revision, the `expectedRevision` of `PUT /work-streams/{id}/program-order` (0 while never written).' }
         programs:
           type: array
           items:
@@ -7303,7 +7315,7 @@ components:
             $ref: '#/components/schemas/RoadmapLink'
         workStreams:
           type: array
-          description: Open work streams first, then closed ones, each by name (case-insensitive) then id.
+          description: The active work streams in the shared work stream order (listed ones first, then the others by name; closed ones always last).
           items:
             $ref: '#/components/schemas/ProgramsWorkStream'
         jiraSites:
@@ -7335,7 +7347,7 @@ components:
           $ref: '#/components/schemas/FlagCounts'
         programs:
           type: array
-          description: Every active program of the work stream (empty ones included), by name (case-insensitive) then id.
+          description: Every active program of the work stream (empty ones included), in the stream's program order (listed first), then the others by name (case-insensitive) then id.
           items:
             $ref: '#/components/schemas/ProgramsProgram'
         baseline:

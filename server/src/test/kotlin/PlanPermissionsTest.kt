@@ -116,6 +116,28 @@ class PlanPermissionsTest {
     }
 
     @Test
+    fun `the order flags equal requireAdmin and requireOwnerOrAdmin on the work stream's chain - an owner below the stream never orders`() {
+        var cells = 0
+        for (actor in actors) {
+            val planActor = actor.asPlanActor()
+            val admin = allowed { requireAdmin(actor.caller) }
+            assertEquals(admin, PlanPermissions.canOrderWorkStreams(planActor), "${actor.label} orders the streams")
+            for ((level, chain) in chains) {
+                val guard = allowed { requireOwnerOrAdmin(actor.caller, actor.personId, chain) }
+                assertEquals(guard, PlanPermissions.canOrderPrograms(planActor, chain), "${actor.label} orders programs at the $level")
+                cells++
+            }
+        }
+        assertEquals(actors.size * chains.size, cells)
+        val streamChain = OwnerChain(listOf(stream))
+        val streamOwner = actors.first { it.label == "stream owner" }.asPlanActor()
+        val programOwner = actors.first { it.label == "program owner" }.asPlanActor()
+        assertTrue(PlanPermissions.canOrderPrograms(streamOwner, streamChain))
+        assertFalse(PlanPermissions.canOrderPrograms(programOwner, streamChain), "a program owner")
+        assertFalse(PlanPermissions.canOrderWorkStreams(streamOwner), "a stream owner: ADMIN only")
+    }
+
+    @Test
     fun `the create-work-stream flag equals requireAdmin`() {
         for (actor in actors) {
             assertEquals(allowed { requireAdmin(actor.caller) }, PlanPermissions.canCreateWorkStream(actor.asPlanActor()), actor.label)

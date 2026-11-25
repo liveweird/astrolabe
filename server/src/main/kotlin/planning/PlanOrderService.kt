@@ -206,3 +206,28 @@ internal suspend fun removeFromProgramOrder(programId: UInt) {
         it[orders.position] = orders.position - 1
     }
 }
+
+/**
+ * What a view reads of the order: the stored positions ([order], for [PlanOrderKernels]) and the two kinds of revision the PUTs compare
+ * ([workStreamRevision]; [programRevisions] by work stream, absent = never written = 0).
+ */
+class PlanOrderSnapshot(val order: PlanOrder, val workStreamRevision: Long, val programRevisions: Map<UInt, Long>) {
+    fun programRevision(workStreamId: UInt): Long = programRevisions[workStreamId] ?: 0L
+}
+
+/**
+ * The whole stored order in four plain selects, no join and no per-stream query: a view calls it inside its own snapshot transaction,
+ * after the plan revision, so the revisions answered and the positions drawn are one read. Rows of deleted or moved nodes are read too
+ * and are inert: [PlanOrderKernels] looks positions up from the ACTIVE nodes.
+ */
+internal suspend fun readPlanOrder(): PlanOrderSnapshot {
+    val workStreams = PlanOrderService.WorkStreamOrders
+    val programs = PlanOrderService.ProgramOrders
+    val state = PlanOrderService.ProgramOrderState
+    val streamPositions = workStreams.selectAll().toList().associate { it[workStreams.workStreamId].value to it[workStreams.position] }
+    val slots = programs.selectAll().toList().associate {
+        it[programs.programId].value to ProgramSlot(it[programs.workStreamId].value, it[programs.position])
+    }
+    val revisions = state.selectAll().toList().associate { it[state.workStreamId].value to it[state.revision] }
+    return PlanOrderSnapshot(PlanOrder(streamPositions, slots), readWorkStreamOrderRevision(), revisions)
+}

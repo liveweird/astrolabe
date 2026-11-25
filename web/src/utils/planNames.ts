@@ -1,5 +1,5 @@
-import type { PlanView } from "../api/plan";
-import { compareNames } from "./text";
+import type { PlanView, PlanWorkStream } from "../api/plan";
+import { byNameThenId, compareNames } from "./text";
 
 /**
  * The names a URL's ids stand for, from the plan view (everyone reads it, and the Plan page's cache entry serves it): the scope chips on the
@@ -15,6 +15,15 @@ export function planNames(plan: PlanView | undefined) {
     }
   }
   return { projects, programs };
+}
+
+/**
+ * Work streams as a picker or a list of targets shows them: open before closed, then by name (case-insensitive) and id. The plan view's own
+ * order is the SHARED order (`plan-tree.md`: a hand arrangement of the Plan and Programs pages), which only those two pages draw; every other
+ * list sorts explicitly, so an arrangement never leaks into it.
+ */
+export function openFirstByName<T extends Pick<PlanWorkStream, "id" | "name" | "endDate">>(streams: readonly T[]): T[] {
+  return [...streams].sort((a, b) => Number(a.endDate !== null) - Number(b.endDate !== null) || byNameThenId(a, b));
 }
 
 /** The three levels of the plan a filter select can pick. */

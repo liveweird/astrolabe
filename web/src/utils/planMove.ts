@@ -1,6 +1,8 @@
 import type { ComboboxItem, ComboboxItemGroup } from "@mantine/core";
 import type { TFunction } from "i18next";
 import type { PlanProgram, PlanProject, PlanView, PlanWorkStream } from "../api/plan";
+import { openFirstByName } from "./planNames";
+import { byNameThenId } from "./text";
 
 /** A work stream's name as a move target: a closed stream still takes programs, and says so. */
 const streamLabel = (stream: PlanWorkStream, t: TFunction) => (stream.endDate === null ? stream.name : t("plan.move.closedName", { name: stream.name }));
@@ -8,22 +10,24 @@ const streamLabel = (stream: PlanWorkStream, t: TFunction) => (stream.endDate ==
 /**
  * The programs a project may move to: those whose `can.createProject` is set (the caller could create a project there — the target
  * half of the server's rule), minus the project's current program, grouped by work stream (closed streams labelled). Streams with no
- * eligible program drop out. Select values are the program ids as strings.
+ * eligible program drop out. Select values are the program ids as strings. The streams are open first, then by name, and each group's
+ * programs by name: the view's shared order is never the picker's (`openFirstByName`).
  */
 export function projectMoveTargets(view: PlanView, project: Pick<PlanProject, "programId">, t: TFunction): ComboboxItemGroup<ComboboxItem>[] {
-  return view.workStreams
+  return openFirstByName(view.workStreams)
     .map((stream) => ({
       group: streamLabel(stream, t),
-      items: stream.programs
+      items: [...stream.programs]
+        .sort(byNameThenId)
         .filter((program: PlanProgram) => program.can.createProject && program.id !== project.programId)
         .map((program) => ({ value: String(program.id), label: program.name })),
     }))
     .filter((group) => group.items.length > 0);
 }
 
-/** The work streams a program may move to: `can.createProgram` set, minus its current stream; closed ones labelled. */
+/** The work streams a program may move to: `can.createProgram` set, minus its current stream; closed ones labelled and last, each side by name. */
 export function programMoveTargets(view: PlanView, program: Pick<PlanProgram, "workStreamId">, t: TFunction): ComboboxItem[] {
-  return view.workStreams
+  return openFirstByName(view.workStreams)
     .filter((stream) => stream.can.createProgram && stream.id !== program.workStreamId)
     .map((stream) => ({ value: String(stream.id), label: streamLabel(stream, t) }));
 }

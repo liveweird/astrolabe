@@ -13,7 +13,8 @@ val ProgramsViewServiceKey = AttributeKey<ProgramsViewService>("ProgramsViewServ
  * The programs document (`GET /views/programs`): ONE read-only REPEATABLE READ transaction ([SNAPSHOT], the roadmap view's protocol)
  * that takes the PLAN revision FIRST, then the roadmap's rows ([loadRoadmapSnapshot]: the SAME loaders and kernel run, so the project
  * rows, `teams` and `links` equal the roadmap view's for the same plan) and the active work streams and programs (so EMPTY ones
- * appear), and folds them with the pure [ProgramsTree]. Reads `WorkStreams ⋈ People` and `Programs ⋈ People` on top of the roadmap
+ * appear), and folds them with the pure [ProgramsTree] in the shared plan order ([readPlanOrder], read right after the revision in
+ * the same snapshot). Reads `WorkStreams ⋈ People` and `Programs ⋈ People` on top of the roadmap
  * view's reads (`PublicHolidays` among them) - and, through [external], the Jira links and flags the roadmap carries (1.3) - and
  * writes nothing (`persistence.md`). With `?criticalPath=N` (1.16) the roadmap's critical-path step ([criticalPathTo]) runs on the
  * snapshot's own rows: no further statement.
@@ -22,6 +23,7 @@ class ProgramsViewService(private val database: R2dbcDatabase, private val exter
     suspend fun view(actor: PlanActor, baselineId: UInt? = null, criticalPathFor: UInt? = null): ProgramsView =
         suspendTransaction(database, SNAPSHOT, readOnly = true) {
             val revision = readPlanRevision()
+            val order = readPlanOrder().order
             val header = baselineId?.let { requireActiveBaseline(it) }
             val snapshot = loadRoadmapSnapshot(actor, external = external)
             // The roadmap's step on the roadmap's rows: a plain 400 for an unknown target, answered after the baseline's own errors.
@@ -30,6 +32,7 @@ class ProgramsViewService(private val database: R2dbcDatabase, private val exter
             val tree = ProgramsTree.assemble(
                 streamFacts(), programFacts(), overlay?.projects ?: snapshot.projects, snapshot.spans,
                 overlay?.let { TreeBaseline(it.frozenSpans, snapshot.calendar) },
+                order,
             )
             val baseline = header?.let { RoadmapBaseline(it.id, it.name, it.planRevision, checkNotNull(overlay).removed) }
             ProgramsView(revision, snapshot.teams, snapshot.links, tree, snapshot.jiraSites, baseline, criticalPath)

@@ -52,7 +52,7 @@ describe("plan API wrappers", () => {
   });
 
   test("getPlanView GETs the view", async () => {
-    mockFetch.mockResolvedValue(jsonResponse(200, { revision: 3, can: { createWorkStream: false }, workStreams: [] }));
+    mockFetch.mockResolvedValue(jsonResponse(200, { revision: 3, workStreamOrderRevision: 0, can: { createWorkStream: false, orderWorkStreams: false }, workStreams: [] }));
     expect((await getPlanView()).revision).toBe(3);
     const [url, init] = lastCall();
     expect(url).toBe("/api/v1/views/plan");

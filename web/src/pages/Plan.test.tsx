@@ -47,7 +47,8 @@ const stream = (over: Partial<PlanWorkStream> & Pick<PlanWorkStream, "id" | "nam
   endDate: null,
   createdAt: 1,
   updatedAt: 2,
-  can: { edit: true, delete: true, createProgram: true },
+  can: { edit: true, delete: true, createProgram: true, orderPrograms: true },
+  programOrderRevision: 0,
   programs: [],
   ...over,
 });
@@ -59,7 +60,8 @@ const AUDIT = project({ id: 102, name: "Audit", targetStart: "2026-04-01", targe
 
 const VIEW: PlanView = {
   revision: 5,
-  can: { createWorkStream: true },
+  workStreamOrderRevision: 0,
+  can: { createWorkStream: true, orderWorkStreams: true },
   workStreams: [
     stream({
       id: 1,
@@ -176,12 +178,13 @@ describe("Plan page", () => {
   test("shows only the actions the can flags allow", async () => {
     view = {
       revision: 1,
-      can: { createWorkStream: false },
+      workStreamOrderRevision: 0,
+      can: { createWorkStream: false, orderWorkStreams: false },
       workStreams: [
         stream({
           id: 1,
           name: "Platform",
-          can: { edit: false, delete: false, createProgram: false },
+          can: { edit: false, delete: false, createProgram: false, orderPrograms: false },
           programs: [
             program({ id: 10, name: "Billing", can: { edit: false, delete: false, createProject: false, move: false }, projects: [TAXES, AUDIT, INVOICES].map((p) => ({ ...p, can: { edit: p.id === 101, delete: false, editTargetWindow: p.id === 102, move: p.id === 101, createMilestone: p.id === 101, createDependency: p.id === 101 } })) }),
           ],
@@ -206,14 +209,14 @@ describe("Plan page", () => {
   });
 
   test("the empty plan offers the first work stream to a creator and a hint to everyone else", async () => {
-    view = { revision: 0, can: { createWorkStream: true }, workStreams: [] };
+    view = { revision: 0, workStreamOrderRevision: 0, can: { createWorkStream: true, orderWorkStreams: true }, workStreams: [] };
     const first = renderWithProviders(<Plan />);
     expect(await screen.findByText("No work streams yet")).toBeInTheDocument();
     expect(screen.getByText("Create the first work stream to start planning.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "New work stream" })).toBeInTheDocument();
     first.unmount();
 
-    view = { revision: 0, can: { createWorkStream: false }, workStreams: [] };
+    view = { revision: 0, workStreamOrderRevision: 0, can: { createWorkStream: false, orderWorkStreams: false }, workStreams: [] };
     renderWithProviders(<Plan />);
     expect(await screen.findByText("An administrator creates the first work stream.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "New work stream" })).not.toBeInTheDocument();
@@ -603,7 +606,7 @@ describe("Plan page: Import from Jira", () => {
   });
 
   test("a stream without can.edit has no menu and so no entry", async () => {
-    view = { revision: 1, can: { createWorkStream: false }, workStreams: [stream({ id: 1, name: "Platform", can: { edit: false, delete: false, createProgram: false } })] };
+    view = { revision: 1, workStreamOrderRevision: 0, can: { createWorkStream: false, orderWorkStreams: false }, workStreams: [stream({ id: 1, name: "Platform", can: { edit: false, delete: false, createProgram: false, orderPrograms: false } })] };
     renderWithProviders(<Plan />);
     await screen.findByRole("heading", { level: 3, name: "Platform" });
     expect(screen.queryByRole("button", { name: "Operations for Platform" })).not.toBeInTheDocument();
@@ -647,7 +650,8 @@ describe("Plan page: Import from a linked program (1.14)", () => {
   test("a linked program without can.createProject has no entry, and a view without any such program asks nothing", async () => {
     view = {
       revision: 1,
-      can: { createWorkStream: true },
+      workStreamOrderRevision: 0,
+      can: { createWorkStream: true, orderWorkStreams: true },
       workStreams: [stream({ id: 1, name: "Platform", programs: [program({ id: 10, name: "Billing", can: { edit: true, delete: true, createProject: false, move: true } })] })],
     };
     const user = userEvent.setup();
@@ -662,12 +666,13 @@ describe("Plan page: Import from a linked program (1.14)", () => {
   test("the program's kebab appears for the entry alone", async () => {
     view = {
       revision: 1,
-      can: { createWorkStream: false },
+      workStreamOrderRevision: 0,
+      can: { createWorkStream: false, orderWorkStreams: false },
       workStreams: [
         stream({
           id: 1,
           name: "Platform",
-          can: { edit: false, delete: false, createProgram: false },
+          can: { edit: false, delete: false, createProgram: false, orderPrograms: false },
           programs: [program({ id: 10, name: "Billing", can: { edit: false, delete: false, createProject: true, move: false } })],
         }),
       ],
@@ -815,12 +820,13 @@ describe("Plan page: Import from a linked project (1.15)", () => {
   test("the project's kebab appears for the entry alone, and the links are asked for although no program offers New project", async () => {
     view = {
       revision: 1,
-      can: { createWorkStream: false },
+      workStreamOrderRevision: 0,
+      can: { createWorkStream: false, orderWorkStreams: false },
       workStreams: [
         stream({
           id: 1,
           name: "Platform",
-          can: { edit: false, delete: false, createProgram: false },
+          can: { edit: false, delete: false, createProgram: false, orderPrograms: false },
           programs: [
             program({
               id: 10,
@@ -842,12 +848,13 @@ describe("Plan page: Import from a linked project (1.15)", () => {
   test("a view without a program or project to use a link asks nothing", async () => {
     view = {
       revision: 1,
-      can: { createWorkStream: false },
+      workStreamOrderRevision: 0,
+      can: { createWorkStream: false, orderWorkStreams: false },
       workStreams: [
         stream({
           id: 1,
           name: "Platform",
-          can: { edit: false, delete: false, createProgram: false },
+          can: { edit: false, delete: false, createProgram: false, orderPrograms: false },
           programs: [
             program({
               id: 10,

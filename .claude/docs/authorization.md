@@ -211,8 +211,8 @@ Pinned by: `DependencyTest`, `DependencyUpdateTest`, `PlanPermissionsTest`, `Pro
 |---|---|---|
 | `PUT /roadmap/ranking` | ADMIN or `ROADMAP_EDITOR`, nobody else (an owner of any node included) | `requireRoadmapEditorOrAdmin` FIRST, **guard-before-read** (the route addresses no node, so there is no 404 to order against) → body 400 → (under `withPlanWrite`) the grant again 403 → `409` stale-revision and the `400` id errors, after the guard |
 | `PUT /teams/{id}/milestone-order` | the team's ACTIVE manager or ADMIN | team active ?: 404 → `requireTeamManagerOrAdmin` → body 400 (negative `expectedRevision`, more than 1000 ids, an id twice) → (under the plan lock) team re-read 404 → the guard again 403 → **409 stale** (`stale-revision`, against the TEAM's own order revision) → ids active and of this team 400 → rewrite → 200 `{revision}` |
-| `PUT /work-stream-order` | ADMIN only | `requireAdmin` FIRST, **guard-before-read** (no node is addressed; a forbidden caller's malformed body stays 403) → body 400 → (under the plan lock) **409 stale** (`stale-revision`, the work stream ORDER's own revision) → ids active work streams 400 → rewrite → 200 `{revision}`; no second guard |
-| `PUT /work-streams/{id}/program-order` | the work stream's owner or ADMIN (a program's or project's owner gets 403) | stream active ?: 404 → `requireOwnerOrAdmin` → body 400 → (under the plan lock) chain re-read 404 → the guard again 403 (`PlanRouteDeps.ownerGuard`) → **409 stale** (THIS stream's program order revision) → ids active programs OF this stream 400 → rewrite → 200 `{revision}` |
+| `PUT /work-stream-order` | ADMIN only | `requireAdmin` FIRST, **guard-before-read** (no node is addressed; a forbidden caller's malformed body stays 403) → body 400 → (under the plan lock) **409 stale** (the work stream ORDER's own revision) → ids active work streams 400 → rewrite → 200 `{revision}`; no second guard |
+| `PUT /work-streams/{id}/program-order` | the work stream's owner or ADMIN | stream active ?: 404 → `requireOwnerOrAdmin` → body 400 → (under the plan lock) chain re-read 404 → the guard again 403 → **409 stale** (THIS stream's program order revision) → ids active programs OF this stream 400 → rewrite → 200 `{revision}` |
 | `POST /teams/{id}/milestone-schedules` | the team's ACTIVE manager or ADMIN | team active ?: 404 → `requireTeamManagerOrAdmin` → whole-batch 400 before the lock (negative `expectedRevision`, malformed `scopeHash`, no items, over 1000, an id twice, an item failing `validateSchedule`) → (under the plan lock) team re-read + `FOR SHARE` 404 → the guard again 403 → **409 whole batch** (`stale-revision`, then with a `scopeHash` `stale-scope`) → per item in body order the first of `GONE` / `NOT_ON_TEAM` / `NO_WORKING_DAY` / `STALE` skips it → 200 `{revision, accepted, skipped}` |
 
 - **The ranking PUT** reads the grant from the database per request, never a claim. `can.editRank` = `PlanPermissions.canEditRank`, pinned against the guard by `PlanPermissionsTest` and the real PUT by `RoadmapRankingTest`.
@@ -220,7 +220,7 @@ Pinned by: `DependencyTest`, `DependencyUpdateTest`, `PlanPermissionsTest`, `Pro
 - **The batch schedule** (`planning/TeamScheduleRoutes.kt`, `TeamScheduleService.kt`) accepts an auto-proposal: N schedule PUTs in ONE plan write under the TEAM's guard, the order PUT's verbatim, run twice (the statuses: `planning-model.md` "The batch schedule", `scheduling.md` "The scope check"). It never widens the single PUT's right: only milestones OF THE TEAM in the path are writable, re-read under the lock (`NOT_ON_TEAM` otherwise).
 - **`can.schedule`, `editCapacity` and `editOrder` of the team view** are ONE arithmetic under three names (`planning-model.md` "The team view"): never the project's owner as such. `can.schedule` is also the batch's and the proposal's flag (no fourth flag).
 
-Pinned by: `RoadmapRankingTest`, `TeamOrderTest`, `TeamOrderLifecycleTest`, `PlanOrderTest`, `PlanOrderLifecycleTest`, `TeamScheduleBatchTest`, `TeamViewTest`, `PlanPermissionsTest`.
+Pinned by: `RoadmapRankingTest`, `TeamOrderTest`, `TeamOrderLifecycleTest`, `PlanOrderTest`, `PlanOrderLifecycleTest`, `PlanOrderViewTest`, `TeamScheduleBatchTest`, `TeamViewTest`, `PlanPermissionsTest`.
 
 ### Schedule proposals
 
@@ -253,7 +253,7 @@ Every plan view is a read for any authenticated user: `call.caller()` and nothin
 
 | Operation | Who | Order and notes |
 |---|---|---|
-| `GET /views/plan` | any authenticated user | the `can:{}` flags of "Plan nodes", `createDependency` ("Dependencies") |
+| `GET /views/plan` | any authenticated user | the `can:{}` flags of "Plan nodes", `createDependency` ("Dependencies"), `orderWorkStreams` (`requireAdmin`), a stream's `orderPrograms` (that PUT's guard) |
 | `GET /views/project/{id}` | any authenticated user | 404 when the project or any ancestor is gone, for every caller; the `can` flags of "Milestones" and "Dependencies" |
 | `GET /views/team/{id}` | any authenticated user | 404 when the team is deleted; `team.can.schedule`, `editCapacity`, `editOrder` ("Ranking, team order and schedules"); `criticalChain`: no caller-scoped member |
 | `GET /views/roadmap` | any authenticated user | `can.editRank` and each project's `can.editTargetWindow`; `400` for an unknown or deleted `criticalPath` project id (ids are no secret, every login reads the plan) |

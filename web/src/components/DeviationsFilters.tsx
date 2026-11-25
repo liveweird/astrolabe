@@ -5,7 +5,7 @@ import type { DeviationConnection, DeviationFilter, DeviationLevel, DeviationSev
 import { getPlanView, LEVELS, planViewKey, type PlanView } from "../api/plan";
 import { useTeamOptions } from "../hooks/useTeamOptions";
 import { deviationKindLabel } from "../utils/deviations";
-import { planNames } from "../utils/planNames";
+import { openFirstByName, planNames } from "../utils/planNames";
 import { deviationStatus, deviationStatusPatch, narrowingCount, type DeviationStatus } from "../utils/deviationFilters";
 import FilterPanel from "./FilterPanel";
 
@@ -87,7 +87,7 @@ export default function DeviationsFilters({ filter, connections, onChange }: { f
         <Select
           label={t("deviations.filter.workStream")}
           placeholder={t("common.state.any")}
-          data={(plan.data?.workStreams ?? []).map((stream) => ({ value: String(stream.id), label: stream.name }))}
+          data={openFirstByName(plan.data?.workStreams ?? []).map((stream) => ({ value: String(stream.id), label: stream.name }))}
           value={value(filter.workStreamId)}
           onChange={(selected) => onChange({ workStreamId: idOf(selected) })}
           searchable

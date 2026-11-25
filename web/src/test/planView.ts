@@ -3,7 +3,7 @@ import type { PlanProgram, PlanProject, PlanView, PlanWorkStream } from "../api/
 
 /** An empty plan the caller may add a work stream to. Override any member (`can` and `workStreams` are replaced whole). */
 export function planView(over: Partial<PlanView> = {}): PlanView {
-  return { revision: 1, can: { createWorkStream: true }, workStreams: [], ...over };
+  return { revision: 1, workStreamOrderRevision: 0, can: { createWorkStream: true, orderWorkStreams: true }, workStreams: [], ...over };
 }
 
 type Named = { id: number; name: string };
@@ -50,9 +50,10 @@ function planWorkStream(over: Named & WithCan<PlanWorkStream>): PlanWorkStream {
     endDate: null,
     createdAt: 1,
     updatedAt: 2,
+    programOrderRevision: 0,
     programs: [],
     ...over,
-    can: { edit: true, delete: true, createProgram: true, ...over.can },
+    can: { edit: true, delete: true, createProgram: true, orderPrograms: true, ...over.can },
   };
 }
 

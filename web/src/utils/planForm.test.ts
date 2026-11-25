@@ -111,7 +111,7 @@ describe("planForm wire bodies", () => {
   test("form values come from the view rows (owner label = the owner's name)", () => {
     const stream = {
       id: 1, name: "S", description: "d", ownerPersonId: 4, ownerName: "Ola", startDate: "2026-01-05", endDate: null,
-      createdAt: 0, updatedAt: 0, can: { edit: true, delete: true, createProgram: true }, programs: [],
+      createdAt: 0, updatedAt: 0, can: { edit: true, delete: true, createProgram: true, orderPrograms: true }, programOrderRevision: 0, programs: [],
     } satisfies PlanWorkStream;
     expect(toWorkStreamFormValues(stream)).toEqual({
       name: "S", description: "d", ownerPersonId: "4", ownerLabel: "Ola", startDate: "2026-01-05", endDate: null,

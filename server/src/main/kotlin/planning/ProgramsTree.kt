@@ -22,8 +22,9 @@ class TreeBaseline(val frozenSpans: Map<UInt, DaySpan?>, val calendar: WorkingCa
 object ProgramsTree {
     /**
      * The tree over [streams], [programs] and the roadmap's [projects] ([spans]: each project's derived span, absent = none).
-     * Order: open work streams before closed ones, streams and programs by name (case-insensitive) then id; the projects of a program
-     * by rank (ranked first), then name and id. A program without projects and a stream without programs stay in the tree, with a
+     * Order: the shared plan order ([order], `plan-tree.md`: closed work streams last, a stream's listed programs first, the rest by
+     * name, case-insensitive, then id; nothing stored = by name as before V34); the projects of a program by rank (ranked first), then
+     * name and id. A program without projects and a stream without programs stay in the tree, with a
      * null span and zero counts. A program whose stream, or a project whose program, is not listed is dropped. With a [baseline], a
      * program's (stream's) `baseline` is the roll-up of its current projects' (programs') frozen spans against the live one, present
      * only when at least one project below it was frozen - the same derivation as the live span.
@@ -34,14 +35,14 @@ object ProgramsTree {
         projects: Collection<RoadmapProject>,
         spans: Map<UInt, DaySpan>,
         baseline: TreeBaseline? = null,
+        order: PlanOrder = PlanOrder.NONE,
     ): List<ProgramsWorkStream> {
         val projectsByProgram = projects.groupBy { it.programId }
         val programsByStream = programs.groupBy { it.workStreamId }
-        return streams
-            .sortedWith(compareBy({ it.endDate != null }, { it.name.lowercase() }, { it.id }))
+        return PlanOrderKernels.orderWorkStreams(streams, order, { it.id }, { it.name }, { it.endDate != null })
             .map { stream ->
-                val nodes = programsByStream[stream.id].orEmpty()
-                    .sortedWith(compareBy({ it.name.lowercase() }, { it.id }))
+                val nodes = PlanOrderKernels
+                    .orderPrograms(programsByStream[stream.id].orEmpty(), order, { it.id }, { it.workStreamId }, { it.name })
                     .map { program -> programNode(program, projectsByProgram[program.id].orEmpty(), spans, baseline) }
                 ProgramsWorkStream(
                     id = stream.id,

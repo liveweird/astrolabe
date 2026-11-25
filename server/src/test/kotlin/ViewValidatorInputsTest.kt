@@ -1,6 +1,8 @@
 package ch.nokillswit
 
 import ch.nokillswit.people.PersonUpdateRequest
+import ch.nokillswit.planning.PlanView
+import ch.nokillswit.planning.ProgramsView
 import ch.nokillswit.planning.PublicHolidayCreateRequest
 import ch.nokillswit.planning.PublicHolidayResponse
 import ch.nokillswit.teams.CapacityPeriodRequest
@@ -215,4 +217,40 @@ class ViewValidatorInputsTest {
             if (holidayId != 0u) w.admin.client.delete("/api/v1/public-holidays/$holidayId")
         }
     }
+
+    @Test
+    fun `a program order and a work stream order write are plan state - the plan and programs tags move with the new order in the body`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val w = planWorld("vior")
+            val owner = w.streamOwner.personId!!
+            val first = planName("vio-a")
+            val second = planName("vio-b")
+            val a = TestPlan.program(w.streamId, owner, first)
+            val b = TestPlan.program(w.streamId, owner, second)
+            val urls = mapOf("/api/v1/views/plan" to null, "/api/v1/views/programs" to null)
+            val client = w.stranger.client
+            try {
+                client.followsWrite(urls, planWrite = true) {
+                    w.streamOwner.client.putProgramOrder(w.streamId, 0, listOf(b, a)).ok("order the programs")
+                }
+                val planPrograms = client.get("/api/v1/views/plan").body<PlanView>().workStreams.single { it.id == w.streamId }
+                val inPlan = planPrograms.programs.map { it.id }.filter { it != w.programId }
+                assertEquals(listOf(b, a), inPlan, "the plan view draws the program order")
+                val tree = client.get("/api/v1/views/programs").body<ProgramsView>().workStreams.single { it.id == w.streamId }
+                val inTree = tree.programs.map { it.id }.filter { it != w.programId }
+                assertEquals(listOf(b, a), inTree, "the programs view draws the program order")
+                val other = TestPlan.workStream(owner)
+                client.followsWrite(urls, planWrite = true) {
+                    w.admin.client.putWorkStreamOrder(TestPlan.workStreamOrderRevision(), listOf(other, w.streamId)).ok("order the streams")
+                }
+                val mine = setOf(other, w.streamId)
+                val planStreams = client.get("/api/v1/views/plan").body<PlanView>().workStreams.map { it.id }.filter { it in mine }
+                assertEquals(listOf(other, w.streamId), planStreams, "the plan view draws the stream order")
+                val treeStreams = client.get("/api/v1/views/programs").body<ProgramsView>().workStreams.map { it.id }.filter { it in mine }
+                assertEquals(listOf(other, w.streamId), treeStreams, "the programs view draws the stream order")
+            } finally {
+                TestPlan.resetWorkStreamOrder()
+            }
+        }
 }

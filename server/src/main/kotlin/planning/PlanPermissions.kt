@@ -20,6 +20,15 @@ object PlanPermissions {
     /** `POST /work-streams`: ADMIN only (`requireAdmin`). */
     fun canCreateWorkStream(actor: PlanActor): Boolean = actor.isAdmin
 
+    /** `PUT /work-stream-order`: ADMIN only (`requireAdmin`). */
+    fun canOrderWorkStreams(actor: PlanActor): Boolean = actor.isAdmin
+
+    /**
+     * `PUT /work-streams/{id}/program-order`: ADMIN or the owner of THAT work stream (`requireOwnerOrAdmin` on the stream's chain) -
+     * [canManage]'s arithmetic under its own name, so a later version may split the rights without a wire change.
+     */
+    fun canOrderPrograms(actor: PlanActor, streamChain: OwnerChain): Boolean = canManage(actor, streamChain)
+
     /**
      * Edit, delete and create-a-child on a node whose owners (top-down, the node's own last) are [chain]: ADMIN, or the caller's
      * person owns the node or anything above it (`requireOwnerOrAdmin`).

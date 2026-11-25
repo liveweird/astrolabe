@@ -9,11 +9,12 @@ const t = ((key: string, options?: { name?: string }) => (key === "plan.move.clo
 const program = (id: number, name: string, workStreamId: number, createProject = true): PlanProgram =>
   ({ id, name, workStreamId, can: { edit: true, delete: true, createProject, move: true }, projects: [] }) as unknown as PlanProgram;
 const stream = (id: number, name: string, programs: PlanProgram[], over: { endDate?: string | null; createProgram?: boolean } = {}): PlanWorkStream =>
-  ({ id, name, endDate: over.endDate ?? null, can: { edit: true, delete: true, createProgram: over.createProgram ?? true }, programs }) as unknown as PlanWorkStream;
+  ({ id, name, endDate: over.endDate ?? null, can: { edit: true, delete: true, createProgram: over.createProgram ?? true, orderPrograms: true }, programOrderRevision: 0, programs }) as unknown as PlanWorkStream;
 
 const VIEW = {
   revision: 1,
-  can: { createWorkStream: true },
+  workStreamOrderRevision: 0,
+  can: { createWorkStream: true, orderWorkStreams: true },
   workStreams: [
     stream(1, "Platform", [program(10, "Billing", 1), program(11, "Identity", 1), program(12, "Secret", 1, false)]),
     stream(2, "Legacy", [program(20, "Archive", 2)], { endDate: "2025-12-31" }),
@@ -35,12 +36,31 @@ describe("move targets", () => {
     expect(projectMoveTargets(only, { programId: 10 }, t)).toEqual([]);
   });
 
-  test("a program's targets are the streams it could be created in, minus its own, closed ones labelled", () => {
+  test("a program's targets are the streams it could be created in, minus its own, open ones by name and closed ones last, labelled", () => {
     expect(programMoveTargets(VIEW, { workStreamId: 1 }, t)).toEqual([
-      { value: "2", label: "Legacy (closed)" },
       { value: "3", label: "Empty" },
+      { value: "2", label: "Legacy (closed)" },
     ]);
-    expect(programMoveTargets(VIEW, { workStreamId: 2 }, t).map((o) => o.value)).toEqual(["1", "3"]);
+    expect(programMoveTargets(VIEW, { workStreamId: 2 }, t).map((o) => o.value)).toEqual(["3", "1"]);
+  });
+
+  test("the targets never follow the view's shared order: open streams first by name, programs by name, whatever order the view lists them", () => {
+    // The shared order of the Plan page (a hand arrangement): a closed stream first, then Zulu before Alpha, programs Yak before Ant.
+    const arranged = {
+      ...VIEW,
+      workStreams: [
+        stream(2, "Legacy", [program(20, "Archive", 2)], { endDate: "2025-12-31" }),
+        stream(5, "Zulu", [program(50, "Yak", 5), program(51, "Ant", 5)]),
+        stream(6, "alpha", [program(60, "Bee", 6)]),
+        stream(1, "Platform", [program(10, "Billing", 1)]),
+      ],
+    } as PlanView;
+    expect(projectMoveTargets(arranged, { programId: 10 }, t)).toEqual([
+      { group: "alpha", items: [{ value: "60", label: "Bee" }] },
+      { group: "Zulu", items: [{ value: "51", label: "Ant" }, { value: "50", label: "Yak" }] },
+      { group: "Legacy (closed)", items: [{ value: "20", label: "Archive" }] },
+    ]);
+    expect(programMoveTargets(arranged, { workStreamId: 1 }, t).map((o) => o.value)).toEqual(["6", "5", "2"]);
   });
 
   test("hasTarget reads flat and grouped options, and a pick a reload took away is no target", () => {

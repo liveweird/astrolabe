@@ -5,9 +5,11 @@ import ch.nokillswit.planning.DaySpan
 import ch.nokillswit.planning.FlagCounts
 import ch.nokillswit.planning.FlagKind
 import ch.nokillswit.planning.FlagSeverity
+import ch.nokillswit.planning.PlanOrder
 import ch.nokillswit.planning.PlanFlag
 import ch.nokillswit.planning.PlanProgramFact
 import ch.nokillswit.planning.PlanStreamFact
+import ch.nokillswit.planning.ProgramSlot
 import ch.nokillswit.planning.ProgramsTree
 import ch.nokillswit.planning.RoadmapProject
 import ch.nokillswit.planning.RoadmapProjectCan
@@ -61,6 +63,25 @@ class ProgramsTreeTest {
         assertEquals(listOf(12u, 13u, 11u, 14u), tree.single { it.id == 2u }.programs.map { it.id })
         assertEquals("2026-06-30", tree.last().endDate)
         assertNull(tree.first().endDate)
+    }
+
+    @Test
+    fun `the shared order puts listed streams and programs first, closed streams stay last and projects keep their rank order`() {
+        val order = PlanOrder(
+            workStreams = mapOf(1u to 1, 3u to 2),
+            programs = mapOf(14u to ProgramSlot(2u, 1), 13u to ProgramSlot(2u, 2), 12u to ProgramSlot(9u, 1)),
+        )
+        val tree = ProgramsTree.assemble(
+            streams = listOf(stream(1u, "aaa-closed", endDate = "2026-06-30"), stream(3u, "Charlie"), stream(2u, "bravo")),
+            programs = listOf(program(11u, 2u, "Zed"), program(12u, 2u, "apple"), program(14u, 2u, "Yak"), program(13u, 2u, "Banana")),
+            projects = listOf(project(1u, 14u, "zeta"), project(2u, 14u, "alpha", rank = 1)),
+            spans = emptyMap(),
+            order = order,
+        )
+        assertEquals(listOf(3u, 2u, 1u), tree.map { it.id }, "listed Charlie first, then bravo by name; closed last though listed first")
+        val programs = tree.single { it.id == 2u }.programs
+        assertEquals(listOf(14u, 13u, 12u, 11u), programs.map { it.id }, "listed 14, 13; apple's row names another stream: by name")
+        assertEquals(listOf(2u, 1u), programs.first().projects.map { it.id }, "the ranked project first, as before")
     }
 
     @Test

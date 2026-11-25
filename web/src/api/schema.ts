@@ -976,7 +976,7 @@ export interface paths {
         };
         /**
          * The whole plan tree with the caller's actions
-         * @description Answers the whole plan tree: every active work stream with its programs and projects, open work streams first and then closed ones, each level by name. Any authenticated user. Every node carries `can`, the actions this caller may take, computed by the rules the writes enforce. `revision` is the plan revision read before the rows.
+         * @description Answers the whole plan tree: every active work stream with its programs and projects. Work streams follow the shared work stream order (those listed by `PUT /work-stream-order` first, then the others by name), closed ones always after the open ones; a stream's programs follow its program order, listed first, then the others by name; projects by name. Any authenticated user. Every node carries `can`, the actions this caller may take, computed by the rules the writes enforce. `revision` is the plan revision read before the rows; `workStreamOrderRevision` and each stream's `programOrderRevision` are the revisions the two order writes compare (0 while never written).
          */
         get: operations["getPlanView"];
         put?: never;
@@ -1100,7 +1100,7 @@ export interface paths {
         };
         /**
          * The plan tree with derived spans, flag roll-ups and each project's roadmap row
-         * @description Answers the plan tree with derived spans, flag roll-ups and each project's roadmap row, read in one snapshot. Any authenticated user. `workStreams` lists every active work stream, open before closed, each level by name (case-insensitive) then id; empty programs and work streams are present. A program's `projects` are the roadmap's project rows, ranked projects first in rank order, then the unranked by name and id; `teams` and `links` are `GET /views/roadmap`'s for the same plan. A program's `span` is derived from its projects' spans and a work stream's from its programs'; `flags` roll the projects' WARNING and INFO flags (Jira and Flow ones included) up. `revision` is the plan revision, informational: no write consumes it. With `?baseline=N` the document gains `baseline` blocks; with `?criticalPath=N` it gains `criticalPath`, the block `GET /views/roadmap?criticalPath=N` answers for the same plan. The two combine and change nothing else.
+         * @description Answers the plan tree with derived spans, flag roll-ups and each project's roadmap row, read in one snapshot. Any authenticated user. `workStreams` lists every active work stream in the shared work stream order, closed ones always last, each stream's `programs` in its program order (see `GET /views/plan`); unlisted ones follow by name (case-insensitive) then id; empty programs and work streams are present. A program's `projects` are the roadmap's project rows, ranked projects first in rank order, then the unranked by name and id; `teams` and `links` are `GET /views/roadmap`'s for the same plan. A program's `span` is derived from its projects' spans and a work stream's from its programs'; `flags` roll the projects' WARNING and INFO flags (Jira and Flow ones included) up. `revision` is the plan revision, informational: no write consumes it. With `?baseline=N` the document gains `baseline` blocks; with `?criticalPath=N` it gains `criticalPath`, the block `GET /views/roadmap?criticalPath=N` answers for the same plan. The two combine and change nothing else.
          */
         get: operations["getProgramsView"];
         put?: never;
@@ -3628,9 +3628,16 @@ export interface components {
              * @description The plan revision, read before the rows; bumped by every plan write.
              */
             revision: number;
+            /**
+             * Format: int64
+             * @description The work stream order's own revision, the `expectedRevision` of `PUT /work-stream-order` (0 while the order was never written).
+             */
+            workStreamOrderRevision: number;
             can: {
                 /** @description The caller may create a work stream (ADMIN). */
                 createWorkStream: boolean;
+                /** @description The caller may replace the work stream order (ADMIN); the guard of `PUT /work-stream-order`. */
+                orderWorkStreams: boolean;
             };
             workStreams: components["schemas"]["PlanWorkStream"][];
         };
@@ -3658,7 +3665,14 @@ export interface components {
                 /** @description A rights flag: the caller may delete the node. The server can still answer 409 while it has active children. */
                 delete: boolean;
                 createProgram: boolean;
+                /** @description The caller may replace this work stream's program order (ADMIN or the stream's owner); the guard of `PUT /work-streams/{id}/program-order`. */
+                orderPrograms: boolean;
             };
+            /**
+             * Format: int64
+             * @description This stream's program order revision, the `expectedRevision` of `PUT /work-streams/{id}/program-order` (0 while never written).
+             */
+            programOrderRevision: number;
             programs: components["schemas"]["PlanProgram"][];
         };
         PlanProgram: {
@@ -5066,7 +5080,7 @@ export interface components {
             teams: components["schemas"]["TeamRef"][];
             /** @description The roadmap view's `links` (the dependencies between projects, rolled up per ordered pair). */
             links: components["schemas"]["RoadmapLink"][];
-            /** @description Open work streams first, then closed ones, each by name (case-insensitive) then id. */
+            /** @description The active work streams in the shared work stream order (listed ones first, then the others by name; closed ones always last). */
             workStreams: components["schemas"]["ProgramsWorkStream"][];
             /** @description The Jira connections, enabled or not, that a binding in this document's scope links to (a roadmap or programs document also lists a connection that only has milestone bindings), by connection id, once per document; the client builds a row's browse URL as `siteUrl + "/browse/" + jira.issueKey`. Empty when nothing is linked. */
             jiraSites: components["schemas"]["JiraSite"][];
@@ -5088,7 +5102,7 @@ export interface components {
             /** @description The earliest start to the latest end over its programs' spans; null when none of its projects is scheduled. */
             span: components["schemas"]["DateSpan"] | null;
             flags: components["schemas"]["FlagCounts"];
-            /** @description Every active program of the work stream (empty ones included), by name (case-insensitive) then id. */
+            /** @description Every active program of the work stream (empty ones included), in the stream's program order (listed first), then the others by name (case-insensitive) then id. */
             programs: components["schemas"]["ProgramsProgram"][];
             baseline?: components["schemas"]["SpanBaseline"];
         };

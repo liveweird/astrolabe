@@ -50,14 +50,16 @@ const stream = (id: number, name: string, programs: PlanProgram[], over: Partial
   endDate: null,
   createdAt: 1,
   updatedAt: 2,
-  can: { edit: true, delete: true, createProgram: true },
+  can: { edit: true, delete: true, createProgram: true, orderPrograms: true },
+  programOrderRevision: 0,
   programs,
   ...over,
 });
 
 const baseView = (): PlanView => ({
   revision: 5,
-  can: { createWorkStream: true },
+  workStreamOrderRevision: 0,
+  can: { createWorkStream: true, orderWorkStreams: true },
   workStreams: [
     stream(1, "Platform", [
       program(10, "Billing", 1, [project(100, "Invoices", 10), project(101, "Taxes", 10, { edit: false, delete: false, editTargetWindow: false }), project(102, "Audit", 10, { move: false })]),
@@ -66,7 +68,7 @@ const baseView = (): PlanView => ({
       program(13, "Ślęża", 1),
     ]),
     stream(2, "Legacy", [program(20, "Archive", 2)], { endDate: "2025-12-31", startDate: "2024-01-01" }),
-    stream(3, "Locked", [], { can: { edit: true, delete: true, createProgram: false } }),
+    stream(3, "Locked", [], { can: { edit: true, delete: true, createProgram: false, orderPrograms: false } }),
   ],
 });
 

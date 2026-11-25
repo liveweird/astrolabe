@@ -83,7 +83,7 @@ Pinned by: `PlanStateTest`.
 
 Routes, bodies and statuses are `openapi/documentation.yaml` (tag `plan`), the guards `authorization.md`. PUTs are full replaces (omitted optional = unset; `204`); creates answer `201` + `Location` + the record, which carries `ownerPersonId` + `ownerName`.
 
-**The plan view** (`GET /views/plan`, any authenticated user; about 5 streams / 20 programs / 100 projects) nests work streams → programs → projects with a `can` on every node and one on the document; open work streams first, then closed ones; each level by name (case-insensitive, then id). A project's `can` also has `createDependency` (`canCreateDependency`, the project as the SUCCESSOR's project: the Dependencies page's "Add dependency" and its picker).
+**The plan view** (`GET /views/plan`, any authenticated user; about 5 streams / 20 programs / 100 projects) nests work streams → programs → projects with a `can` on every node and one on the document, work streams and programs in the shared order, projects by name (`plan-tree.md`). A project's `can` also has `createDependency` (`canCreateDependency`, the project as the SUCCESSOR's project: the Dependencies page's "Add dependency" and its picker).
 
 **Moves** (`ProjectService.move`, `ProgramService.move`; bodies `{programId}` / `{workStreamId}`; `204`): a node changes parent only here.
 
@@ -560,7 +560,7 @@ Pinned by: `BaselineTest`, `BaselineCopyTest`, `BaselineCaptureTest`, `BaselineC
 
 | Route | Answers | Caps |
 |---|---|---|
-| `GET /views/plan` | `{revision, can, workStreams[…programs[…projects[…]]]}`, each node with `can` | the plan |
+| `GET /views/plan` | `{revision, workStreamOrderRevision, can, workStreams[{programOrderRevision, programs[…projects[…]]}]}`, `can` on each node | the plan |
 | `GET /views/roadmap` | `{revision, can{editRank}, teams[], ranked[{position, project}], unranked[], links[]}`; `?criticalPath=N` adds `criticalPath` | about 100 projects, 300 pairs |
 | `GET /views/programs` | `{revision (the plan's), teams[], links[], workStreams[{…, span, flags{warnings, infos}, programs[{…, span, flags, projects[<the roadmap's project row>]}]}]}`; `?criticalPath=N`; empty nodes present | about 100 projects |
 | `GET /views/project/{id}` | `{revision, project{…, can}, span|null, drift|null, scheduled[], unscheduled[], dependencies[], idleGaps[], criticalPath{upstream[], upstreamTruncated}}` | about 50 milestones, each with `can`; `upstream[]` = the critical chain plus at most 100 others |
@@ -667,10 +667,10 @@ Pinned by: `RoadmapKernelsTest`, `RoadmapViewTest`, `RoadmapCriticalPathTest`, `
 
 Files: `planning/ProgramsView.kt`, `ProgramsTree.kt`, `ProgramsViewService.kt`.
 
-`GET /views/programs` (any authenticated user; no audit, a read; no migration) answers the document of "The view documents". The service is the roadmap view's protocol (ONE read-only REPEATABLE READ transaction, `SNAPSHOT`) with one difference: `revision` is the PLAN revision, read first and informational (no flow on the programs page sends it back; the ranking's revision stays on `GET /views/roadmap`).
+`GET /views/programs` (any authenticated user; no audit, reads the V34 order, `plan-tree.md`) answers the document of "The view documents". The service is the roadmap view's protocol (ONE read-only REPEATABLE READ transaction, `SNAPSHOT`) with one difference: `revision` is the PLAN revision, read first and informational (no flow on the programs page sends it back; the ranking's revision stays on `GET /views/roadmap`).
 
 - **The same loader.** It calls the SAME `loadRoadmapSnapshot` (one set of loaders, one kernel run) plus the active work streams and programs, so `projects[]` are the roadmap's `RoadmapProject` rows exactly (same spans, drift, flags, `can.editTargetWindow`), `teams` and `links` are the roadmap's, and an EMPTY program or work stream is present (with a null `span` and zero `flags`).
-- **The tree** (`ProgramsTree.assemble`, pure) orders and rolls up: open work streams before closed ones (an `endDate`), streams and programs by lowercase name then id, a program's projects ranked first in rank order, then by name and id.
+- **The tree** (`ProgramsTree.assemble`, pure) orders and rolls up: streams and programs in the shared order (`plan-tree.md`), a program's projects ranked first in rank order, then by name and id.
 - **Roll-ups.** A program's `span` = `SpanKernels.derivedSpan` over its projects' spans, a work stream's over its programs' spans (nothing stored). A program's or stream's `flags` = the WARNING and INFO flags over its projects (`RoadmapKernels.flagCounts`; the project rows' Flow capacity flags count too, "The roadmap view" › "The external flag seam"). Programs have no target window and no `can`.
 - **`?criticalPath=N`.** The view takes the roadmap's parameter and adds `criticalPath` (`@EncodeDefault(NEVER)`, last: byte-identical without it): the roadmap's `RoadmapCriticalPath` for the same target, from the same snapshot's rows (`RoadmapSnapshot.criticalPathTo`, the 400 for an unknown or deleted id included; answered after the baseline's own errors, no further statement).
   A project the page hides (a fold, the program pick) stays in the block: the page decides what it shows. The picker, the emphasis and the panel are the web's (`web-internals.md`).
