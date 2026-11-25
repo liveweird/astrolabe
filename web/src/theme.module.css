@@ -356,6 +356,21 @@ table.table {
   }
 }
 
+/* A row shown only as the way to a match (a search is on): its text is dimmed, its actions are not. */
+.planTreeRow[data-context="true"] > :is(th, td):not(:last-child) {
+  color: var(--mantine-color-dimmed);
+}
+
+/* The letters a search matched: no colour (the vocabulary is the theme's), weight and an underline carry it. */
+.planTreeMark {
+  background: none;
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+
 .planTreeLeaf {
   padding-inline-start: 22px;
 }

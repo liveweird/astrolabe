@@ -21,6 +21,9 @@
    - *Expected*: the project's row has the second person and "2026-02-02 – 2026-03-31".
    - They fold the work stream with its disclosure button: the program's and the project's rows are gone and the button says it is collapsed;
      after a page reload the stream is still folded (folds are remembered in the browser); opening it brings the rows back.
+   - They type the project's full name into the search box: after a pause the address holds `q=<the name>`, the table shows only that project under
+     its program and stream, the two ancestors as dimmed context rows (`data-context`) and the matched letters marked. After a reload the box still holds the
+     text and the filter still applies; the clear button removes it and the rows return, no longer context.
 5. They open the project's row menu, rename it, hand it over to the first person and extend the target window to `2026-04-15`.
    - *Expected*: Save sends one details update. The row shows the new name, the first person and "2026-02-02 – 2026-04-15".
 6. They try to delete the work stream from its menu.

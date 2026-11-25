@@ -31,7 +31,8 @@
     "projects_other": "{{count}} projects",
     "expandAll": "Expand all",
     "collapseAll": "Collapse all",
-    "targetWindowLabel": "Target window:"
+    "targetWindowLabel": "Target window:",
+    "contextCue": "Contains a match"
   },
   "announce": {
     "expandedStream_one": "{{name}} expanded, {{count}} program",
@@ -41,6 +42,22 @@
     "collapsed": "{{name}} collapsed",
     "expandedAll": "Every work stream and program expanded",
     "collapsedAll": "Every work stream and program collapsed"
+  },
+  "filter": {
+    "search": "Search work streams, programs and projects",
+    "clearSearch": "Clear the search",
+    "owner": "Owner",
+    "clearOwner": "Clear the owner filter",
+    "hideClosed": "Hide closed work streams",
+    "matches_one": "{{count}} row matches",
+    "matches_other": "{{count}} rows match",
+    "none": "No row matches",
+    "noneHint": "Change or clear the filters to see rows again.",
+    "clear": "Clear filters",
+    "cleared": "Filters cleared"
+  },
+  "print": {
+    "filtered": "Filtered view: not every row of the plan is shown."
   },
   "targetStart": "Target start",
   "targetEnd": "Target end",

@@ -12,7 +12,18 @@ import ScrollRegion from "./ScrollRegion";
  * controls. Below the page's width the table scrolls inside the house `ScrollRegion`; the columns keep their widths so a name never shrinks
  * below legibility.
  */
-export default function PlanTree({ rows, actions, onToggle }: { rows: readonly Row[]; actions: PlanActions; onToggle: (row: NodeRow) => void }) {
+export default function PlanTree({
+  rows,
+  actions,
+  highlight,
+  onToggle,
+}: {
+  rows: readonly Row[];
+  actions: PlanActions;
+  /** The name search's text, marked in the names. */
+  highlight: string;
+  onToggle: (row: NodeRow) => void;
+}) {
   const { t } = useTranslation();
   const label = t("plan.tree.tableAria");
   return (
@@ -34,7 +45,7 @@ export default function PlanTree({ rows, actions, onToggle }: { rows: readonly R
         </Table.Thead>
         <Table.Tbody>
           {rows.map((row) => (
-            <PlanTreeRow key={`tree:${row.key}`} row={row} scope="tree" actions={actions} onToggle={onToggle} />
+            <PlanTreeRow key={`tree:${row.key}`} row={row} scope="tree" actions={actions} highlight={highlight} onToggle={onToggle} />
           ))}
         </Table.Tbody>
       </Table>

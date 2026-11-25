@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import type { PlanActions } from "../utils/planActions";
 import { projectPath } from "../utils/planLinks";
+import { foldedMatchRange } from "../utils/text";
 import { rowName, type NodeRow, type PlanTreeRow } from "../utils/planTree";
 import classes from "../theme.module.css";
 import PlanRowMenu from "./PlanRowMenu";
@@ -20,7 +21,20 @@ const WEIGHT = { workStream: 600, program: 500, project: 400 } as const;
  * what it holds, a "Closed" badge, one clamped dimmed description line), the owner, the dates, and the actions (a "+" for a new child, the row
  * menu). The row decides nothing: what is offered comes from the node's `can` flags through `PlanRowMenu` and the page's `actions`.
  */
-export default function PlanTreeRow({ row, scope, actions, onToggle }: { row: PlanTreeRow; scope: PlanScope; actions: PlanActions; onToggle: (row: NodeRow) => void }) {
+export default function PlanTreeRow({
+  row,
+  scope,
+  actions,
+  highlight,
+  onToggle,
+}: {
+  row: PlanTreeRow;
+  scope: PlanScope;
+  actions: PlanActions;
+  /** The text of the name search: where it sits in the name is marked. */
+  highlight: string;
+  onToggle: (row: NodeRow) => void;
+}) {
   const { t } = useTranslation();
   const node = row.kind === "workStream" ? row.stream : row.kind === "program" ? row.program : row.project;
   return (
@@ -35,13 +49,15 @@ export default function PlanTreeRow({ row, scope, actions, onToggle }: { row: Pl
       <Table.Th scope="row" className={classes.planTreeName}>
         <div className={classes.planTreeIndent} style={{ "--plan-depth": row.depth } as CSSProperties}>
           <div className={classes.planTreeHead}>
-            <RowName row={row} onToggle={onToggle} />
+            <RowName row={row} highlight={highlight} onToggle={onToggle} />
             {row.kind !== "project" && (
               <Text span size="xs" c="dimmed">
                 {t(row.kind === "workStream" ? "plan.tree.programs" : "plan.tree.projects", { count: row.childCount })}
               </Text>
             )}
             {row.kind === "workStream" && row.stream.endDate !== null && <Badge color="gray">{t("plan.closed")}</Badge>}
+            {/* A context row is dimmed by colour alone: this says in words that it is only the way to a match. */}
+            {row.context && <VisuallyHidden>{t("plan.tree.contextCue")}</VisuallyHidden>}
           </div>
           {node.description && (
             <Text size="xs" c="dimmed" truncate="end" title={node.description} className={classes.planTreeDescription}>
@@ -67,14 +83,15 @@ export default function PlanTreeRow({ row, scope, actions, onToggle }: { row: Pl
 }
 
 /** The name: a disclosure button for a node with children, plain text (with its kind said to a screen reader) for a childless one, the link for a project. */
-function RowName({ row, onToggle }: { row: PlanTreeRow; onToggle: (row: NodeRow) => void }) {
+function RowName({ row, highlight, onToggle }: { row: PlanTreeRow; highlight: string; onToggle: (row: NodeRow) => void }) {
   const { t } = useTranslation();
   const name = rowName(row);
+  const shown = <Highlighted text={name} query={highlight} />;
   if (row.kind === "project") {
     return (
       <span className={classes.planTreeLeaf}>
         <Anchor component={RouterLink} to={projectPath(row.project.id)} size="sm" fw={WEIGHT.project} aria-label={t("plan.openProjectAria", { name })}>
-          {name}
+          {shown}
         </Anchor>
       </span>
     );
@@ -85,7 +102,7 @@ function RowName({ row, onToggle }: { row: PlanTreeRow; onToggle: (row: NodeRow)
       <span className={classes.planTreeLeaf}>
         <Text span size="sm" fw={WEIGHT[row.kind]}>
           <VisuallyHidden>{t(row.kind === "workStream" ? "plan.tree.streamKind" : "plan.tree.programKind")} </VisuallyHidden>
-          {name}
+          {shown}
         </Text>
       </span>
     );
@@ -99,7 +116,7 @@ function RowName({ row, onToggle }: { row: PlanTreeRow; onToggle: (row: NodeRow)
     >
       {row.expanded ? <IconChevronDown size={16} aria-hidden="true" data-print="hide" /> : <IconChevronRight size={16} aria-hidden="true" data-print="hide" />}
       <Text span size="sm" fw={WEIGHT[row.kind]}>
-        {name}
+        {shown}
       </Text>
     </UnstyledButton>
   );
@@ -156,4 +173,17 @@ function NewChild({ row, actions }: { row: PlanTreeRow; actions: PlanActions }) 
     );
   }
   return null;
+}
+
+/** The name with the letters the search matched marked (case- and accent-insensitive, as the search itself); plain when nothing is searched. */
+function Highlighted({ text, query }: { text: string; query: string }) {
+  const range = foldedMatchRange(text, query);
+  if (range === null) return text;
+  return (
+    <>
+      {text.slice(0, range[0])}
+      <mark className={classes.planTreeMark}>{text.slice(range[0], range[1])}</mark>
+      {text.slice(range[1])}
+    </>
+  );
 }

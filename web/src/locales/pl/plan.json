@@ -35,7 +35,8 @@
     "projects_other": "{{count}} projektu",
     "expandAll": "Rozwiń wszystko",
     "collapseAll": "Zwiń wszystko",
-    "targetWindowLabel": "Okno docelowe:"
+    "targetWindowLabel": "Okno docelowe:",
+    "contextCue": "Zawiera dopasowanie"
   },
   "announce": {
     "expandedStream_one": "Rozwinięto: {{name}}, {{count}} program",
@@ -49,6 +50,24 @@
     "collapsed": "Zwinięto: {{name}}",
     "expandedAll": "Rozwinięto wszystkie strumienie pracy i programy",
     "collapsedAll": "Zwinięto wszystkie strumienie pracy i programy"
+  },
+  "filter": {
+    "search": "Szukaj strumieni pracy, programów i projektów",
+    "clearSearch": "Wyczyść wyszukiwanie",
+    "owner": "Właściciel/ka",
+    "clearOwner": "Wyczyść filtr właściciela/ki",
+    "hideClosed": "Ukryj zamknięte strumienie pracy",
+    "matches_one": "Pasuje {{count}} wiersz",
+    "matches_few": "Pasują {{count}} wiersze",
+    "matches_many": "Pasuje {{count}} wierszy",
+    "matches_other": "Pasuje {{count}} wiersza",
+    "none": "Żaden wiersz nie pasuje",
+    "noneHint": "Zmień lub wyczyść filtry, aby znów zobaczyć wiersze.",
+    "clear": "Wyczyść filtry",
+    "cleared": "Wyczyszczono filtry"
+  },
+  "print": {
+    "filtered": "Widok przefiltrowany: nie wszystkie wiersze planu są pokazane."
   },
   "targetStart": "Początek docelowy",
   "targetEnd": "Koniec docelowy",

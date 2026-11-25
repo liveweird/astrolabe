@@ -209,7 +209,7 @@ describe("Plan page: folds", () => {
     await waitFor(() => expect(plus).toHaveFocus());
   });
 
-  test("a reader with no rights sees no control but the folds and the links", async () => {
+  test("a reader with no rights sees no control but the folds, the filters and the links", async () => {
     const readOnly = planOf(
       [{ id: 1, name: "Platform", can: { edit: false, delete: false, createProgram: false, orderPrograms: false }, programs: [{ id: 10, name: "Billing", can: { edit: false, delete: false, createProject: false, move: false }, projects: [{ id: 100, name: "Invoices", can: { edit: false, delete: false, editTargetWindow: false, move: false, createMilestone: false, createDependency: false } }] }] }],
       { can: { createWorkStream: false, orderWorkStreams: false } },
@@ -218,7 +218,7 @@ describe("Plan page: folds", () => {
     renderWithProviders(<Plan />);
     await findPlanTree();
     const names = screen.getAllByRole("button").map((button) => button.getAttribute("aria-label") ?? button.textContent);
-    expect(names.sort()).toEqual(["Collapse all", "Expand all", "Program Billing", "Work stream Platform"]);
+    expect(names.sort()).toEqual(["Collapse all", "Expand all", "Filters", "Program Billing", "Work stream Platform"]);
     expect(screen.getByRole("link", { name: "Open Invoices" })).toBeInTheDocument();
   });
 

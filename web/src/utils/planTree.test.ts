@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { planOf } from "../test/planView";
-import { foldableKeys, planRows, programKey, projectKey, rowName, streamKey, toggledCollapsed } from "./planTree";
+import { foldableKeys, isFiltered, isSearching, matchCount, NO_FILTER, ownerOptions, planRows, programKey, projectKey, rowName, streamKey, toggledCollapsed, type PlanFilter } from "./planTree";
 
 const PLAN = planOf([
   {
@@ -78,4 +78,112 @@ describe("foldableKeys and toggledCollapsed", () => {
 test("rowName reads the node's own name at every level", () => {
   const rows = planRows(PLAN, new Set());
   expect(rows.map(rowName)).toEqual(["Platform", "Billing", "Invoices", "Taxes", "Identity", "Legacy"]);
+});
+
+describe("planRows with a filter", () => {
+  const PEOPLE = planOf([
+    {
+      id: 1,
+      name: "Platform",
+      ownerPersonId: 4,
+      ownerName: "Ola Owner",
+      programs: [
+        {
+          id: 10,
+          name: "Billing",
+          ownerPersonId: 6,
+          ownerName: "Pola Program",
+          projects: [
+            { id: 100, name: "Invoices", ownerPersonId: 5, ownerName: "Piotr Project" },
+            { id: 101, name: "Taxes", ownerPersonId: 8, ownerName: "Tania Tax" },
+          ],
+        },
+        { id: 11, name: "Identity", ownerPersonId: 6, ownerName: "Pola Program", projects: [{ id: 102, name: "Żółw", ownerPersonId: 5, ownerName: "Piotr Project" }] },
+      ],
+    },
+    { id: 2, name: "Legacy", endDate: "2025-12-31", ownerPersonId: 4, ownerName: "Ola Owner", programs: [{ id: 12, name: "Archive", ownerPersonId: 6, ownerName: "Pola Program", projects: [{ id: 103, name: "Old taxes", ownerPersonId: 5, ownerName: "Piotr Project" }] }] },
+  ]);
+  const filtered = (filter: Partial<PlanFilter>, collapsed: string[] = []) => planRows(PEOPLE, new Set(collapsed), { ...NO_FILTER, ...filter });
+  const shape = (filter: Partial<PlanFilter>, collapsed: string[] = []) => filtered(filter, collapsed).map((row) => `${row.key}${row.context ? " (context)" : ""}`);
+
+  test("no filter, a blank search and hide closed off are the whole plan", () => {
+    expect(isSearching(NO_FILTER)).toBe(false);
+    expect(isSearching({ ...NO_FILTER, q: "   " })).toBe(false);
+    expect(isFiltered(NO_FILTER)).toBe(false);
+    expect(shape({ q: "  " })).toEqual(planRows(PEOPLE, new Set()).map((row) => row.key));
+  });
+
+  test("a match shows with its ancestors as context rows and nothing else", () => {
+    expect(shape({ q: "invoices" })).toEqual(["ws:1 (context)", "pg:10 (context)", "pj:100"]);
+    expect(shape({ q: "tax" })).toEqual(["ws:1 (context)", "pg:10 (context)", "pj:101", "ws:2 (context)", "pg:12 (context)", "pj:103"]);
+  });
+
+  test("a matching parent shows everything under it, and is not a context row", () => {
+    expect(shape({ q: "billing" })).toEqual(["ws:1 (context)", "pg:10", "pj:100", "pj:101"]);
+    expect(shape({ q: "platform" })).toEqual(["ws:1", "pg:10", "pj:100", "pj:101", "pg:11", "pj:102"]);
+  });
+
+  test("a node that matches and holds a match is a match, not context", () => {
+    // Billing and Invoices both contain "i": Billing is a match that holds a match, so it is no context row; Platform and Legacy only lead to matches.
+    const rows = shape({ q: "i" });
+    expect(rows).toContain("pg:10");
+    expect(rows.filter((key) => key.endsWith("(context)"))).toEqual(["ws:1 (context)", "ws:2 (context)"]);
+  });
+
+  test("the search is case- and accent-insensitive", () => {
+    expect(shape({ q: "ZOLW" })).toEqual(["ws:1 (context)", "pg:11 (context)", "pj:102"]);
+    expect(shape({ q: "żółw" })).toEqual(shape({ q: "zolw" }));
+  });
+
+  test("an owner matches the nodes they own, with the way to them and what is under them", () => {
+    expect(shape({ ownerPersonId: 8 })).toEqual(["ws:1 (context)", "pg:10 (context)", "pj:101"]);
+    expect(shape({ ownerPersonId: 6 })).toEqual(["ws:1 (context)", "pg:10", "pj:100", "pj:101", "pg:11", "pj:102", "ws:2 (context)", "pg:12", "pj:103"]);
+  });
+
+  test("the search and the owner both have to hold", () => {
+    expect(shape({ q: "tax", ownerPersonId: 5 })).toEqual(["ws:2 (context)", "pg:12 (context)", "pj:103"]);
+    expect(shape({ q: "billing", ownerPersonId: 5 })).toEqual([]);
+  });
+
+  test("hide closed leaves out the closed streams, searched or not, and the stored folds still apply to the rest", () => {
+    expect(shape({ hideClosed: true })).toEqual(["ws:1", "pg:10", "pj:100", "pj:101", "pg:11", "pj:102"]);
+    expect(shape({ hideClosed: true }, ["pg:10"])).toEqual(["ws:1", "pg:10", "pg:11", "pj:102"]);
+    expect(shape({ q: "tax", hideClosed: true })).toEqual(["ws:1 (context)", "pg:10 (context)", "pj:101"]);
+  });
+
+  test("the folds in force fold a search's rows too, and a folded match still counts its children", () => {
+    const rows = filtered({ q: "tax" }, ["pg:10"]);
+    expect(rows.map((row) => row.key)).toEqual(["ws:1", "pg:10", "ws:2", "pg:12", "pj:103"]);
+    expect(rows[1]).toMatchObject({ context: true, expanded: false, childCount: 2 });
+  });
+
+  test("counts and parents are the document's own, whatever is hidden", () => {
+    const rows = filtered({ q: "invoices" });
+    expect(rows[0]).toMatchObject({ childCount: 2, parentKey: null });
+    expect(rows[1]).toMatchObject({ childCount: 2, parentKey: "ws:1" });
+    expect(rows[2]).toMatchObject({ parentKey: "pg:10" });
+  });
+
+  test("matchCount counts the matches only, never the context or the descendants of a match", () => {
+    expect(matchCount(PEOPLE, NO_FILTER)).toBe(0);
+    expect(matchCount(PEOPLE, { ...NO_FILTER, q: "tax" })).toBe(2);
+    expect(matchCount(PEOPLE, { ...NO_FILTER, q: "billing" })).toBe(1);
+    expect(matchCount(PEOPLE, { ...NO_FILTER, q: "tax", hideClosed: true })).toBe(1);
+    expect(matchCount(PEOPLE, { ...NO_FILTER, q: "zzz" })).toBe(0);
+  });
+
+  test("foldableKeys follows the filter: only the shown nodes that have children", () => {
+    expect(foldableKeys(PEOPLE)).toEqual(["ws:1", "pg:10", "pg:11", "ws:2", "pg:12"]);
+    expect(foldableKeys(PEOPLE, { ...NO_FILTER, q: "invoices" })).toEqual(["ws:1", "pg:10"]);
+    expect(foldableKeys(PEOPLE, { ...NO_FILTER, hideClosed: true })).toEqual(["ws:1", "pg:10", "pg:11"]);
+  });
+
+  test("ownerOptions lists each owner of any node once, by name", () => {
+    expect(ownerOptions(PEOPLE)).toEqual([
+      { id: 4, name: "Ola Owner" },
+      { id: 6, name: "Pola Program" },
+      { id: 5, name: "Piotr Project" },
+      { id: 8, name: "Tania Tax" },
+    ].sort((a, b) => a.name.localeCompare(b.name)));
+  });
 });

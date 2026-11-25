@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import { CloseButton, TextInput } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 
@@ -9,6 +10,9 @@ export default function ClearableTextInput({
   clearLabel,
   placeholder,
   disabled = false,
+  hideLabel = false,
+  inputRef,
+  maxLength,
 }: {
   label: string;
   value: string;
@@ -16,11 +20,19 @@ export default function ClearableTextInput({
   clearLabel: string;
   placeholder?: string;
   disabled?: boolean;
+  /** A toolbar search: the label becomes the input's accessible name and is not drawn (the placeholder says what it is). */
+  hideLabel?: boolean;
+  /** The input element, for a caller that moves the focus here. */
+  inputRef?: Ref<HTMLInputElement>;
+  maxLength?: number;
 }) {
   const { t } = useTranslation();
   return (
     <TextInput
-      label={label}
+      ref={inputRef}
+      maxLength={maxLength}
+      label={hideLabel ? undefined : label}
+      aria-label={hideLabel ? label : undefined}
       placeholder={placeholder ?? t("common.filter.contains")}
       value={value}
       disabled={disabled}

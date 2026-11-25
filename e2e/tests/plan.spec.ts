@@ -110,6 +110,23 @@ test("admin builds a work stream, a program and a project, assigns owners, and d
   await expect(streamToggle).toHaveAttribute("aria-expanded", "true");
   await expect(treeRow(page, "project", projectName)).toBeVisible();
 
+  // The search lives in the address: it shows the match with its stream and program as context rows, survives a reload, and clearing it brings the plan back.
+  const searchBox = page.getByRole("textbox", { name: "Search work streams, programs and projects" });
+  await searchBox.fill(projectName);
+  await expect(page).toHaveURL(new RegExp(`[?&]q=${projectName}`));
+  await expect(page.locator('tr[data-kind="workStream"]')).toHaveCount(1);
+  await expect(treeRow(page, "workStream", streamName)).toHaveAttribute("data-context", "true");
+  await expect(treeRow(page, "program", programName)).toHaveAttribute("data-context", "true");
+  await expect(treeRow(page, "project", projectName)).not.toHaveAttribute("data-context", "true");
+  await expect(treeRow(page, "project", projectName).locator("mark")).toHaveText(projectName);
+  await page.reload();
+  await expect(searchBox).toHaveValue(projectName);
+  await expect(page.locator('tr[data-kind="workStream"]')).toHaveCount(1);
+  await page.getByRole("button", { name: "Clear the search" }).click();
+  await expect(page).not.toHaveURL(/[?&]q=/);
+  await expect(treeRow(page, "workStream", streamName)).not.toHaveAttribute("data-context", "true");
+  await expect(treeRow(page, "project", projectName)).toBeVisible();
+
   // Hand the project over, rename it and extend the target window in the same save.
   const renamed = `${projectName}-renamed`;
   await rowOperation(page, projectName, `Edit ${projectName}`);

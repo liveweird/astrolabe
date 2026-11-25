@@ -45,3 +45,35 @@ export const compareNames = (a: string, b: string) => a.toLowerCase().localeComp
 
 /** The order of every list sorted by name (case-insensitive), ties broken by id. */
 export const byNameThenId = (a: { name: string; id: number }, b: { name: string; id: number }) => compareNames(a.name, b.name) || a.id - b.id;
+
+/**
+ * Where a case- and accent-insensitive `query` sits in `text`, as `[start, end)` offsets into the ORIGINAL string (so a caller can wrap exactly the
+ * letters the user sees: a query "zolw" marks all of "Żółw"); `null` when it is absent or blank. Folding changes lengths ("ß" is "ss", an accent
+ * is nothing), so each character is folded on its own and the folded offsets are mapped back; the folding itself is {@link foldDiacritics}.
+ */
+export function foldedMatchRange(text: string, query: string): [number, number] | null {
+  const needle = foldDiacritics(query.trim());
+  if (needle === "") return null;
+  let folded = "";
+  // The original offset each folded character came from (and where the next original character starts).
+  const origin: number[] = [];
+  let offset = 0;
+  for (const char of text) {
+    const piece = foldDiacritics(char);
+    for (let i = 0; i < piece.length; i++) origin.push(offset);
+    folded += piece;
+    offset += char.length;
+  }
+  const at = folded.indexOf(needle);
+  if (at < 0) return null;
+  const last = at + needle.length - 1;
+  // The end is the start of the character after the last folded one (the whole original character is marked).
+  let end = offset;
+  for (let i = last + 1; i < origin.length; i++) {
+    if (origin[i] !== origin[last]) {
+      end = origin[i];
+      break;
+    }
+  }
+  return [origin[at], end];
+}
