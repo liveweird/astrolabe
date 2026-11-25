@@ -17,6 +17,18 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.27.1",
+    date: "2026-11-25",
+    en: `**Updated libraries and images**
+
+- The containers use PostgreSQL 18.7 and refreshed Java 21 images. The server runs on Netty 4.2.21, Flyway 13.13.0 and Logback 1.6.8, and the web app on Mantine 9.8.2.
+- No feature, API or stored data changes.`,
+    pl: `**Zaktualizowane biblioteki i obrazy**
+
+- Kontenery używają PostgreSQL 18.7 i odświeżonych obrazów Javy 21. Serwer działa na Netty 4.2.21, Flyway 13.13.0 i Logback 1.6.8, a aplikacja w przeglądarce na Mantine 9.8.2.
+- Bez zmian w funkcjach, API i zapisanych danych.`,
+  },
+  {
     version: "1.27.0",
     date: "2026-11-25",
     en: `**Finding and linking work**

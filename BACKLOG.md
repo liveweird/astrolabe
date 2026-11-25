@@ -1,6 +1,6 @@
 # Product backlog
 
-Updated 2026-11-25 (1.27.0 released). This file tracks **outstanding work only**. Implemented behaviour and release history belong elsewhere:
+Updated 2026-11-25 (1.27.1 released). This file tracks **outstanding work only**. Implemented behaviour and release history belong elsewhere:
 - [README.md](README.md);
 - the [application changelog](web/src/changelog/entries.ts);
 - the topic guides under `.claude/docs/`.
@@ -159,6 +159,6 @@ Each increment gets its own plan (architect) before implementation. The domain s
 - [new] **Nine create paths repeat the same insert-then-read-back projection (1.26, from the 1.25 review).** Since 1.25 each service that answers a created row reads it back inside the write transaction, and the nine services spell it out one by one; a shared helper would need a shape that fits the per-table columns, so the review left it.
 - [new] **`SerializableDtoBehaviorTest` is a line scanner, not a parser (1.26).** It recognises this repository's declaration style: an `@Serializable` annotation alone on its line, members at the body's top depth starting with `fun`, `val`, `var` or `init`. A one-line `@Serializable data class`, a member with a modifier (`private val`, `override val`), a secondary constructor and a companion's members pass unseen; harden it (or take the check to a real parser) if such a DTO appears.
 - [new] **Exposed 1.6.1 held back: it grows the heap (1.26.1).** It compiles and passes every test, but the test JVMs' live heap grows by about a fifth and the Kover report runs out of memory at the default 512 MiB test heap (`gradle/libs.versions.toml`, `dependencies.md` "Dependency history"). Find which 1.6.1 change does it and whether the server's own heap grows too, wait for 1.6.2, or raise the test heap deliberately; Dependabot keeps proposing it until then.
-- [new] **The Dependabot wave of 2026-11-25.** Open: #34 and #43 (PostgreSQL 18.7, the k8s and the compose pins together, CI failing on each alone), #42 (the temurin digest), #44 (knip, e2e), #45 (Netty 4.2.21, CI failing), #46 (the web group), #47 (Flyway 13.13, Logback 1.6.8, Gradle 9.9.2, CI failing). The user: next time (2026-11-25).
 - [new] **The Polish texts of 1.27 are unread by a native speaker.** The Dependencies page's add dialog, the Milestones filters and Rank column, and the team page's Critical chain section and announcements.
-- [new] **Toolchain pins Dependabot does not cover (1.26.1).** Newer on 2026-11-25: the JDK respin 21.0.13.1+2 (three pins together), trivy 0.76.2 (three copies, with the digest), Gradle 9.9.2; and `commons-lang3` 3.22.0 in the `server` buildscript lock, which every `--write-locks` proposes.
+- [new] **Toolchain pins Dependabot does not cover (1.26.1).** Newer on 2026-11-25: the JDK respin 21.0.13.1+2 (three pins together), trivy 0.76.2 (three copies, with the digest); and `commons-lang3` 3.22.0 in the `server` buildscript lock, which every `--write-locks` proposes.
+- [new] **Moderate npm advisories in dev tools (2026-11-25).** `npm audit` names `minimatch` (through `eslint-plugin-sonarjs`, in `web` and `e2e`) and `fast-uri` (`web`); both are development-only and below the gate (`--audit-level=high`, runtime-only in `web`), with a fix offered by `npm audit fix`.
