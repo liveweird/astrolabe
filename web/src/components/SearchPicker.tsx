@@ -28,6 +28,7 @@ export default function SearchPicker({
   onPick,
   compact = false,
   clearable = true,
+  dataAutofocus,
 }: {
   label: string;
   description?: string;
@@ -50,6 +51,8 @@ export default function SearchPicker({
   compact?: boolean;
   /** Whether the clear button is offered (default). A caller whose empty pick means "nothing chosen yet" shows it only once there is one. */
   clearable?: boolean;
+  /** The control a dialog's focus trap lands on when it opens (`data-autofocus`). */
+  dataAutofocus?: boolean;
 }) {
   const [searchValue, setSearchValue] = useState(picked?.label ?? "");
   // The caller may change the pick without a choice here (clearing a row's own owner hands it back the dialog's): the box follows the
@@ -97,6 +100,7 @@ export default function SearchPicker({
         // A compact cell has a fixed height: a failed search is the red border (no message under it, no alert after it).
         error={error ?? (compact && results.isError ? true : undefined)}
         aria-busy={loading}
+        data-autofocus={dataAutofocus || undefined}
       />
       {results.isError && !compact && <ErrorAlert error={results.error} />}
     </>

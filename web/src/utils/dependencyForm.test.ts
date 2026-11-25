@@ -1,19 +1,25 @@
 import { describe, expect, test } from "vitest";
 import i18n from "../i18n";
 import { ApiError } from "../api/http";
+import { planOf } from "../test/planView";
 import {
+  addableProjects,
   cyclePathText,
+  dependencyAddValidation,
   dependencyEditValidation,
   dependencyEndpointText,
   dependencyFormValidation,
   dependencySaveErrorMessage,
   dependencyUpdateErrorMessage,
   editDependencyForm,
+  emptyDependencyAddForm,
   emptyDependencyForm,
   PROJECT_SUCCESSOR,
   successorRef,
+  toDependencyAddRequest,
   toDependencyBody,
   toDependencyUpdateBody,
+  type DependencyAddValues,
   type DependencyFormValues,
 } from "./dependencyForm";
 
@@ -112,5 +118,92 @@ describe("dependency form", () => {
     expect(message(400)).toContain("either may have been deleted meanwhile");
     expect(message(500)).toBe("Save failed (500)");
     expect(dependencySaveErrorMessage(new Error("offline"), t)).toBe("Save failed. Check your connection and try again.");
+  });
+});
+
+describe("the Dependencies page's add form", () => {
+  const validateAdd = dependencyAddValidation(t);
+  const addValues = (over: Partial<DependencyAddValues> = {}): DependencyAddValues => ({
+    ...emptyDependencyAddForm(7),
+    successor: { value: "5", label: "b2 · Invoices" },
+    predecessor: { value: "42", label: "a1 · Alpha" },
+    ...over,
+  });
+
+  test("starts on no project, or the one given, as a milestone successor and predecessor, finish-to-start, no lag", () => {
+    expect(emptyDependencyAddForm(null)).toEqual({
+      projectId: null,
+      successorKind: "MILESTONE",
+      successor: null,
+      predecessorKind: "MILESTONE",
+      predecessor: null,
+      type: "FS",
+      lagDays: 0,
+    });
+    expect(emptyDependencyAddForm(7).projectId).toBe("7");
+  });
+
+  test("a project is required, and a successor milestone only for a milestone successor and once a project is picked", () => {
+    expect(validateAdd.projectId(null)).toBe("Pick the successor's project");
+    expect(validateAdd.projectId("7")).toBeNull();
+    expect(validateAdd.successor(null, addValues())).toBe("Pick the successor milestone");
+    expect(validateAdd.successor({ value: "5", label: "x" }, addValues())).toBeNull();
+    // Without a project there is no picker to show the message on, and the project's own message comes first.
+    expect(validateAdd.successor(null, addValues({ projectId: null }))).toBeNull();
+    // A whole project needs no milestone.
+    expect(validateAdd.successor(null, addValues({ successorKind: "PROJECT" }))).toBeNull();
+  });
+
+  test("a predecessor is required, and no end is its own predecessor, whichever way the successor is named", () => {
+    expect(validateAdd.predecessor(null, addValues())).toBe("Pick the predecessor");
+    expect(validateAdd.predecessor({ value: "42", label: "x" }, addValues())).toBeNull();
+    expect(validateAdd.predecessor({ value: "5", label: "x" }, addValues())).toBe("An end cannot depend on itself");
+    // The same id of the OTHER kind is another entity.
+    expect(validateAdd.predecessor({ value: "5", label: "x" }, addValues({ predecessorKind: "PROJECT" }))).toBeNull();
+    // The project as its own predecessor, as a whole-project successor.
+    const wholeProject = addValues({ successorKind: "PROJECT", successor: null, predecessorKind: "PROJECT" });
+    expect(validateAdd.predecessor({ value: "7", label: "x" }, wholeProject)).toBe("An end cannot depend on itself");
+    expect(validateAdd.predecessor({ value: "8", label: "x" }, wholeProject)).toBeNull();
+    // No project yet, a whole project as the successor: nothing names it, so nothing can equal it (the project's own message is shown).
+    expect(validateAdd.predecessor({ value: "7", label: "x" }, addValues({ projectId: null, successorKind: "PROJECT", predecessorKind: "PROJECT" }))).toBeNull();
+    // A leftover milestone pick does not count once the successor is the project.
+    expect(validateAdd.predecessor({ value: "5", label: "x" }, addValues({ successorKind: "PROJECT" }))).toBeNull();
+  });
+
+  test("the lag is the same whole number in range as everywhere", () => {
+    expect(validateAdd.lagDays("")).toBe("Enter a whole number of working days from -365 to 365");
+    expect(validateAdd.lagDays(366)).toBe("Enter a whole number of working days from -365 to 365");
+    expect(validateAdd.lagDays(-365)).toBeNull();
+  });
+
+  test("the request posts to the successor's project: a milestone successor, or the project itself", () => {
+    expect(toDependencyAddRequest(addValues({ type: "SS", lagDays: "-2" }))).toEqual({
+      projectId: 7,
+      body: { predecessor: { kind: "MILESTONE", id: 42 }, successor: { kind: "MILESTONE", id: 5 }, type: "SS", lagDays: -2 },
+    });
+    expect(toDependencyAddRequest(addValues({ successorKind: "PROJECT", successor: null, predecessorKind: "PROJECT" }))).toEqual({
+      projectId: 7,
+      body: { predecessor: { kind: "PROJECT", id: 42 }, successor: { kind: "PROJECT", id: 7 }, type: "FS", lagDays: 0 },
+    });
+  });
+
+  test("the addable projects are those whose createDependency is set, labelled over the whole plan, by name", () => {
+    const plan = planOf([
+      {
+        id: 1,
+        name: "Platform",
+        programs: [
+          { id: 10, name: "Billing", projects: [{ id: 100, name: "Checkout" }, { id: 101, name: "Audit", can: { createDependency: false } }, { id: 102, name: "alpha" }] },
+          { id: 11, name: "Search", projects: [{ id: 103, name: "Checkout", can: { createDependency: false } }] },
+        ],
+      },
+    ]);
+    // "Checkout" exists twice, so its label carries the program even though only one of the two is addable.
+    expect(addableProjects(plan)).toEqual([
+      { id: 102, label: "alpha" },
+      { id: 100, label: "Checkout (Billing)" },
+    ]);
+    expect(addableProjects(undefined)).toEqual([]);
+    expect(addableProjects(planOf([]))).toEqual([]);
   });
 });

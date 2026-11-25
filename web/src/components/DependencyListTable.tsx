@@ -97,7 +97,7 @@ const DependencyListTableRow = memo(function DependencyListTableRow({
 /**
  * The plan's dependencies as a plain table in the server's order (violated first). A row offers "Edit…" and "Delete" in its menu only where the
  * server's `can` says the caller may (the successor's project chain, or an administrator); when no shown row offers anything the operations
- * column is not there at all, and a row that offers nothing has an empty cell. Adding a link stays on the project page.
+ * column is not there at all, and a row that offers nothing has an empty cell. A new link is the page header's "Add dependency".
  */
 export default function DependencyListTable({
   rows,

@@ -7,6 +7,7 @@ import { forgetRevalidated } from "../api/revalidate";
 import { act, renderWithProviders, screen, waitFor, within } from "../test/render";
 import { deferred } from "../test/deferred";
 import { jsonResponse } from "../test/http";
+import { planOf } from "../test/planView";
 import { dependencyListView, dependencyRow, milestoneEnd } from "../test/dependencyList";
 import Dependencies from "./Dependencies";
 
@@ -14,7 +15,7 @@ import Dependencies from "./Dependencies";
 // The read-only page (the list, the filters, the states) is `Dependencies.test.tsx`.
 
 const TABLE = "Dependencies of the plan";
-const PLAN = { revision: 1, workStreams: [{ id: 700, name: "Platform", programs: [{ id: 70, name: "Billing", projects: [{ id: 3, name: "Checkout" }] }] }] };
+const PLAN = planOf([{ id: 700, name: "Platform", programs: [{ id: 70, name: "Billing", projects: [{ id: 3, name: "Checkout" }] }] }]);
 const TEAMS = { items: [{ id: 4, name: "Backend" }, { id: 7, name: "Frontend" }], page: 1, pageSize: 100, total: 2 };
 
 let answer: () => Response;
@@ -235,7 +236,7 @@ describe("Dependencies page: changing a dependency from its row", () => {
     answer = () => jsonResponse(200, dependencyListView([dependencyRow({ id: 77, can: { edit: true, delete: true } })]));
     renderPage();
     const pl = "Design review · Checkout → Build · Billing";
-    expect(await screen.findByText(/Właściciele\/ki projektu następnika albo administrator\/ka mogą w wierszu zależności zmienić jej typ i opóźnienie albo ją usunąć/)).toBeInTheDocument();
+    expect(await screen.findByText(/Właściciele\/ki projektu następnika albo administrator\/ka mogą tu dodać zależność, a w jej wierszu zmienić typ i opóźnienie albo ją usunąć/)).toBeInTheDocument();
     await user.click(await screen.findByRole("button", { name: `Operacje dla ${pl}` }));
     expect(screen.getByRole("menuitem", { name: `Edytuj ${pl}` })).toHaveTextContent("Edytuj…");
     expect(screen.getByRole("menuitem", { name: `Usuń ${pl}` })).toHaveTextContent("Usuń");

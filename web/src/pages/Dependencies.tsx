@@ -1,15 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { Badge, Button, Group, Stack, Text } from "@mantine/core";
-import { IconLink } from "@tabler/icons-react";
+import { IconLink, IconPlus } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DEPENDENCY_LIST_KEY, getDependencyListView, type DependencyListView } from "../api/dependencyList";
 import { deleteDependency } from "../api/dependencies";
+import { getPlanView, planViewKey } from "../api/plan";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
+import { addableProjects } from "../utils/dependencyForm";
 import { resolveDependencyList, type DependencyListRow } from "../utils/dependencyListRows";
+import DependencyAddModal from "../components/DependencyAddModal";
 import DependencyDeleteModal from "../components/DependencyDeleteModal";
 import DependencyEditorModal from "../components/DependencyEditorModal";
 import DependencyListFilters from "../components/DependencyListFilters";
@@ -62,7 +65,10 @@ function DependencyListFacts({ totals }: { totals: DependencyListView["totals"] 
  * (`utils/dependencyListFilters.ts`; a change `replace`s the entry, so Home's and the plan pages' links, a reload and Back all restore the view) and only
  * hide rows in the browser: the facts line always shows the server's totals over every dependency. A row's menu (by the row's `can`, 1.22) opens the
  * project page's own editor (the type and the lag; the ends are read-only and each names its project) or its delete confirmation; a save or a
- * delete refreshes the plan and the roadmap groups. Adding a dependency stays on the page of the successor's project.
+ * delete refreshes the plan and the roadmap groups. "Add dependency" (1.27) is in the header for whoever the plan view lets add to at least one
+ * project (`can.createDependency`); its dialog offers only those projects as the successor's, any project or milestone as the predecessor. The
+ * button is absent, never disabled, while the plan view is unread or failed or nothing in it may be added to; the new link may be hidden by the
+ * filters or cut by the row cap, which the page does not change.
  */
 export default function Dependencies() {
   const { t } = useTranslation();
@@ -72,6 +78,11 @@ export default function Dependencies() {
   const queryClient = useQueryClient();
   const titleRef = useRef<HTMLHeadingElement>(null);
   const [editing, setEditing] = useState<DependencyListRow | null>(null);
+  const [adding, setAdding] = useState(false);
+  const plan = useQuery({ queryKey: planViewKey, queryFn: getPlanView });
+  const addable = useMemo(() => addableProjects(plan.data), [plan.data]);
+  // A failed refresh of the plan view keeps the last document: whether the caller may add is then no claim, so no button.
+  const canAdd = addable.length > 0 && !plan.isError;
   const refresh = () => refreshQueriesAfterMutation(queryClient, ["plan"], ["roadmap"]);
   // The delete flow is declared before the editor's focus hook, as it always was; since 1.23 the order no longer matters: the editor's watch
   // ends when the focus enters the delete confirmation (`useDialogFocus`), so a delete made within seconds of a save is never answered by it.
@@ -81,7 +92,7 @@ export default function Dependencies() {
     successMessage: t("project.toast.dependencyDeleted"),
     focusAfterDelete: titleRef,
   });
-  useDialogFocus(editing !== null);
+  useDialogFocus(editing !== null || adding);
   // A stable callback for the memoized rows: `requestDelete` is a new function each render (it only touches setters and refs, so the latest is always right).
   const requestDelete = useRef(removal.requestDelete);
   useEffect(() => {
@@ -96,7 +107,18 @@ export default function Dependencies() {
 
   return (
     <Stack gap="md">
-      <PageHeader title={t("dependencyList.title")} description={t("dependencyList.intro")} titleRef={titleRef} />
+      <PageHeader
+        title={t("dependencyList.title")}
+        description={t("dependencyList.intro")}
+        titleRef={titleRef}
+        actions={
+          canAdd && (
+            <Button leftSection={<IconPlus size={16} />} onClick={() => setAdding(true)}>
+              {t("project.dependency.add")}
+            </Button>
+          )
+        }
+      />
 
       <DependencyListFilters filter={filter} onChange={change} />
 
@@ -136,6 +158,17 @@ export default function Dependencies() {
           onClose={() => setEditing(null)}
           onSaved={async () => {
             setEditing(null);
+            await refresh();
+          }}
+        />
+      )}
+      {adding && (
+        <DependencyAddModal
+          projects={addable}
+          initialProjectId={filter.projectId ?? null}
+          onClose={() => setAdding(false)}
+          onSaved={async () => {
+            setAdding(false);
             await refresh();
           }}
         />

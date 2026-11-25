@@ -1,6 +1,17 @@
 {
   "title": "Zależności",
-  "intro": "Wszystkie zależności planu: następnik czeka na poprzednik. Niedotrzymane zależności są wymienione na początku i tylko ostrzegają; nic się nie przesuwa. Właściciele/ki projektu następnika albo administrator/ka mogą w wierszu zależności zmienić jej typ i opóźnienie albo ją usunąć; nową dodaje się na stronie projektu jej następnika.",
+  "intro": "Wszystkie zależności planu: następnik czeka na poprzednik. Niedotrzymane zależności są wymienione na początku i tylko ostrzegają; nic się nie przesuwa. Właściciele/ki projektu następnika albo administrator/ka mogą tu dodać zależność, a w jej wierszu zmienić typ i opóźnienie albo ją usunąć.",
+  "add": {
+    "successorProject": "Projekt następnika",
+    "successorProjectHint": "Projekt, który czeka. Na liście są tylko projekty, którymi możesz zarządzać.",
+    "successorKind": "Następnik to",
+    "successorHint": "Kamień milowy tego projektu, który czeka.",
+    "clearSuccessor": "Wyczyść kamień milowy następnika",
+    "validation": {
+      "projectRequired": "Wybierz projekt następnika",
+      "successorRequired": "Wybierz kamień milowy następnika"
+    }
+  },
   "status": {
     "all": "Wszystkie",
     "violated": "Niedotrzymane"

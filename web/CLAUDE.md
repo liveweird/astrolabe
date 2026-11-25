@@ -133,7 +133,7 @@ Everything is lazy under `RequireAuth` unless noted.
 - `/roadmap` — Planning, everyone (`can.editRank`, `can.editTargetWindow`; filters in the URL, remembered) — "Roadmap" + `timeline.md`.
 - `/programs` — Planning, everyone (the target window by `can`; the program pick in the URL, remembered) — "Programs" + `timeline.md`.
 - `/milestones` — Planning, everyone (read-only; filters in the URL) — "Milestones".
-- `/dependencies` — Planning, everyone (edit and delete by the row's `can`; filters in the URL) — "Dependencies".
+- `/dependencies` — Planning, everyone (add, edit and delete by `can`; filters in the URL) — "Dependencies".
 - `/baselines`, `/baselines/:id` — Planning, everyone (`can.manage` writes) — "Baselines".
 - `/teams` — Teams and capacity, everyone reads, ADMIN writes — "Teams and the team page"; `/teams/:id` — everyone (`team.can`) — "Teams and the team page" + `timeline.md`.
 - `/team-load` — Teams and capacity, everyone (read-only; warnings and past-weeks filters) — "Team load".

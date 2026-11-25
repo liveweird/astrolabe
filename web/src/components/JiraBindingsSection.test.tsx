@@ -4,8 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { screen, waitFor, within } from "@testing-library/react";
 import JiraBindingsSection from "./JiraBindingsSection";
 import type { JiraBinding } from "../api/jira";
-import type { PlanView } from "../api/plan";
 import { jsonResponse } from "../test/http";
+import { planOf } from "../test/planView";
 import { CONNECTION } from "../test/jira";
 import { renderWithProviders } from "../test/render";
 
@@ -30,19 +30,10 @@ let rows: JiraBinding[];
 let deleteStatus: number;
 let planStatus: number;
 
-const OWNER = { ownerPersonId: 6, ownerName: "Pola Program" };
-const PLAN = {
-  revision: 3,
-  can: { createWorkStream: true },
-  workStreams: [
-    {
-      id: 3,
-      name: "Platform",
-      endDate: null,
-      programs: [{ id: 4, name: "Billing", workStreamId: 3, ...OWNER, projects: [{ id: 7, name: "Invoices", programId: 4, workStreamId: 3, ownerPersonId: 5, ownerName: "Piotr Project" }] }],
-    },
-  ],
-} as unknown as PlanView;
+const PLAN = planOf(
+  [{ id: 3, name: "Platform", programs: [{ id: 4, name: "Billing", projects: [{ id: 7, name: "Invoices", ownerPersonId: 5, ownerName: "Piotr Project" }] }] }],
+  { revision: 3 },
+);
 const emptyPage = { items: [], page: 1, pageSize: 50, total: 0 };
 
 beforeEach(() => {

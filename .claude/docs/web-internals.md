@@ -124,7 +124,7 @@ The gates and their rules (zero findings, no baseline, the size gate): `web/CLAU
     `<meta name="astrolabe-build" content="<commit>">` (nothing else), so a build's shell and bundle always agree; `api/build.ts` reads it back (the deploy
     check, "Error boundaries, chunk reload and toasts").
 - **Test fetch stubs**: `test/http.ts` `routeFetch(table)` answers by `"METHOD /path"` (exact, or `:name`/`*` patterns) with a body, a `Response` or a
-  function of the call. An unlisted call rejects naming its method and path and fails the test in `setup.ts`'s `afterEach`. `test/planView.ts` and
+  function of the call. An unlisted call rejects naming its method and path and fails the test in `setup.ts`'s `afterEach`. `test/planView.ts` (`planOf`) and
   `test/roadmapView.ts` build the view documents. A touched test file moves to the router (and to the builders) instead of a hand-rolled `mockImplementation`.
 
 ## Transport and session layer
@@ -656,7 +656,7 @@ Files:
 - Dependencies: `api/dependencies.ts` (`createDependency(projectId, body)`, `updateDependency(id, {type, lagDays})` - the in-place edit, 204 -, `deleteDependency(id)`, `isDependencyCycle(err)`
   - the `isStaleRevision` shape -, the types), `api/plan.ts` `listProjects` / `api/milestones.ts` `listMilestones` (the pickers' paged searches), `api/http.ts` `ApiError.cycle` (a typed
   getter beside `detail`/`type`; malformed entries dropped), `utils/projectDependencies.ts` (pure: `ghostEndpoints`, `summaryRowNeeded`, `arrowSpecs`, `conflictCount`,
-  `conflictsByBar`, `linksOfMilestone`), `utils/dependencyForm.ts`, `components/ProjectDependencies.tsx`, `DependencyEditorModal.tsx`, `DependencyDeleteModal.tsx`, `MilestoneSelect.tsx`,
+  `conflictsByBar`, `linksOfMilestone`), `utils/dependencyForm.ts`, `components/ProjectDependencies.tsx`, `DependencyEditorModal.tsx`, `DependencyDeleteModal.tsx`, `DependencyFormParts.tsx`, `MilestoneSelect.tsx` (`projectId`, `clearLabel`),
   `ProjectSelect.tsx`; the summary and ghost rows are in `ProjectTimelineRows.tsx`, the overlay in `ProjectTimeline.tsx`, the "Add dependency…" item in `MilestoneMenu.tsx`.
   - `dependencyForm.ts`: the form values, the self-link and lag rules, `toDependencyBody`, `cyclePathText`, `dependencySaveErrorMessage`; the edit's `editDependencyForm`,
     `dependencyEditValidation` (the lag only), `toDependencyUpdateBody`, `dependencyUpdateErrorMessage`, and the shared `dependencyEndpointText` (`ownProjectId` `null` = no own project, so every
@@ -1246,12 +1246,12 @@ The page's co-located tests (`Milestones.test.tsx`, the `milestoneFilters|milest
 Files: `pages/Dependencies.tsx`; `api/dependencyList.ts` (`getDependencyListView`); `utils/dependencyListRows.ts` (`resolveDependencyList`); `utils/dependencyListFilters.ts`
 (`parseDependencyListFilter`, `dependencyListFilterParams`, `matchesDependencyFilter`, `narrowingCount`); `utils/dependencyListLinks.ts` (`dependenciesPath`,
 `dependenciesFilteredPath(filter)`, `violatedDependenciesPath({teamId?, projectId?})`, the builders the plan pages' and Home's links use); `components/DependencyListFilters.tsx`;
-`components/DependencyListTable.tsx`; `components/DependencyCells.tsx`; `components/ProjectScopeChip.tsx`.
+`components/DependencyListTable.tsx`; `components/DependencyCells.tsx`; `components/ProjectScopeChip.tsx`; `components/DependencyAddModal.tsx`, `DependencyFormParts.tsx`.
 
 ### Route and data
 
 `/dependencies` (nav: Planning after Milestones, `IconLink`, **everyone**) lists every dependency of the plan from the ONE unpaged `GET /views/dependencies`
-(`getDependencyListView`, key `DEPENDENCY_LIST_KEY = ["plan","dependencies"]`, under `["plan"]` so every plan write refreshes it; at most 1,000 rows with `truncated`). Each row carries
+(`getDependencyListView`, key `DEPENDENCY_LIST_KEY = ["plan","dependencies"]`, under `["plan"]` so every plan write refreshes it; at most 1,000 rows with `truncated`); the page also reads the plan view (`getPlanView`, revalidated). Each row carries
 the caller's own `can{edit, delete}`, the project view's flags, and nothing else differs between callers.
 
 - **The wire document names its ends once.** A row holds `predecessor`/`successor` as `{kind, id}` and the names are in `milestones`, `projects` and `teams`, exactly what the listed
@@ -1274,7 +1274,13 @@ A row offers "Edit…" and "Delete" in a `RowActionsMenu` (named `common.table.o
   title).
 - A save or a delete refreshes `["plan"]` (this list, the plan, project and team views, Home) and `["roadmap"]`; the dialog's own errors (the cycle `409` with its path, the `403`, the
   `404` of a link deleted meanwhile) stay in the dialog and re-read nothing.
-- A new link is still added on the page of its successor's project.
+
+### Adding a link
+
+The header's "Add dependency" shows only while the plan view (`planViewKey`) is answered, not failed, and holds a project with `can.createDependency` (`addableProjects`).
+
+- `DependencyAddModal` (parts shared with the project page's editor in `DependencyFormParts.tsx`): the successor's project (a `Select` over those, started from `?projectId=` when addable), the successor (`MilestoneSelect projectId`, or the project), the predecessor from the whole plan, type, lag.
+- Errors stay in the dialog, on their fields; it cannot close while saving. A save refreshes the plan and roadmap groups, keeps the filters, and returns the focus to the button.
 
 ### Filters
 

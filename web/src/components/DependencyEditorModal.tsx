@@ -1,11 +1,9 @@
 import { useState, type ReactNode } from "react";
-import { Button, Group, Modal, NumberInput, SegmentedControl, Select, Stack, Text, TextInput } from "@mantine/core";
-import { useForm, type UseFormReturnType } from "@mantine/form";
+import { Button, Group, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
+import { useForm } from "@mantine/form";
 import { useTranslation } from "react-i18next";
-import { createDependency, isDependencyCycle, updateDependency, type EndpointKind, type EndpointRef } from "../api/dependencies";
+import { createDependency, isDependencyCycle, updateDependency, type EndpointRef } from "../api/dependencies";
 import {
-  cyclePathText,
-  DEPENDENCY_TYPES,
   dependencyEditValidation,
   dependencyEndpointText,
   dependencyFormValidation,
@@ -13,8 +11,6 @@ import {
   dependencyUpdateErrorMessage,
   editDependencyForm,
   emptyDependencyForm,
-  MAX_LAG_DAYS,
-  MIN_LAG_DAYS,
   PROJECT_SUCCESSOR,
   toDependencyBody,
   toDependencyUpdateBody,
@@ -22,46 +18,8 @@ import {
   type EditableDependency,
 } from "../utils/dependencyForm";
 import { showSuccessToast } from "../utils/toast";
+import { CycleNotice, PredecessorFields, TypeAndLagFields } from "./DependencyFormParts";
 import FormErrorAlert from "./FormErrorAlert";
-import MilestoneSelect from "./MilestoneSelect";
-import ProjectSelect from "./ProjectSelect";
-
-/** The type and the lag: the two fields both modes edit. */
-function TypeAndLagFields({ form }: { form: UseFormReturnType<DependencyFormValues> }) {
-  const { t } = useTranslation();
-  return (
-    <>
-      <Select
-        label={t("project.dependency.type.label")}
-        data={DEPENDENCY_TYPES.map((type) => ({ value: type, label: t(`project.dependency.type.${type}`) }))}
-        allowDeselect={false}
-        {...form.getInputProps("type")}
-      />
-      <NumberInput
-        label={t("project.dependency.lagLabel")}
-        description={t("project.dependency.lagHint")}
-        min={MIN_LAG_DAYS}
-        max={MAX_LAG_DAYS}
-        allowDecimal={false}
-        {...form.getInputProps("lagDays")}
-      />
-    </>
-  );
-}
-
-/** The cycle 409 as the localized sentence plus the path ("A → B → A"), never the server's text. */
-function CycleNotice({ message, path }: { message: string; path: Parameters<typeof cyclePathText>[0] | undefined }) {
-  return (
-    <Stack gap={2}>
-      <Text size="sm">{message}</Text>
-      {path !== undefined && path.length > 0 && (
-        <Text size="sm" fw={600}>
-          {cyclePathText(path)}
-        </Text>
-      )}
-    </Stack>
-  );
-}
 
 type EditorProps = { onClose: () => void; onSaved: () => Promise<void> } & (
   | {
@@ -74,7 +32,7 @@ type EditorProps = { onClose: () => void; onSaved: () => Promise<void> } & (
       target?: EditableDependency | null;
     }
   | {
-      /** The list page: no own project, so it can only edit - a `target` is required (nothing here can add a link). */
+      /** The list page: no own project, so it can only edit - a `target` is required (a new link there is `DependencyAddModal`'s). */
       project: null;
       target: EditableDependency;
       milestones?: undefined;
@@ -93,7 +51,7 @@ type EditorProps = { onClose: () => void; onSaved: () => Promise<void> } & (
  * delete + add), only the type and the lag are editable, and a type that would close a cycle is the same 409 with its path.
  *
  * Without a `project` (the Dependencies page, 1.22: edit only) there is no "own" project, so every milestone end of the read-only fields
- * names its project ("Build · Billing"); a new link is added on a project's page, never here.
+ * names its project ("Build · Billing"); a new link there is added in `DependencyAddModal` (1.27), never here.
  */
 export default function DependencyEditorModal({ project, milestones = [], successor = null, target = null, onClose, onSaved }: EditorProps) {
   const { t } = useTranslation();
@@ -172,24 +130,19 @@ export default function DependencyEditorModal({ project, milestones = [], succes
                   form.clearFieldError("predecessor");
                 }}
               />
-              <SegmentedControl
-                fullWidth
-                aria-label={t("project.dependency.predecessorKind")}
-                data={(["MILESTONE", "PROJECT"] as const).map((kind) => ({ value: kind, label: t(`project.dependency.kind.${kind}`) }))}
-                value={form.values.predecessorKind}
-                onChange={(value) => {
-                  form.setFieldValue("predecessorKind", value as EndpointKind);
+              <PredecessorFields
+                kind={form.values.predecessorKind}
+                picked={form.values.predecessor}
+                error={form.errors.predecessor}
+                onKind={(kind) => {
+                  form.setFieldValue("predecessorKind", kind);
                   pickPredecessor(null);
                 }}
+                onPick={pickPredecessor}
               />
-              {form.values.predecessorKind === "MILESTONE" ? (
-                <MilestoneSelect picked={form.values.predecessor} onPick={pickPredecessor} error={form.errors.predecessor} />
-              ) : (
-                <ProjectSelect picked={form.values.predecessor} onPick={pickPredecessor} error={form.errors.predecessor} />
-              )}
             </>
           )}
-          <TypeAndLagFields form={form} />
+          <TypeAndLagFields typeProps={form.getInputProps("type")} lagProps={form.getInputProps("lagDays")} />
           {error && <FormErrorAlert>{error}</FormErrorAlert>}
           <Group justify="flex-end" gap="sm">
             <Button type="button" variant="default" onClick={onClose} disabled={submitting}>
