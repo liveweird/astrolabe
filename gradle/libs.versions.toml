@@ -30,7 +30,7 @@ opentelemetry = "1.68.0"
 # reactor-netty 1.3.8's own build (4.2.19, read off its published pom 2026-11-07; 1.3.8 is still the newest GA)
 # and is a security release (seven advisories in buffer, http, http2, http3, quic and dns-resolver) — all within
 # the Netty 4.2 line, so the BOM-wide pin is the intended one-version classpath.
-netty = "4.2.20.Final"
+netty = "4.2.21.Final"
 # The SDK line and the instrumentation line MUST pair (instrumentation BOM 2.34.x -> SDK 1.68.0 —
 # read the SDK version off the instrumentation BOM's pom before bumping either). The alpha BOM
 # imported in core pins every io.opentelemetry artifact, incubator/alpha ones included, to that
