@@ -15,10 +15,10 @@ detekt = "1.23.8"
 # so at the default 512 MiB test-worker heap the Kover agent runs out of memory merging the two forks' reports at shutdown and koverVerify
 # reads 0.8-95% instead of 99.2%. It passes with `maxHeapSize = "1g"` on the test task. Revisit with 1.6.2, or raise the heap deliberately.
 exposed = "1.6.0"
-flyway = "13.12.2"
+flyway = "13.13.0"
 kotlin = "2.4.21"
 kover = "0.9.11"
-logback = "1.6.7"
+logback = "1.6.8"
 opentelemetry = "1.68.0"
 # Netty alignment (2026-09-04, Lettuce): Ktor's engine ships Netty 4.2 while r2dbc-postgresql 1.1.2
 # asks for reactor-netty 1.1.22 (built on 4.1.112) — Gradle lifted the shared modules to 4.2 and left
