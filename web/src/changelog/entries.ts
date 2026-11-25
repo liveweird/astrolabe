@@ -17,6 +17,24 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.27.0",
+    date: "2026-11-25",
+    en: `**Finding and linking work**
+
+- The Dependencies page has "Add dependency". It shows to whoever can manage at least one project; the successor is one of those projects or its milestones, the predecessor is anything in the plan.
+- The Milestones page filters by program and by work stream, and sorts by the project's rank. The milestones of unranked projects come last in both directions.
+- With "Critical path" on, the team page draws the whole critical chain through the team's work: the milestones of other teams, and whole projects, are dimmed read-only rows with their arrows. The new "Critical chain" section lists the chain's dependencies in a table. The chain shows at most 100 of these rows and says when it is longer.
+- API (\`/api/v1\`), additions only: \`programId\`, \`workStreamId\`, the sort keys \`rankPosition\` and \`startDate\`, and the \`rankPosition\` member on \`GET /milestones\`; \`criticalChain=true\` on \`GET /views/team/{id}\`; \`can.createDependency\` on the plan view's projects.
+- No stored data changes.`,
+    pl: `**Wyszukiwanie i łączenie pracy**
+
+- Na stronie „Zależności” jest przycisk „Dodaj zależność”. Widzi go każda osoba, która może zarządzać przynajmniej jednym projektem; następnikiem jest jeden z tych projektów lub jego kamień milowy, a poprzednikiem dowolny element planu.
+- Stronę „Kamienie milowe” możesz filtrować według programu i strumienia pracy oraz sortować według rankingu projektu. Kamienie milowe projektów spoza rankingu są ostatnie w obu kierunkach.
+- Po włączeniu opcji „Ścieżka krytyczna” strona zespołu rysuje cały łańcuch krytyczny przechodzący przez pracę zespołu: kamienie milowe innych zespołów i całe projekty to przyciemnione wiersze tylko do odczytu, razem ze strzałkami. Nowa sekcja „Łańcuch krytyczny” wymienia zależności łańcucha w tabeli. Łańcuch pokazuje najwyżej 100 takich wierszy i mówi, kiedy jest dłuższy.
+- API (\`/api/v1\`), tylko dodatki: \`programId\`, \`workStreamId\`, klucze sortowania \`rankPosition\` i \`startDate\` oraz pole \`rankPosition\` w \`GET /milestones\`; \`criticalChain=true\` w \`GET /views/team/{id}\`; \`can.createDependency\` w projektach widoku planu.
+- Bez zmian w zapisanych danych.`,
+  },
+  {
     version: "1.26.1",
     date: "2026-11-25",
     en: `**Updated libraries and images**

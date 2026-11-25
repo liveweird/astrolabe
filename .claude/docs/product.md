@@ -67,7 +67,7 @@ Each increment gets its own plan (architect) before implementation; only v0.1.0 
 | **1.24.0 Technical release** | No feature: docs in Rules and sections with a guard, the spec's descriptions as contract, shared Jira and Flow pieces, two CI forks, a named e2e target; the item-level `acknowledgement` leaves `GET /views/deviations` |
 | **1.25.0 Reliability and navigation** | Complete Flow sprint snapshots (V31), atomic project edits, consistent API reads, grouped navigation and refreshed Home; 1.25.1 a new logo |
 | **1.26.0 Saved proposals, frozen links and capacity** | Cross-team runs saved and read by every signed-in user (V32); baselines freeze links and capacity (V33); paged `GET /work-streams` and `/programs`; docs under byte ceilings, fewer test sleeps; 1.26.1 dependency updates (`dependencies.md`) |
-| **1.27.0 Finding and linking work** (built, not released) | A dependency added from its list; Milestones by program, work stream and rank; the whole critical chain on the team page; the last untested timings measured |
+| **1.27.0 Finding and linking work** | A dependency added from its list; Milestones by program, work stream and rank; the whole critical chain on the team page; the last untested timings measured |
 
 ## Domain decisions taken with the user
 
@@ -281,11 +281,11 @@ What was ported later, and what was left in Flow on purpose:
 
 Newest first. Each version: its scope, the user's answers, the defaults that still bind and what was not built; the commits, the plans (they live outside the repository) and the test runs are in git. "No migration" means the preceding schema still applies. Every release leaves "nothing is written to Jira or Flow" true.
 
-### v1.27.0 — finding and linking work (built, not released)
+### v1.27.0 — finding and linking work
 
-Built overnight on 2026-11-25; a minor bump, the API only gains members. No migration.
+Built overnight and released on the user's word on 2026-11-25; a minor bump, the API only gains members. No migration.
 
-- `GET /milestones` takes `programId`, `workStreamId` and `sort=rank` (`planning-model.md` "The picker and milestone lists"); the plan view's project gains `can.createDependency` (a hint equal to the guard, `authorization.md` "Dependencies"); `GET /views/team/{id}?criticalChain=true` carries the chain, at most 100 members and 500 links (`planning-model.md` "The critical path").
+- `GET /milestones` takes `programId`, `workStreamId` and the sort keys `rankPosition` and `startDate` (`planning-model.md` "The picker and milestone lists"); the plan view's project gains `can.createDependency` (a hint equal to the guard, `authorization.md` "Dependencies"); `GET /views/team/{id}?criticalChain=true` carries the chain, at most 100 members and 500 links (`planning-model.md` "The critical path").
 - The e2e rank test appends two throwaway projects to the global ranking (the plan had meant none to); U4 cannot be shown without ranked projects.
 - The page filters use the plan document, so `GET /work-streams` still has no web consumer.
 - Measured (`timeline.md` "Measured figures"): `POST /baselines` holds the plan lock 82-85 ms (stop line 250), a saved proposal reads in 57-73 ms (stop line 500); the five untested cells are decided (three scale tests, two design notes). No stop line was crossed.

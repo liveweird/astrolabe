@@ -1,6 +1,6 @@
 # Product backlog
 
-Updated 2026-11-25 (1.26.1 released; 1.27.0 built on `v1.27-next`, not released). This file tracks **outstanding work only**. Implemented behaviour and release history belong elsewhere:
+Updated 2026-11-25 (1.27.0 released). This file tracks **outstanding work only**. Implemented behaviour and release history belong elsewhere:
 - [README.md](README.md);
 - the [application changelog](web/src/changelog/entries.ts);
 - the topic guides under `.claude/docs/`.
@@ -21,7 +21,6 @@ The `backlog` mod (`liveweird/claude-mods`) summarises the tags on the status li
 
 Each increment gets its own plan (architect) before implementation. The domain sketch is `.claude/docs/planning-model.md`; the timeline approach is `.claude/docs/timeline.md`.
 
-- [new] **Release 1.27.0.** Built on the local branch `v1.27-next` (not pushed); left: the version bump (`APP_VERSION`, `info.version`), the changelog entry EN and PL, the `CLAUDE.md` roadmap line, the final gates and full e2e, then merge, push, CI, dump, deploy, tag and GitHub release. No migration; about 45 to 60 minutes. Waits for the user's word.
 - [new] **Ghost rows beyond the direct neighbours on the PROJECT page, if the Critical chain list proves insufficient.** Farther chain members are a list there (names, dates, hops, slack), not timeline rows; the team page draws the whole chain since 1.27.
 - [new] **Ghost rows for every cross-team link on the team page (1.27).** Only the critical chain's members get a dimmed row; a non-critical link to another team's milestone is drawn only when that milestone is on the chain.
 - [new] **A milestone that drives another project's end is not marked on its team's page (1.27).** The chain is measured toward the end of a project the team works on (1.7's reach), so work that is critical only for a project downstream shows no mark.
@@ -160,6 +159,6 @@ Each increment gets its own plan (architect) before implementation. The domain s
 - [new] **Nine create paths repeat the same insert-then-read-back projection (1.26, from the 1.25 review).** Since 1.25 each service that answers a created row reads it back inside the write transaction, and the nine services spell it out one by one; a shared helper would need a shape that fits the per-table columns, so the review left it.
 - [new] **`SerializableDtoBehaviorTest` is a line scanner, not a parser (1.26).** It recognises this repository's declaration style: an `@Serializable` annotation alone on its line, members at the body's top depth starting with `fun`, `val`, `var` or `init`. A one-line `@Serializable data class`, a member with a modifier (`private val`, `override val`), a secondary constructor and a companion's members pass unseen; harden it (or take the check to a real parser) if such a DTO appears.
 - [new] **Exposed 1.6.1 held back: it grows the heap (1.26.1).** It compiles and passes every test, but the test JVMs' live heap grows by about a fifth and the Kover report runs out of memory at the default 512 MiB test heap (`gradle/libs.versions.toml`, `dependencies.md` "Dependency history"). Find which 1.6.1 change does it and whether the server's own heap grows too, wait for 1.6.2, or raise the test heap deliberately; Dependabot keeps proposing it until then.
-- [new] **The Dependabot wave of 2026-11-25.** Open: #34 and #43 (PostgreSQL 18.7, the k8s and the compose pins together), #42 (the temurin digest), #44 (knip, e2e), #45 (Netty 4.2.21, CI failing), #46 (the web group), #47 (Flyway 13.13, Logback 1.6.8, Gradle 9.9.2, CI failing). The user: next time (2026-11-25).
+- [new] **The Dependabot wave of 2026-11-25.** Open: #34 and #43 (PostgreSQL 18.7, the k8s and the compose pins together, CI failing on each alone), #42 (the temurin digest), #44 (knip, e2e), #45 (Netty 4.2.21, CI failing), #46 (the web group), #47 (Flyway 13.13, Logback 1.6.8, Gradle 9.9.2, CI failing). The user: next time (2026-11-25).
 - [new] **The Polish texts of 1.27 are unread by a native speaker.** The Dependencies page's add dialog, the Milestones filters and Rank column, and the team page's Critical chain section and announcements.
 - [new] **Toolchain pins Dependabot does not cover (1.26.1).** Newer on 2026-11-25: the JDK respin 21.0.13.1+2 (three pins together), trivy 0.76.2 (three copies, with the digest), Gradle 9.9.2; and `commons-lang3` 3.22.0 in the `server` buildscript lock, which every `--write-locks` proposes.
