@@ -1,6 +1,6 @@
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { expect, test, vi } from "vitest";
-import { refreshQueriesAfterMutation } from "./queryRefresh";
+import { dropInactiveSiblings, refreshQueriesAfterMutation } from "./queryRefresh";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -45,5 +45,28 @@ test("refreshes active initial reads across prefixes, invalidates inactive data 
     user.resolve("user result");
     subscriptions.forEach((unsubscribe) => unsubscribe());
     client.clear();
+  }
+});
+
+test("dropInactiveSiblings removes the inactive entries under the prefix, keeps the written one, an observed one and every other prefix", () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  const written = ["plan", "team", 1, { baseline: null, chain: true }] as const;
+  client.setQueryData(written, "written");
+  client.setQueryData(["plan", "team", 1, { baseline: null, chain: false }], "sibling");
+  client.setQueryData(["plan", "team", 1, { baseline: 5, chain: false }], "another sibling");
+  client.setQueryData(["plan", "team", 2, { baseline: null, chain: false }], "another team");
+  client.setQueryData(["plan", "project", 1, { baseline: null }], "a project");
+  client.setQueryData(["plan", "team", 1, { baseline: 7, chain: false }], "shown");
+  const shown = new QueryObserver(client, { queryKey: ["plan", "team", 1, { baseline: 7, chain: false }], queryFn: () => "shown" }).subscribe(() => undefined);
+  try {
+    dropInactiveSiblings(client, ["plan", "team", 1], written);
+    expect(client.getQueryData(written)).toBe("written");
+    expect(client.getQueryData(["plan", "team", 1, { baseline: null, chain: false }])).toBeUndefined();
+    expect(client.getQueryData(["plan", "team", 1, { baseline: 5, chain: false }])).toBeUndefined();
+    expect(client.getQueryData(["plan", "team", 1, { baseline: 7, chain: false }])).toBe("shown");
+    expect(client.getQueryData(["plan", "team", 2, { baseline: null, chain: false }])).toBe("another team");
+    expect(client.getQueryData(["plan", "project", 1, { baseline: null }])).toBe("a project");
+  } finally {
+    shown();
   }
 });

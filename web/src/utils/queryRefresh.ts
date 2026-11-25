@@ -1,4 +1,4 @@
-import type { QueryClient, QueryKey } from "@tanstack/react-query";
+import { hashKey, type QueryClient, type QueryKey } from "@tanstack/react-query";
 
 /** Refresh successful mutations without reusing a pending first fetch with no cached data. */
 export async function refreshQueriesAfterMutation(queryClient: QueryClient, ...queryKeys: QueryKey[]): Promise<void> {
@@ -15,4 +15,15 @@ export async function refreshQueriesAfterMutation(queryClient: QueryClient, ...q
  */
 export function refreshJiraAndTimelines(queryClient: QueryClient): Promise<void> {
   return refreshQueriesAfterMutation(queryClient, ["jira"], ["plan"], ["roadmap"]);
+}
+
+/**
+ * After a successful write on one cached entry of a view whose key carries more than the id (the team page's baseline pick and critical-chain toggle):
+ * the INACTIVE sibling entries under `prefix` are removed, the written one kept. A sibling still holds the document as it was before the write (its
+ * order list, its tray), and coming back to it would show that copy until its refetch lands - a change made from it in that window would be built on a
+ * list the write has outdated. Without a copy the page shows the loading placeholder (writes refused) and then the fresh document.
+ */
+export function dropInactiveSiblings(queryClient: QueryClient, prefix: QueryKey, written: QueryKey): void {
+  const keep = hashKey(written);
+  queryClient.removeQueries({ queryKey: prefix, type: "inactive", predicate: (query) => query.queryHash !== keep });
 }

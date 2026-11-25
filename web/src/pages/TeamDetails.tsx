@@ -1,7 +1,7 @@
 import { useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
-import { Group, Stack, Text } from "@mantine/core";
+import { Group, Stack } from "@mantine/core";
 import { IconCalendarStats } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../api/http";
@@ -15,6 +15,7 @@ import EmptyState from "../components/EmptyState";
 import ErrorAlert from "../components/ErrorAlert";
 import MilestoneScheduleModal from "../components/MilestoneScheduleModal";
 import TeamCapacity from "../components/TeamCapacity";
+import TeamCriticalChain, { TeamCriticalNote } from "../components/TeamCriticalChain";
 import TeamEditorModal from "../components/TeamEditorModal";
 import TeamFacts from "../components/TeamFacts";
 import TeamPageHeader from "../components/TeamPageHeader";
@@ -45,6 +46,7 @@ import { useScheduleProposal } from "../hooks/useScheduleProposal";
 import { useTeamOrder } from "../hooks/useTeamOrder";
 import { useJiraBarsPick } from "../hooks/useJiraBarsPick";
 import { useLocalToday } from "../hooks/useLocalToday";
+import { useTeamChain } from "../hooks/useTeamChain";
 import { useTeamSchedule } from "../hooks/useTeamSchedule";
 import { baselineDays } from "../utils/baselineOverlay";
 import { localIsoDate } from "../utils/isoDate";
@@ -54,6 +56,7 @@ import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { loadErrorMessage } from "../utils/saveError";
 import { overlayCheck, proposalDays } from "../utils/scheduleProposal";
 import { growSeenRange, type SeenRange } from "../utils/seenRange";
+import { chainDays } from "../utils/teamChain";
 import { teamsPath } from "../utils/teamLinks";
 import { dropOutcome } from "../utils/timelineDrag";
 import { defaultRange, makeScale, MILESTONE_ZOOMS, toEpochDay, type Zoom } from "../utils/timelineScale";
@@ -81,22 +84,27 @@ function TeamPage({ id }: { id: number }) {
   // v0.9: the baseline pick (one for every timeline page) keys the view's query - and so every write path's optimistic step; the typed 400
   // "unknown baseline" clears it.
   const { pick, setPick } = useBaselinePick();
-  const schedule = useTeamSchedule(id, pick);
+  // The critical-path toggle (1.7): the project page's remembered choice, one for both pages. Off, the page renders what it always did. On (1.27), it also asks
+  // for the critical chain, so it is the other half of the view's cache key: the view and ALL THREE writes take the same `(pick, criticalPath)` pair.
+  const { shown: criticalPath, setShown: setCriticalPath } = useCriticalPathPick();
+  const schedule = useTeamSchedule(id, pick, criticalPath);
   const { view, query } = schedule;
   // The "Jira dates" toggle (1.3, remembered, on by default; offered only where the view links a Jira site).
   const jiraBars = useJiraBarsPick();
-  // The critical-path toggle (1.7): the project page's remembered choice, one for both pages. Off, the page renders what it always did.
-  const { shown: criticalPath, setShown: setCriticalPath } = useCriticalPathPick();
   const criticalNoteId = useId();
   const dropping = useDropUnknownPick(query.error, pick, setPick);
-  const order = useTeamOrder(id, view, schedule.announce, pick, schedule.placeholder);
-  const proposal = useScheduleProposal(id, schedule.announce, schedule.placeholder, pick);
+  const order = useTeamOrder(id, view, schedule.announce, pick, schedule.placeholder, criticalPath);
+  const proposal = useScheduleProposal(id, schedule.announce, schedule.placeholder, pick, criticalPath);
+  // The chain's block, only while the toggle is on (the copy kept while the toggle changes may be the other document's); said once when it arrives.
+  const chain = useTeamChain(view, criticalPath, schedule.announce);
   const lock = useProposalLock(proposal, schedule.announce);
   const { open, locked } = lock;
   // 1.8: while only some moves are ticked, the server judges THOSE moves (the link warnings and the proposed load); all or none need no request.
   const check = useScheduleCheck({ teamIds: [id], revision: open?.revision ?? 0, scopeHash: open?.scopeHash ?? "", moves: open?.moves ?? [], selected: proposal.selected, enabled: open !== null });
   const writing = schedule.pending || order.pending;
   const busy = writing || proposal.requesting;
+  // The baseline pick and the Critical path toggle each select the cached view entry the writes target: neither changes while a write runs or a proposal is requested or open.
+  const frozen = busy || locked;
   // Focus follows the preview (Discard takes it when a proposal opens, Propose gets it back once the preview is closed): `useProposalFocus`.
   const { proposeRef, discardRef } = useProposalFocus(proposal, open, busy);
   const [zoom, setZoom] = useStoredState<Zoom>("timeline.zoom", "week", isOneOf(MILESTONE_ZOOMS));
@@ -127,6 +135,8 @@ function TeamPage({ id }: { id: number }) {
         dropping={dropping}
         notFound={notFound}
         onClearPick={() => setPick(null)}
+        chainOn={criticalPath}
+        onClearChain={() => setCriticalPath(false)}
       />
     );
   }
@@ -134,7 +144,7 @@ function TeamPage({ id }: { id: number }) {
   const { team } = view;
   // Every day the page shows: the scheduled milestones (the weekly strip lies inside their span by construction) and, while a proposal
   // previews, every proposed span (so the range only grows and no proposed bar sits outside it).
-  const planDates = [...view.scheduled.flatMap((m) => [m.startDate, m.endDate]), ...(open === null ? [] : proposalDays(open.moves)), ...baselineDays(view.baseline)].filter(
+  const planDates = [...view.scheduled.flatMap((m) => [m.startDate, m.endDate]), ...(open === null ? [] : proposalDays(open.moves)), ...baselineDays(view.baseline), ...chainDays(chain)].filter(
     (d): d is string => d !== null,
   );
   // The Jira window (the plan's own dates padded by a year) bounds the shadow bars and what they add to the range: a mistyped Jira date cannot stretch the page.
@@ -205,11 +215,7 @@ function TeamPage({ id }: { id: number }) {
               <TeamTimelineButtons view={view} proposal={proposal} busy={busy} proposeRef={proposeRef} onReset={() => setConfirmReset(true)} />
             </Group>
             <TeamProposalNotes proposal={proposal} />
-            {criticalPath && (
-              <Text size="sm" c="dimmed" id={criticalNoteId}>
-                {t("teams.view.criticalNote")}
-              </Text>
-            )}
+            {criticalPath && <TeamCriticalNote id={criticalNoteId} chain={chain} />}
             <TeamTimeline
               view={view}
               scale={scale}
@@ -224,8 +230,8 @@ function TeamPage({ id }: { id: number }) {
               timelineRef={timelineRef}
               toolbar={
                 <>
-                  <BaselinePicker pick={pick} onPick={setPick} current={view.baseline} disabled={busy || locked} />
-                  <CriticalPathToggle shown={criticalPath} onChange={setCriticalPath} describedBy={criticalNoteId} />
+                  <BaselinePicker pick={pick} onPick={setPick} current={view.baseline} disabled={frozen} />
+                  <CriticalPathToggle shown={criticalPath} onChange={setCriticalPath} describedBy={criticalNoteId} disabled={frozen} />
                   {view.jiraSites.length > 0 && <JiraBarsToggle shown={jiraBars.shown} onChange={jiraBars.setShown} />}
                 </>
               }
@@ -253,6 +259,7 @@ function TeamPage({ id }: { id: number }) {
         </TimelineDndContext>
       )}
 
+      {criticalPath && <TeamCriticalChain view={view} chain={chain} />}
       <TeamCapacity view={view} readOnly={locked} />
       <TeamFlowSection teamId={id} importBlocked={locked} />
       <TeamWeeklyLoad weeks={view.weeks} truncated={view.weeksTruncated} />

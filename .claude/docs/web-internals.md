@@ -1907,7 +1907,7 @@ Files: `api/teams.ts` (`listCapacityPeriods` is deliberately NOT wrapped: the vi
 
 ### Route and data
 
-`/teams/:id` renders `GET /views/team/{id}` under `["plan","team",id]` (`teamViewKey`), under the `["plan"]` prefix like the project view, so every plan mutation, a schedule write and a capacity write
+`/teams/:id` renders `GET /views/team/{id}` under `["plan","team",id,{baseline,chain}]` (`teamViewKey`), under the `["plan"]` prefix like the project view, so every plan mutation, a schedule write and a capacity write
 refresh a mounted page. The team editor's save refreshes `["teams"]` and `["plan"]`. **Everything is gated by the view's `team.can:{schedule, editCapacity, editOrder}`** (the team's manager or an
 ADMIN), never the session's roles.
 
@@ -1920,7 +1920,7 @@ ADMIN), never the session's roles.
   start with their visible text; the paths come from `utils/dependencyListLinks.ts`.
 - **The timeline** (`TeamTimeline`, on the shared `Timeline*` with the sticky load `strip`) has one row per SCHEDULED milestone in the server's order: **the project rank is only the DEFAULT order; a
   manager's override is the execution order and is never reshuffled by a rank change.** A row has the project as a link, the estimate and the row menu. Arrows are drawn only between this timeline's
-  rows (no ghost rows, no Dependencies table; a bar's name gains ", N conflicts"); the Unscheduled tray is the project page's.
+  rows (ghost rows only for the critical chain, no Dependencies table; a bar's name gains ", N conflicts"); the Unscheduled tray is the project page's.
 - **Two revisions, never crossed.** The view's `revision` is the PLAN revision: the schedule PUT's `expectedRevision`, adopted from the PUT's answer. `order.revision` is the TEAM's order revision: the
   order PUT's `expectedRevision`, set ONLY from the order PUT's answer (`TeamOrderResponse.revision`). The roadmap's revision is a third thing the page never touches.
 - **Messages shared with the project page:** the busy / milestone-gone / stale / schedule-error / announce sentences are its keys (`project.busy`, `project.milestoneGone`, `project.stale`,
@@ -1930,9 +1930,9 @@ ADMIN), never the session's roles.
 
 ### Critical path and the pin
 
-- **Critical path.** The page holds the project page's `useCriticalPathPick()` (the same remembered `timeline.criticalPath`; `<CriticalPathToggle>` in the timeline's `toolbar` after the baseline
-  picker) and passes `criticalPath` to `TeamTimeline`; the Slack column, the critical emphasis and `markCriticalArrows` are `timeline.md` "The critical-path highlight". A dimmed
-  `teams.view.criticalNote` under the timeline title says the figures are toward each milestone's OWN project's end and a link is marked only on the chain of a project the team works on. Read, never recomputed.
+- **Critical path.** The page holds the project page's `useCriticalPathPick()` and `<CriticalPathToggle>` (after the baseline picker); the highlight, the chain's ghost rows and arrows and the Critical chain section are `timeline.md` "The critical-path highlight". Read, never recomputed.
+  - **The key.** On, the page asks `?criticalChain=true`: the toggle is the other half of the view's key. `useTeamSchedule`, `useTeamOrder` and `useScheduleProposal` all take the same trailing `chain` and build their key with `teamViewKey`, so a step, a rollback and an answered revision hit the entry the page shows, never the other document's (`teamWriteSiblings.test.tsx`); a chain-only placeholder keeps the pick's overlay (`overlayPick`). A successful write removes the team's inactive sibling entries (`dropInactiveSiblings`), so a toggle after one shows no stale copy.
+  - **Locked toggle.** It is `disabled` with the baseline picker (`frozen`) while a write runs or a proposal is requested or open. `useTeamChain` hands over the block while on and says, once per switch-on in the mount (not a first load), how many rows arrived. A failed chain request offers "Show without the critical chain" (`PickedLoadState`), which turns the shared stored toggle off (the project page's too); the range stays wide after toggling off.
 - **The pin.** `PUT /milestones/{id}/pin {pinned}` (`api/milestones.ts` `pinMilestone`, answers `{revision}`; no `expectedRevision`: an idempotent flag) is a SECOND write of `useScheduleWritePath`
   (`pin(id, pinned)`, so both timeline pages have it). It is its own mutation on the SAME write key (`teamWriteKey`; the project page's `["plan","project-write",id]`), so a drag, a pin and an order
   save see each other in flight and a change made meanwhile is refused out loud like any other (`refused`, `project.busy`).

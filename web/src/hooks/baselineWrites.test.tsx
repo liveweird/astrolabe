@@ -69,7 +69,10 @@ beforeEach(() => {
     }
     const gate = [...held].find(([suffix]) => url.endsWith(suffix));
     if (gate) return gate[1].promise;
-    if (url.startsWith("/api/v1/views/team/1")) return Promise.resolve(jsonResponse(200, url.endsWith("?baseline=5") ? teamView({ baseline: BASELINE }) : teamView()));
+    if (url.startsWith("/api/v1/views/team/1")) {
+      const asked = { ...(url.includes("baseline=5") ? { baseline: BASELINE } : {}), ...(url.includes("criticalChain=true") ? { criticalChain: { members: [], links: [], truncated: false } } : {}) };
+      return Promise.resolve(jsonResponse(200, teamView(asked)));
+    }
     return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
   });
   vi.stubGlobal("fetch", mockFetch);
@@ -85,6 +88,38 @@ const entry = (pick: number | null) => client.getQueryData<TeamView>(teamViewKey
 const startOf = (view: TeamView | undefined, id: number) => [...(view?.scheduled ?? []), ...(view?.unscheduled ?? [])].find((m) => m.id === id)?.startDate;
 
 describe("the schedule path with a baseline pick", () => {
+  test("the Critical path toggle changes the key, not the pick: the placeholder keeps the pick's overlay while the chain loads (a change is still refused), and the chain entry brings both", async () => {
+    const next = hold("&criticalChain=true");
+    const { result, rerender } = renderHook(({ chain }: { chain: boolean }) => useTeamSchedule(1, 5, chain), { wrapper, initialProps: { chain: false } });
+    await waitFor(() => expect(result.current.view?.baseline).toBeDefined());
+    rerender({ chain: true });
+    await waitFor(() => expect(result.current.placeholder).toBe(true));
+    // the shadow bars do not blink off: the same pick's overlay stays, and the plain copy has no chain block
+    expect(result.current.view?.baseline).toEqual(BASELINE);
+    expect(result.current.view?.criticalChain).toBeUndefined();
+    act(() => {
+      expect(result.current.commit(5, "2042-03-16", "2042-03-17")).toBe(false);
+    });
+    expect(puts).toEqual([]);
+    await act(async () => {
+      next.release(jsonResponse(200, teamView({ baseline: BASELINE, criticalChain: { members: [], links: [], truncated: false } })));
+    });
+    await waitFor(() => expect(result.current.placeholder).toBe(false));
+    expect(result.current.view?.baseline).toEqual(BASELINE);
+    expect(result.current.view?.criticalChain).toEqual({ members: [], links: [], truncated: false });
+    expect(mockFetch.mock.calls.map(([url]) => url)).toEqual(["/api/v1/views/team/1?baseline=5", "/api/v1/views/team/1?baseline=5&criticalChain=true"]);
+  });
+
+  test("another PICK still drops the placeholder's overlay, chain or not", async () => {
+    hold("?baseline=6&criticalChain=true");
+    const { result, rerender } = renderHook(({ pick }: { pick: number | null }) => useTeamSchedule(1, pick, true), { wrapper, initialProps: { pick: 5 as number | null } });
+    await waitFor(() => expect(result.current.view?.baseline).toBeDefined());
+    rerender({ pick: 6 });
+    await waitFor(() => expect(result.current.placeholder).toBe(true));
+    expect(result.current.view?.baseline).toBeUndefined();
+    expect(result.current.view?.criticalChain).toBeDefined();
+  });
+
   test("the PUT carries the picked view's revision and its success stores the new revision into the entry it was made on only", async () => {
     client.setQueryData(teamViewKey(1, null), teamView());
     const { result } = renderHook(() => useTeamSchedule(1, 5), { wrapper });
@@ -95,9 +130,8 @@ describe("the schedule path with a baseline pick", () => {
     expect(startOf(entry(5), 5)).toBe("2042-03-16");
     await waitFor(() => expect(result.current.pending).toBe(false));
     expect(puts).toEqual([{ url: "/api/v1/milestones/5/schedule", body: { expectedRevision: 12, startDate: "2042-03-16", endDate: "2042-03-17" } }]);
-    // the entry of the other pick keeps ITS rows AND its old revision (`teamWriteSiblings.test.tsx`: a write from it is then a stale 409)
-    expect(startOf(entry(null), 5)).toBe("2042-03-02");
-    expect(entry(null)?.revision).toBe(12);
+    // the entry of the other pick is GONE (`teamWriteSiblings.test.tsx`: nothing is ever written from a copy the write has outdated)
+    expect(entry(null)).toBeUndefined();
   });
 
   test("a pick changed while the save runs: the failure rolls back the entry the change was made on and leaves the other pick's alone", async () => {
@@ -169,9 +203,9 @@ describe("the order path with a baseline pick", () => {
     });
     await waitFor(() => expect(puts).toHaveLength(1));
     await waitFor(() => expect(result.current.pending).toBe(false));
-    // the written entry (pick 5) adopts the answered order revision; the sibling holds the OLD order, so it keeps the old order revision
+    // the written entry (pick 5) adopts the answered order revision; the sibling held the OLD order and is removed
     expect(entry(5)?.order.revision).toBe(13);
-    expect(entry(null)?.order.revision).toBe(1);
+    expect(entry(null)).toBeUndefined();
   });
 });
 

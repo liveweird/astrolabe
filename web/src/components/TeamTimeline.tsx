@@ -6,11 +6,12 @@ import type { TFunction } from "i18next";
 import type { TeamMilestone, TeamView } from "../api/teams";
 import { useHolidays } from "../hooks/useHolidays";
 import { barList, baselineBars, newSince, removedRows } from "../utils/baselineOverlay";
-import { arrowSpecsFor, conflictsByBarFor, markCriticalArrows } from "../utils/dependencyArrows";
+import { arrowSpecsFor, conflictsByBarFor, ghostRowId, markCriticalArrows } from "../utils/dependencyArrows";
 import { idleBands } from "../utils/idleGaps";
 import { projectPath } from "../utils/planLinks";
 import { withPinned } from "../utils/pinText";
 import { proposalBars, proposalRows, type TeamProposalView } from "../utils/scheduleProposal";
+import { chainArrowSpecs, chainProjectNames } from "../utils/teamChain";
 import type { BarId, RovingTarget, TimelineBarData, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
 import type { TimelineScale, Zoom } from "../utils/timelineScale";
 import { jiraTrayNote } from "../utils/flagSentences";
@@ -19,7 +20,7 @@ import { MilestoneFlags, NameWithFlags } from "./MilestoneFlags";
 import PinMark from "./PinMark";
 import SlackCell from "./SlackCell";
 import MilestoneMenu, { type TeamActions } from "./TeamTimelineMenu";
-import { baselineAppendedRows, estimateText, jiraTrayAppendedRows } from "./TeamTimelineRows";
+import { baselineAppendedRows, chainGhostRows, estimateText, jiraTrayAppendedRows } from "./TeamTimelineRows";
 import Timeline, { type TimelineHandle } from "./Timeline";
 import TimelineArrows from "./TimelineArrows";
 import TimelineLoadStrip from "./TimelineLoadStrip";
@@ -98,7 +99,8 @@ const proposalBarOf = (proposed: ReadonlyMap<number, TimelineBarData>, milestone
 /**
  * The team's timeline: one row per scheduled milestone in the view's order (the team's own, or the project rank's by default), the
  * weekly load strip in the sticky header, and the dependency arrows between THIS timeline's rows (an end that is not a row here — a
- * project, an unscheduled or another team's milestone — is simply not drawn; the project's page is where those are read). It must sit
+ * project, an unscheduled milestone or another team's milestone that is not on the critical chain — is simply not drawn; the project's page is
+ * where those are read). It must sit
  * inside the page's `TimelineDndContext`. Nothing here decides rights or checks — the view's `can` flags and the server's `check` do.
  *
  * With a `proposal` the timeline PREVIEWS it, read-only: every moved milestone that has a row gets a second, proposal-toned bar
@@ -118,7 +120,8 @@ const proposalBarOf = (proposed: ReadonlyMap<number, TimelineBarData>, milestone
  *
  * With `criticalPath` (1.7, the page's toggle; the server's `slackDays`/`critical` per milestone toward ITS OWN project's end and the links' `critical`) a Slack
  * column appears after Flags (the project page's cell), a critical milestone's bar is emphasised (and its accessible name says so) and the critical links' arrows
- * are drawn heavier. Off, none of it is in the DOM.
+ * are drawn heavier. Off, none of it is in the DOM. With the view's `criticalChain` (1.27, requested only while the toggle is on) the other teams' milestones and
+ * whole projects on the chain through this team's work are appended as read-only ghost rows after the scheduled ones, and the chain's links are critical arrows between rows.
  */
 export default function TeamTimeline({
   view,
@@ -162,10 +165,10 @@ export default function TeamTimeline({
    * The optional cells go just before the operations cell, Flags then Slack, each only while its column exists; `milestone` null = a row with nothing of
    * its own (empty cells). A tray milestone a preview appends has no slack (the cell renders nothing).
    */
-  const withOptional = (cells: TimelineRowData["cells"], milestone: TeamMilestone | null): TimelineRowData["cells"] => {
+  const withOptional = (cells: TimelineRowData["cells"], milestone: TeamMilestone | null, own?: ReactNode): TimelineRowData["cells"] => {
     if (!flagsColumn && !criticalPath) return cells;
     const flags = milestone === null ? "" : <MilestoneFlags key="flags" flags={milestone.flags} link={milestone.jira} sites={sites} />;
-    const slack = milestone === null ? "" : <SlackCell key="slack" slackDays={milestone.slackDays} critical={milestone.critical} />;
+    const slack = milestone === null ? (own ?? "") : <SlackCell key="slack" slackDays={milestone.slackDays} critical={milestone.critical} />;
     return [...cells.slice(0, -1), ...(flagsColumn ? [flags] : []), ...(criticalPath ? [slack] : []), ...cells.slice(-1)];
   };
   const proposed = proposalBars(proposal?.moves ?? [], t);
@@ -178,7 +181,14 @@ export default function TeamTimeline({
     { id: "actions", header: t("common.table.operations"), width: COLUMN_WIDTHS.actions },
   ];
   const rowIds = new Set<BarId>(view.scheduled.map((milestone) => milestone.id));
-  const barOf = (endpoint: { kind: string; id: number }): BarId | null => (endpoint.kind === "MILESTONE" && rowIds.has(endpoint.id) ? endpoint.id : null);
+  // The critical chain (1.27, only while the toggle is on): the ghost rows of the other teams' members, so a link to one is an arrow like any other.
+  const chain = criticalPath ? view.criticalChain : undefined;
+  const ghostIds = new Set<BarId>((chain?.members ?? []).map(ghostRowId));
+  const barOf = (endpoint: { kind: string; id: number }): BarId | null => {
+    if (endpoint.kind === "MILESTONE" && rowIds.has(endpoint.id)) return endpoint.id;
+    const ghost = ghostRowId(endpoint);
+    return ghostIds.has(ghost) ? ghost : null;
+  };
   const conflicts = conflictsByBarFor(view.dependencies, barOf);
   const count = view.scheduled.length;
   const overlay = view.baseline;
@@ -242,6 +252,8 @@ export default function TeamTimeline({
     trayBars: jiraTrayBars(view.unscheduled, jira ?? null, t),
     scheduleOnJira: view.team.can.schedule && !previewing ? actions.scheduleOnJira : null,
   };
+  // The chain's ghost rows come right after the team's own, before the baseline's and the tray's appended rows.
+  if (chain !== undefined) rows.push(...chainGhostRows(chain, { t, withOptional, projectNames: chainProjectNames(view) }));
   rows.push(...baselineAppendedRows(appended, appendedCtx), ...jiraTrayAppendedRows(appended, appendedCtx));
   // A preview appends the tray milestones the proposal schedules: only the proposal bar (they have no current one).
   for (const milestone of proposalRows(view, proposal?.moves ?? [])) {
@@ -261,7 +273,7 @@ export default function TeamTimeline({
     });
   }
   const drawn = arrowSpecsFor(view.dependencies, barOf);
-  const arrows = criticalPath ? markCriticalArrows(drawn, view.dependencies) : drawn;
+  const arrows = criticalPath ? [...markCriticalArrows(drawn, view.dependencies), ...(chain === undefined ? [] : chainArrowSpecs(chain, barOf))] : drawn;
   return (
     <Timeline
       ref={timelineRef}

@@ -5,7 +5,8 @@
 // Owns: the fixture team and the fixture plan (a person, work stream, program and project with two milestones, one scheduled past the
 // project's target end and one in the Unscheduled tray, plus a second project with one milestone linked as the fixture milestone's
 // violated predecessor, plus a chain project of two back-to-back milestones whose second one drives the fixture milestone (the zero-slack
-// links of the critical path); unique `e2e-axe-*` names), created and deleted via the API. The fixture team carries one capacity period with a
+// links of the critical path) and a milestone of another team (its own team and project) that drives the first one back to back, so the fixture
+// team's critical chain has a member of another team (the team page's ghost row); unique `e2e-axe-*` names), created and deleted via the API. The fixture team carries one capacity period with a
 // WIP limit of 1 (deleted with the team), so its page shows the strip's overload and WIP marks. The open-schedule-proposal scans (the last describe)
 // own their own team pair and plan (unique `e2e-axe-prop-*` names, all dated in 2042), created and deleted via the API. The baseline scans (the very last
 // describe) own a team, a plan and one baseline of their own (unique `e2e-axe-bl-*` names, dated in 2026), created and deleted via the API; the
@@ -53,14 +54,15 @@ async function scan(page: Page, include?: string): Promise<void> {
  * A chain project of two milestones back to back (c0 2026-01-26..30, c1 2026-02-02..06) and finish-to-start links c0 -> c1 -> the fixture
  * milestone (which starts the next Monday): every link holds with no spare day, so the fixture project's critical path has a driving
  * neighbour (c1, a ghost row) and a member beyond it (c0, the Critical chain list) - the violated link of the fixture stays off the path.
- * Answers the chain project's id; `track` is told the project's delete path the moment it exists (its milestones and links go with it), so a
- * failure further down still leaves the caller something to clean up.
+ * Also (1.27) a milestone of ANOTHER team that drives c0 back to back, so the fixture team's critical chain has a member of another team: on the team
+ * page with the critical path on it is a dimmed ghost row. Answers that milestone's name; `track` is told each delete path the moment the row exists
+ * (a project's milestones and links go with it), so a failure further down still leaves the caller something to clean up.
  */
 async function seedChain(
   api: APIRequestContext,
   fixture: { programId: number; personId: number; teamId: number; projectId: number; scheduledId: number },
   track: (deletePath: string) => void,
-): Promise<number> {
+): Promise<string> {
   async function create(path: string, data: object): Promise<number> {
     const created = await api.post(path, { data });
     expect(created.status(), await created.text()).toBe(201);
@@ -77,7 +79,43 @@ async function seedChain(
   }
   await create(`/api/v1/projects/${chainProjectId}/dependencies`, { predecessor: { kind: "MILESTONE", id: chainStart }, successor: { kind: "MILESTONE", id: chainEnd }, type: "FS", lagDays: 0 });
   await create(`/api/v1/projects/${fixture.projectId}/dependencies`, { predecessor: { kind: "MILESTONE", id: chainEnd }, successor: { kind: "MILESTONE", id: fixture.scheduledId }, type: "FS", lagDays: 0 });
-  return chainProjectId;
+  // The other team's milestone g (2026-01-19..23, the Friday before c0's Monday) and its link g -> c0, no spare day: the team and its project are tracked
+  // in creation order, so the delete runs the project first and the team after it.
+  const ghostTeamId = await create("/api/v1/teams", { name: uniqueText("e2e-axe-ghost-team") });
+  track(`/api/v1/teams/${ghostTeamId}`);
+  const ghostProjectId = await create(`/api/v1/programs/${fixture.programId}/projects`, { name: uniqueText("e2e-axe-ghost-project"), ownerPersonId: fixture.personId });
+  track(`/api/v1/projects/${ghostProjectId}`);
+  const ghostName = uniqueText("e2e-axe-ghost");
+  const ghostId = await create(`/api/v1/projects/${ghostProjectId}/milestones`, { name: ghostName, teamId: ghostTeamId, estimateMd: 1 });
+  const ghostView = (await (await api.get(`/api/v1/views/project/${ghostProjectId}`)).json()) as { revision: number };
+  const ghostPlaced = await api.put(`/api/v1/milestones/${ghostId}/schedule`, { data: { expectedRevision: ghostView.revision, startDate: "2026-01-19", endDate: "2026-01-23" } });
+  expect(ghostPlaced.status(), await ghostPlaced.text()).toBe(200);
+  await create(`/api/v1/projects/${chainProjectId}/dependencies`, { predecessor: { kind: "MILESTONE", id: ghostId }, successor: { kind: "MILESTONE", id: chainStart }, type: "FS", lagDays: 0 });
+  return ghostName;
+}
+
+// The team page with the critical path ON (1.27): the fixture team's chain brings the other team's milestone in as a dimmed ghost row (its team link, "0 critical
+// path", a read-only bar naming the chain it is on), the heavier critical arrows between rows, the Critical chain section and - opened - its table of critical arrows.
+function registerTeamChainScan(scheme: Scheme, fixture: () => { teamId: number; teamName: string; ghostName: string }): void {
+  const suffix = scheme === "dark" ? " in the dark scheme" : "";
+  test(`/teams/:id with the critical chain on has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+    await login(page);
+    await page.evaluate(([key, value]) => localStorage.setItem(key, value), ["astrolabe.viewSettings.timeline.criticalPath", "true"]);
+    const { teamId, teamName, ghostName } = fixture();
+    await page.goto(`/teams/${teamId}`);
+    await expect(page.getByRole("heading", { level: 2, name: teamName })).toBeVisible();
+    const timeline = page.getByRole("grid", { name: "Team milestone timeline" });
+    await expect(page.getByRole("button", { name: "Critical path", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await expect(timeline.getByRole("columnheader", { name: "Slack" })).toBeVisible();
+    await expect(timeline.getByRole("rowheader", { name: new RegExp(`^${ghostName}`) })).toBeVisible();
+    await expect(timeline.getByRole("img", { name: new RegExp(`^${ghostName}, .*on the critical chain of .*, read-only$`) })).toHaveAttribute("data-critical", "true");
+    await expect(page.locator('[data-arrow][data-critical="true"]').first()).toBeAttached();
+    await expect(page.getByRole("heading", { level: 3, name: "Critical chain" })).toBeVisible();
+    await page.getByRole("button", { name: "Show the critical arrows" }).click();
+    await expect(page.getByRole("table", { name: "Critical arrows on this page" })).toBeVisible();
+    await expectScheme(page, scheme);
+    await scan(page);
+  });
 }
 
 test("login screen has no WCAG A/AA violations", async ({ page }) => {
@@ -244,6 +282,7 @@ test.describe("detail pages and overlays", () => {
   let linkedProjectId: number;
   let linkedProjectName: string;
   let fixtureProgramId: number;
+  let ghostName: string; // the other team's milestone on the fixture team's critical chain (seedChain)
   let proposalTeamId: number; // the open-proposal world (seedProposalWorld), for the hovered-row scan
   let proposalTeamName: string;
 
@@ -305,7 +344,7 @@ test.describe("detail pages and overlays", () => {
       type: "FS",
       lagDays: 0,
     });
-    await seedChain(api, { programId, personId, teamId, projectId, scheduledId }, (path) => fixturePaths.push(path));
+    ghostName = await seedChain(api, { programId, personId, teamId, projectId, scheduledId }, (path) => fixturePaths.push(path));
     ({ teamId: proposalTeamId, teamName: proposalTeamName } = await seedProposalWorld(api, (path) => fixturePaths.push(path)));
   });
   test.afterAll(async () => {
@@ -394,6 +433,12 @@ test.describe("detail pages and overlays", () => {
   test.describe("dark scheme", () => {
     test.use({ colorScheme: "dark" });
     registerCriticalPathScan("dark");
+  });
+
+  registerTeamChainScan("light", () => ({ teamId, teamName, ghostName }));
+  test.describe("dark scheme", () => {
+    test.use({ colorScheme: "dark" });
+    registerTeamChainScan("dark", () => ({ teamId, teamName, ghostName }));
   });
 
   // The team view: the sticky load strip with both marks (the overloaded column, the dashed WIP chip), the orange and red badges on the facts

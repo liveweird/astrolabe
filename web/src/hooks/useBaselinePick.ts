@@ -56,7 +56,12 @@ function withoutBaselines(value: unknown): unknown {
  * The cached view WITHOUT any baseline overlay while it is only the previous pick's copy (`keepPreviousData` keeps the page mounted - and the
  * picker focused - while another pick loads, but every overlay in it belongs to the old pick: the top-level block and the project, program and
  * work stream blocks of the plan views). Anything else is returned as it is.
+ * `keepPick` (the team page, 1.27): a placeholder that is only ANOTHER ENTRY OF THE SAME PICK (the Critical path toggle changes the key, not the
+ * pick) keeps its top-level overlay - its `baseline.id` is the pick - so the shadow bars do not blink off while the chain loads.
  */
-export function withoutStaleOverlay<V extends { baseline?: unknown }>(data: V | undefined, placeholder: boolean): V | undefined {
-  return data !== undefined && placeholder ? (withoutBaselines(data) as V) : data;
+export function withoutStaleOverlay<V extends { baseline?: unknown }>(data: V | undefined, placeholder: boolean, keepPick: number | null = null): V | undefined {
+  if (data === undefined || !placeholder) return data;
+  const { baseline } = data;
+  const sameOverlay = keepPick !== null && typeof baseline === "object" && baseline !== null && (baseline as { id?: unknown }).id === keepPick;
+  return sameOverlay ? data : (withoutBaselines(data) as V);
 }

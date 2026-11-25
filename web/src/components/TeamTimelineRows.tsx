@@ -1,16 +1,24 @@
-import { Menu, Text } from "@mantine/core";
+import type { ReactNode } from "react";
+import { Anchor, Group, Menu, Text } from "@mantine/core";
+import { Link as RouterLink } from "react-router-dom";
 import type { TFunction } from "i18next";
-import type { TeamMilestone, TeamView } from "../api/teams";
+import type { TeamChainMember, TeamCriticalChain, TeamMilestone, TeamView } from "../api/teams";
 import { barList, type BaselineRow } from "../utils/baselineOverlay";
 import { baselineUnscheduledIds, jiraScheduleDates, jiraTrayRowId, jiraTrayRows } from "../utils/jiraBars";
+import { projectPath } from "../utils/planLinks";
+import { ghostRowId } from "../utils/dependencyArrows";
+import { orderedMembers } from "../utils/teamChain";
+import { teamPath } from "../utils/teamLinks";
 import type { RovingTarget, TimelineBarData, TimelineRowData } from "../utils/timelineModel";
 import { AppendedRowName, BaselineRowName } from "./BaselineParts";
 import JiraRowMenu from "./JiraRowMenu";
+import SlackCell from "./SlackCell";
 import { OpenProjectItem, OpenProjectMenu } from "./TeamTimelineMenu";
 
 /*
  * The appended rows of the team timeline that carry a dashed Jira bar or a baseline shadow: the pure builders `TeamTimeline` composes (the baseline's
- * removed rows and the tray milestones that Jira dates). Nothing here decides rights: `scheduleOnJira` arrives as `null` where the page is read-only.
+ * removed rows and the tray milestones that Jira dates) - and, after the team's own rows, the critical chain's ghost rows (1.27). Nothing here decides
+ * rights: `scheduleOnJira` arrives as `null` where the page is read-only.
  */
 
 /** The estimate with its unit ("12.25 man-days"). */
@@ -20,8 +28,8 @@ export const estimateText = (t: TFunction, milestone: TeamMilestone) => t("proje
 export type AppendedContext = {
   view: TeamView;
   t: TFunction;
-  /** The Flags and Slack cells before the operations cell (`milestone` null = a row with nothing of its own). */
-  withOptional: (cells: TimelineRowData["cells"], milestone: TeamMilestone | null) => TimelineRowData["cells"];
+  /** The Flags and Slack cells before the operations cell (`milestone` null = a row with nothing of its own; `slack` = the Slack cell of such a row). */
+  withOptional: (cells: TimelineRowData["cells"], milestone: TeamMilestone | null, slack?: ReactNode) => TimelineRowData["cells"];
   trayBars: ReadonlyMap<number, TimelineBarData>;
   /** "Schedule on Jira's dates" (1.17), or `null` where it is not offered: the team's `can.schedule` is off or a proposal previews. */
   scheduleOnJira: ((milestone: TeamMilestone) => void) | null;
@@ -99,4 +107,67 @@ export function jiraTrayAppendedRows(appended: readonly BaselineRow[], ctx: Appe
     ),
     bars: barList(trayBars.get(milestone.id)),
   }));
+}
+
+/**
+ * The critical chain's ghost rows (1.27): another team's milestone, or a whole project a chain link names, that lies on the chain through this team's
+ * work - read-only (no menu, no handle, no estimate), dimmed, one gray bar that says it is on the chain, "0 critical path" in the Slack column. The way on is the
+ * member's team (a link after its name; "Project X" has none) and its project; ids are the project page's ghost ids (`ghostRowId`). `projectNames` names the
+ * team's projects for the bar's "on the critical chain of".
+ */
+export function chainGhostRows(
+  chain: TeamCriticalChain,
+  { t, withOptional, projectNames }: Pick<AppendedContext, "t" | "withOptional"> & { projectNames: ReadonlyMap<number, string> },
+): TimelineRowData[] {
+  const slack = <SlackCell key="slack" slackDays={0} critical />;
+  const nameCell = (member: TeamChainMember): TimelineRowData["cells"][number] => {
+    if (member.kind === "PROJECT" || member.teamId === null || member.teamName === null) {
+      return (
+        <Text key="name" component="span" size="sm" c="dimmed" truncate>
+          {member.kind === "PROJECT" ? t("project.dependency.wholeProject", { name: member.name }) : member.name}
+        </Text>
+      );
+    }
+    const { teamId, teamName } = member;
+    return (stop: RovingTarget) => (
+      <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+        <Text component="span" size="sm" c="dimmed" truncate>
+          {member.name}
+        </Text>
+        <Anchor component={RouterLink} to={teamPath(teamId)} size="sm" c="dimmed" truncate aria-label={t("teams.openAria", { name: teamName })} {...stop}>
+          {teamName}
+        </Anchor>
+      </Group>
+    );
+  };
+  return orderedMembers(chain).map((member) => {
+    const id = ghostRowId(member);
+    const chains = member.chainOf.flatMap((projectId) => {
+      const name = projectNames.get(projectId);
+      return name === undefined ? [] : [name];
+    }).join(", ");
+    const named = chains === "" ? t("teams.view.chain.ownProjects") : chains;
+    const describe =
+      member.kind === "PROJECT"
+        ? t("teams.view.ghostProjectBarAria", { name: member.name, start: member.startDate, end: member.endDate, chains: named })
+        : t("teams.view.ghostBarAria", { name: member.name, team: member.teamName ?? "", project: member.projectName, start: member.startDate, end: member.endDate, chains: named });
+    return {
+      id,
+      cells: withOptional(
+        [
+          nameCell(member),
+          (stop: RovingTarget) => (
+            <Anchor component={RouterLink} to={projectPath(member.projectId)} size="sm" c="dimmed" truncate title={member.projectName} aria-label={t("teams.view.openProjectAria", { name: member.projectName })} {...stop}>
+              {member.projectName}
+            </Anchor>
+          ),
+          "",
+          null,
+        ],
+        null,
+        slack,
+      ),
+      bars: [{ id, start: member.startDate, end: member.endDate, label: member.name, describe, editable: false, tone: "ghost", emphasis: "critical" }],
+    };
+  });
 }

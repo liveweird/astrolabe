@@ -3,7 +3,8 @@
 // emphasised, the critical arrow and badge, the Slack column, and the Critical chain list naming the member BEYOND the neighbour (x1, two
 // hops away, a milestone with no row on P's timeline); the toggle survives a reload and takes everything away when it goes off. The same
 // world has a five-working-day hole in P's schedule: the hatched idle band, the Idle gaps table and the badge on P's page and on the page of
-// P's team. 1.7 adds the same figures on the team page (the Slack column and the critical bars, the toggle shared with the project page) and the
+// P's team. 1.7 adds the same figures on the team page (the Slack column and the critical bars, the toggle shared with the project page) and 1.27 the whole chain
+// there (the other team's x1 and y1 as dimmed rows with their critical arrows, the Critical chain section and its table of arrows); 1.7 also adds the
 // roadmap's critical path TO P (the row menu, the emphasised span bars and bundle arrows, the chain panel with its hops); 1.16 adds the same question on the
 // programs page (the folded program that stands for the chain is outlined, opening it outlines X, Y and P and their arrows). Owns: its throwaway
 // user, people, two teams, plan nodes (unique `e2e-cp-*` names), all seeded through the API and deleted by
@@ -47,6 +48,8 @@ interface World {
   p2: Named;
   /** The team of p1 and p2: its own schedule has the same hole as P's. */
   teamP: Named;
+  /** The team of x1 and y1: the other team, whose milestones are the dimmed rows of the chain on P's team page. */
+  teamX: Named;
   /** The program all three projects sit in (the roadmap test narrows the page to it with the program pick). */
   program: Named;
 }
@@ -117,7 +120,7 @@ async function seedWorld(): Promise<World> {
     const p2 = await milestone(p, "p2", teamP, WEEK_1);
     await link(y, x1, y1);
     await link(p, y1, p1);
-    return { owner, x, y, p, x1, y1, p1, p2, teamP, program };
+    return { owner, x, y, p, x1, y1, p1, p2, teamP, teamX, program };
   } finally {
     await api.dispose();
   }
@@ -243,21 +246,29 @@ const PICK_KEY = "astrolabe.viewSettings.planning.programPick";
 /** A timeline row's cell holding the Slack figure of a team-page milestone: the cell whose text is the figure (the other cells never read "critical path" or "working days"). */
 const teamSlackOf = (page: Page, name: string) => page.getByRole("grid", { name: "Team milestone timeline" }).getByRole("row").filter({ has: page.getByRole("rowheader", { name: new RegExp(`^${name}`) }) });
 
-test("the administrator reads the critical path on P's team page: p1 critical with no slack, p2 with ten working days, the toggle shared with the project page", async ({ page }) => {
+test("the administrator reads the critical chain on P's team page: x1 and y1 of the other team as dimmed rows with their arrows, p1 critical, a table of the two critical arrows, the toggle shared with the project page", async ({ page }) => {
   const world = await seedWorld();
-  const { p, p1, p2, teamP } = world;
+  const { p, p1, p2, x, y, x1, y1, teamP, teamX } = world;
 
   // The world has no manager login for P's team, so the administrator (who may schedule it: `can.schedule`) reads the page; the figures are the same for every viewer.
+  // Every request for the team view is noted: the chain is asked for only while the toggle is on.
+  const viewRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/api/v1/views/team/")) viewRequests.push(new URL(request.url()).search);
+  });
   await login(page);
   await page.goto(`/teams/${teamP.id}`);
   await expect(page.getByRole("heading", { level: 2, name: teamP.name })).toBeVisible();
   const teamGrid = page.getByRole("grid", { name: "Team milestone timeline" });
   await expect(teamGrid).toBeVisible();
 
-  // Off by default (a fresh browser context): not pressed, no Slack column, no emphasis.
+  // Off by default (a fresh browser context): not pressed, no Slack column, no emphasis, no section, only the team's own two rows - and the plain request.
   await expect(toggle(page)).toHaveAttribute("aria-pressed", "false");
   await expect(teamGrid.getByRole("columnheader", { name: "Slack" })).toHaveCount(0);
   await expect(page.locator("[data-critical]")).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 3, name: "Critical chain" })).toHaveCount(0);
+  await expect(teamGrid.getByRole("rowheader")).toHaveCount(2);
+  expect(viewRequests.every((search) => !search.includes("criticalChain"))).toBe(true);
 
   await toggle(page).click();
   await expect(toggle(page)).toHaveAttribute("aria-pressed", "true");
@@ -267,12 +278,53 @@ test("the administrator reads the critical path on P's team page: p1 critical wi
   await expect(teamSlackOf(page, p1.name).getByRole("gridcell").filter({ hasText: "0 critical path" })).toHaveCount(1);
   await expect(teamSlackOf(page, p2.name).getByRole("gridcell").filter({ hasText: "10 working days" })).toHaveCount(1);
   await expect(page.getByText("Slack and the critical path are measured toward the end of the milestone's own project.", { exact: false })).toBeVisible();
+  await expect.poll(() => viewRequests.some((search) => search.includes("criticalChain=true"))).toBe(true);
 
-  // The emphasis: p1's bar is critical and says so, p2's is not. y1 -> p1 is a link from another team's milestone, so y1 is no row of this page and no arrow is drawn.
+  // The chain through p1: y1 (the other team's milestone that drives p1) and x1 (two links away, through project Y) are dimmed rows after the team's own, each
+  // with its team and project as links and "0 critical path"; p2 is on no chain, so nothing else is added.
+  await expect(teamGrid.getByRole("rowheader")).toHaveCount(4);
+  for (const [member, project] of [[y1, y], [x1, x]] as const) {
+    const row = teamSlackOf(page, member.name);
+    await expect(row.getByRole("link", { name: `Open team ${teamX.name}` })).toHaveAttribute("href", `/teams/${teamX.id}`);
+    await expect(row.getByRole("link", { name: `Open project ${project.name}` })).toHaveAttribute("href", `/projects/${project.id}`);
+    await expect(row.getByRole("gridcell").filter({ hasText: "0 critical path" })).toHaveCount(1);
+    await expect(row.getByRole("button")).toHaveCount(0); // read-only: no handle, no menu, no draggable bar
+  }
+
+  // The emphasis: p1's bar is critical and says so, p2's is not; the ghost bars are critical, dimmed (the ghost tone) and name the chain they are on.
   await expect(teamGrid.getByRole("button", { name: new RegExp(`^${p1.name}, .*on the critical path`) })).toHaveAttribute("data-critical", "true");
   await expect(teamGrid.getByRole("button", { name: new RegExp(`^${p2.name}, `) })).not.toHaveAttribute("data-critical", "true");
-  await expect(page.locator('[data-critical="true"]')).toHaveCount(1);
-  await expect(arrows(page)).toHaveCount(0);
+  for (const member of [y1, x1]) {
+    const ghost = teamGrid.getByRole("img", { name: new RegExp(`^${member.name}, ${teamX.name}, .*on the critical chain of ${p.name}, read-only$`) });
+    await expect(ghost).toHaveAttribute("data-critical", "true");
+    await expect(ghost).toHaveAttribute("data-tone", "ghost");
+  }
+  // Five critical things in all: p1's bar, the two ghost bars and the two arrows (x1 -> y1 from the chain block, y1 -> p1 the team's own link, drawn to a ghost row now).
+  await expect(page.locator('[data-critical="true"]')).toHaveCount(5);
+  await expect(arrows(page)).toHaveCount(2);
+  for (const arrow of await arrows(page).all()) {
+    await expect(arrow).toHaveAttribute("data-critical", "true");
+    await expect(arrow).toHaveAttribute("data-violated", "false");
+  }
+
+  // The page says once what the chain added.
+  await expect(page.getByRole("status").filter({ hasText: "Critical chain shown: 2 rows were added to the timeline." })).toHaveCount(1);
+
+  // The text equivalent of the arrows: the "Critical chain" section with one sentence and, behind its disclosure, one row per critical arrow, in chain order.
+  await expect(page.getByRole("heading", { level: 3, name: "Critical chain" })).toBeVisible();
+  await expect(page.getByText("2 dimmed rows on the timeline", { exact: false })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Critical arrows on this page" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Show the critical arrows" }).click();
+  const critical = page.getByRole("table", { name: "Critical arrows on this page" }).getByRole("row");
+  await expect(critical).toHaveCount(3); // the header and the two arrows
+  await expect(critical.nth(1).getByRole("cell")).toHaveText([`${x1.name}${x.name}${teamX.name}`, `${y1.name}${y.name}${teamX.name}`, "Finish → Start (FS)", "0 working days"]);
+  await expect(critical.nth(2).getByRole("cell")).toHaveText([`${y1.name}${y.name}${teamX.name}`, `${p1.name}${p.name}${teamP.name}`, "Finish → Start (FS)", "0 working days"]);
+
+  // A reload keeps the toggle and the chain.
+  await page.reload();
+  await expect(teamGrid).toBeVisible();
+  await expect(toggle(page)).toHaveAttribute("aria-pressed", "true");
+  await expect(teamGrid.getByRole("rowheader")).toHaveCount(4);
 
   // The choice is ONE stored toggle for both pages: P's project page opens with it pressed, the Slack column and the emphasis there.
   await page.goto(`/projects/${p.id}`);
@@ -281,14 +333,17 @@ test("the administrator reads the critical path on P's team page: p1 critical wi
   await expect(slackOf(page, new RegExp(`^${p1.name}`))).toHaveText("0 critical path");
   await expect(slackOf(page, new RegExp(`^${p2.name}`))).toHaveText("10 working days");
 
-  // Turned off there, the team page is as it was.
+  // Turned off there, the team page is as it was: its own two rows, no emphasis, no section.
   await toggle(page).click();
   await expect(toggle(page)).toHaveAttribute("aria-pressed", "false");
   await page.goto(`/teams/${teamP.id}`);
   await expect(teamGrid).toBeVisible();
   await expect(toggle(page)).toHaveAttribute("aria-pressed", "false");
   await expect(teamGrid.getByRole("columnheader", { name: "Slack" })).toHaveCount(0);
+  await expect(teamGrid.getByRole("rowheader")).toHaveCount(2);
   await expect(page.locator("[data-critical]")).toHaveCount(0);
+  await expect(arrows(page)).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 3, name: "Critical chain" })).toHaveCount(0);
 });
 
 test("the roadmap shows the critical path to P: X and Y emphasised, the chain panel lists them with their hops, None clears everything", async ({ page }) => {

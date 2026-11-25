@@ -141,9 +141,14 @@ export default function TimelineDndContext({
     setPreview(span === null || drag.kind === "tray" ? null : { barId: drag.barId, kind: drag.kind, ...span });
   };
 
-  /** The slot a held row would land in now; the live pointer and the zone's live readers, as for a tray item's day. */
+  /**
+   * The slot a held row would land in now; the live pointer and the zone's live readers, as for a tray item's day. The zone spans EVERY row of the page, but only
+   * `drag.count` of them can be reordered (a team page appends ghost, baseline and Jira rows after them): the slot stops at the last reorderable row, so the line
+   * and the announcements never say a position beyond it.
+   */
   const trackRow = (drag: DragData, event: Pick<DragMoveEvent, "over">) => {
-    const slot = rowSlotOf(event.over, pointer.current);
+    const found = rowSlotOf(event.over, pointer.current);
+    const slot = found === null || drag.count === undefined ? found : Math.min(found, drag.count);
     latest.current = { drag, span: null, slot };
     return slot;
   };

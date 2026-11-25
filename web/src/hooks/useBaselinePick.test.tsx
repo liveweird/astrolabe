@@ -120,4 +120,15 @@ describe("withoutStaleOverlay", () => {
     expect(withoutStaleOverlay(plain, true)).toBe(plain);
     expect(withoutStaleOverlay(undefined, true)).toBeUndefined();
   });
+
+  test("a placeholder of the SAME pick keeps its overlay (the team page's chain toggle changes the key, not the pick); another pick's copy, or none, does not", () => {
+    expect(withoutStaleOverlay(data, true, 5)).toBe(data);
+    expect(withoutStaleOverlay(data, true, 7)).toEqual({ revision: 1 });
+    expect(withoutStaleOverlay(data, true, null)).toEqual({ revision: 1 });
+    // a document with no overlay of its own is returned as it is, whatever the pick
+    const plain: { revision: number; baseline?: undefined } = { revision: 1 };
+    expect(withoutStaleOverlay(plain, true, 5)).toBe(plain);
+    // an arrived copy is never touched
+    expect(withoutStaleOverlay(data, false, 7)).toBe(data);
+  });
 });

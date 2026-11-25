@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { DependencyEndpoint, ProjectDependency } from "../api/dependencies";
-import { arrowSpecsFor, conflictCountOf, conflictsByBarFor, markCriticalArrows } from "./dependencyArrows";
+import { arrowSpecsFor, conflictCountOf, conflictsByBarFor, ghostRowId, markCriticalArrows } from "./dependencyArrows";
 
 const endpoint = (id: number, over: Partial<DependencyEndpoint> = {}): DependencyEndpoint => ({
   kind: "MILESTONE",
@@ -94,5 +94,12 @@ describe("markCriticalArrows", () => {
     const plain = [link(1, endpoint(1), endpoint(2)), link(2, endpoint(2), endpoint(3))];
     expect(markCriticalArrows(arrowSpecsFor(plain, rowOf), plain).some((spec) => spec.critical !== undefined)).toBe(false);
     expect(markCriticalArrows(arrowSpecsFor(plain, rowOf), [link(9, endpoint(1), endpoint(2), { critical: true })]).some((spec) => spec.critical !== undefined)).toBe(false);
+  });
+});
+
+describe("ghostRowId", () => {
+  test("a milestone and a project of the same id are two rows, and the id is the one the project page's ghost rows have always had", () => {
+    expect(ghostRowId({ kind: "MILESTONE", id: 5 })).toBe("ghost:m:5");
+    expect(ghostRowId({ kind: "PROJECT", id: 5 })).toBe("ghost:p:5");
   });
 });

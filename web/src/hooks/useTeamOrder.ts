@@ -4,12 +4,12 @@ import { ApiError } from "../api/http";
 import { isStaleRevision } from "../api/roadmap";
 import { putTeamOrder, type TeamView } from "../api/teams";
 import { moveBy, moveToEdge, moveToSlot } from "../utils/roadmapOrder";
-import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
+import { dropInactiveSiblings, refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import { placeScheduled } from "../utils/teamOrderList";
 import { applyTeamOrder } from "../utils/teamViewUpdate";
 import { useRefusal } from "./useRefusal";
-import { teamViewKey, teamWriteKey } from "./useTeamSchedule";
+import { teamViewKey, teamViewPrefix, teamWriteKey } from "./useTeamSchedule";
 
 const SAVE_ERROR_KEYS = {
   forbidden: "teams.view.orderForbidden",
@@ -40,21 +40,23 @@ const listChanged = (error: unknown) => isStaleRevision(error) || (error instanc
  * `commit` answers `false`, `refused` is set (the page's visible note) and `project.busy` is announced. A taken change is announced
  * through the page's one live region (`announce`). `loading` is the page's "the shown view is the previous baseline pick's copy" (`placeholder` of
  * the schedule path): nothing is written from it, a change is refused like one made during a save; a success stores the order revision into
- * the written entry only (a sibling pick's entry still holds the old order). `move`, `moveTo`, `placed` and `reset` answer whether the change was taken.
+ * the written entry only (a sibling entry still holds the old order: the inactive ones are removed). `chain` (1.27) is the page's Critical path toggle, the other half of the entry's key: the step and
+ * the rollback hit the entry the page shows, never the other document's. `move`, `moveTo`, `placed` and `reset` answer whether the change was taken.
  */
-export function useTeamOrder(teamId: number, view: TeamView | undefined, announce: (text: string) => void, baseline: number | null, loading: boolean) {
+export function useTeamOrder(teamId: number, view: TeamView | undefined, announce: (text: string) => void, baseline: number | null, loading: boolean, chain = false) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const key = teamViewKey(teamId, baseline);
+  const key = teamViewKey(teamId, baseline, chain);
 
   const save = useMutation({
     mutationKey: teamWriteKey(teamId),
     mutationFn: ({ ids, expectedRevision }: SaveVariables) => putTeamOrder(teamId, { milestoneIds: ids, expectedRevision }),
     onSuccess: ({ revision }, { key: madeOn }) => {
       // The new order revision into the entry the change was made on - the one holding the new order - and into no other: a sibling entry (another
-      // pick visited earlier) still holds the OLD order, so it keeps the old revision and a reorder made from it before its refetch lands is a
-      // stale 409, not a silent revert of this one.
+      // pick or toggle state visited earlier) still holds the OLD order.
       queryClient.setQueryData<TeamView>(madeOn, (current) => current && { ...current, order: { ...current.order, revision } });
+      // The siblings no one is looking at still hold the old list: gone, so no change is ever built on it.
+      dropInactiveSiblings(queryClient, teamViewPrefix(teamId), madeOn);
       // Not awaited: the save is over, so the next change may go at once; its `commit` cancels this refetch.
       void refreshQueriesAfterMutation(queryClient, ["plan"]);
     },

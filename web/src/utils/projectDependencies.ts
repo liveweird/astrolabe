@@ -1,6 +1,6 @@
 import type { DependencyEndpoint, EndpointKind, ProjectDependency } from "../api/dependencies";
 import type { ProjectView, UpstreamEntity } from "../api/milestones";
-import { arrowSpecsFor, conflictCountOf, conflictsByBarFor, markCriticalArrows } from "./dependencyArrows";
+import { arrowSpecsFor, conflictCountOf, conflictsByBarFor, ghostRowId, markCriticalArrows } from "./dependencyArrows";
 import type { BarId, TimelineArrowData } from "./timelineModel";
 
 /**
@@ -11,9 +11,6 @@ import type { BarId, TimelineArrowData } from "./timelineModel";
 
 /** The summary row's id (and its one bar's): the project itself as an endpoint. Strings never collide with the milestones' numeric ids. */
 export const projectRowId = (projectId: number): string => `project:${projectId}`;
-
-/** A ghost row's id (and its one bar's): another project's milestone or another project. */
-export const ghostRowId = (endpoint: DependencyEndpoint): string => (endpoint.kind === "MILESTONE" ? `ghost:m:${endpoint.id}` : `ghost:p:${endpoint.id}`);
 
 const isOwnProject = (endpoint: DependencyEndpoint, view: ProjectView) => endpoint.kind === "PROJECT" && endpoint.id === view.project.id;
 const isOwnMilestone = (endpoint: DependencyEndpoint, view: ProjectView) => endpoint.kind === "MILESTONE" && endpoint.projectId === view.project.id;

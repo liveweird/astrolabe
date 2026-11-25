@@ -159,7 +159,8 @@ let periodPost: { status: number; body?: unknown };
 function serve(mockFetch: FetchMock) {
   mockFetch.mockImplementation((url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
-    if (method === "GET" && url === "/api/v1/views/team/1") return Promise.resolve(jsonResponse(200, view));
+    // The Critical path toggle (1.27) asks for the chain: the same document here (the chain's own cases are TeamDetails.chain.test.tsx).
+    if (method === "GET" && /^\/api\/v1\/views\/team\/1(\?criticalChain=true)?$/.test(url)) return Promise.resolve(jsonResponse(200, view));
     if (method === "GET" && url === "/api/v1/teams/1/flow") return Promise.resolve(jsonResponse(200, READ_ONLY_PANEL));
     if (method === "GET" && url === "/api/v1/public-holidays") return Promise.resolve(jsonResponse(200, { items: [{ id: 1, date: "2027-02-03", name: "Founders' Day" }] }));
     if (method === "PUT" && url === "/api/v1/teams/1/milestone-order") {
@@ -190,7 +191,7 @@ const calls = (mockFetch: FetchMock, method: string, matcher: RegExp) =>
     .map(([url, init]) => ({ url: url as string, body: (init as RequestInit | undefined)?.body ? JSON.parse((init as RequestInit).body as string) : undefined }));
 const orderPuts = (mockFetch: FetchMock) => calls(mockFetch, "PUT", /milestone-order$/).map((c) => c.body);
 const schedulePuts = (mockFetch: FetchMock) => calls(mockFetch, "PUT", /\/schedule$/).map((c) => c.body);
-const viewGets = (mockFetch: FetchMock) => calls(mockFetch, "GET", /views\/team\/1$/).length;
+const viewGets = (mockFetch: FetchMock) => calls(mockFetch, "GET", /views\/team\/1(\?criticalChain=true)?$/).length;
 
 function renderPage(route = "/teams/1") {
   return renderWithProviders(

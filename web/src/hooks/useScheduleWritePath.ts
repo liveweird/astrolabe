@@ -6,7 +6,7 @@ import { isStaleRevision } from "../api/roadmap";
 import { withoutStaleOverlay } from "./useBaselinePick";
 import { useRefusal } from "./useRefusal";
 import { applyPin } from "../utils/pinUpdate";
-import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
+import { dropInactiveSiblings, refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 
 /** Zero-width space: toggled on the live-region text so the same sentence twice is announced twice. */
@@ -53,7 +53,7 @@ type PinVariables<V> = { id: number; pinned: boolean; before: V; key: QueryKey }
  * ANY other write sharing `writeKey` runs (the team page's order PUT): two optimistic writes on one cached view would roll each other back.
  * The cached view's key includes the baseline pick, so an optimistic step hits the entry the page shows and its rollback the entry it was made
  * on; a SUCCESS stores the answered revision into the entry the change was made on ONLY (a sibling pick's entry still holds the old dates, so it must keep
- * the old revision: a write of the same milestone from it is then a stale 409, not an overwrite). The steps (`apply`) leave the view's `baseline` block untouched like `idleGaps` (the refetch brings the new
+ * the old revision: a write of the same milestone from it is then a stale 409, not an overwrite; a page that passes `siblings` removes the inactive ones instead). The steps (`apply`) leave the view's `baseline` block untouched like `idleGaps` (the refetch brings the new
  * movement). A change is REFUSED out loud while the shown copy is only the previous pick's placeholder (`placeholder`): its revision and rows are
  * not this pick's entry.
  * `announcement` is the live-region sentence for the last non-drag change (a drag is announced by dnd-kit itself).
@@ -67,6 +67,8 @@ export function useScheduleWritePath<V extends ScheduleView & { baseline?: unkno
   apply,
   enabled,
   writeKey,
+  overlayPick = null,
+  siblings,
 }: {
   queryKey: QueryKey;
   queryFn: () => Promise<V>;
@@ -75,13 +77,17 @@ export function useScheduleWritePath<V extends ScheduleView & { baseline?: unkno
   enabled: boolean;
   /** The mutation key every write on this cached view carries, so they see each other in flight. */
   writeKey: QueryKey;
+  /** The page's baseline pick, when the key carries more than the pick (the team page's chain): a placeholder of the SAME pick keeps its overlay. */
+  overlayPick?: number | null;
+  /** The prefix of the sibling entries of this view (the team page's other picks and chain): after a SUCCESS the inactive ones are removed (`dropInactiveSiblings`). */
+  siblings?: QueryKey;
 }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   // The key carries the baseline pick (v0.9): another pick is another entry. `keepPreviousData` keeps the page mounted (and the picker focused) while it
   // loads; the old pick's overlay is dropped from that copy until the new document arrives.
   const query = useQuery({ queryKey, queryFn, enabled, placeholderData: keepPreviousData });
-  const view = withoutStaleOverlay(query.data, query.isPlaceholderData);
+  const view = withoutStaleOverlay(query.data, query.isPlaceholderData, overlayPick);
   const [announcement, setAnnouncement] = useState("");
   // A change aimed at a milestone that is no longer in the view (deleted, then refetched away): shown (and announced) until the next taken change.
   const [gone, setGone] = useState(false);
@@ -94,8 +100,9 @@ export function useScheduleWritePath<V extends ScheduleView & { baseline?: unkno
     onSuccess: ({ revision }, { key }) => {
       // The new revision into the entry the change was made on - the one holding the moved dates - and into no other: a sibling entry (another
       // pick visited earlier) still holds the OLD dates, so it keeps the old revision and a write of the SAME milestone made from it before its
-      // refetch lands is answered 409 (the milestone's own schedule revision is newer) instead of silently overwriting this one.
+      // refetch lands is answered 409 (the milestone's own schedule revision is newer) instead of silently overwriting this one. With `siblings` the inactive ones go.
       queryClient.setQueryData<V>(key, (current) => current && { ...current, revision });
+      if (siblings !== undefined) dropInactiveSiblings(queryClient, siblings, key);
       // Not awaited: the save is over, so the next change may go at once; its `commit` cancels this refetch.
       void refreshQueriesAfterMutation(queryClient, ["plan"]);
     },
@@ -110,6 +117,7 @@ export function useScheduleWritePath<V extends ScheduleView & { baseline?: unkno
     onSuccess: ({ revision }, { key }) => {
       // As for a schedule: the written entry only (a pin stamps no schedule revision, but a sibling's newer plan revision would mask a staleness).
       queryClient.setQueryData<V>(key, (current) => current && { ...current, revision });
+      if (siblings !== undefined) dropInactiveSiblings(queryClient, siblings, key);
       void refreshQueriesAfterMutation(queryClient, ["plan"]);
     },
     onError: async (_err, { before, key }) => {

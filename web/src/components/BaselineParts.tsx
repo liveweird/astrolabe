@@ -120,6 +120,7 @@ export function ShowWithoutBaseline({ onClick }: { onClick: () => void }) {
 /**
  * The detail pages' (project, team) load triage, plus the way out of a stuck pick: while the view cannot be loaded WITH a baseline picked
  * (and it is not the typed "unknown baseline", which clears itself, nor a not-found), the page shows "Show without a baseline" under the failure.
+ * The team page (1.27) has a second one: its Critical path toggle selects the document too, so with it on (`chainOn`) the failure offers "Show without the critical chain".
  */
 export function PickedLoadState({
   pick,
@@ -127,12 +128,31 @@ export function PickedLoadState({
   dropping,
   notFound,
   onClearPick,
+  chainOn = false,
+  onClearChain,
   ...state
-}: ComponentProps<typeof EditPageLoadState> & { pick: number | null; isError: boolean; dropping: boolean; notFound: boolean; onClearPick: () => void }) {
+}: ComponentProps<typeof EditPageLoadState> & {
+  pick: number | null;
+  isError: boolean;
+  dropping: boolean;
+  notFound: boolean;
+  onClearPick: () => void;
+  chainOn?: boolean;
+  onClearChain?: () => void;
+}) {
+  const { t } = useTranslation();
+  const stuck = isError && !dropping && !notFound;
   return (
     <Stack gap="md">
       <EditPageLoadState {...state} isLoading={state.isLoading || dropping} />
-      {pick !== null && isError && !dropping && !notFound && <ShowWithoutBaseline onClick={onClearPick} />}
+      {pick !== null && stuck && <ShowWithoutBaseline onClick={onClearPick} />}
+      {chainOn && stuck && onClearChain !== undefined && (
+        <Group justify="flex-end">
+          <Button variant="default" onClick={onClearChain}>
+            {t("teams.view.chain.showWithout")}
+          </Button>
+        </Group>
+      )}
     </Stack>
   );
 }

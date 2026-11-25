@@ -48,20 +48,33 @@
    - *Expected*: the same idle band title, the "1 idle gap" badge in the team facts, and after **Show the idle gaps** the same table row
      (the team's own schedule has the same hole).
 
-## Scenario: the administrator reads the critical path on P's team page: p1 critical with no slack, p2 with ten working days, the toggle shared with the project page
+## Scenario: the administrator reads the critical chain on P's team page: x1 and y1 of the other team as dimmed rows with their arrows, p1 critical, a table of the two critical arrows, the toggle shared with the project page
 
 1. The administrator signs in and opens the page of the team that does P's work (p1 and p2).
-   - *Expected*: the **Critical path** toggle is not pressed; the timeline has no Slack column and no element with `data-critical`.
+   - *Expected*: the **Critical path** toggle is not pressed; the timeline has two rows (p1, p2), no Slack column, no element with `data-critical`, no
+     "Critical chain" section - and no request for the team's view named `criticalChain` (the chain is asked for only while the toggle is on).
 2. They press **Critical path**.
-   - *Expected*: the toggle is pressed and a **Slack** column appears: p1 reads "0 critical path" (it drives P's end), p2 "10 working days";
-     the note says slack and the critical path are measured toward the end of the milestone's own project.
-   - *Expected*: p1's bar (a movable button for the administrator) is named "..., on the critical path" and carries `data-critical="true"`;
-     p2's does not; exactly ONE element on the page carries the flag, and no arrow is drawn (the link y1 -> p1 comes from the other team's
-     milestone, which is no row of this page).
-3. They open P's project page.
+   - *Expected*: the toggle is pressed, the view is requested with `?criticalChain=true`, and a **Slack** column appears: p1 reads "0 critical path" (it drives
+     P's end), p2 "10 working days"; the note says slack and the critical path are measured toward the end of the milestone's own project.
+   - *Expected*: the timeline now has four rows: after p1 and p2 come y1 (the other team's milestone that drives p1) and x1 (two links away, through project Y),
+     dimmed, each with the other team and its own project as links (to `/teams/:id` and `/projects/:id`), "0 critical path" in the Slack column, and no handle,
+     menu or draggable bar. p2 is on no chain, so nothing more is added.
+   - *Expected*: p1's bar (a movable button for the administrator) is named "..., on the critical path" and carries `data-critical="true"`; p2's does not; the two
+     ghost bars are read-only images with the ghost tone and `data-critical="true"`, named "<name>, <team>, <project>, <dates>, on the critical chain of <P>, read-only".
+   - *Expected*: exactly FIVE elements on the page carry the flag (p1's bar, the two ghost bars and the two arrows, both critical and not violated: x1 -> y1 from the
+     chain block and y1 -> p1, the team's own link, drawn to a ghost row now); two arrows are drawn.
+   - *Expected*: the page's status region says once "Critical chain shown: 2 rows were added to the timeline." (the two dimmed rows; not on a first load with the toggle already on)
+3. They read the **Critical chain** section.
+   - *Expected*: an h3 "Critical chain", the sentence "2 dimmed rows on the timeline (milestones of other teams, or whole projects) lie on the critical chain...",
+     and no table until they press **Show the critical arrows**; then the table "Critical arrows on this page" has the header and two rows in chain order:
+     x1 -> y1 and y1 -> p1, each end with its name, project and team, "Finish → Start (FS)" and "0 working days".
+4. They reload the page.
+   - *Expected*: the toggle is still pressed and the four rows are there.
+5. They open P's project page.
    - *Expected*: the toggle is already pressed (ONE stored choice for both pages) and the Slack column reads the same figures for p1 and p2.
-4. They press the toggle off there and return to the team page.
-   - *Expected*: the toggle is not pressed, the Slack column and every `data-critical` are gone.
+6. They press the toggle off there and return to the team page.
+   - *Expected*: the toggle is not pressed; the Slack column, every `data-critical`, every arrow, x1 and y1's rows and the "Critical chain" section are gone;
+     the timeline has its two rows again.
 
 ## Scenario: the roadmap shows the critical path to P: X and Y emphasised, the chain panel lists them with their hops, None clears everything
 

@@ -687,9 +687,9 @@ describe("a row drag proposes a slot through onReorder", () => {
   const rowActive = { id: "row:1", data: { current: { kind: "row", barId: 1, label: "Discovery", position: 1, count: 3 } } };
   // the scroller spans y 44..600 and its sticky header takes the first 56 px
   const BOUNDS = { left: 0, right: 900, top: 100, bottom: 600, scrollerTop: 44 };
-  const rowZone = (zoneTop = 100, rowBounds: () => unknown = () => BOUNDS) => ({
+  const rowZone = (zoneTop = 100, rowBounds: () => unknown = () => BOUNDS, rowCount = 3) => ({
     id: TIMELINE_ROW_DROP_ID,
-    data: { current: { zoneTop: () => zoneTop, rowBounds, rowCount: 3 } },
+    data: { current: { zoneTop: () => zoneTop, rowBounds, rowCount } },
   });
   const rowEvent = (over: unknown = null, activatorEvent: unknown = null) => ({ active: rowActive, delta: { x: 0, y: 0 }, over, activatorEvent });
   const pointerAt = (clientY: number, clientX = 40) =>
@@ -751,6 +751,32 @@ describe("a row drag proposes a slot through onReorder", () => {
     pointerAt(200);
     emit("onDragEnd", rowEvent(rowZone(-70)));
     expect(onReorder).toHaveBeenCalledExactlyOnceWith(1, 3);
+  });
+
+  test("rows appended after the reorderable ones (ghost, baseline, Jira rows) are no slot: the line, the step sentence, the proposal and the drop all stop at the last reorderable row", () => {
+    const onReorder = vi.fn(() => true);
+    renderWithProviders(<Harness onReorder={onReorder} />);
+    startRowDrag();
+    // the zone spans five rows but the held row's count is 3: y = 270 is 170 px in = 4.7 rows -> slot 5 on the zone, 3 for the page
+    pointerAt(270);
+    emit("onDragMove", rowEvent(rowZone(100, () => BOUNDS, 5)));
+    expect(indicator()).toHaveAttribute("data-row-slot", "3");
+    expect(indicator()).toHaveStyle({ top: "107px" });
+    expect(say().onDragMove?.({ active: rowActive } as never)).toBe("Discovery: position 3 of 3");
+    emit("onDragEnd", rowEvent(rowZone(100, () => BOUNDS, 5)));
+    expect(onReorder).toHaveBeenCalledExactlyOnceWith(1, 3);
+    expect(say().onDragEnd({ active: rowActive } as never)).toBe("Dropped Discovery at position 3 of 3.");
+  });
+
+  test("a held row without a count (a page that does not say) keeps the zone's whole range", () => {
+    const onReorder = vi.fn(() => true);
+    renderWithProviders(<Harness onReorder={onReorder} />);
+    const bare = { id: "row:1", data: { current: { kind: "row", barId: 1, label: "Discovery", position: 1 } } };
+    const event = { active: bare, delta: { x: 0, y: 0 }, over: rowZone(100, () => BOUNDS, 5), activatorEvent: { clientX: 20, clientY: 110 } };
+    emit("onDragStart", event);
+    pointerAt(270);
+    emit("onDragEnd", event);
+    expect(onReorder).toHaveBeenCalledExactlyOnceWith(1, 5);
   });
 
   test("a drop proposes the slot once and is announced with the position the row takes", () => {

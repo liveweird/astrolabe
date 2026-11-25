@@ -1,13 +1,13 @@
 import { describe, expect, test } from "vitest";
 import type { DependencyEndpoint, ProjectDependency } from "../api/dependencies";
 import type { ProjectView, UpstreamEntity } from "../api/milestones";
+import { ghostRowId } from "./dependencyArrows";
 import {
   arrowSpecs,
   chainEntries,
   conflictCount,
   conflictsByBar,
   ghostEndpoints,
-  ghostRowId,
   linksOfMilestone,
   projectRowId,
   summaryCritical,

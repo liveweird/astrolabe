@@ -15,6 +15,9 @@ export const EDGES: Record<DependencyType, readonly ["START" | "END", "START" | 
   SF: ["START", "END"],
 };
 
+/** A ghost row's id (and its one bar's): another project's milestone or another project - on the project page and, with the critical chain (1.27), on the team page. */
+export const ghostRowId = (endpoint: { kind: string; id: number }): string => (endpoint.kind === "MILESTONE" ? `ghost:m:${endpoint.id}` : `ghost:p:${endpoint.id}`);
+
 /** How many links are violated: the "N conflicts" badge. */
 export function conflictCountOf(dependencies: readonly ProjectDependency[]): number {
   return dependencies.filter((dependency) => dependency.check.status === "VIOLATED").length;

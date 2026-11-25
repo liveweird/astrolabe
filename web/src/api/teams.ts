@@ -2,7 +2,6 @@
 // reads them (the owner pickers, the Teams page), ADMIN curates them and their manager.
 // Thin endpoint wrappers: transport (authedFetch/ApiError) in ./http, types from ./schema.
 
-import { baselineSuffix } from "./baselines";
 import { ApiError, buildQuery, jsonRequest, voidRequest } from "./http";
 import { revalidatedRequest } from "./revalidate";
 import type { components, paths } from "./schema";
@@ -72,10 +71,17 @@ export type TeamMilestone = Schemas["TeamMilestone"];
 export type WeekLoad = Schemas["WeekLoad"];
 export type CapacityPeriod = Schemas["CapacityPeriodResponse"];
 export type CapacityPeriodBody = Schemas["CapacityPeriodRequest"];
+export type TeamCriticalChain = Schemas["TeamCriticalChain"];
+export type TeamChainMember = Schemas["TeamChainMember"];
+export type TeamChainLink = Schemas["TeamChainLink"];
 
-/** `baseline` (v0.9) is the id of the baseline to compare with: the document then gains its `baseline` block; absent or null = the plain view. */
-export async function getTeamView(id: number, baseline?: number | null): Promise<TeamView> {
-  return revalidatedRequest<TeamView>(`/api/v1/views/team/${id}${baselineSuffix(baseline)}`);
+/**
+ * `baseline` (v0.9) is the id of the baseline to compare with: the document then gains its `baseline` block; absent or null = the plain view.
+ * `chain` (1.27) asks for `?criticalChain=true`: the document then gains its `criticalChain` block; `false` sends nothing, so the plain request is the one it always was.
+ */
+export async function getTeamView(id: number, baseline?: number | null, chain = false): Promise<TeamView> {
+  const query = buildQuery({ baseline, criticalChain: chain ? true : undefined });
+  return revalidatedRequest<TeamView>(`/api/v1/views/team/${id}${query === "" ? "" : `?${query}`}`);
 }
 
 export async function createCapacityPeriod(teamId: number, body: CapacityPeriodBody): Promise<CapacityPeriod> {
