@@ -547,6 +547,8 @@ Method, so a run can be repeated:
 | Row drag, first row to last slot through autoscroll | 7.6-8.5 s of held autoscroll (268 rows; 1.7-1.8 s for 67); `PUT` 200 33-40 ms after the release; the row is last after the refetch | 0.5 |
 | Baseline picked (301 rows, 36 mounted): DOM nodes without / with the pick | 1,964 / 2,072 (+108: the 21 mounted shadow bars and their cells); scroll at the cap either way | 0.9 |
 | The same with 18 appended rows: DOM nodes without / with | 2,926 / 3,009; the grid is 648 px taller | 0.9 |
+| Critical chain on (Platform: 11 dimmed rows, 5 links, 2.9 KB): click to the section painted / rows / DOM nodes at most | 37-46 ms / 269 to 280 / 2,878 to 2,968 | 1.27 |
+| The same: scroll p50 / p95, off and on | 16.7 / 16.7-16.8 ms either way; scripting 5.2-5.4 ms, layout 0.15 ms a frame | 1.27 |
 | Window focus: requests per focus | 1 (`GET /views/team/{id}`, about 203 KB, 18 KB gzip); a `staleTime` is not justified (the rule: at most 2 requests, 300 KB) | 1.0.0 |
 
 ### The roadmap and programs pages, the baseline page and the lists
@@ -573,6 +575,7 @@ Method, so a run can be repeated:
 |---|---|---|---|---|
 | `GET /views/team/{id}`, Platform (301 milestones) | 28.2 / 42.7 ms | 198 KB, 18 KB (226,495 B, 15,245 B in the 304 test) | 20 concurrent: p50 155, p95 361 ms (recorded, not gated) | 1.0.0 |
 | The same, every milestone bound, three flags a row, `?baseline=` (CI) | request median 114 ms | 367,729 B, 7,907 B | `TEAM_VIEW_GATE_BYTES` 400,000 B, gzip 40,000 B | 1.16 |
+| The same with `?criticalChain=true`, plain / chain | p50 36.6-38.7 / 39.3-40.4 ms, p95 41-42 / 42-46 ms | 225,417 / 228,378 B, gzip 19.9 / 20.3 KB; 100 members and 88 links are 32,693 B | 36,000 B (`TeamChainScaleTest`); stop line +10 ms p50 | 1.27 |
 | The same read answered `304` | median 31.5-38.8 ms vs 37.5-40.3 ms for the `200` | body 0 B; the tag costs 0.1 ms | helper within 2 ms of `call.respond` | 1.22 |
 | `GET /views/project/{id}`, the largest | 22.4 / 30.0 ms | 12.2 KB, 1.8 KB; bound with the overlay 12,616 B | 40,000 B size gate (with the overlay); p50 ≤ 1,000 ms (`JiraFlagsScaleTest`; the 0.8 figure p50 30 / p95 45 ms is a design target) | 1.0.0, 1.16 |
 | `GET /views/roadmap` / `/views/programs` | 20.6 / 26.1 ms, 20.1 / 23.5 ms | 81.1 KB, 7.9 KB; 83.3 KB, 8.2 KB | none | 1.0.0 |

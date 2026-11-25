@@ -67,6 +67,7 @@ Each increment gets its own plan (architect) before implementation; only v0.1.0 
 | **1.24.0 Technical release** | No feature: docs in Rules and sections with a guard, the spec's descriptions as contract, shared Jira and Flow pieces, two CI forks, a named e2e target; the item-level `acknowledgement` leaves `GET /views/deviations` |
 | **1.25.0 Reliability and navigation** | Complete Flow sprint snapshots (V31), atomic project edits, consistent API reads, grouped navigation and refreshed Home; 1.25.1 a new logo |
 | **1.26.0 Saved proposals, frozen links and capacity** | Cross-team runs saved and read by every signed-in user (V32); baselines freeze links and capacity (V33); paged `GET /work-streams` and `/programs`; docs under byte ceilings, fewer test sleeps; 1.26.1 dependency updates (`dependencies.md`) |
+| **1.27.0 Finding and linking work** (built, not released) | A dependency added from its list; Milestones by program, work stream and rank; the whole critical chain on the team page; the last untested timings measured |
 
 ## Domain decisions taken with the user
 
@@ -133,6 +134,8 @@ An answer is the user's own, including "all recommended" (the user chose the rec
 - **Two baselines compared (1.7.0; "all recommended", 2026-11-09).** (Q7a) The SAME comparison document and page, `GET /views/baseline/{id}?against=N` (the path id is "then", `against` is "now", any order, `against == id` is a `400`), with a "Compare against" picker (the live plan, or any other baseline, newest first with their plan revisions); the "Show on timeline" overlay stays one baseline against the live plan.
   (Q8) The **rank movement** against a baseline shows on the roadmap's rank cell ("5 (was 3)") and totals line and on the comparison page's project row ("rank 3 → 5").
 - **Links and capacity (1.26; the user's Q3 b, 2026-11-23).** A baseline also freezes every active link and every active capacity period (not holidays, not team orders); the comparison page lists the changed links and the capacity ranges that differ, the team page shows the capacity as it was, the project page marks a link "New since the baseline". An older baseline reads "not captured", not "no changes".
+- **Finding and linking work (1.27; the user's answers of 2026-11-25).** (U1) The team page draws the **whole chain as rows**: every member of another team, near or far, is a dimmed read-only row with its arrows. (U2) Only while the Critical path toggle is on. (U3) "Add dependency" on the Dependencies page shows to whoever can manage at least one project; the successor picker offers only those projects, the predecessor is anything; the server's rule is unchanged. (U4) A rank sort puts the milestones of unranked projects last in BOTH directions, by project name.
+  Built on the recommendation, not yet confirmed: (Q1 a) the chain is the members on a zero-slack path THROUGH one of the team's milestones, not every critical milestone of its projects; (Q2 a) Milestones keeps opening by project name, rank is one more sortable column.
 
 ### The Jira sync
 
@@ -277,6 +280,15 @@ What was ported later, and what was left in Flow on purpose:
 ## Release history
 
 Newest first. Each version: its scope, the user's answers, the defaults that still bind and what was not built; the commits, the plans (they live outside the repository) and the test runs are in git. "No migration" means the preceding schema still applies. Every release leaves "nothing is written to Jira or Flow" true.
+
+### v1.27.0 — finding and linking work (built, not released)
+
+Built overnight on 2026-11-25; a minor bump, the API only gains members. No migration.
+
+- `GET /milestones` takes `programId`, `workStreamId` and `sort=rank` (`planning-model.md` "The picker and milestone lists"); the plan view's project gains `can.createDependency` (a hint equal to the guard, `authorization.md` "Dependencies"); `GET /views/team/{id}?criticalChain=true` carries the chain, at most 100 members and 500 links (`planning-model.md` "The critical path").
+- The e2e rank test appends two throwaway projects to the global ranking (the plan had meant none to); U4 cannot be shown without ranked projects.
+- The page filters use the plan document, so `GET /work-streams` still has no web consumer.
+- Measured (`timeline.md` "Measured figures"): `POST /baselines` holds the plan lock 82-85 ms (stop line 250), a saved proposal reads in 57-73 ms (stop line 500); the five untested cells are decided (three scale tests, two design notes). No stop line was crossed.
 
 ### v1.26.0 — saved proposals, frozen links and capacity
 
