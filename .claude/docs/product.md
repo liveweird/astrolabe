@@ -405,7 +405,8 @@ Released on the user's word ("release 1.20 and 1.21", 2026-11-15), right after 1
 - Q4 a second table "Weeks with a warning" under the Team load table: one row per team and overloaded or over-WIP week with the team page's own cells, following the "Show" filter, at most 2,000 weeks in team order, oldest first (not (b) a disclosure per row, not (c) a heat map).
 - Q5 the slimmer document built last (not (b) skipped, not (c) the check's null members dropped).
 
-**Defaults taken:** `programId` written canonical (de-duplicated, ascending, at most 100) on both pages; `severity` and `unranked` as exact words only; the focus helper takes the menu it came from; `listEveryTeam` reads at most 20 pages; the Dependencies page resolves names in its query function, not in `select` (a throwing `select` looped in TanStack Query 5.105.3), so a document that names something it does not hold is a `MalformedAnswerError`, never retried.
+**Defaults taken:** the address spellings (`programId` canonical, `severity` and `unranked` exact words) and the team options (`listEveryTeam`, at most 20 pages) are `web-internals.md`'s ("The URL holds the filters", "The program pick", "Shared list-page and dialog mechanics"); the focus helper takes the menu it came from;
+the Dependencies page resolves names in its query function, not in `select` (`web-internals.md` "Dependencies"; the reason is in `Dependencies.tsx`'s comment), and a document naming something it does not hold is a `MalformedAnswerError`, never retried (`web/CLAUDE.md` "Query retry").
 **Not built:** the alternatives of Q2b to Q4c, each a `[new]` `BACKLOG.md` line; warning weeks from today and the focus after ranking the last unranked row were built in 1.22.
 
 ### v1.20.0 — what shipped
@@ -418,8 +419,8 @@ Released on the user's word ("release 1.20 and 1.21", 2026-11-15), a minor bump 
 - Q3 "Dependencies" in the Roadmap's and Programs page's project row menus, "N dependencies" on the team page's facts line, the red conflicts badge opening the violated ones, no bar renamed (not (b) a per-milestone item and filter, not (c) counts in bars' accessible names).
 - Q4 evidence first for the server gate beside the stack. Q5 the stricter axe sweep fixes a missing name or role and records (does not patch or waive) a contrast finding.
 
-**What it delivers:** the page `/dependencies` (everyone): the violated first (largest shortfall first), then kept, then not scheduled yet; a cut list says so and never claims "nothing matches". Home's red "N violated dependencies" and the "Yours" conflicts badges open it narrowed (`plan.conflicts` and the list's `totals.violated` are one function).
-The server gate runs beside the compose stack (`StubPortGuardTest` pins that the stubs take a free port). The Jira and Flow connection, mapping, run, team-link and refused-acknowledge writes mark Home stale; the login and password-reset pages run the deploy check. **Defaults taken:** a view, not a paged list (the order and the status are a kernel's result); a lean five-statement loader; filters only in the address; the Roadmap's item on every project row, with no count.
+**What it delivers:** the page `/dependencies` for everyone (`web-internals.md` "Dependencies"; the order, the totals and the one function behind Home's "violated dependencies": `planning-model.md` "The dependencies view"); the Jira and Flow writes that mark Home stale (`web-internals.md` "Home") and the deploy check on the login and password-reset pages ("The deploy check"). The server gate runs beside the compose stack (`testing.md`).
+**Defaults taken:** a view, not a paged list (the order and the status are a kernel's result); a lean five-statement loader; filters only in the address; the Roadmap's item on every project row, with no count.
 The `projectId` filter on `GET /milestones` already existed since 1.19 (the predecessor picker stays plan-wide on purpose). **Not built:** each a `[new]` `BACKLOG.md` line (the alternatives of Q1b to Q3c).
 
 ### v1.19.0 — what shipped
@@ -443,8 +444,8 @@ Released on the user's word the same day (2026-11-14), a minor bump (a new read 
 - Q1 **(b)** the plan figures plus the whole plan's capacity (teams with an overloaded week, teams over the WIP limit): the one answer off the recommended option, and it adds a team loop to every read.
 - Q2 to Q5 **(a)**: "yours" is what the person linked to the login owns directly plus the teams that person manages (widened in 1.23 Q3); a managed team's row carries its capacity warnings, its Jira deviations and its Flow flag; a login without a person gets one plain sentence; worded lines and badges inside the three cards, with "Yours" as a section under them (not stat tiles, Q5b; not counts only, Q2c; not an attention-only view, Q1c; not "everything you may manage", Q2b).
 
-**Defaults taken:** "me" is the ACTIVE person linked to the login, resolved inside the snapshot with the guards' own two lookups, **an administrator included** (the seed administrator has no person on a fresh stack); the plan block is the same for every caller; `plan.conflicts` counts every violated link once, **links inside one project included**; each of the four lists of `me` holds at most 100 rows with `truncated`, names case-insensitively, ranked projects first;
-a failed first read is one inline alert in place of "Yours", a failed re-read keeps the figures. **Not built:** each a `[new]` `BACKLOG.md` line (the alternatives are in the answers above); a page for the overloaded teams, a URL for the Roadmap's filters and a list of every unscheduled milestone came in 1.19, "everything you may manage" in 1.23.
+**Defaults taken** are stated where they live: who "me" is (an administrator included; the seed administrator has no person on a fresh stack), the caller-independent plan block, the conflicts count and the four capped lists in `planning-model.md` "The home view"; the failed first read and the failed re-read in `web-internals.md` "Home".
+**Not built:** each a `[new]` `BACKLOG.md` line (the alternatives are in the answers above); a page for the overloaded teams, a URL for the Roadmap's filters and a list of every unscheduled milestone came in 1.19, "everything you may manage" in 1.23.
 
 ### v1.17.0 — what shipped
 
@@ -456,8 +457,8 @@ Released on the user's word the same day (2026-11-14), a minor bump (a new menu 
 - Q3 "Schedule on Jira's dates" is one click on the dashed row's menu, through the page's one write path, only for a caller whose `can.schedule` allows it and never while a proposal previews.
 - Q4 a notice at the top of every page with a Reload button, no way to dismiss it. Q5 the build writes its commit into `index.html` (`<meta name="astrolabe-build">`) and the shell compares it with the bundle's own. Also: the critical-path pick is announced once per target.
 
-**Defaults taken:** the Deviations row's "· stale" mark keeps its own rule; the menu item shows on the dashed row and the baseline's "unscheduled since the baseline" row, left out when Jira's two dates are reversed, with no pre-check of working days; the deploy check re-reads `index.html` when the shell mounts, when the tab returns and every five minutes, never reloads by itself, compares for inequality (a rollback prompts too) and keeps its last answer when a re-check fails.
-**The deploy check's limits:** it ships in 1.17's bundle, so a tab open across the 1.17 deploy needs one manual reload; a rebuilt image of the same commit goes unnoticed; a rolling deploy that serves two builds can prompt twice; an intermediary that caches `index.html` but not deep links could show a notice a reload does not clear.
+**Defaults taken:** the Deviations row's "· stale" mark keeps its own rule; the menu item shows on the dashed row and the baseline's "unscheduled since the baseline" row, left out when Jira's two dates are reversed, with no pre-check of working days; the deploy check is `web-internals.md` "The deploy check" (it never reloads by itself, and a rollback prompts too).
+**The deploy check's limits** (the rebuilt image of the same commit and the rolling deploy are `web-internals.md`'s): it ships in 1.17's bundle, so a tab open across the 1.17 deploy needs one manual reload; an intermediary that caches `index.html` but not deep links could show a notice a reload does not clear.
 **Not built** (each a `[new]` `BACKLOG.md` line): the alternatives Q3b (the Unscheduled list's row menu), Q3c (a prefilled Schedule dialog) and Q4b (a "Later" button), the plan pages' line narrowed to the projects on screen, the disabled connection that the banner and the chips treat differently, the dated claim blinking to "so far" during a routine refresh (a known limit).
 
 ### v1.16.0 — what shipped
@@ -503,8 +504,7 @@ The import from a linked node (the user's request of 2026-11-12, after a first i
 
 ### v1.13.4 — what shipped
 
-The import preview's search (the user's request of 2026-11-12, to cherry-pick an item by id or text; released on the user's word), a patch bump: web only, no migration. A box above the preview table filters the rows by a case- and accent-insensitive substring of the Jira key, id, summary or plan name; hiding a row never changes its tick or team override, and the selected count, **Import (n)** and the apply stay global.
-While a query is active "Tick shown" / "Untick shown" and the header checkbox act on the shown rows through the parent/child rules. **Defaults:** a row with no Jira key (redacted for a non-admin under a filter) never matches; the search is page state, not remembered. Mechanics: `web-internals.md` "The preview search".
+The import preview's search (the user's request of 2026-11-12, to cherry-pick an item by id or text; released on the user's word), a patch bump: web only, no migration. A box above the preview table hides rows by a case- and accent-insensitive substring; its mechanics and defaults (a row with no Jira key never matches, the search is page state, not remembered) are `web-internals.md` "The preview search".
 
 ### v1.13.3 — what shipped
 

@@ -96,7 +96,7 @@ Routes, bodies and statuses are `openapi/documentation.yaml` (tag `plan`), the g
 
 ### Authorization
 
-The matrix is `authorization.md`'s. ADMIN everything; ownership cascades down (an owner at ANY level of a node's chain acts on the node); a project's own owner does NOT set its target window (ADMIN, an owner above it, or a `ROADMAP_EDITOR` do); creating a work stream is ADMIN only. Any owner on the chain, the node's own included, may reassign the node's owner (a hand-over; the ancestors can always take it back).
+The matrix is `authorization.md` "Plan nodes" (ADMIN, the owner cascade, the target-window editors, the owner hand-over, work-stream creation).
 
 ### Audit events
 

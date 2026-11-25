@@ -276,7 +276,7 @@ The rule (a Reload notice, never an automatic reload): `web/CLAUDE.md` "Error ha
 - `api/build.ts` `getServedBuild()` fetches `index.html` (`cache: "no-store"`, `timeoutSignal()`, a plain `fetch` with no token: the shell is public) and
   returns the meta's content. It REJECTS on a non-200, a body without the meta (a JSON stub, an older shell), an empty content or a failed fetch: "could not
   tell" is never "equal".
-- `hooks/useServedBuild.ts` is the one query `["build"]`: a focus refetch with no `staleTime`, every 5 minutes while visible, `retry: false`, and off when
+- `hooks/useServedBuild.ts` is the one query `["build"]`: a read on mount, a focus refetch with no `staleTime`, every 5 minutes while visible, `retry: false`, and off when
   `__APP_COMMIT__` is `unknown` (a build without git). `outdated` = an answer arrived and differs from the bundle's commit (inequality, so a rollback prompts
   too); a failed re-check keeps the last answer, an equal one clears it.
 - `components/UpdateBanner.tsx` is mounted at the top of `AppShell.Main` (outside the route boundary, so it survives navigation and a page crash) and at the
