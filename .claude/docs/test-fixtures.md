@@ -24,7 +24,7 @@ Owns: the server test harness and fixtures, the fork machinery (warm-up, balanci
 
 ### The suite and its forks
 
-Backend tests live flat in `server/src/test/kotlin/` against a Testcontainers `PostgreSQLContainer("postgres:18.6-alpine@sha256:9ba53c7d…")` (the digest `docker-compose.yaml` and `k8s/postgres-deployment.yaml` pin: `PostgresImagePinTest`), started lazily by `PostgresTestSupport` and shared across the whole suite within a JVM fork. Docker, the seed admin and the unique-prefix rule: `testing.md`.
+Backend tests live flat in `server/src/test/kotlin/` against a Testcontainers `PostgreSQLContainer("postgres:18.7-alpine@sha256:0115267a…")` (the digest `docker-compose.yaml` and `k8s/postgres-deployment.yaml` pin: `PostgresImagePinTest`), started lazily by `PostgresTestSupport` and shared across the whole suite within a JVM fork. Docker, the seed admin and the unique-prefix rule: `testing.md`.
 
 - `sharedDatabaseForTests()` goes through a small r2dbc-pool built by production's own `connectPooledDatabase`: an unpooled connect paid ~4 ms of backend setup per transaction.
 - `PostgresTestSupport` migrates the container the moment it starts (a `Flyway.migrate()` in its lazy init, the same call as `infra/db/Flyway.kt`; `ensureMigrated()` is the explicit spelling).

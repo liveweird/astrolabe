@@ -138,7 +138,7 @@ perl-base, libssl3t64 and libbrotli1 from Noble's signed repositories and enforc
 Temurin image includes them. Every external base uses an exact tag and reviewed multi-platform
 manifest digest. The `app` Compose service points the `POSTGRES_*` env vars at the `postgres`
 service host (`postgres:5432` in-network) and waits on its healthcheck. Compose and
-Testcontainers share PostgreSQL 18.6's reviewed digest; Mailpit is pinned to a reviewed
+Testcontainers share PostgreSQL 18.7's reviewed digest; Mailpit is pinned to a reviewed
 image digest. `.dockerignore` keeps build outputs, every `node_modules`, `.claude/` (in a primary
 checkout that includes each git worktree under `.claude/worktrees/`: the context is ~18 MB instead of ~3.8 GB),
 coverage/Playwright output and `.kotlin/` out of the build context; `.git` is **included** on purpose — the SPA build stage reads the commit sha/timestamp
