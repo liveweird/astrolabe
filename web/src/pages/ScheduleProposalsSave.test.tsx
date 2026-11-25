@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { screen, waitFor, within } from "@testing-library/react";
 import ScheduleProposals from "./ScheduleProposals";
-import { RUN, RUN_URL, SAVED, SAVED_URL, STALE_SCOPE, TEAMS_URL } from "../test/crossTeamRun";
+import { CHECK_URL, RUN, RUN_URL, SAVED, SAVED_URL, STALE_SCOPE, TEAMS_URL } from "../test/crossTeamRun";
 import { jsonResponse, routeFetch } from "../test/http";
 import { renderWithProviders } from "../test/render";
 
@@ -27,6 +27,8 @@ beforeEach(() => {
       return saveAnswer;
     },
     [`POST ${RUN_URL}`]: RUN,
+    // The open run is checked after a tick, which can land while a test is still arranging; an unrouted call fails the test.
+    [`POST ${CHECK_URL}`]: { teams: [] },
   });
   vi.stubGlobal("fetch", mockFetch);
   localStorage.setItem("astrolabe.auth.token", "fake-token");
