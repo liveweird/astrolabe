@@ -8,7 +8,7 @@ import MilestoneSelect from "./MilestoneSelect";
 import type { PickedOption } from "./SearchPicker";
 import ProjectSelect from "./ProjectSelect";
 
-/** What a form's `getInputProps` answers: the Type and Lag fields take theirs from either dependency form (the project page's, the Dependencies page's). */
+/** What a form's `getInputProps` answers: the Type and Lag fields take theirs from either dependency form (the project page's, the dependency panel's). */
 type InputProps = ReturnType<UseFormReturnType<DependencyFormValues>["getInputProps"]>;
 
 /** The type and the lag: the two fields every mode of the dependency forms has. */

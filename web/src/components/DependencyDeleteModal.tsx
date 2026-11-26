@@ -5,7 +5,7 @@ import { saveErrorMessage } from "../utils/saveError";
 import ConfirmDeleteModal from "./ConfirmDeleteModal";
 
 /**
- * The confirmation to delete a dependency, shared by the project page and the Dependencies page (1.22): the wording and the error mapping live
+ * The confirmation to delete a dependency, shared by the project page and the dependency panel (1.22): the wording and the error mapping live
  * here once. `ownProjectId` is the page's own project (its milestones are named without a project); `null` = the list page, where every
  * milestone end names its project.
  */

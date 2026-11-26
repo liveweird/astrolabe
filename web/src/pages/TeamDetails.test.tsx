@@ -435,10 +435,10 @@ describe("Team view page", () => {
     await screen.findByRole("grid", { name: "Team milestone timeline" });
     const facts = screen.getByRole("group", { name: "Team facts" });
     const conflicts = within(facts).getByRole("link", { name: "1 conflict: the violated dependencies of this team" });
-    expect(conflicts).toHaveAttribute("href", "/dependencies?status=violated&teamId=1");
+    expect(conflicts).toHaveAttribute("href", "/roadmap?dependencies=violated&dependencyTeamId=1");
     expect(conflicts).toHaveTextContent("1 conflict");
     const all = within(facts).getByRole("link", { name: "1 dependency: the dependencies of this team's milestones" });
-    expect(all).toHaveAttribute("href", "/dependencies?teamId=1");
+    expect(all).toHaveAttribute("href", "/roadmap?dependencies=all&dependencyTeamId=1");
     expect(all).toHaveTextContent("1 dependency");
   });
 
@@ -446,7 +446,7 @@ describe("Team view page", () => {
     view = viewOf({ dependencies: [LINK, { ...LINK, id: LINK.id + 1 }] });
     renderPage();
     await screen.findByRole("grid", { name: "Team milestone timeline" });
-    expect(within(screen.getByRole("group", { name: "Team facts" })).getByRole("link", { name: /^2 dependencies:/ })).toHaveAttribute("href", "/dependencies?teamId=1");
+    expect(within(screen.getByRole("group", { name: "Team facts" })).getByRole("link", { name: /^2 dependencies:/ })).toHaveAttribute("href", "/roadmap?dependencies=all&dependencyTeamId=1");
   });
 
   test("a team with no dependency has neither the count link nor the conflicts link in its facts line", async () => {

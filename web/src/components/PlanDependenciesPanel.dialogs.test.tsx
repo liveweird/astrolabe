@@ -1,18 +1,18 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { QueryClient } from "@tanstack/react-query";
-import { Route, Routes } from "react-router-dom";
 import i18n from "../i18n";
 import { forgetRevalidated } from "../api/revalidate";
 import { act, renderWithProviders, screen, waitFor, within } from "../test/render";
 import { deferred } from "../test/deferred";
 import { jsonResponse } from "../test/http";
 import { planOf } from "../test/planView";
-import { dependencyListView, dependencyRow, milestoneEnd } from "../test/dependencyList";
-import Dependencies from "./Dependencies";
+import { dependencyListView, dependencyRow } from "../test/dependencyList";
+import PlanDependenciesPanel from "./PlanDependenciesPanel";
 
-// The Dependencies page's writes (1.22): a row's menu by the row's `can`, the project page's dialog and confirmation, the refresh and the focus.
-// The read-only page (the list, the filters, the states) is `Dependencies.test.tsx`.
+// The dependency panel's row writes (1.22 on the Dependencies page, the panel's since 1.29): a row's menu, the project page's dialog and confirmation, the
+// refresh and the focus. The menu by the row's `can`, and what a save and a delete invalidate, are `PlanDependenciesPanel.write.test.tsx`; the read-only
+// list (the cells, the filters, the states) is `PlanDependenciesPanel.list.test.tsx`.
 
 const TABLE = "Dependencies of the plan";
 const PLAN = planOf([{ id: 700, name: "Platform", programs: [{ id: 70, name: "Billing", projects: [{ id: 3, name: "Checkout" }] }] }]);
@@ -23,21 +23,19 @@ let answer: () => Response;
 let write: () => Response;
 let mockFetch: ReturnType<typeof vi.fn>;
 
-function renderPage(route = "/dependencies", queryClient?: QueryClient) {
+function renderPage(query = "?dependencies=all", queryClient?: QueryClient) {
   // The shell's focus target (`useFocusMainOnNavigation`, and where `useDialogFocus` sends a focus whose opener has gone).
   return renderWithProviders(
     <main id="main-content" tabIndex={-1}>
-      <Routes>
-        <Route path="/dependencies" element={<Dependencies />} />
-      </Routes>
+      <PlanDependenciesPanel />
     </main>,
-    { route, queryClient },
+    { route: `/roadmap${query}`, queryClient },
   );
 }
 
 const readCalls = () => mockFetch.mock.calls.map(([url]) => String(url)).filter((url) => url.startsWith("/api/v1/views/dependencies"));
 
-describe("Dependencies page: changing a dependency from its row", () => {
+describe("PlanDependenciesPanel: the row dialogs", () => {
   beforeEach(() => {
     write = () => new Response(null, { status: 204 });
     answer = () => jsonResponse(200, dependencyListView([]));
@@ -59,7 +57,6 @@ describe("Dependencies page: changing a dependency from its row", () => {
     await i18n.changeLanguage("en");
   });
 
-
   const NAME = "Design review · Checkout → Build · Billing";
   const MAY_BOTH = dependencyRow({ id: 77, can: { edit: true, delete: true } });
   const writes = () =>
@@ -80,28 +77,6 @@ describe("Dependencies page: changing a dependency from its row", () => {
     expect(screen.getByRole("menuitem", { name: `Edit ${NAME}` })).toHaveTextContent("Edit…");
     expect(screen.getByRole("menuitem", { name: `Delete ${NAME}` })).toHaveTextContent("Delete");
     expect(within(screen.getByRole("table", { name: TABLE })).getByRole("columnheader", { name: "Operations" })).toBeInTheDocument();
-  });
-
-  test("each item shows only under its own flag, and a row that may do neither has no menu beside rows that have one", async () => {
-    const user = userEvent.setup();
-    const end = (id: number) => ({ id, name: `Step ${id}`, projectId: 3, projectName: "Checkout" });
-    const row = (id: number, can: { edit: boolean; delete: boolean }) =>
-      dependencyRow({ id, can, predecessor: milestoneEnd({ ...end(id * 10) }), successor: milestoneEnd({ ...end(id * 10 + 1) }) });
-    answer = () => jsonResponse(200, dependencyListView([row(1, { edit: true, delete: false }), row(2, { edit: false, delete: true }), row(3, { edit: false, delete: false })]));
-    renderPage();
-    await openMenu(user, "Step 10 · Checkout → Step 11 · Checkout");
-    expect(screen.getByRole("menuitem", { name: /^Edit / })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: /^Delete / })).toBeNull();
-    await user.keyboard("{Escape}");
-    await waitFor(() => expect(screen.queryByRole("menuitem")).toBeNull());
-    await openMenu(user, "Step 20 · Checkout → Step 21 · Checkout");
-    expect(screen.queryByRole("menuitem", { name: /^Edit / })).toBeNull();
-    expect(screen.getByRole("menuitem", { name: /^Delete / })).toBeInTheDocument();
-    const table = screen.getByRole("table", { name: TABLE });
-    expect(within(table).getAllByRole("button", { name: /^Operations for / })).toHaveLength(2);
-    const [, , neither] = within(table).getAllByRole("row").slice(1);
-    expect(within(neither).queryByRole("button")).toBeNull();
-    expect(within(table).getAllByRole("columnheader")).toHaveLength(7);
   });
 
   test("Edit… opens the project page's dialog with both ends and their projects, saves the type and lag, closes, re-reads the list and puts the focus back on the row's menu button", async () => {
@@ -128,7 +103,7 @@ describe("Dependencies page: changing a dependency from its row", () => {
     queryClient.setQueryData(["roadmap", "view"], {});
     queryClient.setQueryData(["plan", "elsewhere"], {});
     answer = () => jsonResponse(200, dependencyListView([MAY_BOTH]));
-    renderPage("/dependencies?status=ok&projectId=3", queryClient);
+    renderPage("?dependencies=ok&dependencyProjectId=3", queryClient);
     await openMenu(user);
     await user.click(screen.getByRole("menuitem", { name: `Edit ${NAME}` }));
     await user.click(within(await screen.findByRole("dialog", { name: "Edit dependency" })).getByRole("button", { name: "Save" }));
@@ -167,7 +142,7 @@ describe("Dependencies page: changing a dependency from its row", () => {
     expect(dialog).toBeInTheDocument();
   });
 
-  test("Delete confirms in the project page's wording, sends DELETE, re-reads the list and puts the focus on the page title", async () => {
+  test("Delete confirms in the project page's wording, sends DELETE, re-reads the list and puts the focus on the panel's heading", async () => {
     const user = userEvent.setup();
     answer = () => jsonResponse(200, dependencyListView([MAY_BOTH]));
     renderPage();
@@ -180,10 +155,10 @@ describe("Dependencies page: changing a dependency from its row", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Delete dependency?" })).toBeNull());
     expect(writes()).toEqual([{ method: "DELETE", url: "/api/v1/dependencies/77", body: undefined }]);
     expect(await screen.findByText("The plan has no dependencies yet")).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: "Dependencies" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("heading", { level: 3, name: "Dependencies" })).toHaveFocus());
   });
 
-  test("a delete right after an edit of the same row still ends with the focus on the page title (1.23: the editor's watch does not take it back)", async () => {
+  test("a delete right after an edit of the same row still ends with the focus on the panel's heading (1.23: the editor's watch does not take it back)", async () => {
     // Fake clock (real time still flows for waitFor): Mantine's 10 ms focus return is advanced by hand while the DELETE is held at a gate.
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
@@ -211,9 +186,9 @@ describe("Dependencies page: changing a dependency from its row", () => {
     deleteGate.resolve();
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Delete dependency?" })).toBeNull());
     expect(await screen.findByText("The plan has no dependencies yet")).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: "Dependencies" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("heading", { level: 3, name: "Dependencies" })).toHaveFocus());
     await act(() => vi.advanceTimersByTimeAsync(60));
-    expect(screen.getByRole("heading", { level: 2, name: "Dependencies" })).toHaveFocus();
+    expect(screen.getByRole("heading", { level: 3, name: "Dependencies" })).toHaveFocus();
   });
 
   test("a failed delete keeps the dialog with its error and re-reads nothing", async () => {
@@ -230,13 +205,12 @@ describe("Dependencies page: changing a dependency from its row", () => {
     expect(readCalls()).toHaveLength(1);
   });
 
-  test("speaks Polish: the intro and the row menu's name and items", async () => {
+  test("speaks Polish: the row menu's name and items", async () => {
     await i18n.changeLanguage("pl");
     const user = userEvent.setup();
     answer = () => jsonResponse(200, dependencyListView([dependencyRow({ id: 77, can: { edit: true, delete: true } })]));
     renderPage();
     const pl = "Design review · Checkout → Build · Billing";
-    expect(await screen.findByText(/Właściciele\/ki projektu następnika albo administrator\/ka mogą tu dodać zależność, a w jej wierszu zmienić typ i opóźnienie albo ją usunąć/)).toBeInTheDocument();
     await user.click(await screen.findByRole("button", { name: `Operacje dla ${pl}` }));
     expect(screen.getByRole("menuitem", { name: `Edytuj ${pl}` })).toHaveTextContent("Edytuj…");
     expect(screen.getByRole("menuitem", { name: `Usuń ${pl}` })).toHaveTextContent("Usuń");

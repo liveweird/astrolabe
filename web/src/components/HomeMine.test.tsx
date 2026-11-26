@@ -120,7 +120,7 @@ describe("HomeMine: Yours", () => {
     expect(table.getByText("2 warnings")).toBeInTheDocument();
     expect(table.getByText("1 info")).toBeInTheDocument();
     const conflicts = table.getByRole("link", { name: "4 conflicts: Ledger" });
-    expect(conflicts).toHaveAttribute("href", "/dependencies?status=violated&projectId=7");
+    expect(conflicts).toHaveAttribute("href", "/roadmap?dependencies=violated&dependencyProjectId=7");
     expect(conflicts).toHaveTextContent("4 conflicts");
   });
 
@@ -142,7 +142,7 @@ describe("HomeMine: Yours", () => {
     expect(table.getByText("3 weeks overloaded")).toBeInTheDocument();
     expect(table.getByText("1 week over WIP limit")).toBeInTheDocument();
     const conflicts = table.getByRole("link", { name: "2 conflicts: Payments" });
-    expect(conflicts).toHaveAttribute("href", "/dependencies?status=violated&teamId=4");
+    expect(conflicts).toHaveAttribute("href", "/roadmap?dependencies=violated&dependencyTeamId=4");
     expect(conflicts).toHaveTextContent("2 conflicts");
     expect(table.getByRole("link", { name: "4 Jira deviations: team Payments" })).toHaveAttribute("href", "/deviations?teamId=4");
     const flow = table.getByText("Capacity differs from Flow: 2 open differences");

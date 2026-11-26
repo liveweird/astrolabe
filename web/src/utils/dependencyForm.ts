@@ -8,7 +8,7 @@ import { saveErrorMessage } from "./saveError";
 
 /**
  * What the editor and the delete confirmation read of a link: its id, type and lag and, per end, the kind, the name and the project. The project
- * view's `ProjectDependency` and the Dependencies page's resolved row both satisfy it, so one dialog serves both pages.
+ * view's `ProjectDependency` and the dependency panel's resolved row both satisfy it, so one dialog serves both pages.
  */
 export type EditableDependency = {
   id: number;
@@ -86,7 +86,7 @@ export function toDependencyBody(values: DependencyFormValues, projectId: number
   };
 }
 
-/** The Dependencies page's add dialog (1.27): the successor's project (a `Select` value, the project id), the successor, the predecessor, the type and the lag. */
+/** The dependency panel's add dialog (1.27): the successor's project (a `Select` value, the project id), the successor, the predecessor, the type and the lag. */
 export type DependencyAddValues = {
   /** The successor's project: the Select's value (an id as text), `null` until picked. */
   projectId: string | null;
@@ -183,7 +183,7 @@ export function toDependencyUpdateBody(values: DependencyFormValues): Dependency
 
 /**
  * An endpoint in words: a milestone (with its project when that is another one) or a whole project. `ownProjectId` is the page's own project;
- * `null` = the page has none (the Dependencies page), so every milestone names its project.
+ * `null` = the page has none (the dependency panel), so every milestone names its project.
  */
 export function dependencyEndpointText(endpoint: EditableEnd, ownProjectId: number | null, t: TFunction): string {
   if (endpoint.kind === "PROJECT") return t("project.dependency.wholeProject", { name: endpoint.name });

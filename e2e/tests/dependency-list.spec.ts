@@ -1,6 +1,7 @@
-// The Dependencies page (/dependencies, 1.20): every dependency of the plan, the violated ones first, its Status, Team and project filters in the URL,
-// and the ways into it (the Roadmap's row menu, the team page's facts line, Home's violated-dependencies badge). The plan is shared by four workers, so
-// the page is always narrowed to this spec's own project or team before a row is counted; Home's badge opens the plan-wide violated list, where the spec
+// The Roadmap's dependency panel (the Dependencies page of 1.20, whose list it became in 1.29; /dependencies is a redirect into it): every dependency of the plan,
+// the violated ones first, its Status, Team and project filters in the URL (`dependencies`, `dependencyTeamId`, `dependencyProjectId`), and the ways into it (the
+// Roadmap's row menu, the team page's facts line, Home's violated-dependencies badge, an old /dependencies bookmark). The plan is shared by four workers, so
+// the panel is always narrowed to this spec's own project or team before a row is counted; Home's badge opens the plan-wide violated list, where the spec
 // only looks for its own link. Owns: its throwaway person, ONE team (no manager), work stream, program and two projects in June 2027 (unique
 // `e2e-deplist-*` names): the first holds milestones A (2027-06-07..11), B (2027-05-24..28) and C (2027-06-21..25), the second D (not scheduled);
 // the links are A -> B (finish-to-start: B ends long before A does, violated by weeks whatever a holiday does), A -> C (kept with a week to spare)
@@ -12,7 +13,7 @@
 // The 1.27 test (add from the list) also owns a foreign person, work stream, program and project (`e2e-deplist-foreign-*`) and the one link it adds.
 import { randomUUID } from "node:crypto";
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
-import { apiAsAdmin, deleteViaApi, expect, login, openFilters, rowOperation, test, uniqueText } from "./helpers";
+import { apiAsAdmin, deleteViaApi, expect, login, rowOperation, test, uniqueText } from "./helpers";
 
 // Registered in creation order; torn down in reverse (the projects before their program before its stream before the team and the person).
 const teardown: string[] = [];
@@ -132,17 +133,31 @@ async function seedForeignProject(): Promise<string> {
   }
 }
 
-/** The body rows of the page's table (the scroll region around it carries the same name, hence the role). */
+/** The body rows of the panel's table (the scroll region around it carries the same name, hence the role). */
 const rows = (page: Page): Locator => page.getByRole("table", { name: "Dependencies of the plan", exact: true }).locator("tbody tr");
 
-const heading = (page: Page): Locator => page.getByRole("heading", { level: 2, name: "Dependencies", exact: true });
+/** The Roadmap's dependency panel: a region named by its h3 (the Roadmap has other "Filters" toggles, so everything of the list is looked up inside it). */
+const panelOf = (page: Page): Locator => page.getByRole("region", { name: "Dependencies", exact: true });
 
-test("the Dependencies page lists a project's links with the violated one first, and the status filter narrows them", async ({ page }) => {
+const heading = (page: Page): Locator => panelOf(page).getByRole("heading", { level: 3, name: "Dependencies", exact: true });
+
+/** Open the panel's own Filters (the Roadmap's toggle is another button). */
+async function openPanelFilters(page: Page): Promise<void> {
+  const toggle = panelOf(page).getByRole("button", { name: /^Filters/ });
+  await expect(toggle).toBeVisible();
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+}
+
+/** The Roadmap with the panel opened by its address, narrowed to one project (the mode is the one last used: the panel is the same in both). */
+const projectPanel = (projectId: number): string => `/roadmap?dependencies=all&dependencyProjectId=${projectId}`;
+
+test("the Roadmap's dependency panel lists a project's links with the violated one first, and the status filter narrows them", async ({ page }) => {
   const world = await seedWorld();
   await login(page);
 
-  // Narrowed to the first project by its address: the chip names it, and the three links with an end in it are the spec's own.
-  await page.goto(`/dependencies?projectId=${world.first.id}`);
+  // Opened and narrowed to the first project by its address: the chip names it, and the three links with an end in it are the spec's own.
+  await page.goto(projectPanel(world.first.id));
   await expect(heading(page)).toBeVisible();
   await expect(page.getByText(`Project: ${world.first.name}`, { exact: true })).toBeVisible();
   await expect(rows(page)).toHaveCount(3);
@@ -163,10 +178,10 @@ test("the Dependencies page lists a project's links with the violated one first,
   }
 
   // "Violated" leaves the one link that does not hold, in the address too, and survives a reload.
-  await openFilters(page);
-  await page.getByRole("combobox", { name: "Status", exact: true }).click();
+  await openPanelFilters(page);
+  await panelOf(page).getByRole("combobox", { name: "Status", exact: true }).click();
   await page.getByRole("option", { name: "Violated", exact: true }).click();
-  await expect(page).toHaveURL(/[?&]status=violated(&|$)/);
+  await expect(page).toHaveURL(/[?&]dependencies=violated(&|$)/);
   await expect(rows(page)).toHaveCount(1);
   await expect(rows(page).first()).toContainText(world.a);
   await expect(rows(page).first()).toContainText(world.b);
@@ -179,7 +194,7 @@ test("the Dependencies page lists a project's links with the violated one first,
   await expect(page.getByRole("heading", { level: 2, name: world.first.name, exact: true })).toBeVisible();
 });
 
-test("the roadmap's row menu, the team page and Home open the Dependencies page filtered to that project, that team and the violated links", async ({ page }) => {
+test("the roadmap's row menu, the team page and Home open the dependency panel filtered to that project, that team and the violated links", async ({ page }) => {
   const world = await seedWorld();
   await login(page);
 
@@ -190,8 +205,9 @@ test("the roadmap's row menu, the team page and Home open the Dependencies page 
   await expect(page.getByRole("grid", { name: "Roadmap timeline" })).toBeVisible();
   await page.getByRole("button", { name: `Operations for ${world.first.name}`, exact: true }).click();
   await page.getByRole("menuitem", { name: `Dependencies of ${world.first.name}`, exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/dependencies\\?projectId=${world.first.id}$`));
-  await expect(heading(page)).toBeVisible();
+  // An in-page action: the panel opens on the Roadmap's own address (its program pick stays), narrowed to the project, and takes the focus.
+  await expect(page).toHaveURL(new RegExp(`/roadmap\\?.*dependencies=all&dependencyProjectId=${world.first.id}$`));
+  await expect(heading(page)).toBeFocused();
   await expect(page.getByText(`Project: ${world.first.name}`, { exact: true })).toBeVisible();
   await expect(rows(page)).toHaveCount(3);
 
@@ -200,31 +216,45 @@ test("the roadmap's row menu, the team page and Home open the Dependencies page 
   await expect(page.getByRole("heading", { level: 2, name: world.team, exact: true })).toBeVisible();
   const facts = page.getByRole("group", { name: "Team facts", exact: true });
   await facts.getByRole("link", { name: "3 dependencies: the dependencies of this team's milestones", exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/dependencies\\?teamId=${world.teamId}$`));
-  await expect(heading(page)).toBeVisible();
-  await openFilters(page);
-  await expect(page.getByRole("combobox", { name: "Team", exact: true })).toHaveValue(world.team);
+  await expect(page).toHaveURL(new RegExp(`/roadmap\\?.*dependencies=all&dependencyTeamId=${world.teamId}$`));
+  await expect(heading(page)).toBeFocused();
+  await openPanelFilters(page);
+  await expect(panelOf(page).getByRole("combobox", { name: "Team", exact: true })).toHaveValue(world.team);
   await expect(rows(page)).toHaveCount(3);
   await page.goBack();
   await expect(page.getByRole("heading", { level: 2, name: world.team, exact: true })).toBeVisible();
   await page.getByRole("group", { name: "Team facts", exact: true }).getByRole("link", { name: "1 conflict: the violated dependencies of this team", exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/dependencies\\?status=violated&teamId=${world.teamId}$`));
+  await expect(page).toHaveURL(new RegExp(`/roadmap\\?.*dependencies=violated&dependencyTeamId=${world.teamId}$`));
   await expect(rows(page)).toHaveCount(1);
 
   // Home's Roadmap card: the plan-wide violated list (N is never asserted - four workers share the plan), with the spec's own link among the rows.
   await page.goto("/");
   await page.getByRole("group", { name: "The roadmap in figures", exact: true }).getByRole("link", { name: /^\d+ violated dependenc(y|ies)$/ }).click();
-  await expect(page).toHaveURL(/\/dependencies\?status=violated$/);
-  await expect(heading(page)).toBeVisible();
-  await openFilters(page);
-  await expect(page.getByRole("combobox", { name: "Status", exact: true })).toHaveValue("Violated");
+  await expect(page).toHaveURL(/\/roadmap\?.*dependencies=violated$/);
+  await expect(heading(page)).toBeFocused();
+  await openPanelFilters(page);
+  await expect(panelOf(page).getByRole("combobox", { name: "Status", exact: true })).toHaveValue("Violated");
   await expect(rows(page).filter({ hasText: world.a }).filter({ hasText: world.b })).toHaveCount(1);
+});
+
+// 1.29: the Dependencies page is gone; its address and its old filter names still work.
+test("an old /dependencies bookmark lands on the Roadmap with the dependency panel open and its filters under the panel's names", async ({ page }) => {
+  const world = await seedWorld();
+  await login(page);
+
+  await page.goto(`/dependencies?status=violated&projectId=${world.first.id}`);
+  await expect(page).toHaveURL(new RegExp(`/roadmap\\?.*dependencies=violated&dependencyProjectId=${world.first.id}$`));
+  await expect(heading(page)).toBeFocused();
+  await expect(page.getByText(`Project: ${world.first.name}`, { exact: true })).toBeVisible();
+  await expect(rows(page)).toHaveCount(1);
+  await expect(rows(page).first()).toContainText(world.a);
+  await expect(rows(page).first()).toContainText(world.b);
 });
 
 // 1.22: the list changes a link. The owner of the successor's project (every successor here is in the first project, whose person owns the whole
 // tree) gets a menu on each row; a login linked to no person gets none. The spec's own project is the page's only scope, so no other worker's
 // row is counted.
-test("the owner of the successor's project changes a dependency's type and deletes it from the Dependencies page, and a user who owns nothing gets no row menu", async ({ page }) => {
+test("the owner of the successor's project changes a dependency's type and deletes it from the dependency panel, and a user who owns nothing gets no row menu", async ({ page }) => {
   const world = await seedWorld(true);
   const linkName = `${world.a} · ${world.first.name} → ${world.c} · ${world.first.name}`;
   const row = rows(page).filter({ hasText: world.a }).filter({ hasText: world.c });
@@ -232,7 +262,7 @@ test("the owner of the successor's project changes a dependency's type and delet
 
   // The owner sees three rows, each with its menu; the one of A and C is named by both ends with their projects.
   await login(page, world.owner.email, world.owner.password);
-  await page.goto(`/dependencies?projectId=${world.first.id}`);
+  await page.goto(projectPanel(world.first.id));
   await expect(heading(page)).toBeVisible();
   await expect(rows(page)).toHaveCount(3);
   await expect(rows(page).getByRole("button", { name: /^Operations for / })).toHaveCount(3);
@@ -253,7 +283,7 @@ test("the owner of the successor's project changes a dependency's type and delet
   await expect(row).toContainText("Start → Start (SS)");
   await expect(menuButton).toBeFocused();
 
-  // "Delete" confirms and removes the row; the page title takes the focus; the project's own page no longer lists the link.
+  // "Delete" confirms and removes the row; the panel's heading takes the focus; the project's own page no longer lists the link.
   await rowOperation(page, linkName, `Delete ${linkName}`);
   const confirm = page.getByRole("dialog", { name: "Delete dependency?" });
   await Promise.all([
@@ -270,24 +300,24 @@ test("the owner of the successor's project changes a dependency's type and delet
 
   // A login that owns nothing reads the same two rows and is offered no menu and no operations column.
   await login(page, world.nobody.email, world.nobody.password);
-  await page.goto(`/dependencies?projectId=${world.first.id}`);
+  await page.goto(projectPanel(world.first.id));
   await expect(heading(page)).toBeVisible();
   await expect(rows(page)).toHaveCount(2);
   await expect(rows(page).getByRole("button")).toHaveCount(0);
-  await expect(page.getByRole("columnheader", { name: "Operations", exact: true })).toHaveCount(0);
+  await expect(panelOf(page).getByRole("columnheader", { name: "Operations", exact: true })).toHaveCount(0);
 });
 
 // 1.27: the page adds a link. The button shows to whoever may manage at least one project (the plan view's `can.createDependency`), the dialog's first
 // field picks the SUCCESSOR's project among those only, and the link is written on that project. The spec's own project is the page's scope, so no other
 // worker's row is counted; the owner's two projects are the whole of the picker (their person owns this world's work stream and nothing else).
-test("a project owner adds a dependency from the Dependencies page choosing among the projects they manage, and a user who owns nothing is offered no button", async ({ page }) => {
+test("a project owner adds a dependency from the dependency panel choosing among the projects they manage, and a user who owns nothing is offered no button", async ({ page }) => {
   const world = await seedWorld(true);
   const foreign = await seedForeignProject();
   const addButton = page.getByRole("button", { name: "Add dependency", exact: true });
 
   // The owner opens the page narrowed to the first project; the chip names it only once the plan view has been read, which is also what the button waits for.
   await login(page, world.owner.email, world.owner.password);
-  await page.goto(`/dependencies?projectId=${world.first.id}`);
+  await page.goto(projectPanel(world.first.id));
   await expect(heading(page)).toBeVisible();
   await expect(page.getByText(`Project: ${world.first.name}`, { exact: true })).toBeVisible();
   await expect(rows(page)).toHaveCount(3);
@@ -331,13 +361,13 @@ test("a project owner adds a dependency from the Dependencies page choosing amon
   const added = rows(page).filter({ hasText: world.b }).filter({ hasText: world.d });
   await expect(added).toHaveCount(1);
   await expect(added).toContainText("Not scheduled yet");
-  await expect(page).toHaveURL(new RegExp(`/dependencies\\?projectId=${world.first.id}$`));
+  await expect(page).toHaveURL(new RegExp(`/roadmap\\?.*dependencies=all&dependencyProjectId=${world.first.id}$`));
   await expect(page.getByText(`Project: ${world.first.name}`, { exact: true })).toBeVisible();
   await expect(addButton).toBeFocused();
 
   // A login linked to no person manages no project: the same page, read to the end (the chip names the project), has no button.
   await login(page, world.nobody.email, world.nobody.password);
-  await page.goto(`/dependencies?projectId=${world.first.id}`);
+  await page.goto(projectPanel(world.first.id));
   await expect(heading(page)).toBeVisible();
   await expect(page.getByText(`Project: ${world.first.name}`, { exact: true })).toBeVisible();
   await expect(rows(page)).toHaveCount(4);

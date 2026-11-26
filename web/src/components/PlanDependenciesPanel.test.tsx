@@ -11,7 +11,7 @@ import { act, renderWithProviders, screen, waitFor, within } from "../test/rende
 import PlanDependenciesPanel from "./PlanDependenciesPanel";
 
 // 1.29: the plan-wide dependency list under the Roadmap's and the Programs page's timeline - hidden until asked for, remembered, opened by the address,
-// read only while open. The list's own behaviour (rows, cells, writes) is the Dependencies page's tests; this file is the panel's shell.
+// read only while open. The list's own behaviour (rows, cells, writes) is `.list`, `.add`, `.dialogs` and `.write` beside it; this file is the panel's shell.
 
 const KEY = "astrolabe.viewSettings.roadmap.dependenciesOpen";
 const TABLE = "Dependencies of the plan";

@@ -11,7 +11,7 @@ import BadgeLink from "./BadgeLink";
  * the overloaded weeks and the weeks over the WIP limit (warnings, nothing moves), the RED badge for the violated dependencies (as on
  * the project page) and a gray one while the team's own order is in force. The arrows of the timeline are decoration, so their text path is here:
  * the red badge is a link to the team's violated dependencies, and "N dependencies" (only when there are some) to all of them. Both lists are the
- * Dependencies page narrowed to this team, which keeps the links with a milestone end in it: the set `view.dependencies` already is.
+ * Roadmap's dependency panel narrowed to this team, which keeps the links with a milestone end in it: the set `view.dependencies` already is.
  */
 export default function TeamFacts({ view }: { view: TeamView }) {
   const { t } = useTranslation();

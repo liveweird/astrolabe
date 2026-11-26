@@ -7,7 +7,7 @@ import SearchPicker, { type PickedOption } from "./SearchPicker";
 /**
  * A searchable, clearable picker over EVERY project's milestones (`GET /milestones` is open to every signed-in user): the
  * dependency editor's predecessor. A milestone name recurs across projects ("Discovery"), so an option reads "name · project".
- * With `projectId` (the Dependencies page's add dialog, 1.27: the successor) it lists only that project's milestones, in a query of its own.
+ * With `projectId` (the dependency panel's add dialog, 1.27: the successor) it lists only that project's milestones, in a query of its own.
  * The caller holds the pick (its label survives later searches).
  */
 export default function MilestoneSelect({

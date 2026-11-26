@@ -1,7 +1,6 @@
 import type { ParseKeys } from "i18next";
-import { IconActivity, IconAddressBook, IconCalendarOff, IconCalendarStats, IconCamera, IconGauge, IconGitCompare, IconHistory, IconHome2, IconKey, IconLink, IconListNumbers, IconPlugConnected, IconSitemap, IconTimelineEvent, IconToggleLeft, IconUsers, IconUsersGroup, type Icon } from "@tabler/icons-react";
+import { IconActivity, IconAddressBook, IconCalendarOff, IconCalendarStats, IconCamera, IconGauge, IconGitCompare, IconHistory, IconHome2, IconKey, IconListNumbers, IconPlugConnected, IconSitemap, IconTimelineEvent, IconToggleLeft, IconUsers, IconUsersGroup, type Icon } from "@tabler/icons-react";
 import { baselinesPath } from "./baselineLinks";
-import { dependenciesPath } from "./dependencyListLinks";
 import { deviationsPath } from "./deviationLinks";
 import { publicHolidaysPath } from "./calendarLinks";
 import { flowConnectionsPath } from "./flowLinks";
@@ -53,9 +52,8 @@ const NAV_SECTIONS: ReadonlyArray<NavSection> = [
     label: "appShell.section.planning",
     items: [
       { to: planPath, label: "appShell.nav.plan", icon: IconSitemap },
-      { to: roadmapPath, label: "appShell.nav.roadmap", icon: IconListNumbers, keywords: ["programs", "programy", "overview", "prioritization", "rank"] },
+      { to: roadmapPath, label: "appShell.nav.roadmap", icon: IconListNumbers, keywords: ["programs", "programy", "overview", "prioritization", "rank", "dependencies", "dependency", "zależności"] },
       { to: projectsPath, label: "appShell.nav.projects", icon: IconTimelineEvent, keywords: ["project", "milestones", "kamienie milowe"] },
-      { to: dependenciesPath, label: "appShell.nav.dependencies", icon: IconLink },
       { to: baselinesPath, label: "appShell.nav.baselines", icon: IconCamera },
     ],
   },

@@ -108,7 +108,7 @@ function PlanFigures({ plan }: { plan: HomePlan | undefined }) {
  * The Roadmap card's figures: the ranked and unranked counts and the warnings and infos of the Roadmap's facts line, then what else needs attention
  * (a badge only when positive). The unranked count links to the Roadmap with "unranked projects only", the warnings badge to the projects with a warning and the
  * infos badge to the projects with an info (a link is shown as written, so no remembered filter narrows it) and the two capacity figures to the Team load page filtered to them. Violated dependencies count every link once, a link inside one project included, so
- * they are worded as dependencies, not as the arrows the Roadmap draws between projects; the red badge opens the Dependencies page narrowed to the violated ones.
+ * they are worded as dependencies, not as the arrows the Roadmap draws between projects; the red badge opens the dependency panel narrowed to the violated ones.
  */
 function RoadmapFigures({ plan, jiraStale }: { plan: HomePlan | undefined; jiraStale: boolean }) {
   const { t } = useTranslation();

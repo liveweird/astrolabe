@@ -4,22 +4,22 @@ import { idOf } from "./deviationFilters";
 /** Which dependencies the page lists by their check: the ones that do not hold, the ones that hold, the ones with an unscheduled end. Unset = every one. */
 export type DependencyListStatus = "violated" | "ok" | "unscheduled";
 
-/** The Dependencies page's filters, as the URL holds them: a status, a team and a project. Unset = off. */
+/** The dependency list's filters, as the URL holds them: a status, a team and a project. Unset = off. */
 export type DependencyListFilter = { status?: DependencyListStatus; teamId?: number; projectId?: number };
 
 const STATUSES: readonly DependencyListStatus[] = ["violated", "ok", "unscheduled"];
 
-/** The three address parameter names a list's filters are spelled with: the Dependencies page's own, or (1.29) the Roadmap and Programs panels' prefixed ones. */
+/** The three address parameter names a list's filters are spelled with: the Roadmap's and Programs' panel's prefixed ones, or the retired page's own. */
 type DependencyParamNames = { status: string; teamId: string; projectId: string };
 
-/** The Dependencies page's names (`/dependencies?status=…&teamId=…&projectId=…`). */
-const PAGE_PARAMS: DependencyParamNames = { status: "status", teamId: "teamId", projectId: "projectId" };
+/** The retired Dependencies page's names (`/dependencies?status=…&teamId=…&projectId=…`, gone in 1.29): read only, to translate an old bookmark (`utils/legacyLinks.ts`). */
+export const LEGACY_PARAMS: DependencyParamNames = { status: "status", teamId: "teamId", projectId: "projectId" };
 
 /** The panel's names: the Roadmap's own `teamId` is a different filter, so the panel's are prefixed; `dependencies` is the status AND names the panel open. */
 export const PANEL_PARAMS: DependencyParamNames = { status: "dependencies", teamId: "dependencyTeamId", projectId: "dependencyProjectId" };
 
 /** The filters as read from the URL: every unknown or malformed value is dropped (`status=all` included; a stale link never breaks the page); ids follow `idOf`'s rule. */
-export function parseDependencyListFilter(params: URLSearchParams, names: DependencyParamNames = PAGE_PARAMS): DependencyListFilter {
+export function parseDependencyListFilter(params: URLSearchParams, names: DependencyParamNames = PANEL_PARAMS): DependencyListFilter {
   const filter: DependencyListFilter = {};
   const status = STATUSES.find((candidate) => candidate === params.get(names.status));
   if (status !== undefined) filter.status = status;
@@ -28,15 +28,6 @@ export function parseDependencyListFilter(params: URLSearchParams, names: Depend
   const projectId = idOf(params.get(names.projectId));
   if (projectId !== undefined) filter.projectId = projectId;
   return filter;
-}
-
-/** The filters as URL parameters (only the set ones, in one stable order), the inverse of {@link parseDependencyListFilter}. */
-export function dependencyListFilterParams(filter: DependencyListFilter): URLSearchParams {
-  const params = new URLSearchParams();
-  if (filter.status !== undefined) params.set(PAGE_PARAMS.status, filter.status);
-  if (filter.teamId !== undefined) params.set(PAGE_PARAMS.teamId, String(filter.teamId));
-  if (filter.projectId !== undefined) params.set(PAGE_PARAMS.projectId, String(filter.projectId));
-  return params;
 }
 
 /** The words `dependencies=` may hold: a status, or `all` (every dependency). Anything else is no word, so no opening. */

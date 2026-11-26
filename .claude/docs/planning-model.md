@@ -773,7 +773,7 @@ Pinned by: `TeamLoadKernelsTest`, `TeamLoadViewTest`, `HomeViewSizeTest`.
 
 Files: `planning/DependencyListKernels.kt`, `DependencyListView.kt`, `DependencyListViewService.kt`.
 
-`GET /views/dependencies` (any authenticated user, no parameter: an unknown query name is ignored; `200`/`401`/`500`; no audit, no lock, no bucket, a read) answers the document of "The view documents", behind the Dependencies page and Home's last attention figure. The SAME for every caller except each row's `can` (what THIS caller may do with the link); the page offers no write of its own, so there is no document-level `can`.
+`GET /views/dependencies` (any authenticated user, no parameter: an unknown query name is ignored; `200`/`401`/`500`; no audit, no lock, no bucket, a read) answers the document of "The view documents", behind the dependency panels and Home's last attention figure. The SAME for every caller except each row's `can` (what THIS caller may do with the link); the page offers no write of its own, so there is no document-level `can`.
 Nothing is stored; the checks are derived per request.
 
 ### The row, its ends named once

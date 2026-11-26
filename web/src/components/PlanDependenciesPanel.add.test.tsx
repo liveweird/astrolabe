@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { QueryClient } from "@tanstack/react-query";
-import { Route, Routes, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import i18n from "../i18n";
 import { planViewKey } from "../api/plan";
 import { forgetRevalidated } from "../api/revalidate";
@@ -11,10 +11,11 @@ import { jsonResponse } from "../test/http";
 import { dependencyListView, dependencyRow } from "../test/dependencyList";
 import { milestoneItem, milestonePage } from "../test/milestones";
 import { planOf } from "../test/planView";
-import Dependencies from "./Dependencies";
+import PlanDependenciesPanel from "./PlanDependenciesPanel";
 
-// The Dependencies page's "Add dependency" (1.27): the header button by the plan view's `can.createDependency`, the dialog's projects, the write, the refresh and
-// the focus. The dialog's own fields are `components/DependencyAddModal.test.tsx`; the row menu's edit and delete are `Dependencies.write.test.tsx`.
+// The dependency panel's "Add dependency" (1.27 on the Dependencies page, the panel's since 1.29): the header button by the plan view's `can.createDependency`, the
+// dialog's projects, the write, the refresh and the focus. The dialog's own fields are `DependencyAddModal.test.tsx`; the row menu's edit and delete are
+// `PlanDependenciesPanel.write.test.tsx` and `.dialogs.test.tsx`.
 
 // Platform: Billing (Checkout 3 and Audit 6 may be added to; Ledger 8 may not), Search (a second Checkout, 9, may not).
 const PLAN = planOf([
@@ -49,23 +50,15 @@ function Where() {
   return <p data-testid="where">{location.pathname + location.search}</p>;
 }
 
-function renderPage(route = "/dependencies", queryClient?: QueryClient) {
+/** The panel on the Roadmap's address; `query` is the panel's own (`?dependencies=…`), open by default. */
+function renderPage(query = "?dependencies=all", queryClient?: QueryClient) {
   // The shell's focus target (`useFocusMainOnNavigation`, and where `useDialogFocus` sends a focus whose opener has gone).
   return renderWithProviders(
     <main id="main-content" tabIndex={-1}>
-      <Routes>
-        <Route
-          path="/dependencies"
-          element={
-            <>
-              <Dependencies />
-              <Where />
-            </>
-          }
-        />
-      </Routes>
+      <PlanDependenciesPanel />
+      <Where />
     </main>,
-    { route, queryClient },
+    { route: `/roadmap${query}`, queryClient },
   );
 }
 
@@ -77,7 +70,7 @@ const posts = () =>
     .map(([url, init]) => ({ url: String(url), body: JSON.parse(String((init as RequestInit).body)) }));
 const addButton = () => screen.findByRole("button", { name: "Add dependency" });
 
-describe("Dependencies page: adding a dependency", () => {
+describe("PlanDependenciesPanel: adding a dependency", () => {
   beforeEach(() => {
     plan = () => jsonResponse(200, PLAN);
     post = () => jsonResponse(201, { id: 90 });
@@ -99,7 +92,7 @@ describe("Dependencies page: adding a dependency", () => {
     await i18n.changeLanguage("en");
   });
 
-  test("the header offers 'Add dependency' when the plan lets the caller add to at least one project, and not before", async () => {
+  test("the panel's header offers 'Add dependency' when the plan lets the caller add to at least one project, and not before", async () => {
     const gate = deferred<Response>();
     plan = () => gate.promise;
     renderPage();
@@ -115,7 +108,7 @@ describe("Dependencies page: adding a dependency", () => {
     const planState = (queryClient: QueryClient) => queryClient.getQueryState(planViewKey)?.status;
     plan = () => jsonResponse(200, NONE_ADDABLE);
     const answered = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const first = renderPage("/dependencies", answered);
+    const first = renderPage("?dependencies=all", answered);
     await screen.findByRole("table", { name: "Dependencies of the plan" });
     await waitFor(() => expect(planState(answered)).toBe("success"));
     expect(screen.queryByRole("button", { name: "Add dependency" })).toBeNull();
@@ -124,7 +117,7 @@ describe("Dependencies page: adding a dependency", () => {
     forgetRevalidated();
     plan = () => jsonResponse(500, { title: "Server error", status: 500 });
     const failed = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    renderPage("/dependencies", failed);
+    renderPage("?dependencies=all", failed);
     await screen.findByRole("table", { name: "Dependencies of the plan" });
     await waitFor(() => expect(planState(failed)).toBe("error"));
     expect(screen.queryByRole("button", { name: "Add dependency" })).toBeNull();
@@ -132,7 +125,7 @@ describe("Dependencies page: adding a dependency", () => {
 
   test("a failed refresh of the plan view takes the button away: the old document is no claim about the caller's rights", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    renderPage("/dependencies", queryClient);
+    renderPage("?dependencies=all", queryClient);
     await addButton();
     plan = () => jsonResponse(500, { title: "Server error", status: 500 });
     await act(() => queryClient.invalidateQueries({ queryKey: planViewKey }));
@@ -154,7 +147,7 @@ describe("Dependencies page: adding a dependency", () => {
     const user = userEvent.setup();
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     queryClient.setQueryData(["roadmap", "view"], {});
-    renderPage("/dependencies?status=ok&teamId=4", queryClient);
+    renderPage("?dependencies=ok&dependencyTeamId=4", queryClient);
     const button = await addButton();
     await user.click(button);
     const dialog = await screen.findByRole("dialog", { name: "Add dependency" });
@@ -176,18 +169,18 @@ describe("Dependencies page: adding a dependency", () => {
     await waitFor(() => expect(readCalls()).toHaveLength(2));
     await waitFor(() => expect(planCalls().length).toBeGreaterThan(1));
     expect(queryClient.getQueryState(["roadmap", "view"])?.isInvalidated).toBe(true);
-    expect(screen.getByTestId("where")).toHaveTextContent("/dependencies?status=ok&teamId=4");
+    expect(screen.getByTestId("where")).toHaveTextContent("/roadmap?dependencies=ok&dependencyTeamId=4");
     await waitFor(() => expect(button).toHaveFocus());
   });
 
-  test("the project filter in the URL is the dialog's start when the caller may add to it, and only then", async () => {
+  test("the panel's project filter in the URL is the dialog's start when the caller may add to it, and only then", async () => {
     const user = userEvent.setup();
-    const first = renderPage("/dependencies?projectId=3");
+    const first = renderPage("?dependencies=all&dependencyProjectId=3");
     await user.click(await addButton());
     expect(await screen.findByRole("combobox", { name: "Successor's project" })).toHaveValue("Checkout (Billing)");
     first.unmount();
 
-    renderPage("/dependencies?projectId=8");
+    renderPage("?dependencies=all&dependencyProjectId=8");
     await user.click(await addButton());
     expect(await screen.findByRole("combobox", { name: "Successor's project" })).toHaveValue("");
   });
@@ -207,7 +200,7 @@ describe("Dependencies page: adding a dependency", () => {
   test("a refusal stays in the dialog: its own sentence, the dialog open, nothing re-read", async () => {
     post = () => jsonResponse(403, { title: "Forbidden", status: 403 });
     const user = userEvent.setup();
-    renderPage("/dependencies?projectId=6");
+    renderPage("?dependencies=all&dependencyProjectId=6");
     await user.click(await addButton());
     const dialog = await screen.findByRole("dialog", { name: "Add dependency" });
     await user.click(within(dialog).getByRole("combobox", { name: "Successor" }));

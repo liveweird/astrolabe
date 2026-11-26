@@ -21,7 +21,7 @@ async function readDependencyList() {
 }
 
 /**
- * The state of the plan-wide dependency list, shared by the Dependencies page and (1.29) the Roadmap's and Programs' panel: the ONE unpaged
+ * The state of the plan-wide dependency list, shared by the dependency panel and (1.29) the Roadmap's and Programs' panel: the ONE unpaged
  * `GET /views/dependencies` and the plan view (for who may add), the rows the filters keep, the editor, the add dialog and the delete confirmation.
  * `enabled: false` (a closed panel) reads nothing. A save or a delete refreshes the plan and the roadmap groups (`["roadmap"]` holds the Roadmap's and the
  * Programs' views, so their arrows follow); `focusAfterDelete` is the heading the host owns.

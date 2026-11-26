@@ -1,14 +1,19 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { QueryClient } from "@tanstack/react-query";
-import { Route, Routes, useLocation, useNavigationType } from "react-router-dom";
+import { useLocation, useNavigationType } from "react-router-dom";
+import { forgetRevalidated } from "../api/revalidate";
 import i18n from "../i18n";
 import { renderWithProviders, screen, waitFor, within } from "../test/render";
 import { headingOutline } from "../test/headings";
 import { jsonResponse } from "../test/http";
 import { planOf } from "../test/planView";
 import { dependencyListView, dependencyRow, milestoneEnd, projectEnd, unscheduledRow, violatedRow } from "../test/dependencyList";
-import Dependencies from "./Dependencies";
+import PlanDependenciesPanel from "./PlanDependenciesPanel";
+
+// The plan-wide dependency list as the Roadmap's and the Programs page's panel hosts it (1.29; these were the Dependencies page's tests): the cells, the ends, the facts,
+// the filters in the address under the panel's names, the empty, cut and failed states. The panel's shell (hidden, remembered, opened by the address) is
+// `PlanDependenciesPanel.test.tsx`; the dialogs and the row menu are `.add` and `.write` here.
 
 const PLAN = planOf([{ id: 700, name: "Platform", programs: [{ id: 70, name: "Billing", projects: [{ id: 3, name: "Checkout" }, { id: 6, name: "Billing" }] }] }]);
 const TEAMS = { items: [{ id: 4, name: "Backend" }, { id: 7, name: "Frontend" }], page: 1, pageSize: 100, total: 2 };
@@ -39,20 +44,14 @@ function Where() {
   );
 }
 
-function renderPage(route = "/dependencies", queryClient?: QueryClient) {
+/** The panel on the Roadmap's address; `query` is the panel's own (`?dependencies=…`), open by default. */
+function renderPage(query = "?dependencies=all", queryClient?: QueryClient) {
   return renderWithProviders(
-    <Routes>
-      <Route
-        path="/dependencies"
-        element={
-          <>
-            <Dependencies />
-            <Where />
-          </>
-        }
-      />
-    </Routes>,
-    { route, queryClient },
+    <main id="main-content" tabIndex={-1}>
+      <PlanDependenciesPanel />
+      <Where />
+    </main>,
+    { route: `/roadmap${query}`, queryClient },
   );
 }
 
@@ -65,7 +64,7 @@ const rowIds = () =>
     .slice(1)
     .map((row) => within(row).getAllByRole("cell")[0].textContent ?? "");
 
-describe("Dependencies page", () => {
+describe("PlanDependenciesPanel: the list", () => {
   beforeEach(() => {
     answer = () => jsonResponse(200, dependencyListView(ALL));
     mockFetch = vi.fn((url: string) => {
@@ -80,13 +79,14 @@ describe("Dependencies page", () => {
   afterEach(async () => {
     vi.unstubAllGlobals();
     localStorage.clear();
+    forgetRevalidated();
     await i18n.changeLanguage("en");
   });
 
-  test("lists every dependency in a named table under one h2, in the server's order, with one read and no parameter", async () => {
+  test("lists every dependency in a named table under the panel's one h3, in the server's order, with one read and no parameter", async () => {
     renderPage();
     const table = await screen.findByRole("table", { name: TABLE });
-    expect(headingOutline()).toEqual([[2, "Dependencies"]]);
+    expect(headingOutline()).toEqual([[3, "Dependencies"]]);
     expect(rowIds()).toEqual(["Violated · 3 working days short", "OK", "Not scheduled yet"]);
     expect(within(table).getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["Status", "Predecessor", "Type", "Lag", "Successor", "Dates"]);
     expect(readCalls()).toEqual(["/api/v1/views/dependencies"]);
@@ -127,7 +127,7 @@ describe("Dependencies page", () => {
     }
   });
 
-  test("the page offers nothing that changes a link", async () => {
+  test("the list offers nothing that changes a link when no row may be changed", async () => {
     renderPage();
     const table = await screen.findByRole("table", { name: TABLE });
     expect(within(table).queryByRole("button")).toBeNull();
@@ -152,25 +152,25 @@ describe("Dependencies page", () => {
   });
 
   test("the facts line keeps the totals when a filter hides every row", async () => {
-    renderPage("/dependencies?status=violated&teamId=9");
+    renderPage("?dependencies=violated&dependencyTeamId=9");
     const facts = await screen.findByRole("group", { name: "Dependencies in figures" });
     expect(within(facts).getByText("3 dependencies")).toBeInTheDocument();
     expect(await screen.findByText("No dependency matches the filters")).toBeInTheDocument();
   });
 
   test.each([
-    ["?status=violated", [1]],
-    ["?status=ok", [2]],
-    ["?status=unscheduled", [3]],
-    ["?teamId=4", [1, 2]],
-    ["?teamId=9", [3]],
-    ["?projectId=8", [3]],
-    ["?projectId=3", [1, 2]],
-    ["?status=violated&teamId=4&projectId=3", [1]],
-    ["?status=ok&teamId=9", []],
-    ["?status=all&teamId=abc", [1, 2, 3]],
+    ["?dependencies=violated", [1]],
+    ["?dependencies=ok", [2]],
+    ["?dependencies=unscheduled", [3]],
+    ["?dependencies=all&dependencyTeamId=4", [1, 2]],
+    ["?dependencies=all&dependencyTeamId=9", [3]],
+    ["?dependencies=all&dependencyProjectId=8", [3]],
+    ["?dependencies=all&dependencyProjectId=3", [1, 2]],
+    ["?dependencies=violated&dependencyTeamId=4&dependencyProjectId=3", [1]],
+    ["?dependencies=ok&dependencyTeamId=9", []],
+    ["?dependencies=all&dependencyTeamId=abc", [1, 2, 3]],
   ])("%s lists exactly the matching rows", async (query, ids) => {
-    renderPage(`/dependencies${query}`);
+    renderPage(query);
     await screen.findByRole("group", { name: "Dependencies in figures" });
     if (ids.length === 0) {
       expect(await screen.findByText("No dependency matches the filters")).toBeInTheDocument();
@@ -190,25 +190,25 @@ describe("Dependencies page", () => {
     await user.click(screen.getByRole("button", { name: "Filters" }));
     await user.click(screen.getByRole("combobox", { name: "Status" }));
     await user.click(await screen.findByRole("option", { name: "Violated" }));
-    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/dependencies?status=violated"));
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/roadmap?dependencies=violated"));
     expect(screen.getByTestId("nav")).toHaveTextContent("REPLACE");
     expect(rowIds()).toEqual(["Violated · 3 working days short"]);
     await user.click(screen.getByRole("combobox", { name: "Team" }));
     await user.click(await screen.findByRole("option", { name: "Backend" }));
-    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/dependencies?status=violated&teamId=4"));
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/roadmap?dependencies=violated&dependencyTeamId=4"));
     await user.click(screen.getByRole("combobox", { name: "Status" }));
     await user.click(await screen.findByRole("option", { name: "All" }));
-    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent(/^\/dependencies\?teamId=4$/));
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent(/^\/roadmap\?dependencies=all&dependencyTeamId=4$/));
     expect(rowIds()).toHaveLength(2);
     expect(readCalls()).toHaveLength(1);
   });
 
   test("a projectId from a link is a chip named from the plan view; removing it drops the parameter", async () => {
     const user = userEvent.setup();
-    renderPage("/dependencies?status=violated&projectId=3");
+    renderPage("?dependencies=violated&dependencyProjectId=3");
     expect(await screen.findByText("Project: Checkout")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Remove the project filter" }));
-    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent(/^\/dependencies\?status=violated$/));
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent(/^\/roadmap\?dependencies=violated$/));
     expect(screen.queryByText("Project: Checkout")).not.toBeInTheDocument();
   });
 
@@ -219,7 +219,7 @@ describe("Dependencies page", () => {
     await user.click(screen.getByRole("button", { name: "Filters" }));
     await user.click(screen.getByRole("combobox", { name: "Project" }));
     await user.click(await screen.findByRole("option", { name: "Checkout" }));
-    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/dependencies?projectId=3"));
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/roadmap?dependencies=all&dependencyProjectId=3"));
     expect(screen.getByTestId("nav")).toHaveTextContent("REPLACE");
     expect(rowIds()).toEqual(["Violated · 3 working days short", "OK"]);
     expect(await screen.findByText("Project: Checkout")).toBeInTheDocument();
@@ -228,13 +228,13 @@ describe("Dependencies page", () => {
 
   test("a teamId no team holds is shown as Team N once the list has answered", async () => {
     const user = userEvent.setup();
-    renderPage("/dependencies?teamId=99");
+    renderPage("?dependencies=all&dependencyTeamId=99");
     await user.click(await screen.findByRole("button", { name: /^Filters/ }));
     await waitFor(() => expect(screen.getByRole("combobox", { name: "Team" })).toHaveValue("Team 99"));
   });
 
   test("a project the plan view does not know is named by its number", async () => {
-    renderPage("/dependencies?projectId=99");
+    renderPage("?dependencies=all&dependencyProjectId=99");
     expect(await screen.findByText("Project: Project 99")).toBeInTheDocument();
   });
 
@@ -249,11 +249,11 @@ describe("Dependencies page", () => {
 
   test("a filter nothing matches says so and Clear the filters empties the URL", async () => {
     const user = userEvent.setup();
-    renderPage("/dependencies?status=ok&teamId=9");
+    renderPage("?dependencies=ok&dependencyTeamId=9");
     expect(await screen.findByText("No dependency matches the filters")).toBeInTheDocument();
     expect(screen.queryByText("The plan has no dependencies yet")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Clear the filters" }));
-    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent(/^\/dependencies$/));
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent(/^\/roadmap\?dependencies=all$/));
     expect(await screen.findByRole("table", { name: TABLE })).toBeInTheDocument();
   });
 
@@ -263,7 +263,7 @@ describe("Dependencies page", () => {
       release = resolve;
     });
     answer = () => gate.then(() => jsonResponse(200, dependencyListView(ALL)));
-    renderPage("/dependencies?status=violated");
+    renderPage("?dependencies=violated");
     expect(screen.queryByText("The plan has no dependencies yet")).toBeNull();
     expect(screen.queryByText("No dependency matches the filters")).toBeNull();
     expect(screen.queryByRole("group", { name: "Dependencies in figures" })).toBeNull();
@@ -273,7 +273,7 @@ describe("Dependencies page", () => {
 
   test("a cut list says so with the rows shown and keeps the server's totals", async () => {
     answer = () => jsonResponse(200, dependencyListView(ALL, { truncated: true, totals: { links: 1400, violated: 40, unscheduled: 5 } }));
-    renderPage("/dependencies");
+    renderPage();
     expect(await screen.findByText("The list shows its first 3 dependencies.")).toBeInTheDocument();
     expect(rowIds()).toHaveLength(3);
     expect(screen.getByText("1400 dependencies")).toBeInTheDocument();
@@ -281,7 +281,7 @@ describe("Dependencies page", () => {
 
   test("a cut list whose shown rows all miss the filters speaks of the rows read only, and keeps the way out", async () => {
     answer = () => jsonResponse(200, dependencyListView(ALL, { truncated: true, totals: { links: 1400, violated: 40, unscheduled: 5 } }));
-    renderPage("/dependencies?status=ok&teamId=9");
+    renderPage("?dependencies=ok&dependencyTeamId=9");
     expect(await screen.findByText("None of the first 3 dependencies matches the filters")).toBeInTheDocument();
     expect(screen.queryByText("No dependency matches the filters")).toBeNull();
     expect(screen.queryByText("The plan has no dependencies yet")).toBeNull();
@@ -305,7 +305,7 @@ describe("Dependencies page", () => {
 
   test("a failed re-read withdraws the \"nothing matches\" claim", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    renderPage("/dependencies?status=ok&teamId=9", queryClient);
+    renderPage("?dependencies=ok&dependencyTeamId=9", queryClient);
     expect(await screen.findByText("No dependency matches the filters")).toBeInTheDocument();
     answer = () => jsonResponse(500, { title: "x", status: 500 });
     await queryClient.invalidateQueries({ queryKey: ["plan", "dependencies"] });
@@ -316,7 +316,7 @@ describe("Dependencies page", () => {
 
   test("the rows of a kept document stay on screen over a failed re-read", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    renderPage("/dependencies", queryClient);
+    renderPage("?dependencies=all", queryClient);
     await screen.findByRole("table", { name: TABLE });
     answer = () => jsonResponse(500, { title: "x", status: 500 });
     await queryClient.invalidateQueries({ queryKey: ["plan", "dependencies"] });
@@ -335,7 +335,7 @@ describe("Dependencies page", () => {
 
   test("an unresolvable re-read keeps the rows of the earlier answer under the alert", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    renderPage("/dependencies", queryClient);
+    renderPage("?dependencies=all", queryClient);
     await screen.findByRole("table", { name: TABLE });
     answer = () => jsonResponse(200, { ...dependencyListView(ALL), teams: [] });
     await queryClient.invalidateQueries({ queryKey: ["plan", "dependencies"] });
@@ -348,7 +348,7 @@ describe("Dependencies page", () => {
     await i18n.changeLanguage("pl");
     renderPage();
     const table = await screen.findByRole("table", { name: "Zależności planu" });
-    expect(headingOutline()).toEqual([[2, "Zależności"]]);
+    expect(headingOutline()).toEqual([[3, "Zależności"]]);
     expect(within(table).getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["Stan", "Poprzednik", "Typ", "Opóźnienie", "Następnik", "Terminy"]);
     expect(within(table).getByText("Niedotrzymane · brakuje 3 dni roboczych")).toBeInTheDocument();
     expect(within(table).getByText("Jeszcze niezaplanowane")).toBeInTheDocument();

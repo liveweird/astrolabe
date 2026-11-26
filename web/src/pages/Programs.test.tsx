@@ -226,8 +226,8 @@ describe("Programs page", () => {
     await user.click(screen.getByRole("button", { name: "Operations for Invoices" }));
     expect(await screen.findByRole("menuitem", { name: "Open project Invoices" })).toBeInTheDocument();
     expect(screen.getAllByRole("menuitem").map((item) => item.getAttribute("aria-label"))).toEqual(["Show critical path to this project: Invoices", "Dependencies of Invoices", "Open project Invoices"]);
-    // The text path of the arrows: a real link to the Dependencies list narrowed to the project, for a viewer with no right as well.
-    expect(screen.getByRole("menuitem", { name: "Dependencies of Invoices" })).toHaveAttribute("href", "/dependencies?projectId=1");
+    // The text path of the arrows: an in-page action opening the dependency panel narrowed to the project (`Programs.dependencies.test.tsx`), for a viewer with no right as well.
+    expect(screen.getByRole("menuitem", { name: "Dependencies of Invoices" })).not.toHaveAttribute("href");
   });
 
   test("a project's Flow capacity flag (1.23) counts in its row, and the program's and the work stream's roll-ups and the facts line show the server's figures", async () => {

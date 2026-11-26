@@ -1,6 +1,4 @@
 {
-  "title": "Zależności",
-  "intro": "Wszystkie zależności planu: następnik czeka na poprzednik. Niedotrzymane zależności są wymienione na początku i tylko ostrzegają; nic się nie przesuwa. Właściciele/ki projektu następnika albo administrator/ka mogą tu dodać zależność, a w jej wierszu zmienić typ i opóźnienie albo ją usunąć.",
   "panel": {
     "title": "Zależności",
     "intro": "Wszystkie zależności planu, niezależnie od filtrów powyżej, najpierw te niedotrzymane. Strzałki na osi czasu pokazują powiązania między projektami; nic się przez żadne z nich nie przesuwa.",

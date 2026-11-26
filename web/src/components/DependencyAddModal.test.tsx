@@ -7,8 +7,8 @@ import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
 import DependencyAddModal from "./DependencyAddModal";
 
-// The Dependencies page's add dialog on its own: the picker of the successor's project, the successor limited to it, the predecessor from the whole plan,
-// the write and its refusals. The page around it (the button, the refresh, the focus) is `pages/Dependencies.add.test.tsx`.
+// The dependency panel's add dialog on its own: the picker of the successor's project, the successor limited to it, the predecessor from the whole plan,
+// the write and its refusals. The page around it (the button, the refresh, the focus) is `PlanDependenciesPanel.add.test.tsx`.
 
 const milestone = (id: number, projectId: number, projectName: string, name: string) => ({
   id, projectId, projectName, name, teamId: 3, teamName: "Backend", estimateMd: 1, description: null, startDate: null, endDate: null, createdAt: 1, updatedAt: 2,

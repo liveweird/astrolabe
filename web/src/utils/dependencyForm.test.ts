@@ -84,7 +84,7 @@ describe("dependency form", () => {
     expect(dependencyEndpointText({ ...end, kind: "PROJECT", name: "Alpha" }, 8, t)).toBe("Project Alpha");
   });
 
-  test("with no own project (the Dependencies page) every milestone end names its project; a project end reads the same either way", () => {
+  test("with no own project (the dependency panel) every milestone end names its project; a project end reads the same either way", () => {
     const end = { kind: "MILESTONE", id: 1, name: "a1", projectId: 7, projectName: "Alpha", teamId: 1, teamName: "T", startDate: null, endDate: null } as const;
     expect(dependencyEndpointText(end, null, t)).toBe("a1 · Alpha");
     expect(dependencyEndpointText({ ...end, kind: "PROJECT", name: "Alpha" }, null, t)).toBe("Project Alpha");
@@ -121,7 +121,7 @@ describe("dependency form", () => {
   });
 });
 
-describe("the Dependencies page's add form", () => {
+describe("the dependency panel's add form", () => {
   const validateAdd = dependencyAddValidation(t);
   const addValues = (over: Partial<DependencyAddValues> = {}): DependencyAddValues => ({
     ...emptyDependencyAddForm(7),

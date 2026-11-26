@@ -1,4 +1,4 @@
-// Shared fixtures for the Dependencies page: a row, an end and a document. Rows and ends are the RESOLVED shapes the page works with
+// Shared fixtures for the dependency panel: a row, an end and a document. Rows and ends are the RESOLVED shapes the page works with
 // (`utils/dependencyListRows.ts`); `dependencyListView` answers the WIRE document built from them (the three name lists and the refs).
 import type { components } from "../api/schema";
 import type { DependencyListEnd, DependencyListRow as Row } from "../utils/dependencyListRows";

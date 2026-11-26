@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { dependencyRow, milestoneEnd, projectEnd, unscheduledRow, violatedRow } from "../test/dependencyList";
 import {
-  dependencyListFilterParams,
+  LEGACY_PARAMS,
   matchesDependencyFilter,
   namesPanel,
   narrowingCount,
@@ -12,9 +12,9 @@ import {
   type DependencyListFilter,
 } from "./dependencyListFilters";
 
-const parse = (query: string) => parseDependencyListFilter(new URLSearchParams(query));
+const parse = (query: string) => parseDependencyListFilter(new URLSearchParams(query), LEGACY_PARAMS);
 
-describe("parseDependencyListFilter", () => {
+describe("parseDependencyListFilter (the retired page's names)", () => {
   test("reads every filter", () => {
     expect(parse("status=violated&teamId=4&projectId=5")).toEqual({ status: "violated", teamId: 4, projectId: 5 });
     expect(parse("status=ok")).toEqual({ status: "ok" });
@@ -31,7 +31,7 @@ describe("parseDependencyListFilter", () => {
     expect(parse("teamId=4&teamId=5")).toEqual({ teamId: 4 });
   });
 
-  test("round-trips every combination", () => {
+  test("a filter written under the panel's names reads back, every combination", () => {
     for (const status of [undefined, "violated", "ok", "unscheduled"] as const) {
       for (const teamId of [undefined, 4]) {
         for (const projectId of [undefined, 5]) {
@@ -39,15 +39,10 @@ describe("parseDependencyListFilter", () => {
           if (status !== undefined) filter.status = status;
           if (teamId !== undefined) filter.teamId = teamId;
           if (projectId !== undefined) filter.projectId = projectId;
-          expect(parseDependencyListFilter(dependencyListFilterParams(filter))).toEqual(filter);
+          expect(parseDependencyListFilter(withPanelFilter(new URLSearchParams(), filter), PANEL_PARAMS)).toEqual(filter);
         }
       }
     }
-  });
-
-  test("writes only the set ones, in one stable order", () => {
-    expect(dependencyListFilterParams({}).toString()).toBe("");
-    expect(dependencyListFilterParams({ projectId: 5, teamId: 4, status: "ok" }).toString()).toBe("status=ok&teamId=4&projectId=5");
   });
 
   test("counts the narrowing filters", () => {

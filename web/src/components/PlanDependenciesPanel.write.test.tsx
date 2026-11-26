@@ -9,8 +9,8 @@ import { planOf } from "../test/planView";
 import { renderWithProviders, screen, waitFor, within } from "../test/render";
 import PlanDependenciesPanel from "./PlanDependenciesPanel";
 
-// 1.29: the panel as the HOST of the list's writes (the Dependencies page's own tests cover the same components through the page; once that page goes
-// these are the pins): the row menu by the row's `can`, the focus after a delete, and what a save and a delete refresh.
+// 1.29: the panel as the HOST of the list's writes (the edit and delete dialogs are `.dialogs.test.tsx`): the row menu by the row's `can`, the focus after a delete,
+// and what a save and a delete refresh.
 
 const TABLE = "Dependencies of the plan";
 const NAME = "Design review · Checkout → Build · Billing";

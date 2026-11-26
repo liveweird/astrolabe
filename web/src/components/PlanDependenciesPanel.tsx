@@ -1,11 +1,12 @@
 import { useEffect, useId, useRef } from "react";
 import { Button, Group, Stack, Text, Title } from "@mantine/core";
 import { IconPlus } from "@tabler/icons-react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { isBoolean, useStoredState } from "../hooks/useStoredState";
 import { usePlanDependencies } from "../hooks/usePlanDependencies";
 import { namesPanel, PANEL_PARAMS, parseDependencyListFilter, withoutPanelWord, withPanelFilter, type DependencyListFilter } from "../utils/dependencyListFilters";
+import { asksForDependenciesFocus } from "../utils/dependencyListLinks";
 import { ANCHORED_HEADING_STYLE } from "../utils/layout";
 import PlanDependenciesContent from "./PlanDependenciesContent";
 import TableDisclosure from "./TableDisclosure";
@@ -15,11 +16,12 @@ const OPEN_KEY = "roadmap.dependenciesOpen";
 
 /**
  * The plan's dependency list under the Roadmap's and the Programs page's timeline (1.29): the explicit text of the arrows, every dependency of the plan
- * (not only the links between projects) with the Dependencies page's filters, row menu, "Add dependency" and delete, all by the rows' own `can` flags.
+ * (not only the links between projects) with its filters, row menu, "Add dependency" and delete, all by the rows' own `can` flags.
  * Hidden by default and remembered per browser; a hidden panel is not rendered (so it does not print, heading included) and is not READ either (`enabled`). The address
  * names it too (`dependencies=all|violated|ok|unscheduled`, `dependencyTeamId`, `dependencyProjectId`): such a link OPENS it for that visit without
  * writing the memory and moves the focus to the heading once. The panel never writes the address on its own; a filter change writes it (`replace`),
- * and hiding a panel the address opened takes the word away, or it would stay open.
+ * and hiding a panel the address opened takes the word away, or it would stay open. Since the dependency panel went (1.29) this is the ONE place the list lives:
+ * Home's figures, the team page's links and an old `/dependencies` bookmark open it by the address (`utils/dependencyListLinks.ts`), the row menus by an action.
  */
 export default function PlanDependenciesPanel() {
   const { t } = useTranslation();
@@ -36,6 +38,16 @@ export default function PlanDependenciesPanel() {
   useEffect(() => {
     if (arrivedByAddress.current) headingRef.current?.focus();
   }, []);
+  // The row menu's "Dependencies" action opens the panel on this very address and asks for the focus by the entry's state (`OPEN_DEPENDENCIES_STATE`); a menu
+  // that has just closed hands the focus back to its kebab only if it still holds, or `body` holds, the focus 10 ms after the close (Mantine's `useFocusReturn`
+  // compares against what held it AT the close): the heading takes it a tick later, after the menu's own effects have run, so that comparison cannot go the other way.
+  const { key, state: entryState } = useLocation();
+  const asked = asksForDependenciesFocus(entryState);
+  useEffect(() => {
+    if (!asked) return;
+    const timer = window.setTimeout(() => headingRef.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [asked, key]);
 
   const toggle = (next: boolean) => {
     setRemembered(next);

@@ -11,7 +11,7 @@ type StatusChoice = "all" | DependencyListStatus;
 const CHOICES: readonly StatusChoice[] = ["all", "violated", "ok", "unscheduled"];
 
 /**
- * The Dependencies page's filters, which live in the URL (`utils/dependencyListFilters.ts`): the Status select (All / Violated / OK / Not scheduled yet,
+ * The dependency panel's filters, which live in the URL (`utils/dependencyListFilters.ts`): the Status select (All / Violated / OK / Not scheduled yet,
  * never clearable: a choice always applies), a team select (EVERY team, `useTeamOptions`) and a project select (every project of the plan) inside the
  * collapsible panel; a `projectId` is also a removable chip beside the toggle, so the scope shows with the panel closed. They only hide rows that arrived.
  */

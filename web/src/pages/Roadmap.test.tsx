@@ -924,14 +924,14 @@ describe("Roadmap page: without rights and the empty states", () => {
     expect(screen.getByText(/Everyone can read it/)).toBeInTheDocument();
   });
 
-  test("a viewer with no right still has the project's Dependencies in the row menu: the text path of the arrows, a real link to the list narrowed to the project", async () => {
+  test("a viewer with no right still has the project's Dependencies in the row menu: the text path of the arrows, an in-page action (not a link) whose effect is pinned in Roadmap.dependencies.test.tsx", async () => {
     view = viewOf({ can: { editRank: false } });
     const user = userEvent.setup();
     renderWithProviders(<Roadmap />);
     await screen.findByRole("grid", { name: "Roadmap timeline" });
     await openMenu(user, "Taxes");
     const item = await screen.findByRole("menuitem", { name: "Dependencies of Taxes" });
-    expect(item).toHaveAttribute("href", "/dependencies?projectId=2");
+    expect(item).not.toHaveAttribute("href");
     expect(item).toHaveTextContent("Dependencies");
     expect(screen.getAllByRole("menuitem").map((entry) => entry.getAttribute("aria-label"))).toContain("Dependencies of Taxes");
   });

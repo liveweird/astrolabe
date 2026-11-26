@@ -167,16 +167,6 @@ const AUTHED_PAGES: { path: string; heading: string; settled?: Settled }[] = [
     },
   },
   {
-    path: "/dependencies",
-    heading: "Dependencies",
-    // The table, or the sentence a plan without links says (the list is narrowed to nothing by no filter here).
-    settled: async (page) => {
-      await expect(
-        page.getByRole("table", { name: "Dependencies of the plan", exact: true }).or(page.getByText("The plan has no dependencies yet", { exact: true })),
-      ).toBeVisible();
-    },
-  },
-  {
     path: "/team-load",
     heading: "Team load",
     // The table, or the sentence a page without rows says (no team, or none with the chosen warning).

@@ -482,7 +482,7 @@ Shown as the server derives them, never recomputed.
 - Roadmap card: `roadmap.facts.ranked|unranked`, then badges only when positive - orange warnings, gray infos (`roadmap.facts.*`), red `home.roadmap.conflicts` and the two
   whole-plan capacity badges, orange, `home.roadmap.overloadedTeams|wipTeams` ("N teams with an overloaded week" / "over the WIP limit": the teams the team page flags) - and the Jira sentence.
   - "N violated dependencies": `plan.conflicts` counts every violated link once, a link inside one project included, so it is NOT worded or linked as a Roadmap figure (the Roadmap
-    draws only the links between projects); it is a link to the Dependencies page narrowed to the violated ones.
+    draws only the links between projects); it is a link to the Roadmap's dependency panel narrowed to the violated ones.
 - **A failed Home read** (first or a later re-read) is ONE `ErrorAlert` (`home.figures.loadFailed`) under the grid and above "Yours". A first failure leaves the groups empty and
   mounts no "Yours" section; a failed re-read keeps the figures and "Yours" with its rows on screen.
 
@@ -527,8 +527,8 @@ builder (`roadmapFilteredPath`, `projectUnscheduledPath`, `teamLoadWarningPath`)
 | Roadmap: "N unranked" (a link when positive, text at zero) | `/roadmap?unranked=true` | `plan.unrankedProjects` and the Roadmap's "N unranked" count the same rows; a link is shown as written, so no remembered filter or pick narrows it; "N ranked" stays text (no "ranked only" filter) |
 | Roadmap: "N warnings" / "N infos" (each opens its own severity) | `/roadmap?severity=WARNING` / `?severity=INFO` | every warning sits on a project that has one, so the facts line's warnings figure under the filter is Home's; the infos figure there counts the infos of those rows (fewer than Home's, as every filter narrows a count) |
 | Roadmap: "N teams with an overloaded week" / "over the WIP limit" | `/team-load?warning=overloaded` / `wip` | the page's rows and Home's count fold the same `teamWeeks` |
-| Roadmap: "N violated dependencies" | `/dependencies?status=violated` (`violatedDependenciesPath()`) | `totals.violated` of the dependencies view and `plan.conflicts` are one server function over one kernel's output |
-| Yours, a project's / a team's red "N conflicts" | `/dependencies?status=violated&projectId=N` / `&teamId=N` | the violated links with an end in the project / a milestone end in the team: the subsets Home counts; the page's filter keeps the same rows |
+| Roadmap: "N violated dependencies" | `/roadmap?dependencies=violated` (`violatedDependenciesPath()`; no mode: the panel is the same in both) | `totals.violated` of the dependencies view and `plan.conflicts` are one server function over one kernel's output |
+| Yours, a project's / a team's red "N conflicts" | `/roadmap?dependencies=violated&dependencyProjectId=N` / `&dependencyTeamId=N` | the violated links with an end in the project / a milestone end in the team: the subsets Home counts; the page's filter keeps the same rows |
 | Yours, a project's "Not scheduled" / a team's (Team load's too) | `/projects/N?milestones=unscheduled` / `/teams/N` | the project page's Milestones table narrowed to its unscheduled rows / the team page's Unscheduled tray: the same subset |
 | Yours, "Open the projects you own yourself on the roadmap" (under the projects table, only while a listed project is `direct`) | `/roadmap?ownerPersonId=<me.personId>` | the Roadmap's Owner filter; direct ownership on both sides (the table may list more: the projects under a work stream or program the person owns) |
 | Yours, a work stream's / a program's name | `/roadmap?workStreamId=N` / `?programId=N` | the Work stream filter / the program pick with one program; a node with no project is plain text (its id is no filter option on the Roadmap, so the link would open it unfiltered) |
@@ -657,7 +657,7 @@ Files:
   - `dependencyForm.ts`: the form values, the self-link and lag rules, `toDependencyBody`, `cyclePathText`, `dependencySaveErrorMessage`; the edit's `editDependencyForm`,
     `dependencyEditValidation` (the lag only), `toDependencyUpdateBody`, `dependencyUpdateErrorMessage`, and the shared `dependencyEndpointText` (`ownProjectId` `null` = no own project, so every
     milestone end names its project). `EditableDependency` is what the editor and the delete read of a link.
-  - `DependencyDeleteModal.tsx`: the delete confirmation's wording and error mapping, shared with the Dependencies page.
+  - `DependencyDeleteModal.tsx`: the delete confirmation's wording and error mapping, shared with the Roadmap's dependency panel.
 
 ### Route and data
 
@@ -1000,7 +1000,7 @@ ranked project.
 - The **row menu** (the deterministic, keyboard path; focus: "Roadmap menu focus" below):
   - ranked rows: Move up / Move down / Move to top / Move to bottom (disabled at the ends of the VISIBLE ranked rows) and Unrank;
   - unranked rows: Rank (appended at the END);
-  - always: Dependencies (a `RouterLink` to `/dependencies?projectId=N` through `dependenciesFilteredPath`, accessible name "Dependencies of {{name}}", the arrows' text path, offered on EVERY
+  - always: Dependencies (an in-page action, 1.29: it opens the dependency panel on this address narrowed to the project (`dependencyProjectId=N`) and focuses its h3, `projects-view.md`; accessible name "Dependencies of {{name}}", the arrows' text path, offered on EVERY
     project row to every viewer, also a project without links, since the row's own document cannot tell; `DependenciesItem` in `PlanProjectCells.tsx`) and Open project.
 - The **row drag** by the pointer-only handle (`TimelineRowHandle`; `onReorder(id, slot)` on the page's `TimelineDndContext`, the team page's mechanism, `timeline.md` "Row drag"):
   inside the ranked rows it moves the row; **across the divider** a drop above it RANKS an unranked row at that slot and a drop below it UNRANKS a ranked row (dropping an unranked row
@@ -1201,22 +1201,23 @@ The page's co-located tests (`Programs*.test.tsx`, `utils/programsTree.test.ts`)
 
 ## Dependencies
 
-Files: `pages/Dependencies.tsx` (1.29: a thin host of `hooks/usePlanDependencies.ts` and `components/PlanDependenciesContent.tsx`, which the Roadmap's and Programs'
-`PlanDependenciesPanel` mounts too: `projects-view.md` "Dependency panels"); `api/dependencyList.ts`; `utils/dependencyListRows.ts`, `…Filters.ts`, `…Links.ts` (`dependenciesPath`,
-`dependenciesFilteredPath(filter)`, `violatedDependenciesPath({teamId?, projectId?})`: the plan pages' and Home's links); `components/DependencyListFilters.tsx`, `DependencyListTable.tsx`,
-`DependencyCells.tsx`, `ProjectScopeChip.tsx`, `DependencyAddModal.tsx`, `DependencyFormParts.tsx`.
+Since 1.29 the plan-wide list is the Roadmap's **dependency panel** (the Dependencies page and its nav item are gone); the panel's place, memory, address and hosts are `projects-view.md` "Dependency panels". Files:
+`components/PlanDependenciesPanel.tsx` over `hooks/usePlanDependencies.ts` and `components/PlanDependenciesContent.tsx`; `api/dependencyList.ts`; `utils/dependencyListRows.ts`, `…Filters.ts`, `…Links.ts`
+(`dependenciesFilteredPath(filter)`, `violatedDependenciesPath({teamId?, projectId?})`: Home's and the team page's links, both `/roadmap?dependencies=…`), `legacyLinks.ts` (the old `/dependencies` address);
+`components/DependencyListFilters.tsx`, `DependencyListTable.tsx`, `DependencyCells.tsx`, `ProjectScopeChip.tsx`, `DependencyAddModal.tsx`, `DependencyFormParts.tsx`.
 
 ### Route and data
 
-`/dependencies` (nav: Planning after Projects, `IconLink`, **everyone**) lists every dependency of the plan from the ONE unpaged `GET /views/dependencies`
-(`getDependencyListView`, key `DEPENDENCY_LIST_KEY = ["plan","dependencies"]`, under `["plan"]` so every plan write refreshes it; at most 1,000 rows with `truncated`); the page also reads the plan view (`getPlanView`, revalidated). Each row carries
+`/dependencies` is a `replace` redirect (`LegacyDependenciesRedirect`) to `/roadmap` with the panel open and the old `status`/`teamId`/`projectId` under the panel's names; every other old parameter is dropped (its `teamId`
+would be the Roadmap's own filter). The panel lists every dependency of the plan from the ONE unpaged `GET /views/dependencies`
+(`getDependencyListView`, key `DEPENDENCY_LIST_KEY = ["plan","dependencies"]`, under `["plan"]` so every plan write refreshes it; at most 1,000 rows with `truncated`), only while shown; it also reads the plan view (`getPlanView`, revalidated). Each row carries
 the caller's own `can{edit, delete}`, the project view's flags, and nothing else differs between callers.
 
 - **The wire document names its ends once.** A row holds `predecessor`/`successor` as `{kind, id}` and the names are in `milestones`, `projects` and `teams`, exactly what the listed
   rows name. `resolveDependencyList` joins them back, once, in the query function (`readDependencyList`), so the cache holds the resolved list: each row's two ends are
   `{kind, id, name, projectId, projectName, teamId, teamName}` (the table, the filter and their tests read that).
 - It is NOT a `select`: a reference the lists do not hold throws in the query function, a failed read (below); why, in `usePlanDependencies.ts`.
-- Each row is the project view's own item minus `critical` and `can`, in the server's order: the page never sorts
+- Each row is the project view's own item minus `critical` and `can`, in the server's order: the panel never sorts
   or recounts.
 - The facts line (`role="group"`, "N dependencies", Home's own red string `home.roadmap.conflicts` and a gray "N not scheduled yet", each badge only when positive, the whole line absent
   while the plan has no dependency) reads the document's `totals` over EVERY dependency, so a filter or the cap never changes it.
@@ -1227,23 +1228,22 @@ A row offers "Edit…" and "Delete" in a `RowActionsMenu` (named `common.table.o
 
 - A row with neither has no menu, never a disabled control; when no shown row offers anything the operations column (header `common.table.operations`) is absent altogether, otherwise a
   row without a menu has an empty cell.
-- "Edit…" opens the project page's own `DependencyEditorModal` with `project={null}` (the type and the lag; both ends read-only, each naming its project; the page owns `useDialogFocus`,
-  so the focus returns to the row's menu button). "Delete" goes through `useDeleteConfirm` and the shared `DependencyDeleteModal` (the project page's wording; the focus goes to the page
-  title).
+- "Edit…" opens the project page's own `DependencyEditorModal` with `project={null}` (the type and the lag; both ends read-only, each naming its project; the panel owns `useDialogFocus`,
+  so the focus returns to the row's menu button). "Delete" goes through `useDeleteConfirm` and the shared `DependencyDeleteModal` (the project page's wording; the focus goes to the panel's h3).
 - A save or a delete refreshes `["plan"]` (this list, the plan, project and team views, Home) and `["roadmap"]`; the dialog's own errors (the cycle `409` with its path, the `403`, the
   `404` of a link deleted meanwhile) stay in the dialog and re-read nothing.
 
 ### Adding a link
 
-The header's "Add dependency" shows only while the plan view (`planViewKey`) is answered, not failed, and holds a project with `can.createDependency` (`addableProjects`).
+The panel header's "Add dependency" shows only while the panel is shown and the plan view (`planViewKey`) is answered, not failed, and holds a project with `can.createDependency` (`addableProjects`).
 
 - `DependencyAddModal` (parts shared with the project page's editor in `DependencyFormParts.tsx`): the successor's project (a `Select` over those, started from `?projectId=` when addable), the successor (`MilestoneSelect projectId`, or the project), the predecessor from the whole plan, type, lag.
 - Errors stay in the dialog, on their fields; it cannot close while saving. A save refreshes the plan and roadmap groups, keeps the filters, and returns the focus to the button.
 
 ### Filters
 
-Three filters are in the URL like the Deviations page's (a change `replace`s the entry; nothing is remembered): `status` = `violated` | `ok` | `unscheduled` (absent, `all` or unknown =
-every dependency), `teamId`, `projectId` (positive integers, `idOf`).
+Three filters are in the URL (a change `replace`s the entry; nothing else is remembered), under the panel's names `dependencies` = `violated` | `ok` | `unscheduled` (`all` or unknown =
+every dependency; the word also OPENS the panel), `dependencyTeamId`, `dependencyProjectId` (positive integers, `idOf`).
 
 - They are applied in the browser over the rows that arrived, AND-combined, so a change makes no second read: a team keeps a row when either end is a milestone of it (a project end has no
   team), a project when either end belongs to it (a project end's `projectId` is its own id).
@@ -1262,7 +1262,7 @@ every dependency), `teamId`, `projectId` (positive integers, `idOf`).
 
 ### Tests
 
-The page's co-located tests (`Dependencies.test.tsx`; `Dependencies.write.test.tsx` pins the menu by `can`, the dialog, the confirmation, the refresh, the focus; the `dependencyList*` `api/` and `utils/` tests). The fixtures `test/dependencyList.ts`: rows and ends are the RESOLVED shapes;
+The panel's co-located tests (`PlanDependenciesPanel*.test.tsx`: the list, `.add`, `.dialogs`, `.write`; the `dependencyList*` `api/` and `utils/` tests). The fixtures `test/dependencyList.ts`: rows and ends are the RESOLVED shapes;
 `dependencyListView(rows)` answers the wire document built from them.
 
 ## Team load
@@ -1273,7 +1273,7 @@ Files: `pages/TeamLoad.tsx`; `api/teamLoad.ts` (`getTeamLoadView`); `utils/teamL
 
 ### Route and data
 
-`/team-load` (nav: Planning after Dependencies, `IconGauge`, **everyone**, read-only) lists every team against its capacity from the ONE unpaged `GET /views/team-load`
+`/team-load` (nav: Teams and capacity, `IconGauge`, **everyone**, read-only) lists every team against its capacity from the ONE unpaged `GET /views/team-load`
 (`getTeamLoadView`, key `TEAM_LOAD_KEY = ["plan","teamLoad"]`, under `["plan"]` so a schedule or capacity write refreshes it; at most 200 rows with `truncated`, the same document for every
 caller, no `can`). The figures are the team page's own and are shown as they arrive, never recounted.
 
@@ -1873,8 +1873,8 @@ ADMIN), never the session's roles.
   roll-up of the OPEN rows, so an acknowledged row is not in it) goes through `PageHeader`'s `titleAddon` as a light badge (`TeamFlags`: orange triangle for a warning, gray info circle for an info). The text is `flagSentence`'s "Capacity differs from Flow: N open differences" (open ROWS, not sprints: a gone Flow team is one too); the icon is `aria-hidden`; no count badge,
   nothing for `[]`.
 - **Facts line** (`TeamFacts`). "N milestones · M scheduled", ORANGE "N weeks overloaded" and "N weeks over WIP limit" badges (warnings: nothing moves), the RED conflicts badge of the project page, a
-  gray "N idle gaps" badge (absent at zero) and a gray "Custom order" badge while the team's own order is in force. The red one is a `BadgeLink` to `/dependencies?status=violated&teamId=N`
-  (`teams.view.conflictsAria`); after the badges, only while `view.dependencies` is not empty, a link "N dependencies" to `/dependencies?teamId=N` (`teams.view.dependenciesAria`). Both names
+  gray "N idle gaps" badge (absent at zero) and a gray "Custom order" badge while the team's own order is in force. The red one is a `BadgeLink` to `/roadmap?dependencies=violated&dependencyTeamId=N`
+  (`teams.view.conflictsAria`); after the badges, only while `view.dependencies` is not empty, a link "N dependencies" to `/roadmap?dependencies=all&dependencyTeamId=N` (`teams.view.dependenciesAria`). Both names
   start with their visible text; the paths come from `utils/dependencyListLinks.ts`.
 - **The timeline** (`TeamTimeline`, on the shared `Timeline*` with the sticky load `strip`) has one row per SCHEDULED milestone in the server's order: **the project rank is only the DEFAULT order; a
   manager's override is the execution order and is never reshuffled by a rank change.** A row has the project as a link, the estimate and the row menu. Arrows are drawn only between this timeline's

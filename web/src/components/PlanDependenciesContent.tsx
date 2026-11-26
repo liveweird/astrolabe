@@ -34,7 +34,7 @@ function DependencyListFacts({ totals }: { totals: DependencyListView["totals"] 
 }
 
 /**
- * The body of the plan-wide dependency list, in the Dependencies page and (1.29) in the Roadmap's and Programs' panel: the filters, the facts line, the
+ * The body of the plan-wide dependency list, in the dependency panel and (1.29) in the Roadmap's and Programs' panel: the filters, the facts line, the
  * list or its empty states, the truncation note and the editor, add and delete dialogs (all over the `usePlanDependencies` state the host owns). The
  * host owns the filters' address spelling (`filter`, `onChange`, `onClear`) and its heading; "Add dependency" is the host's button over `state.setAdding`.
  */

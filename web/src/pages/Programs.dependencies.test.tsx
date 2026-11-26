@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { useLocation } from "react-router-dom";
 import Programs from "./Programs";
 import type { ProgramsView } from "../api/programs";
@@ -117,5 +117,22 @@ describe("Programs page: the dependency panel", () => {
     renderAt("/programs?dependencies=ok");
     const table = await screen.findByRole("table", { name: "Dependencies of the plan" });
     expect(within(table).getAllByRole("row")).toHaveLength(2);
+  });
+
+  test("the row menu's Dependencies opens the panel on this address narrowed to the project, keeps the page's own parameters, reads once and puts the focus on the heading", async () => {
+    const user = userEvent.setup();
+    renderAt("/programs?programId=10");
+    await screen.findByRole("grid");
+    await user.click(screen.getByRole("button", { name: "Expand all" }));
+    await user.click(await screen.findByRole("button", { name: "Operations for Invoices" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Dependencies of Invoices" }));
+    // The list's links are between other projects, so nothing matches Invoices: the panel is open and says so.
+    expect(await screen.findByText("No dependency matches the filters")).toBeInTheDocument();
+    expect(screen.getByTestId("where")).toHaveTextContent("?programId=10&dependencies=all&dependencyProjectId=1");
+    expect(await screen.findByText("Project: Invoices")).toBeInTheDocument();
+    expect(dependencyReads()).toBe(1);
+    // The panel opened for this visit only: the memory is untouched.
+    expect(localStorage.getItem("astrolabe.viewSettings.roadmap.dependenciesOpen")).toBeNull();
+    await waitFor(() => expect(screen.getByRole("heading", { level: 3, name: "Dependencies" })).toHaveFocus());
   });
 });

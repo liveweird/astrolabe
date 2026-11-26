@@ -236,7 +236,7 @@ describe("Home", () => {
       const group = within(await screen.findByRole("group", { name: "The roadmap in figures" }));
       expect(await group.findByText("3 teams with an overloaded week")).toBeInTheDocument();
       expect(group.getByText("2 teams over the WIP limit")).toBeInTheDocument();
-      expect(group.getByRole("link", { name: "9 violated dependencies" })).toHaveAttribute("href", "/dependencies?status=violated");
+      expect(group.getByRole("link", { name: "9 violated dependencies" })).toHaveAttribute("href", "/roadmap?dependencies=violated");
       expect(screen.queryByText(/arrow|conflict/i)).not.toBeInTheDocument();
     });
 
@@ -259,7 +259,7 @@ describe("Home", () => {
       expect(roadmap.getByRole("link", { name: "3 teams with an overloaded week" })).toHaveAttribute("href", "/team-load?warning=overloaded");
       expect(roadmap.getByRole("link", { name: "1 team over the WIP limit" })).toHaveAttribute("href", "/team-load?warning=wip");
       const violated = roadmap.getByRole("link", { name: "9 violated dependencies" });
-      expect(violated).toHaveAttribute("href", "/dependencies?status=violated");
+      expect(violated).toHaveAttribute("href", "/roadmap?dependencies=violated");
       expect(violated).toHaveTextContent("9 violated dependencies");
       expect(roadmap.getAllByRole("link")).toHaveLength(6);
       expect(roadmap.getByText("80 ranked").closest("a")).toBeNull();

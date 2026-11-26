@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { RedirectIfAuthed, RequireAdmin, RequireAuth, useAdmin } from "./auth";
 import BrandLogo from "./components/BrandLogo";
 import CommandPalette from "./components/CommandPalette";
+import LegacyDependenciesRedirect from "./components/LegacyDependenciesRedirect";
 import LegacyMilestonesRedirect from "./components/LegacyMilestonesRedirect";
 import LegacyRedirect from "./components/LegacyRedirect";
 import LoadingBlock from "./components/LoadingBlock";
@@ -37,7 +38,6 @@ const PersonDetails = lazy(() => import("./pages/PersonDetails"));
 const Plan = lazy(() => import("./pages/Plan"));
 const ProjectView = lazy(() => import("./pages/ProjectView"));
 const RoadmapModes = lazy(() => import("./pages/RoadmapModes"));
-const Dependencies = lazy(() => import("./pages/Dependencies"));
 const TeamLoad = lazy(() => import("./pages/TeamLoad"));
 const Baselines = lazy(() => import("./pages/Baselines"));
 const ScheduleProposals = lazy(() => import("./pages/ScheduleProposals"));
@@ -264,7 +264,8 @@ export default function App() {
             <Route path="programs" element={<LegacyRedirect to={roadmapPath} params={{ mode: "overview" }} />} />
             {/* 1.29: the Milestones page is gone (a project's milestones are its table, a team's its page); an old link goes to the closest of them. */}
             <Route path="milestones" element={<LegacyMilestonesRedirect />} />
-            <Route path="dependencies" element={<Dependencies />} />
+            {/* 1.29: the Dependencies page is the Roadmap's dependency panel; an old link or bookmark opens it with its filters. */}
+            <Route path="dependencies" element={<LegacyDependenciesRedirect />} />
             <Route path="team-load" element={<TeamLoad />} />
             <Route path="baselines" element={<Baselines />} />
             <Route path="baselines/:id" element={<BaselineCompare />} />

@@ -1,5 +1,6 @@
+import { LEGACY_PARAMS, parseDependencyListFilter, withPanelFilter } from "./dependencyListFilters";
 import { idOf } from "./deviationFilters";
-import { projectPath, projectsPath } from "./planLinks";
+import { projectPath, projectsPath, roadmapPath } from "./planLinks";
 import { teamPath } from "./teamLinks";
 
 /** Where a retired address leads: the path and the parameters to set on it. */
@@ -20,4 +21,14 @@ export function legacyMilestonesTarget(search: string): LegacyTarget {
   }
   const teamId = idOf(query.get("teamId"));
   return teamId === undefined ? { to: projectsPath } : { to: teamPath(teamId) };
+}
+
+/**
+ * Where the retired `/dependencies` page's address leads (1.29): the Roadmap, its dependency panel open with the three filters the old address held, under
+ * the panel's prefixed names (`status` -> `dependencies`, `teamId` -> `dependencyTeamId`, `projectId` -> `dependencyProjectId`; an unknown or malformed value is
+ * dropped as the page dropped it). The bare address opens the panel unfiltered (`dependencies=all`). No mode is named: the Roadmap opens in the one last used.
+ */
+export function legacyDependenciesTarget(search: string): LegacyTarget {
+  const filter = parseDependencyListFilter(new URLSearchParams(search), LEGACY_PARAMS);
+  return { to: roadmapPath, params: Object.fromEntries(withPanelFilter(new URLSearchParams(), filter)) };
 }

@@ -1,9 +1,10 @@
 import { Anchor, Badge, Group, Menu, VisuallyHidden } from "@mantine/core";
 import { IconAlertTriangle, IconCalendarEvent, IconCalendarOff, IconExternalLink, IconHourglass, IconInfoCircle, IconLink, IconRoute } from "@tabler/icons-react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { RoadmapProject } from "../api/roadmap";
-import { dependenciesFilteredPath } from "../utils/dependencyListLinks";
+import { withPanelFilter } from "../utils/dependencyListFilters";
+import { OPEN_DEPENDENCIES_STATE } from "../utils/dependencyListLinks";
 import { projectPath } from "../utils/planLinks";
 import type { FlagCounts } from "../utils/roadmapRows";
 import type { RovingTarget } from "../utils/timelineModel";
@@ -88,13 +89,20 @@ export function TargetWindowItems({ project, actions }: { project: RoadmapProjec
 }
 
 /**
- * The menu item that opens the Dependencies list narrowed to this project - the text path of the arrows the row's bars draw (they are decoration), offered
- * on every project row to every viewer: the row's own document cannot tell whether the project has a link, so the list answers "none" when it has none.
+ * The menu item that opens the Roadmap's dependency panel narrowed to this project - the text path of the arrows the row's bars draw (they are decoration), offered
+ * on every project row to every viewer: the row's own document cannot tell whether the project has a link, so the list answers "none" when it has none. An in-page
+ * action (1.29; it was a link to the Dependencies page): it opens the panel on this page's own address, filtered to the project (the panel's earlier status and team
+ * filters are replaced, every other parameter of the address - the page's filters, the mode - stays) by `replace`, and asks the panel to take the focus to its heading.
  */
 export function DependenciesItem({ project }: { project: Pick<RoadmapProject, "id" | "name"> }) {
   const { t } = useTranslation();
+  const [, setParams] = useSearchParams();
   return (
-    <Menu.Item component={RouterLink} to={dependenciesFilteredPath({ projectId: project.id })} leftSection={<IconLink size={14} />} aria-label={t("roadmap.action.dependenciesAria", { name: project.name })}>
+    <Menu.Item
+      leftSection={<IconLink size={14} />}
+      onClick={() => setParams((previous) => withPanelFilter(previous, { projectId: project.id }), { replace: true, state: OPEN_DEPENDENCIES_STATE })}
+      aria-label={t("roadmap.action.dependenciesAria", { name: project.name })}
+    >
       {t("roadmap.action.dependencies")}
     </Menu.Item>
   );

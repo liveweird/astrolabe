@@ -50,7 +50,7 @@ type EditorProps = { onClose: () => void; onSaved: () => Promise<void> } & (
  * With `target` it EDITS that link in place (`PUT /dependencies/{id}`): the two ends are read-only fields (changing an end is
  * delete + add), only the type and the lag are editable, and a type that would close a cycle is the same 409 with its path.
  *
- * Without a `project` (the Dependencies page, 1.22: edit only) there is no "own" project, so every milestone end of the read-only fields
+ * Without a `project` (the dependency panel, 1.22: edit only) there is no "own" project, so every milestone end of the read-only fields
  * names its project ("Build · Billing"); a new link there is added in `DependencyAddModal` (1.27), never here.
  */
 export default function DependencyEditorModal({ project, milestones = [], successor = null, target = null, onClose, onSaved }: EditorProps) {

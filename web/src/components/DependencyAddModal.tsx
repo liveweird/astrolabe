@@ -16,7 +16,7 @@ import FormErrorAlert from "./FormErrorAlert";
 import MilestoneSelect from "./MilestoneSelect";
 
 /**
- * Add a dependency from the Dependencies page (1.27; `POST /projects/{id}/dependencies`, the same write as the project page's dialog): there is no
+ * Add a dependency from the dependency panel (1.27; `POST /projects/{id}/dependencies`, the same write as the project page's dialog): there is no
  * own project here, so the first field picks the SUCCESSOR's project, from `projects` only (the ones the plan view says the caller may add to,
  * `can.createDependency`; the server's guard still decides). The successor is then one of that project's milestones (a picker limited to it) or the
  * whole project; the predecessor is anything in the plan, found by name as on the project page; then the type and the lag. Nothing moves: a link that
