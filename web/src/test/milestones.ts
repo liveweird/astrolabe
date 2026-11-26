@@ -1,4 +1,4 @@
-// Shared fixtures for the Milestones page: a row and a page as GET /milestones answers them.
+// Shared fixtures for the MilestoneSelect and dependency panel tests: a row and a page as GET /milestones answers them.
 import type { components } from "../api/schema";
 
 type Item = components["schemas"]["MilestoneListItem"];

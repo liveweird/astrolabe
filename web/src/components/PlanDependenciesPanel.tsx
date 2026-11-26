@@ -20,7 +20,7 @@ const OPEN_KEY = "roadmap.dependenciesOpen";
  * Hidden by default and remembered per browser; a hidden panel is not rendered (so it does not print, heading included) and is not READ either (`enabled`). The address
  * names it too (`dependencies=all|violated|ok|unscheduled`, `dependencyTeamId`, `dependencyProjectId`): such a link OPENS it for that visit without
  * writing the memory and moves the focus to the heading once. The panel never writes the address on its own; a filter change writes it (`replace`),
- * and hiding a panel the address opened takes the word away, or it would stay open. Since the dependency panel went (1.29) this is the ONE place the list lives:
+ * and hiding a panel the address opened takes the word away, or it would stay open. Since the Dependencies page went (1.29) this is the ONE place the list lives:
  * Home's figures, the team page's links and an old `/dependencies` bookmark open it by the address (`utils/dependencyListLinks.ts`), the row menus by an action.
  */
 export default function PlanDependenciesPanel() {

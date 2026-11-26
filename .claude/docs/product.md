@@ -415,7 +415,7 @@ Released on the user's word ("release 1.20 and 1.21", 2026-11-15), right after 1
 - Q5 the slimmer document built last (not (b) skipped, not (c) the check's null members dropped).
 
 **Defaults taken:** the address spellings (`programId` canonical, `severity` and `unranked` exact words) and the team options (`listEveryTeam`, at most 20 pages) are `web-internals.md`'s ("The URL holds the filters", "The program pick", "Shared list-page and dialog mechanics"); the focus helper takes the menu it came from;
-the Dependencies page resolves names in its query function, not in `select` (`web-internals.md` "Dependencies"; the reason is in `Dependencies.tsx`'s comment), and a document naming something it does not hold is a `MalformedAnswerError`, never retried (`web/CLAUDE.md` "Query retry").
+the dependency panel resolves names in its query function, not in `select` (`web-internals.md` "Dependencies"; the reason is in the comment on `readDependencyList` in `web/src/hooks/usePlanDependencies.ts`), and a document naming something it does not hold is a `MalformedAnswerError`, never retried (`web/CLAUDE.md` "Query retry").
 **Not built:** the alternatives of Q2b to Q4c, each a `[new]` `BACKLOG.md` line; warning weeks from today and the focus after ranking the last unranked row were built in 1.22.
 
 ### v1.20.0 — what shipped

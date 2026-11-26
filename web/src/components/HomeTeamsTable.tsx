@@ -15,7 +15,7 @@ import TeamSwatch from "./TeamSwatch";
 /**
  * "Your teams": the figures of the team page's header and facts line. Capacity is its two orange badges, Jira its chip's count badge (a link into the
  * Deviations page filtered to the team, only when positive; "may be out of date" is said once by the section) and Flow the header's sentence badge.
- * A positive "Not scheduled" count is the link to the Milestones page's list for this team (the same set), named with its row; the capacity badges stay
+ * A positive "Not scheduled" count is the link to the team page's Unscheduled tray for this team (the same set), named with its row; the capacity badges stay
  * badges (the team's name opens the page that shows them first).
  */
 export default function HomeTeamsTable({ teams }: { teams: HomeMe["teams"] }) {

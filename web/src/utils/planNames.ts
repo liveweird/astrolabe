@@ -3,7 +3,7 @@ import { byNameThenId, compareNames } from "./text";
 
 /**
  * The names a URL's ids stand for, from the plan view (everyone reads it, and the Plan page's cache entry serves it): the scope chips on the
- * Deviations and Milestones pages say "Project: Checkout", not a number.
+ * Deviations pages say "Project: Checkout", not a number.
  */
 export function planNames(plan: PlanView | undefined) {
   const projects = new Map<number, string>();

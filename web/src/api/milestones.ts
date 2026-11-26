@@ -33,8 +33,7 @@ type MilestoneListQuery = {
 };
 
 /**
- * The paged milestone list across every project (each row carries `projectName` and `teamName`) - the dependency pickers' search and the
- * Milestones page; `name` is a case- and accent-insensitive substring, the other filters narrow by schedule, team, work stream, program and project. The sort keys include `rankPosition` and `startDate`
+ * The paged milestone list across every project (each row carries `projectName` and `teamName`) - the milestone pickers' search; `name` is a case- and accent-insensitive substring, the other filters narrow by schedule, team, work stream, program and project. The sort keys include `rankPosition` and `startDate`
  * (nulls last both ways).
  */
 export async function listMilestones(q: MilestoneListQuery): Promise<MilestonePage> {
