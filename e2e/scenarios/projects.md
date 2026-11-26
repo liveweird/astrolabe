@@ -30,6 +30,13 @@
 5. They press the browser's Back button.
    - *Expected*: the first project's page is back (the pick was a push).
 
+## Scenario: the picker finds a project by the name of one of its milestones and shows it under the project's own name
+
+1. The administrator opens the second seeded project's page, opens the picker and types the unique name of the first project's scheduled milestone.
+   - *Expected*: exactly one option is offered, the first project's own (its name), with a dimmed line "Milestone: " and the milestone's name.
+2. They pick it.
+   - *Expected*: the address is the first project's page and its name is the heading.
+
 ## Scenario: the project page's Milestones table narrows by Schedule and name, and hides, remembered in this browser
 
 1. The administrator opens the first seeded project's page.
@@ -46,7 +53,7 @@
 
 ## Not covered here (and why)
 
-- The grouping "Work stream › Program", the closed-stream mark, the accent folding and the picker's not being clearable: pinned by the
+- The grouping "Work stream › Program", the closed-stream mark, the accent folding, the "+N more" milestones, the cut and failed milestone searches and the picker's not being clearable: pinned by the
   unit tests (`projectPicker.test.ts`, `ProjectPicker.test.tsx`); the dropdown's axe scan is the closed control on `/projects`
   (`accessibility.spec.ts`).
 - The team filter, the sort headers, the accent-folded name match and the swatch beside the team's name: pinned by the unit tests

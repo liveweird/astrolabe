@@ -9,9 +9,13 @@
   "noProjectsHint": "Projekty dodaje się na stronie Plan.",
   "openPlan": "Otwórz plan",
   "picker": {
-    "placeholder": "Projekt, program lub właściciel/ka",
+    "placeholder": "Projekt, program, właściciel/ka lub kamień milowy",
     "nothingFound": "Żaden projekt nie pasuje",
-    "closedStream": "(zamknięty)"
+    "closedStream": "(zamknięty)",
+    "milestone": "Kamień milowy: {{name}}",
+    "milestoneMore": "Kamień milowy: {{name}} (+{{more}} więcej)",
+    "milestonesFailed": "Nie udało się przeszukać kamieni milowych; wyniki dla projektów, programów i właścicieli/ek są nadal widoczne.",
+    "milestonesCut": "Sprawdzamy tylko pierwsze {{limit}} znalezionych kamieni milowych; wpisz więcej, aby zawęzić wyszukiwanie."
   },
   "notFound": "Ten projekt już nie istnieje.",
   "loadFailed": "Nie udało się wczytać projektu",

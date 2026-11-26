@@ -1,5 +1,5 @@
 // The Projects page (/projects, /projects/:id): a bare /projects opens the project this browser viewed last and forgets one that is gone, and
-// the picker above a project's title finds a project by its program's name (and its owner's) and opens the pick as a history entry, and the
+// the picker above a project's title finds a project by its program's name (and its owner's, or one of its milestones' names) and opens the pick as a history entry, and the
 // project page's Milestones table narrows by Schedule (in the address) and name and hides, remembered in the browser. Owns: its throwaway team,
 // people, work stream, program, two projects and two milestones of the first (unique `e2e-pp-*` names), seeded through the API and deleted by the
 // afterEach through the API (projects first - their milestones go with them - then program, work stream, people, team). Read-only in the browser:
@@ -101,6 +101,25 @@ test("the picker finds a project by its program's name or its owner's and a pick
 
   // A push, not a replace: Back returns to the project before.
   await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`/projects/${world.alpha.id}$`));
+  await expect(page.getByRole("heading", { level: 2, name: world.alpha.name })).toBeVisible();
+});
+
+test("the picker finds a project by the name of one of its milestones and shows it under the project's own name", async ({ page }) => {
+  const world = await seedWorld();
+  const { built } = await seedMilestones(world);
+  await login(page);
+  await page.goto(`/projects/${world.beta.id}`);
+  await expect(page.getByRole("heading", { level: 2, name: world.beta.name })).toBeVisible();
+  const picker = page.getByRole("combobox", { name: "Project", exact: true });
+  await picker.click();
+  await picker.fill(built);
+  // Only the first project owns that milestone: its own option, a dimmed line naming the milestone.
+  const option = page.getByRole("option");
+  await expect(option).toHaveCount(1);
+  await expect(option).toContainText(world.alpha.name);
+  await expect(option).toContainText(`Milestone: ${built}`);
+  await option.click();
   await expect(page).toHaveURL(new RegExp(`/projects/${world.alpha.id}$`));
   await expect(page.getByRole("heading", { level: 2, name: world.alpha.name })).toBeVisible();
 });
