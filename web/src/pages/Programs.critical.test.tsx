@@ -149,7 +149,7 @@ const liveText = () => screen.getAllByRole("status").map((region) => region.text
 /** The names of the outlined summary bars (a folded node's, an open project's span bar). */
 const criticalBars = () => [...document.querySelectorAll('[data-tone="summary"][data-critical="true"]')].map((bar) => bar.getAttribute("aria-label"));
 const arrows = () => [...document.querySelectorAll("[data-arrow]")].map((arrow) => [arrow.getAttribute("data-arrow"), arrow.getAttribute("data-critical")]);
-const projectRows = () => within(grid()).queryAllByRole("link", { name: /^Open / }).map((link) => link.textContent);
+const projectRows = () => within(grid()).queryAllByRole("link", { name: /^Open project / }).map((link) => link.textContent);
 
 async function pickFromToolbar(user: ReturnType<typeof userEvent.setup>, name: string) {
   await user.click(await picker());

@@ -507,7 +507,7 @@ test.describe("detail pages and overlays", () => {
         // plan) virtualises the grid, and the fixture rows - ranked last - would not be mounted.
         await page.evaluate(([key, value]) => localStorage.setItem(key, value), ["astrolabe.viewSettings.planning.programPick", JSON.stringify([fixtureProgramId])]);
         await page.goto("/roadmap");
-        await expect(page.getByRole("link", { name: `Open ${projectName}`, exact: true })).toBeVisible();
+        await expect(page.getByRole("link", { name: `Open project ${projectName}`, exact: true })).toBeVisible();
         await expect(page.getByRole("grid", { name: "Roadmap timeline" })).toBeVisible();
         await openRoadmapPanels(page);
         await expectScheme(page, scheme);
@@ -535,8 +535,8 @@ test.describe("detail pages and overlays", () => {
       await page.goto("/roadmap?mode=overview");
       await expect(page.getByRole("grid", { name: "Programs timeline" })).toBeVisible();
       await page.getByRole("button", { name: `Program ${programName}`, exact: true }).click();
-      await expect(page.getByRole("link", { name: `Open ${projectName}`, exact: true })).toBeVisible();
-      await expect(page.getByRole("link", { name: `Open ${linkedProjectName}`, exact: true })).toBeVisible();
+      await expect(page.getByRole("link", { name: `Open project ${projectName}`, exact: true })).toBeVisible();
+      await expect(page.getByRole("link", { name: `Open project ${linkedProjectName}`, exact: true })).toBeVisible();
       await expect(page.locator('[data-arrow][data-violated="true"]')).toHaveCount(1);
       await expectScheme(page, scheme);
       await scan(page);
@@ -928,7 +928,7 @@ test.describe("a baseline on the plan", () => {
       await pickBaselineAndProgram(page);
       await page.goto("/roadmap");
       await expect(page.getByRole("grid", { name: "Roadmap timeline" })).toBeVisible();
-      await expect(page.getByRole("link", { name: `Open ${projectName}`, exact: true })).toBeVisible();
+      await expect(page.getByRole("link", { name: `Open project ${projectName}`, exact: true })).toBeVisible();
       await expect(page.getByLabel("Baseline", { exact: true })).toHaveValue(new RegExp(baselineName));
       await expect(page.locator('[data-tone="baseline"]').first()).toBeAttached();
       await expect(page.getByRole("note").first()).toBeVisible(); // the totals line
@@ -942,7 +942,7 @@ test.describe("a baseline on the plan", () => {
       await page.goto("/roadmap?mode=overview");
       await expect(page.getByRole("grid", { name: "Programs timeline" })).toBeVisible();
       await page.getByRole("button", { name: /^Program e2e-axe-bl-program/ }).click();
-      await expect(page.getByRole("link", { name: `Open ${projectName}`, exact: true })).toBeVisible();
+      await expect(page.getByRole("link", { name: `Open project ${projectName}`, exact: true })).toBeVisible();
       await expect(page.getByLabel("Baseline", { exact: true })).toHaveValue(new RegExp(baselineName));
       await expect(page.locator('[data-tone="baseline"]').first()).toBeAttached();
       await expect(page.getByRole("note").first()).toBeVisible(); // the totals line
@@ -996,7 +996,7 @@ test.describe("a baseline on the plan", () => {
         await page.evaluate(([key, value]) => localStorage.setItem(key, value), ["astrolabe.viewSettings.planning.programPick", JSON.stringify([programId])]);
         await page.goto("/roadmap");
         await expect(page.getByRole("grid", { name: "Roadmap timeline" })).toBeVisible();
-        await expect(page.getByRole("link", { name: `Open ${projectName}`, exact: true })).toBeVisible();
+        await expect(page.getByRole("link", { name: `Open project ${projectName}`, exact: true })).toBeVisible();
         await scanOpenMenu(projectName);
       } finally {
         await updateRankingViaApi(api, (ranked) => ranked.filter((id) => id !== projectId));
@@ -1192,7 +1192,7 @@ test.describe("the Jira pages", () => {
       await page.evaluate(([key, value]) => localStorage.setItem(key, value), ["astrolabe.viewSettings.planning.programPick", JSON.stringify([programId])]);
       await page.goto("/roadmap");
       await expect(page.getByRole("grid", { name: "Roadmap timeline" })).toBeVisible();
-      await expect(page.getByRole("link", { name: `Open ${projectName}`, exact: true })).toBeVisible();
+      await expect(page.getByRole("link", { name: `Open project ${projectName}`, exact: true })).toBeVisible();
       await page.getByRole("button", { name: /^Show the \d+ flags?$/ }).click();
       await expect(page.getByRole("table", { name: "Flags of the projects shown" })).toContainText("1 milestone deviates from Jira");
       await expectScheme(page, scheme);

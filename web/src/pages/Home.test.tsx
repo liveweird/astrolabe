@@ -291,7 +291,7 @@ describe("Home", () => {
       await screen.findByRole("table", { name: "Your projects" });
       expect(headingOutline()).toEqual([...OUTLINE, [4, "Your projects"], [4, "Your teams"]]);
       expect(screen.getByText("Your login is linked to the person Alex Example.")).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Open Ledger" })).toHaveAttribute("href", "/projects/7");
+      expect(screen.getByRole("link", { name: "Open project Ledger" })).toHaveAttribute("href", "/projects/7");
       expect(screen.getByRole("link", { name: "Open team Payments" })).toHaveAttribute("href", "/teams/4");
     });
 
@@ -353,14 +353,14 @@ describe("Home", () => {
       stubViews({ home: () => (ok ? jsonResponse(200, homeView({ me: homeMe({ projects: [PROJECT] }) })) : jsonResponse(500, { title: "Boom", status: 500 })) });
       const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
       renderWithProviders(<Home />, { queryClient });
-      expect(await screen.findByRole("link", { name: "Open Ledger" })).toBeInTheDocument();
+      expect(await screen.findByRole("link", { name: "Open project Ledger" })).toBeInTheDocument();
       ok = false;
       await act(async () => {
         await queryClient.invalidateQueries({ queryKey: HOME_VIEW_KEY });
       });
       const alert = await screen.findByText("Could not read the plan's figures");
       expect(screen.getAllByRole("alert")).toHaveLength(1);
-      expect(screen.getByRole("link", { name: "Open Ledger" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Open project Ledger" })).toBeInTheDocument();
       const yours = screen.getByRole("heading", { level: 3, name: "Yours" });
       expect(alert.compareDocumentPosition(yours) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });

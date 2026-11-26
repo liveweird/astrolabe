@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import type { UserResponse } from "../api/users";
 import { editUserPath, userFeaturesPath, userPermissionsPath } from "../utils/userLinks";
 import DestructiveMenuItem from "./DestructiveMenuItem";
+import EntityLink from "./EntityLink";
 import RowActionsMenu from "./RowActionsMenu";
 
 /** One row of the Users table: the name (with the "You" badge on the caller's own row), the email, the role and the row's actions menu. */
@@ -27,9 +28,7 @@ export default function UserTableRow({
     <Table.Tr>
       <Table.Td>
         <Group gap={6} wrap="nowrap">
-          <Text size="sm" fw={500}>
-            {user.name}
-          </Text>
+          <EntityLink entity={{ kind: "user", id: user.id }} name={user.name} size="sm" fw={500} />
           {self && <Badge size="xs">{t("users.youBadge")}</Badge>}
         </Group>
       </Table.Td>

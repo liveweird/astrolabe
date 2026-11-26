@@ -8,7 +8,6 @@
   "loadFailed": "Nie udało się wczytać zespołów",
   "notFound": "Ten zespół nie istnieje (albo ktoś go usunął).",
   "backToTeams": "Wróć do zespołów",
-  "openAria": "Otwórz zespół {{name}}",
   "column": {
     "manager": "Kierownik/czka"
   },

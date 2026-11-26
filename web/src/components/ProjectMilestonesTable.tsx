@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link as RouterLink, useSearchParams } from "react-router-dom";
-import { Anchor, Box, Button, Group, Select, Stack, Table, Text, Title } from "@mantine/core";
+import { useSearchParams } from "react-router-dom";
+import { Box, Button, Group, Select, Stack, Table, Text, Title } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { IconTimelineEvent } from "@tabler/icons-react";
 import type { ProjectMilestone, ProjectView } from "../api/milestones";
@@ -21,7 +21,6 @@ import {
   type MilestoneSortDir,
   type MilestoneSortField,
 } from "../utils/projectMilestones";
-import { teamPath } from "../utils/teamLinks";
 import type { TeamColour } from "../utils/teamColours";
 import ClearableTextInput from "./ClearableTextInput";
 import EmptyState from "./EmptyState";
@@ -30,6 +29,7 @@ import SortHeader from "./SortHeader";
 import TableDisclosure from "./TableDisclosure";
 import TeamFilterSelect from "./TeamFilterSelect";
 import TeamNameCell from "./TeamNameCell";
+import EntityLink from "./EntityLink";
 
 const TABLE_MAX_HEIGHT = 420;
 const NO_WRAP = { whiteSpace: "nowrap" } as const;
@@ -48,9 +48,9 @@ function MilestoneRow({ milestone, colour }: { milestone: ProjectMilestone; colo
         </Text>
       </Table.Td>
       <Table.Td>
-        <Anchor component={RouterLink} to={teamPath(milestone.teamId)} size="sm" aria-label={t("teams.openAria", { name: milestone.teamName })}>
+        <EntityLink entity={{ kind: "team", id: milestone.teamId }} name={milestone.teamName} size="sm">
           <TeamNameCell name={milestone.teamName} colour={colour} />
-        </Anchor>
+        </EntityLink>
       </Table.Td>
       <Table.Td style={NO_WRAP}>
         <Text size="sm">{milestone.estimateMd}</Text>

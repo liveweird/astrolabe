@@ -1,20 +1,18 @@
 import type { ReactNode } from "react";
-import { Anchor, Group, Menu, Text } from "@mantine/core";
-import { Link as RouterLink } from "react-router-dom";
+import { Group, Menu, Text } from "@mantine/core";
 import type { TFunction } from "i18next";
 import type { TeamChainMember, TeamCriticalChain, TeamMilestone, TeamView } from "../api/teams";
 import { barList, type BaselineRow } from "../utils/baselineOverlay";
 import { baselineUnscheduledIds, jiraScheduleDates, jiraTrayRowId, jiraTrayRows } from "../utils/jiraBars";
-import { projectPath } from "../utils/planLinks";
 import { ghostRowId } from "../utils/dependencyArrows";
 import { orderedMembers } from "../utils/teamChain";
 import { teamTint, type TeamColour } from "../utils/teamColours";
-import { teamPath } from "../utils/teamLinks";
 import type { RovingTarget, TimelineBarData, TimelineRowData } from "../utils/timelineModel";
 import { AppendedRowName, BaselineRowName } from "./BaselineParts";
 import JiraRowMenu from "./JiraRowMenu";
 import SlackCell from "./SlackCell";
 import { OpenProjectItem, OpenProjectMenu } from "./TeamTimelineMenu";
+import EntityLink from "./EntityLink";
 
 /*
  * The appended rows of the team timeline that carry a dashed Jira bar or a baseline shadow: the pure builders `TeamTimeline` composes (the baseline's
@@ -136,9 +134,7 @@ export function chainGhostRows(
         <Text component="span" size="sm" c="dimmed" truncate>
           {member.name}
         </Text>
-        <Anchor component={RouterLink} to={teamPath(teamId)} size="sm" c="dimmed" truncate aria-label={t("teams.openAria", { name: teamName })} {...stop}>
-          {teamName}
-        </Anchor>
+        <EntityLink entity={{ kind: "team", id: teamId }} name={teamName} size="sm" c="dimmed" truncate stop={stop} />
       </Group>
     );
   };
@@ -159,9 +155,7 @@ export function chainGhostRows(
         [
           nameCell(member),
           (stop: RovingTarget) => (
-            <Anchor component={RouterLink} to={projectPath(member.projectId)} size="sm" c="dimmed" truncate title={member.projectName} aria-label={t("teams.view.openProjectAria", { name: member.projectName })} {...stop}>
-              {member.projectName}
-            </Anchor>
+            <EntityLink entity={{ kind: "project", id: member.projectId }} name={member.projectName} size="sm" c="dimmed" truncate title={member.projectName} stop={stop} />
           ),
           "",
           null,

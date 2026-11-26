@@ -281,11 +281,11 @@ describe("Roadmap page: the critical path to a picked project", () => {
     const user = userEvent.setup();
     renderWithProviders(<Roadmap />);
     await waitForGrid();
-    expect(screen.queryByRole("link", { name: "Open Taxes" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Open project Taxes" })).toBeNull();
     await pickFromToolbar(user, "Audit");
     const table = await screen.findByRole("table", { name: "Projects upstream of Audit" });
-    expect(within(table).getByRole("link", { name: "Open Taxes" }).closest("tr")).toHaveTextContent("Taxes (not shown)");
-    expect(within(table).getByRole("link", { name: "Open Invoices" }).closest("tr")).not.toHaveTextContent("(not shown)");
+    expect(within(table).getByRole("link", { name: "Open project Taxes" }).closest("tr")).toHaveTextContent("Taxes (not shown)");
+    expect(within(table).getByRole("link", { name: "Open project Invoices" }).closest("tr")).not.toHaveTextContent("(not shown)");
   });
 
   test("a 400 for the target clears the selection, says so inline and fetches the plain view once", async () => {

@@ -211,18 +211,18 @@ describe("Programs page", () => {
     renderWithProviders(<Programs />);
     await waitForGrid();
     await user.click(screen.getByRole("button", { name: "Expand all" }));
-    const invoices = within(grid()).getByRole("link", { name: "Open Invoices" }).closest('[role="row"]') as HTMLElement;
+    const invoices = within(grid()).getByRole("link", { name: "Open project Invoices" }).closest('[role="row"]') as HTMLElement;
     expect(within(invoices).getByRole("img", { name: "Invoices, 2026-03-02 to 2026-04-10, 1 conflict, read-only" })).toHaveAttribute("data-tone", "summary");
     expect(within(invoices).getByRole("img", { name: "Invoices, target window 2026-02-01 to 2026-03-31, read-only" })).toHaveAttribute("data-tone", "window");
     expect(invoices.querySelector('[title="10 days past the target end"]')).not.toBeNull();
     expect(invoices.querySelector("[data-flags]")).toHaveAttribute("data-flags", "1,1");
     expect(invoices).toHaveTextContent("Ola Owner");
-    expect(within(grid()).getByRole("link", { name: "Open Invoices" })).toHaveAttribute("href", "/projects/1");
+    expect(within(grid()).getByRole("link", { name: "Open project Invoices" })).toHaveAttribute("href", "/projects/1");
     // No handle, no button-like bar, no draw surface, no window item in the menu (1.16: it holds the critical-path item beside Open project).
     expect(document.querySelectorAll("[data-row-handle]")).toHaveLength(0);
     expect(document.querySelectorAll("[data-draw-surface]")).toHaveLength(0);
     expect(within(grid()).queryByRole("button", { name: /^Invoices, / })).toBeNull();
-    expect(within(within(grid()).getByRole("link", { name: "Open Drafts" }).closest('[role="row"]') as HTMLElement).queryByRole("img")).toBeNull();
+    expect(within(within(grid()).getByRole("link", { name: "Open project Drafts" }).closest('[role="row"]') as HTMLElement).queryByRole("img")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Operations for Invoices" }));
     expect(await screen.findByRole("menuitem", { name: "Open project Invoices" })).toBeInTheDocument();
     expect(screen.getAllByRole("menuitem").map((item) => item.getAttribute("aria-label"))).toEqual(["Show critical path to this project: Invoices", "Dependencies of Invoices", "Open project Invoices"]);

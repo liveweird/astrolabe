@@ -99,8 +99,8 @@ Every list page composes the same ported Lettuce blocks — copy `pages/Users.ts
   through `refreshQueriesAfterMutation(queryClient, ["area"], ...)` (`utils/queryRefresh.ts`) after success only (it cancels all affected groups before
   invalidating them). `focusAfterDelete` is required: the page's `PageHeader` `titleRef` (the title is `tabIndex={-1}`, never a tab stop), a section's own h3
   ref, or `null` where the delete navigates away; a failed delete never arms it. `ConfirmActionModal` is the non-destructive sibling (labels arrive translated).
-- **An entity's NAME is the way into its detail page** — a `RouterLink` `Anchor` with an interpolated accessible name (`common.action.editAria` "Edit {{name}}"
-  or an area `openAria`), a real link, not an onClick. Route families are spelled out ONCE in `utils/<area>Links.ts` — never hand-assemble a URL.
+- **An entity's NAME is the way into its detail page** — `components/EntityLink.tsx` (a real link named `common.entity.open.<kind>`; `entityLinkGuard.test.ts`
+  bans a hand-built one; where not to link: web-internals "Entity links"). Route families are spelled out ONCE in `utils/<area>Links.ts`.
 - **Row actions**: aria-labels are interpolated (`<area>.editAria`); table tests query cells by **text**. A row with more than two actions bundles them under
   `components/RowActionsMenu.tsx` (icon-only kebab named `common.table.operationsAria`); a per-row `Switch` is state, not an action. A destructive item is
   `components/DestructiveMenuItem.tsx`, never `Menu.Item color="red"`; an item's `aria-label` must contain its visible text ("Move to top: {{name}}"). **A

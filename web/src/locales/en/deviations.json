@@ -93,7 +93,6 @@
     "observed": "Data as of"
   },
   "node": {
-    "openProjectAria": "Open {{name}}",
     "openMilestoneAria": "{{name}} - open project {{project}}",
     "team": "Team {{name}}"
   },
@@ -348,7 +347,6 @@
         "differences": "Differences",
         "observed": "Data as of"
       },
-      "openTeamAria": "Open team {{name}}",
       "pending": "Waiting for a complete Flow refresh",
       "pendingHint": "Astrolabe compares this team after its connection completes a full Flow refresh."
     },

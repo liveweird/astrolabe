@@ -303,12 +303,12 @@ async function scanBothSchemes(page: Page, url: string, ready: () => Promise<voi
 async function openRoadmap(page: Page): Promise<void> {
   await page.goto(`/roadmap?programId=${world.plan.programId}`);
   await expect(page.getByRole("grid", { name: "Roadmap timeline" })).toBeVisible();
-  await expect(page.getByRole("link", { name: `Open ${world.plan.project}`, exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: `Open project ${world.plan.project}`, exact: true })).toBeVisible();
 }
 
 /** The Roadmap's row of the world's project; its Flags cell's `data-flags` reads "warnings,infos" and is absent when the row has no flag. */
 const roadmapRow = (page: Page): Locator =>
-  page.getByRole("grid", { name: "Roadmap timeline" }).getByRole("row").filter({ has: page.getByRole("link", { name: `Open ${world.plan.project}`, exact: true }) });
+  page.getByRole("grid", { name: "Roadmap timeline" }).getByRole("row").filter({ has: page.getByRole("link", { name: `Open project ${world.plan.project}`, exact: true }) });
 
 /** The Programs page narrowed to the world's own program; the work stream opens expanded, the program folded. */
 async function openPrograms(page: Page): Promise<void> {
@@ -321,7 +321,7 @@ async function openPrograms(page: Page): Promise<void> {
 const nodeRow = (page: Page, label: string): Locator =>
   page.getByRole("grid", { name: "Programs timeline" }).getByRole("row").filter({ has: page.getByRole("button", { name: label, exact: true }) });
 const programsProjectRow = (page: Page): Locator =>
-  page.getByRole("grid", { name: "Programs timeline" }).getByRole("row").filter({ has: page.getByRole("link", { name: `Open ${world.plan.project}`, exact: true }) });
+  page.getByRole("grid", { name: "Programs timeline" }).getByRole("row").filter({ has: page.getByRole("link", { name: `Open project ${world.plan.project}`, exact: true }) });
 
 test("the Roadmap and the Programs page flag the project scheduled in a disputed sprint and name its team", async ({ page }) => {
   const manager = await apiAsManager();

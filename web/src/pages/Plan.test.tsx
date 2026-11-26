@@ -850,7 +850,7 @@ describe("Plan page: Import from a linked project (1.15)", () => {
     };
     renderWithProviders(<Plan />);
     await findPlanTree();
-    await screen.findByRole("link", { name: "Open Taxes" });
+    await screen.findByRole("link", { name: "Open project Taxes" });
     expect(linkCalls(mockFetch)).toEqual([]);
     expect(deviationCalls(mockFetch)).toEqual([]);
   });
@@ -938,7 +938,7 @@ describe("Plan page project links", () => {
     localStorage.setItem("astrolabe.auth.token", "fake-token");
     serve(mockFetch);
     renderWithProviders(<Plan />);
-    const link = await screen.findByRole("link", { name: "Open Invoices" });
+    const link = await screen.findByRole("link", { name: "Open project Invoices" });
     expect(link).toHaveAttribute("href", "/projects/100");
     expect(link).toHaveTextContent("Invoices");
   });

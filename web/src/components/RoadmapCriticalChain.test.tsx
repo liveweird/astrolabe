@@ -49,13 +49,13 @@ describe("RoadmapCriticalChain", () => {
       ["1", "Gamma", "Prog 3", "2027-01-04 – 2027-01-29", "0 working days", "On the chain"],
       ["2", "Beta", "Prog 2", "2027-02-01 – 2027-02-26", "6 working days", ""],
     ]);
-    const link = screen.getByRole("link", { name: "Open Gamma" });
+    const link = screen.getByRole("link", { name: "Open project Gamma" });
     expect(link).toHaveAttribute("href", "/projects/3");
   });
 
   test("an upstream project the filters hide is still listed, with a dimmed (not shown) mark", () => {
     renderWithProviders(panel(viewOf(chain([{ projectId: 3, slackDays: 0, critical: true, hops: 1 }])), new Set([1, 2])));
-    const row = screen.getByRole("link", { name: "Open Gamma" }).closest("tr")!;
+    const row = screen.getByRole("link", { name: "Open project Gamma" }).closest("tr")!;
     expect(row).toHaveTextContent("Gamma (not shown)");
   });
 
@@ -81,6 +81,6 @@ describe("RoadmapCriticalChain", () => {
     const view = viewOf(chain([{ projectId: 3, slackDays: 0, critical: true, hops: 1 }]));
     renderWithProviders(<RoadmapCriticalChain projects={allProjects(view)} criticalPath={view.criticalPath} shown={new Set([1, 2])} intro="programs.critical.intro" notShown="programs.critical.notShown" />);
     expect(screen.getByText(/Projects in a folded row or outside the program pick are listed too\./)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open Gamma" }).closest("tr")).toHaveTextContent("Gamma (folded or not picked)");
+    expect(screen.getByRole("link", { name: "Open project Gamma" }).closest("tr")).toHaveTextContent("Gamma (folded or not picked)");
   });
 });

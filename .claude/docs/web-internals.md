@@ -14,6 +14,7 @@ section of the page you touch before changing it, and put a new page's mechanics
 - [Transport and session layer](#transport-and-session-layer)
 - [Error boundaries, chunk reload and toasts](#error-boundaries-chunk-reload-and-toasts)
 - [Shared list-page and dialog mechanics](#shared-list-page-and-dialog-mechanics)
+- [Entity links](#entity-links)
 - [Timeline mechanics](#timeline-mechanics-componentstimelinetsx)
 
 **Pages in nav order**
@@ -363,6 +364,24 @@ The rules: `web/CLAUDE.md` "Registries" and "Forms". The small ADMIN-curated reg
 - The field limits mirror the server's own validation (`infra/validation/Text.kt`'s `requireNameAndDescription`); form rules (`utils/formRules.ts`'s shared
   `nameRule`/`descriptionRule`), submit/conflict handling and any parent/target fields stay local.
 
+## Entity links
+
+Files: `components/EntityLink.tsx`, `utils/entityLinks.ts`, `entityLinkGuard.test.ts`; the rule: `web/CLAUDE.md` "An entity's NAME is the way into its detail page".
+
+- **`EntityRef`** is `{kind: workStream|program|project|team|person|user, id}` or `{kind: "milestone", id, projectId}`; `entityPath(ref)` dispatches to the area's own helper: `/projects/P`, a milestone
+  `/projects/P?milestone=M` (`milestonePath`), team, person, a login's ADMIN edit page, a program the Roadmap overview narrowed by its pick (`programPath`: `?mode=overview&programId=N`) and a work stream
+  the overview narrowed by `workStreamId` (`workStreamPath`). The overview and the project page read the last two parameters from the commits that follow the ids reaching the views.
+- **`<EntityLink entity name>`**: a `RouterLink` `Anchor` in the theme's look (no colour or underline prop), visible text the name (or `children`, a team's swatch), accessible name
+  `common.entity.open.<kind>` ("Open project {{name}}"; `aria-label` replaces it and must start with the visible text, `to` replaces the destination). A null `entity` or `current` is the same typography as
+  plain text; a `user` links for an ADMIN only. A figure leading to an entity's page spells `to={entityPath(...)}`; the guard fails `to={projectPath(...)}` and siblings outside `EntityLink` and the three
+  files with menu items (whose visible text is the action).
+- **Where NOT to link** (text, not a link): (1) the page's own subject (h2, the narrowed node's header, the last breadcrumb step, a milestone's own marked row); (2) a label of another control (select
+  options, menu items, chevrons, checkboxes, handles, filter chips); (3) inside a dialog; (4) not rendered text (bar and handle names, `title`, arrow titles, live regions, toasts); (5) an entity gone or
+  foreign (removed or frozen baseline rows, a deleted login, raw Jira or Flow values); (6) prose or the session (changelog, account menu); (7) an unknown id, never a guessed link.
+- **Keyboard**: a native table gives every link a tab stop. A Timeline grid keeps one stop per cell (`useRovingGrid`): the link takes `stop` where its cell has no other focusable, else it is `secondary`
+  (`tabIndex -1`; the props exclude both at once). Later 1.31 commits add the row menu's "Open ..." item for it and make the Plan tree's fold button chevron-only, the name link beside it.
+- Keys: `common.entity.open.{workStream,program,project,milestone,team,person,user}` (EN/PL). Names never pass through `<Trans>` values.
+
 ## Timeline mechanics (`components/Timeline*.tsx`)
 
 The binding reference is `timeline.md` (coordinate model, data contract, arrows, load strip, drag/resize/keyboard contract, row drag, draw gesture,
@@ -503,10 +522,10 @@ linked person may manage through the owner chain (what they own and everything u
     (programs, projects, flags) still count the rows under it, the document's own; the teams are untouched.
   - A table it empties keeps its h4 and says `home.mine.ownOnlyNoProjects|NoPrograms` ("You do not own any of the listed projects yourself."), a claim about the LISTED rows only,
     because the document may have cut the list (`truncated`); the page never says "owns nothing" while the unfiltered list has rows.
-- *Your projects* (`HomeProjectsTable`): the name (a link to `projectPath`, `plan.openProjectAria`), program, owner (`ownerName`: the person's own name on a `direct` row, the owner's
+- *Your projects* (`HomeProjectsTable`): the name (a link to `projectPath`, `common.entity.open.project`), program, owner (`ownerName`: the person's own name on a `direct` row, the owner's
   on an inherited one), rank (or "Unranked"), milestones, not scheduled (a link when positive), the flag badges (`HomeFlagBadges`: orange warnings, gray infos, each only when
   positive) and the red conflicts badge (a link, see the table below).
-- *Your teams* (`HomeTeamsTable`): the name (a link to `teamPath`, `teams.openAria`), milestones, not scheduled (a link when positive), the two orange capacity badges of the team
+- *Your teams* (`HomeTeamsTable`): the name (a link to `teamPath`, `common.entity.open.team`), milestones, not scheduled (a link when positive), the two orange capacity badges of the team
   page, conflicts (a link), the Jira chip's count badge (`DeviationCount`, a link to `deviationsForTeamPath`, only when positive, `stale={false}`) and the header's Flow sentence badge
   (`TeamFlags`, shared with `TeamPageHeader`: one badge serves both).
 - *Your programs and work streams* (`HomeNodesTable`): work streams then programs by name, each a link to the filtered Roadmap (a closed work stream as `plan.move.closedName`;
@@ -542,7 +561,7 @@ builder (`roadmapFilteredPath`, `projectUnscheduledPath`, `teamLoadWarningPath`)
   figure being `project.conflicts`' own words.
 - The Roadmap card's two flag badges each name their own destination (`home.roadmap.warningsAria` "{{figure}}: the projects with a warning on the roadmap", `home.roadmap.infosAria`
   likewise; the unranked line is named by its own text); the violated badge is unique and needs no extra name.
-- None contains the e2e's exact names ("Open the plan", "Open the roadmap", "Open the roadmap overview", "Open <project>", "Open team <name>").
+- None contains the e2e's exact names ("Open the plan", "Open the roadmap", "Open the roadmap overview", "Open project <name>", "Open team <name>").
 
 ### The Deviations card
 
@@ -661,7 +680,7 @@ Files:
 
 ### Route and data
 
-`/projects/:id` (the Projects leaf; the Plan page's project NAME links it, `plan.openProjectAria`; `projectPath(id)` in `utils/planLinks.ts`; the picker and the bare `/projects`: `projects-view.md`) renders
+`/projects/:id` (the Projects leaf; the Plan page's project NAME links it, `common.entity.open.project`; `projectPath(id)` in `utils/planLinks.ts`; the picker and the bare `/projects`: `projects-view.md`) renders
 `GET /views/project/{id}` under `["plan","project",id]` - under the `["plan"]` prefix, so every Plan mutation also refreshes a mounted project view. `ProjectView` is
 `<ProjectPage key={id}>`, so another project starts with its own range and editors.
 
@@ -855,7 +874,7 @@ session's roles): without it there is no handle, no ranking item in the menu, an
 
 - Rows: one per project in rank order, then an "Unranked" divider row (present only while something unranked is visible) and the unranked projects (by name).
 - Left columns, 404 px sticky: `#` (the SERVER's position, "—" when unranked; a filter leaves gaps), Project (the pointer-only row handle, the name as the link into `/projects/:id` -
-  `roadmap.openProjectAria` "Open {{name}}" - the program dimmed after it), Flags, Operations (the row menu). Work stream and owner are filters, not columns.
+  `common.entity.open.project` "Open project {{name}}" - the program dimmed after it), Flags, Operations (the row menu). Work stream and owner are filters, not columns.
 - On the track: the project's **span bar** (read-only, `tone: "summary"`, name "{{name}}, {{start}} to {{end}}" plus ", N conflicts") over its **target window** (a `tone: "window"` bar,
   `window:<id>`, name `timeline.bar.window`; editable only where the project's own `can.editTargetWindow` is set, else a read-only image) and, past the window, the orange drift band
   (`utils/roadmapRows.ts` `driftBandOf`).
@@ -880,7 +899,7 @@ under the title ("N ranked", "M unranked", an ORANGE "K warnings" badge, a gray 
   The team page's Capacity vs Flow row (`CapacityFact`) reads "Waiting for a complete Flow refresh" for an item with `sprintsComplete` false (never "In line"), and the Capacity from Flow section lists such a team with that note, a hint and a neutral `totals.pending` badge.
 - **The Flow capacity flag:** `flagSentence` phrases `FLOW_CAPACITY_MILESTONES` through `names.team` ("{{count}} milestones on {{team}} are scheduled in sprints whose capacity differs
   from Flow"; the plural forms of both languages are in `flagSentences.test.ts`).
-  - The panel puts an icon-only link beside it (`TeamLink`: `IconUsersGroup`, a visually hidden name `teams.openAria` "Open team {{name}}", to `teamPath(teamId)`, where the sprints
+  - The panel puts an icon-only link beside it (`TeamLink`: `IconUsersGroup` in an `EntityLink`, named `common.entity.open.team` "Open team {{name}}", to the team's page, where the sprints
     are), shown only when the flag has a `teamId` the document's `teams[]` names. A team the document does not name (the server always names it) reads without its name
     (`roadmap.flag.flowCapacityMilestonesNoTeam`, as `inversionNoTeam` does) and offers no link.
   - The counts cells, the facts line and the filters count it like any flag; no Flow-staleness note is shown beside it (the document carries no Flow connection state).
@@ -1254,7 +1273,7 @@ every dependency; the word also OPENS the panel), `dependencyTeamId`, `dependenc
 
 - The table (`DependencyListTable`, named "Dependencies of the plan" - not "Dependencies of the project", which the project page's table and e2e specs address): a plain table in a
   `ScrollRegion` with a 70vh height cap and a sticky header (the baseline comparison's shape). Status, lag and dates are the project table's own cells (`DependencyStatusBadge`,
-  `DependencyLagText`); an end's cell: its name ("Project X" for a project end), under it its project (link, `plan.openProjectAria`) and, for a milestone, its team (link, `teams.openAria`).
+  `DependencyLagText`); an end's cell: its name ("Project X" for a project end), under it its project (link, `common.entity.open.project`) and, for a milestone, its team (link, `common.entity.open.team`).
 - Loading: `LoadingBlock`, no facts line and no claim until the read answers. A failed read: `ErrorAlert`; the rows of a kept document stay on screen over a failed re-read, and no empty claim
   is made from it (a document whose row names an end the lists do not hold is that same failed read).
 - No dependency at all (`totals.links === 0`); nothing matches the filters (with "Clear the filters" when a filter narrows).
@@ -1279,7 +1298,7 @@ caller, no `can`). The figures are the team page's own and are shown as they arr
 
 - The facts line (`role="group"`, "N teams", "N not scheduled yet" (`home.plan.notScheduled`, always shown, a 0 included: the server's `totals.unscheduledMilestones`, never a sum of the rows) and the two orange badges in Home's own
   strings `home.roadmap.overloadedTeams|wipTeams`, each only when positive) reads the document's `totals` over EVERY team, so a filter or the 200-row cap never changes it.
-- Columns: Team (the link to the team page, `teams.openAria`), Manager (dimmed "No manager" when none), Milestones, Not scheduled (a link to the team's page named by
+- Columns: Team (the link to the team page, `common.entity.open.team`), Manager (dimmed "No manager" when none), Milestones, Not scheduled (a link to the team's page named by
   its row, `teamLoad.notScheduledAria`, only when positive; a plain 0 otherwise), Overloaded and WIP (the team page's two orange badges, only when positive) and Capacity (a gray "N weeks
   without capacity" badge, only when positive: a team with scheduled work and no capacity period can never be overloaded, and the page says so instead of looking fine). No row or page ever
   says "fits"; no chart; every figure is worded.
@@ -1297,7 +1316,7 @@ Both are in the URL like the Deviations page's (a change `replace`s the entry; n
 ### Weeks with a warning
 
 Under the teams table an h3 "Weeks with a warning", one dimmed sentence and the table "Weeks with a warning, by team" (a `ScrollRegion`, min width 720, max height 420, sticky header): one row
-per team and week, in the document's order (team by team, oldest week first) - Team (the same `teams.openAria` link as the teams table; tests and e2e scope by table), Week, Load, Capacity, In
+per team and week, in the document's order (team by team, oldest week first) - Team (the same `common.entity.open.team` link as the teams table; tests and e2e scope by table), Week, Load, Capacity, In
 progress (peak) and Status. The weeks are the document's `warningWeeks` (the team page's own `WeekLoad`, no `flowCapacity`), shown as they arrive.
 
 - **From this week on.** The section lists the weeks from the document's `currentWeekStart` on (the server's Monday in UTC; the page never reads the browser's clock; a week ON it stays; ISO

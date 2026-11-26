@@ -138,7 +138,7 @@ async function openRoadmapFlags(page: Page): Promise<Locator> {
   await page.evaluate(([key, value]) => localStorage.setItem(key, value), ["astrolabe.viewSettings.planning.programPick", JSON.stringify([world.programId])]);
   await page.goto("/roadmap");
   await expect(page.getByRole("grid", { name: "Roadmap timeline" })).toBeVisible();
-  await expect(page.getByRole("link", { name: `Open ${world.project}`, exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: `Open project ${world.project}`, exact: true })).toBeVisible();
   await page.getByRole("button", { name: /^Show the \d+ flags?$/ }).click();
   return page.getByRole("table", { name: "Flags of the projects shown" });
 }

@@ -76,8 +76,8 @@ const grid = (page: Page) => page.getByRole("grid", { name: "Programs timeline" 
 /** The row of a work stream or program: the one that holds its chevron button. */
 const nodeRow = (page: Page, label: string): Locator => grid(page).getByRole("row").filter({ has: page.getByRole("button", { name: label, exact: true }) });
 const nodeButton = (page: Page, label: string): Locator => grid(page).getByRole("button", { name: label, exact: true });
-/** The row of a project: the one that holds its "Open <name>" link. */
-const projectRow = (page: Page, name: string): Locator => grid(page).getByRole("row").filter({ has: page.getByRole("link", { name: `Open ${name}`, exact: true }) });
+/** The row of a project: the one that holds its "Open project <name>" link. */
+const projectRow = (page: Page, name: string): Locator => grid(page).getByRole("row").filter({ has: page.getByRole("link", { name: `Open project ${name}`, exact: true }) });
 const status = (page: Page, text: string): Locator => page.getByRole("status").filter({ hasText: text });
 
 /** Switch the Roadmap to its overview mode with the mode switch (remembered, so the next sidebar visit opens it too). */
@@ -117,7 +117,7 @@ test("the Roadmap overview: an admin reads the plan as a tree, folds programs fr
   await expect(nodeButton(page, `Work stream ${plan.stream}`)).toHaveAttribute("aria-expanded", "true");
   await expect(nodeButton(page, `Program ${plan.a}`)).toHaveAttribute("aria-expanded", "false");
   await expect(nodeButton(page, `Program ${plan.b}`)).toHaveAttribute("aria-expanded", "false");
-  await expect(grid(page).getByRole("link", { name: /^Open / })).toHaveCount(0);
+  await expect(grid(page).getByRole("link", { name: /^Open project / })).toHaveCount(0);
   const facts = page.getByRole("group", { name: "Programs facts" });
   await expect(facts).toContainText("1 work stream");
   await expect(facts).toContainText("2 programs");
@@ -159,7 +159,7 @@ test("the Roadmap overview: an admin reads the plan as a tree, folds programs fr
   await expect(nodeButton(page, `Program ${plan.a}`)).toHaveAttribute("aria-expanded", "false");
   await expect(nodeButton(page, `Program ${plan.a}`)).toBeFocused();
   await expect(status(page, `${plan.a} collapsed`)).toBeAttached();
-  await expect(grid(page).getByRole("link", { name: /^Open / })).toHaveCount(0);
+  await expect(grid(page).getByRole("link", { name: /^Open project / })).toHaveCount(0);
 
   // Folded again: back to the one arrow between the two program rows.
   await expect(page.locator("[data-arrow]")).toHaveCount(1);
@@ -211,9 +211,9 @@ test("the program pick set in the Roadmap overview narrows the Prioritization mo
   await page.reload();
   const roadmap = page.getByRole("grid", { name: "Roadmap timeline" });
   await expect(roadmap).toBeVisible();
-  await expect(roadmap.getByRole("link", { name: /^Open / })).toHaveCount(2);
-  await expect(roadmap.getByRole("link", { name: `Open ${plan.late}`, exact: true })).toBeVisible();
-  await expect(roadmap.getByRole("link", { name: `Open ${plan.early}`, exact: true })).toBeVisible();
+  await expect(roadmap.getByRole("link", { name: /^Open project / })).toHaveCount(2);
+  await expect(roadmap.getByRole("link", { name: `Open project ${plan.late}`, exact: true })).toBeVisible();
+  await expect(roadmap.getByRole("link", { name: `Open project ${plan.early}`, exact: true })).toBeVisible();
 
   // Change the pick on the Roadmap to program B (clear A first): the overview shows B only, also after a reload.
   await openFilters(page);
@@ -224,8 +224,8 @@ test("the program pick set in the Roadmap overview narrows the Prioritization mo
   await field.fill(plan.b);
   await page.getByRole("option", { name: plan.b, exact: true }).click();
   await page.keyboard.press("Escape");
-  await expect(roadmap.getByRole("link", { name: /^Open / })).toHaveCount(1);
-  await expect(roadmap.getByRole("link", { name: `Open ${plan.other}`, exact: true })).toBeVisible();
+  await expect(roadmap.getByRole("link", { name: /^Open project / })).toHaveCount(1);
+  await expect(roadmap.getByRole("link", { name: `Open project ${plan.other}`, exact: true })).toBeVisible();
   await chooseOverview(page);
   await page.reload();
   await expect(grid(page)).toBeVisible();

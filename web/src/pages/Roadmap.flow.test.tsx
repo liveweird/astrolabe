@@ -86,7 +86,7 @@ const renderAt = (route = "/roadmap") =>
   );
 const waitForGrid = () => screen.findByRole("grid", { name: "Roadmap timeline" });
 const facts = () => screen.getByRole("group", { name: "Roadmap facts" });
-const rowOf = (name: string) => screen.getByRole("link", { name: `Open ${name}` }).closest('[role="row"]') as HTMLElement;
+const rowOf = (name: string) => screen.getByRole("link", { name: `Open project ${name}` }).closest('[role="row"]') as HTMLElement;
 const rowLabels = () =>
   within(screen.getByRole("grid", { name: "Roadmap timeline" }))
     .getAllByRole("row")
@@ -136,12 +136,12 @@ describe("Roadmap page: the Flow capacity flag of a project row", () => {
     const table = await screen.findByRole("table", { name: "Flags of the projects shown" });
     const rows = within(table).getAllByRole("row").slice(1);
     expect(rows.map((row) => within(row).getAllByRole("cell").slice(0, 3).map((cell) => cell.textContent))).toEqual([
-      ["Warning", "Invoices", "2 milestones on Backend are scheduled in sprints whose capacity differs from Flow Open team Backend"],
-      ["Info", "Taxes", "1 milestone on Backend is scheduled in a sprint whose capacity differs from Flow Open team Backend"],
+      ["Warning", "Invoices", "2 milestones on Backend are scheduled in sprints whose capacity differs from Flow"],
+      ["Info", "Taxes", "1 milestone on Backend is scheduled in a sprint whose capacity differs from Flow"],
     ]);
     for (const row of rows) expect(within(row).getByRole("link", { name: "Open team Backend" })).toHaveAttribute("href", "/teams/4");
     // The project link and the team link are two links of the row, each named for its destination.
-    expect(within(rows[0]).getByRole("link", { name: "Open Invoices" })).toHaveAttribute("href", "/projects/1");
+    expect(within(rows[0]).getByRole("link", { name: "Open project Invoices" })).toHaveAttribute("href", "/projects/1");
   });
 
   test("an info sits under Infos in the section's own control", async () => {

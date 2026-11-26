@@ -91,11 +91,11 @@ describe("Plan page: pins", () => {
     expect(within(section).getByRole("button", { name: "Operations for Billing (pinned)" })).toBeInTheDocument();
     expect(within(section).getByRole("button", { name: "Unpin: Billing (pinned)" })).toBeInTheDocument();
     expect(within(section).getByRole("button", { name: "New project in Billing (pinned)" })).toBeInTheDocument();
-    expect(within(section).getByRole("link", { name: "Open Invoices (pinned)" })).toBeInTheDocument();
+    expect(within(section).getByRole("link", { name: "Open project Invoices (pinned)" })).toBeInTheDocument();
     // The exact names are the tree's alone.
     expect(screen.getAllByRole("button", { name: "Program Billing" })).toHaveLength(1);
     expect(screen.getAllByRole("button", { name: "Operations for Billing" })).toHaveLength(1);
-    expect(screen.getAllByRole("link", { name: "Open Invoices" })).toHaveLength(1);
+    expect(screen.getAllByRole("link", { name: "Open project Invoices" })).toHaveLength(1);
     expect(screen.getAllByRole("button", { name: "New project in Billing" })).toHaveLength(1);
   });
 

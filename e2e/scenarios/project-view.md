@@ -11,7 +11,7 @@
 
 ## Scenario: a project owner creates milestones in the Unscheduled tray and cannot schedule them
 
-1. The owner signs in, opens the Plan page and follows the project's name link ("Open <project>").
+1. The owner signs in, opens the Plan page and follows the project's name link ("Open project <project>").
    - *Expected*: the page heading is the project name; the facts line reads "Target window: 2027-01-04 – 2027-03-26" and "Nothing
      scheduled"; with no milestone yet the page says "No milestones yet".
 2. They press **New milestone**, enter a name, pick the team in the Team picker, type an estimate of 2.5 and Create; then a second one

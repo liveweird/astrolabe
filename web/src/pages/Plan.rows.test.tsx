@@ -60,7 +60,7 @@ test("renders ONE table: a row per node in the server's order with its parent, c
   expect(within(platform).getByText("2 programs")).toBeInTheDocument();
   expect(within(rows[1]).getByText("2 projects")).toBeInTheDocument();
   const invoices = rows[2];
-  expect(within(invoices).getByRole("link", { name: "Open Invoices" })).toHaveAttribute("href", "/projects/100");
+  expect(within(invoices).getByRole("link", { name: "Open project Invoices" })).toHaveAttribute("href", "/projects/100");
   expect(within(invoices).getByText("Piotr Project")).toBeInTheDocument();
   expect(within(invoices).getByText("2026-02-01 – 2026-03-31")).toBeInTheDocument();
   expect(within(invoices).getByText("Target window:")).toBeInTheDocument();

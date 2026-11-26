@@ -60,7 +60,7 @@ describe("FlowTeamsSection", () => {
     const table = await screen.findByRole("table", { name: "Flow teams" });
     expect(headingOutline()).toEqual([[3, "Teams"]]);
     const platform = within(table).getByText("Platform", { selector: "p" }).closest("tr")!;
-    expect(within(platform).getByRole("link", { name: "Platform" })).toHaveAttribute("href", "/teams/3");
+    expect(within(platform).getByRole("link", { name: "Open team Platform" })).toHaveAttribute("href", "/teams/3");
     expect(within(platform).getByText("6")).toBeInTheDocument();
     expect(within(platform).getByText("33")).toBeInTheDocument();
     expect(within(platform).getByRole("button", { name: "Unlink Platform" })).toBeInTheDocument();
@@ -101,7 +101,7 @@ describe("FlowTeamsSection", () => {
     await user.click(await screen.findByRole("button", { name: "Link Payments to Payments" }));
     await waitFor(() => expect(call(mockFetch, "POST", "/api/v1/integrations/flow/team-bindings")).toBeDefined());
     expect(JSON.parse((call(mockFetch, "POST", "/api/v1/integrations/flow/team-bindings")![1] as RequestInit).body as string)).toEqual({ connectionId: 1, flowTeamId: 12, teamId: 4 });
-    const row = (await screen.findByRole("link", { name: "Payments" })).closest("tr")!;
+    const row = (await screen.findByRole("link", { name: "Open team Payments" })).closest("tr")!;
     expect(within(row).getByRole("button", { name: "Unlink Payments" })).toBeInTheDocument();
     expect(screen.getByText("Flow teams: 3 · linked: 2 · with a suggestion: 0")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();

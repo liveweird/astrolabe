@@ -17,6 +17,17 @@
     "hidePassword": "Ukryj hasło",
     "reload": "Odśwież"
   },
+  "entity": {
+    "open": {
+      "workStream": "Otwórz strumień pracy {{name}}",
+      "program": "Otwórz program {{name}}",
+      "project": "Otwórz projekt {{name}}",
+      "milestone": "Otwórz kamień milowy {{name}}",
+      "team": "Otwórz zespół {{name}}",
+      "person": "Otwórz osobę {{name}}",
+      "user": "Otwórz użytkownika/użytkowniczkę {{name}}"
+    }
+  },
   "dateFormatHint": "RRRR-MM-DD",
   "field": {
     "email": "E-mail",

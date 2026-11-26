@@ -105,7 +105,7 @@ describe("JiraBindingsSection", () => {
     expect(within(table).getByText("Gone from Jira")).toBeInTheDocument();
     expect(within(table).getAllByText("Ola Owner")).toHaveLength(2);
     // The project's name is the link into its page; a milestone's binding carries only the project's name, so it is plain text.
-    expect(within(table).getByRole("link", { name: "Invoices" })).toHaveAttribute("href", "/projects/7");
+    expect(within(table).getByRole("link", { name: "Open project Invoices" })).toHaveAttribute("href", "/projects/7");
     expect(screen.getByRole("heading", { level: 3, name: "Links to plan items" })).toBeInTheDocument();
     expect(listCalls()[0]).toMatchObject({ connectionId: "1", page: "1", sort: "issueKey" });
   });

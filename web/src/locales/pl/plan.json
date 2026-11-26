@@ -14,7 +14,6 @@
   "datesOpen": "Od {{start}}",
   "window": "{{start}} – {{end}}",
   "noWindow": "Nie ustawiono",
-  "openProjectAria": "Otwórz: {{name}}",
   "column": {
     "name": "Strumień pracy, program, projekt",
     "dates": "Daty"

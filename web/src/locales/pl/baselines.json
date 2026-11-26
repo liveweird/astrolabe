@@ -78,7 +78,6 @@
     "shown": "Widoczne projekty: {{projects}} · wiersze kamieni milowych: {{milestones}}",
     "empty": "Brak zmian od utworzenia tej bazy odniesienia",
     "emptyFiltered": "Żaden wiersz nie pasuje do filtrów",
-    "openProjectAria": "Otwórz projekt {{name}}",
     "showOnRoadmap": "Pokaż na roadmapie",
     "showOnTimeline": "Pokaż na osi czasu",
     "showOnTimelineAria": "Pokaż na osi czasu: {{name}}",

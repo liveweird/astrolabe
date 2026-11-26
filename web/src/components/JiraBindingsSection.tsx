@@ -1,7 +1,6 @@
 import { useRef, useState } from "react";
-import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Anchor, Badge, Button, Group, Select, Stack, Table, Text, Title } from "@mantine/core";
+import { Badge, Button, Group, Select, Stack, Table, Text, Title } from "@mantine/core";
 import { IconFileImport, IconLink, IconLinkOff } from "@tabler/icons-react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { DeviationConnection } from "../api/deviations";
@@ -15,7 +14,6 @@ import { goneBadge } from "../utils/deviations";
 import { formatDateTime } from "../utils/formatDate";
 import type { ImportRoot } from "../utils/jiraImport";
 import { rootOfBinding } from "../utils/jiraImportRoot";
-import { projectPath } from "../utils/planLinks";
 import { refreshJiraAndTimelines } from "../utils/queryRefresh";
 import ClearableTextInput from "./ClearableTextInput";
 import JiraBindDialog from "./JiraBindDialog";
@@ -24,6 +22,7 @@ import JiraKeyWithPrevious from "./JiraKeyWithPrevious";
 import JiraUnlinkModal from "./JiraUnlinkModal";
 import RegistryListTable from "./RegistryListTable";
 import SortHeader from "./SortHeader";
+import EntityLink from "./EntityLink";
 
 const SORT_FIELDS = ["issueKey", "createdAt"] as const;
 type SortField = (typeof SORT_FIELDS)[number];
@@ -54,9 +53,7 @@ function NodeCell({ binding }: { binding: JiraBinding }) {
   return (
     <>
       {node.kind === "PROJECT" ? (
-        <Anchor component={RouterLink} to={projectPath(node.id)} size="sm" fw={500}>
-          {node.name}
-        </Anchor>
+        <EntityLink entity={{ kind: "project", id: node.id }} name={node.name} size="sm" fw={500} />
       ) : (
         <Text size="sm" fw={500}>
           {node.name}

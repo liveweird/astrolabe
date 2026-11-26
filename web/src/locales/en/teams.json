@@ -8,7 +8,6 @@
   "loadFailed": "Could not load the teams",
   "notFound": "This team does not exist (or was deleted).",
   "backToTeams": "Back to teams",
-  "openAria": "Open team {{name}}",
   "column": {
     "manager": "Manager"
   },

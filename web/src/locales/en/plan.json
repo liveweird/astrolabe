@@ -14,7 +14,6 @@
   "datesOpen": "From {{start}}",
   "window": "{{start}} – {{end}}",
   "noWindow": "Not set",
-  "openProjectAria": "Open {{name}}",
   "column": {
     "name": "Work stream, program, project",
     "dates": "Dates"

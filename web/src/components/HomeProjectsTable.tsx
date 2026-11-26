@@ -3,10 +3,11 @@ import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import type { HomeMe } from "../api/home";
 import { violatedDependenciesPath } from "../utils/dependencyListLinks";
-import { projectPath, projectUnscheduledPath } from "../utils/planLinks";
+import { projectUnscheduledPath } from "../utils/planLinks";
 import BadgeLink from "./BadgeLink";
 import HomeFlagBadges from "./HomeFlagBadges";
 import ScrollRegion from "./ScrollRegion";
+import EntityLink from "./EntityLink";
 
 /**
  * "Your projects": every project the person may manage through the owner chain (what they own and everything under a work stream or program they own),
@@ -35,9 +36,7 @@ export default function HomeProjectsTable({ projects }: { projects: HomeMe["proj
           {projects.map((project) => (
             <Table.Tr key={project.id}>
               <Table.Td>
-                <Anchor component={RouterLink} to={projectPath(project.id)} size="sm" fw={500} aria-label={t("plan.openProjectAria", { name: project.name })}>
-                  {project.name}
-                </Anchor>
+                <EntityLink entity={{ kind: "project", id: project.id }} name={project.name} size="sm" fw={500} />
               </Table.Td>
               <Table.Td>{project.programName}</Table.Td>
               <Table.Td>{project.ownerName}</Table.Td>

@@ -1,4 +1,4 @@
-import { Anchor, Badge, Group, Menu, VisuallyHidden } from "@mantine/core";
+import { Badge, Group, Menu, VisuallyHidden } from "@mantine/core";
 import { IconAlertTriangle, IconCalendarEvent, IconCalendarOff, IconExternalLink, IconHourglass, IconInfoCircle, IconLink, IconRoute } from "@tabler/icons-react";
 import { Link as RouterLink, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -8,6 +8,7 @@ import { OPEN_DEPENDENCIES_STATE } from "../utils/dependencyListLinks";
 import { projectPath } from "../utils/planLinks";
 import type { FlagCounts } from "../utils/roadmapRows";
 import type { RovingTarget } from "../utils/timelineModel";
+import EntityLink from "./EntityLink";
 
 // The cells a PROJECT row shares across the two plan pages (the roadmap and the programs tree), with the roll-up cell of a stream / program row:
 // the flag icons, the name as the link into the project and the menu's target-window and "Open project" items.
@@ -48,14 +49,9 @@ export function FlagCountsCell({ counts, label, flowPending = false, pendingTeam
   );
 }
 
-/** A project's name as the link into its page ("Open {{name}}" is what tests and e2e locate); `stop` makes the link the row's roving tab stop. */
+/** A project's name as the link into its page ("Open project {{name}}" is what tests and e2e locate); `stop` makes the link the row's roving tab stop. */
 export function ProjectLink({ project, stop }: { project: Pick<RoadmapProject, "id" | "name">; stop: RovingTarget }) {
-  const { t } = useTranslation();
-  return (
-    <Anchor component={RouterLink} to={projectPath(project.id)} inherit fw={500} aria-label={t("roadmap.openProjectAria", { name: project.name })} {...stop}>
-      {project.name}
-    </Anchor>
-  );
+  return <EntityLink entity={{ kind: "project", id: project.id }} name={project.name} inherit fw={500} stop={stop} />;
 }
 
 /** What a project row's menu asks of the page for the target window: open the dialog, or clear the window outright (the keyboard path of the band's drag). */

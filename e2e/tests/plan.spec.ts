@@ -291,7 +291,7 @@ test("a work stream owner moves a project to another program and a program to an
   await expect(treeRow(page, "project", project)).toHaveAttribute("data-parent", `pg:${programTwoId}`);
 
   // The project view shows the new program, and the milestone came along.
-  await page.getByRole("link", { name: `Open ${project}`, exact: true }).click();
+  await page.getByRole("link", { name: `Open project ${project}`, exact: true }).click();
   await expect(page.getByRole("heading", { level: 2, name: project })).toBeVisible();
   await expect(page.getByText(`${programTwo} · ${streamA} · Owner: ${lead}`)).toBeVisible();
   await expect(page.getByRole("table", { name: "Unscheduled milestones" }).getByRole("row", { name: new RegExp(milestone) })).toBeVisible();
@@ -310,7 +310,7 @@ test("a work stream owner moves a project to another program and a program to an
   await expect(page.getByText("Program moved")).toBeVisible();
   await expect(dialog).toHaveCount(0);
   await expect(treeRow(page, "program", programTwo)).toHaveAttribute("data-parent", `ws:${streamBId}`);
-  await page.getByRole("link", { name: `Open ${project}`, exact: true }).click();
+  await page.getByRole("link", { name: `Open project ${project}`, exact: true }).click();
   await expect(page.getByText(`${programTwo} · ${streamB} · Owner: ${lead}`)).toBeVisible();
 
   // Neither move touched the global ranking.

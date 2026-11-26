@@ -1,8 +1,9 @@
-import { Anchor, Table, Text } from "@mantine/core";
+import { Table } from "@mantine/core";
 import { useTranslation } from "react-i18next";
-import { Link as RouterLink } from "react-router-dom";
 import type { HomeMe } from "../api/home";
+import type { EntityRef } from "../utils/entityLinks";
 import { roadmapFilteredPath } from "../utils/planLinks";
+import EntityLink from "./EntityLink";
 import HomeFlagBadges from "./HomeFlagBadges";
 import ScrollRegion from "./ScrollRegion";
 
@@ -23,16 +24,9 @@ export default function HomeNodesTable({
 }) {
   const { t } = useTranslation();
   // A node with no project has nothing on the Roadmap: its id is no filter option there, so the link would open the whole Roadmap unfiltered.
-  const onRoadmap = (to: string, name: string, projects: number) =>
-    projects === 0 ? (
-      <Text size="sm" fw={500}>
-        {name}
-      </Text>
-    ) : (
-      <Anchor component={RouterLink} to={to} size="sm" fw={500} aria-label={t("home.mine.nodeOnRoadmapAria", { name })}>
-        {name}
-      </Anchor>
-    );
+  const onRoadmap = (entity: EntityRef, to: string, name: string, projects: number) => (
+    <EntityLink entity={projects === 0 ? null : entity} to={to} name={name} size="sm" fw={500} aria-label={t("home.mine.nodeOnRoadmapAria", { name })} />
+  );
   const label = t("home.mine.nodes");
   return (
     <ScrollRegion label={label} minWidth={820}>
@@ -53,6 +47,7 @@ export default function HomeNodesTable({
             <Table.Tr key={`stream-${stream.id}`}>
               <Table.Td>
                 {onRoadmap(
+                  { kind: "workStream", id: stream.id },
                   roadmapFilteredPath({ filters: { workStreamId: stream.id } }),
                   stream.endDate === null ? stream.name : t("plan.move.closedName", { name: stream.name }),
                   stream.projects,
@@ -70,7 +65,7 @@ export default function HomeNodesTable({
           ))}
           {programs.map((program) => (
             <Table.Tr key={`program-${program.id}`}>
-              <Table.Td>{onRoadmap(roadmapFilteredPath({ pick: [program.id] }), program.name, program.projects)}</Table.Td>
+              <Table.Td>{onRoadmap({ kind: "program", id: program.id }, roadmapFilteredPath({ pick: [program.id] }), program.name, program.projects)}</Table.Td>
               <Table.Td>{t("home.mine.level.program")}</Table.Td>
               <Table.Td>{program.workStreamName}</Table.Td>
               <Table.Td>{program.ownerName}</Table.Td>

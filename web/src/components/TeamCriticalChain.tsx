@@ -1,13 +1,11 @@
-import { Anchor, Stack, Table, Text, Title } from "@mantine/core";
-import { Link as RouterLink } from "react-router-dom";
+import { Stack, Table, Text, Title } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import type { TeamCriticalChain as ChainBlock, TeamView } from "../api/teams";
 import { criticalArrowRows, type CriticalArrowRow } from "../utils/teamChain";
-import { projectPath } from "../utils/planLinks";
-import { teamPath } from "../utils/teamLinks";
 import { DependencyLagText } from "./DependencyCells";
 import ScrollRegion from "./ScrollRegion";
 import TableDisclosure from "./TableDisclosure";
+import EntityLink from "./EntityLink";
 
 const NO_WRAP = { whiteSpace: "nowrap" } as const;
 const TABLE_MAX_HEIGHT = 420;
@@ -18,13 +16,9 @@ function EndCell({ end }: { end: CriticalArrowRow["predecessor"] }) {
   return (
     <Stack gap={2}>
       <Text size="sm">{end.kind === "PROJECT" ? t("project.dependency.wholeProject", { name: end.name }) : end.name}</Text>
-      <Anchor component={RouterLink} to={projectPath(end.projectId)} size="xs" aria-label={t("teams.view.openProjectAria", { name: end.projectName })}>
-        {end.projectName}
-      </Anchor>
+      <EntityLink entity={{ kind: "project", id: end.projectId }} name={end.projectName} size="xs" />
       {end.teamId !== null && end.teamName !== null && (
-        <Anchor component={RouterLink} to={teamPath(end.teamId)} size="xs" aria-label={t("teams.openAria", { name: end.teamName })}>
-          {end.teamName}
-        </Anchor>
+        <EntityLink entity={{ kind: "team", id: end.teamId }} name={end.teamName} size="xs" />
       )}
     </Stack>
   );

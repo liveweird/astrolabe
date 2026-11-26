@@ -113,7 +113,7 @@ describe("HomeMine: Yours", () => {
     renderMine(viewWith(homeMe({ projects: [PROJECT] })));
     const table = within(screen.getByRole("table", { name: "Your projects" }));
     expect(table.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Project", "Program", "Owner", "Rank", "Milestones", "Not scheduled", "Flags", "Conflicts"]);
-    expect(table.getByRole("link", { name: "Open Ledger" })).toHaveAttribute("href", "/projects/7");
+    expect(table.getByRole("link", { name: "Open project Ledger" })).toHaveAttribute("href", "/projects/7");
     expect(table.getByText("Core")).toBeInTheDocument();
     expect(table.getByText("3")).toBeInTheDocument();
     expect(table.getByText("10")).toBeInTheDocument();

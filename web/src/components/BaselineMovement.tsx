@@ -1,14 +1,13 @@
 import { useState } from "react";
-import { Anchor, Group, Stack, Switch, Table, Text, Title, VisuallyHidden } from "@mantine/core";
-import { Link as RouterLink } from "react-router-dom";
+import { Group, Stack, Switch, Table, Text, Title, VisuallyHidden } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import { estimateText } from "../utils/baselineCompare";
 import { movementTotalsOf, signedDays } from "../utils/baselineMovement";
 import { movementRows, rowChanged, type LiveMilestone, type MilestoneBaseline } from "../utils/baselineOverlay";
-import { projectPath } from "../utils/planLinks";
 import { Figures, StatusBadge, TotalsBadges } from "./BaselineParts";
 import ScrollRegion from "./ScrollRegion";
 import TableDisclosure from "./TableDisclosure";
+import EntityLink from "./EntityLink";
 
 const NO_WRAP = { whiteSpace: "nowrap" } as const;
 const SHRINK = { width: 1, whiteSpace: "nowrap" } as const;
@@ -72,9 +71,7 @@ export default function BaselineMovement({ baseline, live, scope }: { baseline: 
                       {team && (
                         <Table.Td>
                           {row.projectName !== null && (
-                            <Anchor component={RouterLink} to={projectPath(row.projectId)} size="sm" aria-label={t("teams.view.openProjectAria", { name: row.projectName })}>
-                              {row.projectName}
-                            </Anchor>
+                            <EntityLink entity={{ kind: "project", id: row.projectId }} name={row.projectName} size="sm" />
                           )}
                         </Table.Td>
                       )}

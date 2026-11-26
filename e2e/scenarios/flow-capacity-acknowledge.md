@@ -18,7 +18,7 @@
 ## Scenario: the Roadmap and the Programs page flag the project scheduled in a disputed sprint and name its team
 
 1. (Setup) Every acknowledgement of the team is withdrawn through the API, so both of the stub's day-two differences are open (sprint 2 a WARNING, sprint 3 an INFO). The team's manager signs in and opens `/roadmap?programId=<the spec's program>` (the address names the pick, so the Roadmap shows that program's projects alone).
-   - *Expected*: one row, the spec's project (a link "Open <project>"); its Flags cell carries `data-flags="1,0"` (one warning, no info: ONE flag for the team, the worst severity of the two sprints its milestone lies over).
+   - *Expected*: one row, the spec's project (a link "Open project <project>"); its Flags cell carries `data-flags="1,0"` (one warning, no info: ONE flag for the team, the worst severity of the two sprints its milestone lies over).
 2. They open the Flags section (**Show the 1 flag**).
    - *Expected*: the table has exactly one flag row, a warning for the spec's project reading "1 milestone on <the spec's team> is scheduled in a sprint whose capacity differs from Flow"; beside the sentence a link named "Open team <the spec's team>". They follow it.
    - *Expected*: the address is `/teams/<team>`, the page's heading is the team's name and its header flag reads "Capacity differs from Flow: 2 open differences".

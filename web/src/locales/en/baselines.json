@@ -74,7 +74,6 @@
     "shown": "Projects shown: {{projects}} · milestone rows: {{milestones}}",
     "empty": "No changes since this baseline",
     "emptyFiltered": "No rows match these filters",
-    "openProjectAria": "Open project {{name}}",
     "showOnRoadmap": "Show on the roadmap",
     "showOnTimeline": "Show on timeline",
     "showOnTimelineAria": "Show on timeline: {{name}}",

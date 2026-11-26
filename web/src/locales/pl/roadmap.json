@@ -15,7 +15,6 @@
   "timelineTitle": "Oś czasu",
   "timelineAria": "Oś czasu roadmapy",
   "unrankedDivider": "Bez rankingu",
-  "openProjectAria": "Otwórz {{name}}",
   "barAria": "{{name}}, od {{start}} do {{end}}",
   "bundleLabel_one": "{{from}} → {{to}}, powiązania kamieni milowych: {{count}} (naruszone: {{violated}})",
   "bundleLabel_few": "{{from}} → {{to}}, powiązania kamieni milowych: {{count}} (naruszone: {{violated}})",

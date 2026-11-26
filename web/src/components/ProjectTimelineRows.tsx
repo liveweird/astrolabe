@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
-import { Anchor, Text } from "@mantine/core";
-import { Link as RouterLink } from "react-router-dom";
+import { Text } from "@mantine/core";
 import type { TFunction } from "i18next";
 import type { DependencyEndpoint } from "../api/dependencies";
 import type { ProjectMilestone, ProjectView, UpstreamEntity } from "../api/milestones";
@@ -8,12 +7,12 @@ import { barList, baselineBars, newSince, removedRows } from "../utils/baselineO
 import { idleBands } from "../utils/idleGaps";
 import { addDays } from "../utils/isoDate";
 import { baselineUnscheduledIds, jiraBar, jiraScheduleDates, jiraTrayRowId, jiraTrayRows, siteUrls, type JiraWindow } from "../utils/jiraBars";
-import { projectPath } from "../utils/planLinks";
 import { withPinned } from "../utils/pinText";
 import { ghostRowId } from "../utils/dependencyArrows";
 import { projectRowId, summaryCritical, upstreamOf } from "../utils/projectDependencies";
 import { teamTint, type TeamColour } from "../utils/teamColours";
 import type { BarId, RovingTarget, TimelineBandData, TimelineBarData, TimelineRowData } from "../utils/timelineModel";
+import { entityPath } from "../utils/entityLinks";
 import { AppendedRowName, BaselineRowName } from "./BaselineParts";
 import JiraRowMenu from "./JiraRowMenu";
 import { MilestoneFlags } from "./MilestoneFlags";
@@ -21,6 +20,7 @@ import MilestoneMenu, { type MilestoneActions } from "./MilestoneMenu";
 import NameCell from "./MilestoneNameCell";
 import SlackCell from "./SlackCell";
 import TeamNameCell from "./TeamNameCell";
+import EntityLink from "./EntityLink";
 
 /*
  * The view -> `TimelineRowData` adapter of the project timeline: the pure builders `ProjectTimeline` composes (the summary row, a milestone row, the
@@ -138,9 +138,17 @@ export function ghostRow(
     cells: withOptional(
       [
         (stop: RovingTarget) => (
-          <Anchor component={RouterLink} to={projectPath(endpoint.projectId)} size="sm" c="dimmed" truncate aria-label={t("project.ghostLinkAria", { text, project: endpoint.projectName })} {...stop}>
-            {text}
-          </Anchor>
+          <EntityLink
+            entity={endpoint.kind === "MILESTONE" ? { kind: "milestone", id: endpoint.id, projectId: endpoint.projectId } : { kind: "project", id: endpoint.projectId }}
+            name={text}
+            // A milestone's own address (`?milestone=`) is read by the project page from its own commit on; until then its link is its project's page.
+            to={entityPath({ kind: "project", id: endpoint.projectId })}
+            size="sm"
+            c="dimmed"
+            truncate
+            aria-label={t("project.ghostLinkAria", { text, project: endpoint.projectName })}
+            stop={stop}
+          />
         ),
         // dimmed like the name: a ghost row is another project's, read-only
         endpoint.teamName === null ? "" : <TeamNameCell key="team" name={endpoint.teamName} colour={colour} dimmed />,

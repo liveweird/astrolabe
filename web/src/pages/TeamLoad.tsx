@@ -14,8 +14,9 @@ import TeamLoadWeeks from "../components/TeamLoadWeeks";
 import TeamSwatch from "../components/TeamSwatch";
 import { useTeamColours } from "../hooks/useTeamColours";
 import { earlierWeekCount, matchesWarning, parseTeamLoadFilter, teamLoadFilterParams } from "../utils/teamLoadFilters";
-import { teamPath } from "../utils/teamLinks";
 import type { TeamColour } from "../utils/teamColours";
+import EntityLink from "../components/EntityLink";
+import { entityPath } from "../utils/entityLinks";
 
 const CHOICES = ["all", "overloaded", "wip", "any"] as const;
 type Choice = (typeof CHOICES)[number];
@@ -49,9 +50,7 @@ function TeamLoadTableRow({ row, colour }: { row: TeamLoadRow; colour: TeamColou
       <Table.Td>
         <Group gap="xs" wrap="nowrap">
           <TeamSwatch colour={colour} />
-          <Anchor component={RouterLink} to={teamPath(row.id)} size="sm" fw={500} aria-label={t("teams.openAria", { name: row.name })}>
-            {row.name}
-          </Anchor>
+          <EntityLink entity={{ kind: "team", id: row.id }} name={row.name} size="sm" fw={500} />
         </Group>
       </Table.Td>
       <Table.Td>
@@ -66,7 +65,7 @@ function TeamLoadTableRow({ row, colour }: { row: TeamLoadRow; colour: TeamColou
         {row.unscheduledMilestones > 0 ? (
           <Anchor
             component={RouterLink}
-            to={teamPath(row.id)}
+            to={entityPath({ kind: "team", id: row.id })}
             size="sm"
             aria-label={t("teamLoad.notScheduledAria", { count: row.unscheduledMilestones, name: row.name })}
           >

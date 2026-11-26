@@ -1,7 +1,6 @@
 import { useRef } from "react";
-import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Alert, Anchor, Badge, Group, Stack, Table, Text, Title, VisuallyHidden } from "@mantine/core";
+import { Alert, Badge, Group, Stack, Table, Text, Title, VisuallyHidden } from "@mantine/core";
 import { IconGitCompare, IconLinkOff } from "@tabler/icons-react";
 import { useQueries } from "@tanstack/react-query";
 import type { CapacityDeviationItem, CapacityDeviationView } from "../api/capacityDeviations";
@@ -13,7 +12,6 @@ import { capacityAckAllKey, capacityAckKey, hasStaleFlowSource, staleFlowConnect
 import { ageText } from "../utils/deviations";
 import { deviationStatus } from "../utils/deviationFilters";
 import { formatDateTime } from "../utils/formatDate";
-import { teamPath } from "../utils/teamLinks";
 import { CapacityAckOrphanNotice } from "./CapacityAckCell";
 import CapacityDeviationList from "./CapacityDeviationList";
 import CapacityDeviationsSources from "./CapacityDeviationsSources";
@@ -21,6 +19,7 @@ import EmptyState from "./EmptyState";
 import ErrorAlert from "./ErrorAlert";
 import LoadingBlock from "./LoadingBlock";
 import ScrollRegion from "./ScrollRegion";
+import EntityLink from "./EntityLink";
 
 /**
  * The only Deviations-page filters this section takes: the team, the severity and the Status (`acknowledged`, `all`) mean the same here as in the
@@ -134,9 +133,7 @@ function TeamsTable({ view, now, hook }: { view: CapacityDeviationView; now: num
           {view.items.map((item) => (
             <Table.Tr key={item.bindingId}>
               <Table.Td>
-                <Anchor component={RouterLink} to={teamPath(item.team.id)} size="sm" fw={500} aria-label={t("deviations.flowSection.list.openTeamAria", { name: item.team.name })}>
-                  {item.team.name}
-                </Anchor>
+                <EntityLink entity={{ kind: "team", id: item.team.id }} name={item.team.name} size="sm" fw={500} />
               </Table.Td>
               <Table.Td>
                 <Text size="sm">{item.flowTeam.name}</Text>

@@ -115,8 +115,8 @@ describe("PlanDependenciesPanel: the list", () => {
     renderPage();
     const table = await screen.findByRole("table", { name: TABLE });
     const [violated, , open] = within(table).getAllByRole("row").slice(1);
-    expect(within(violated).getAllByRole("link", { name: "Open Checkout" })[0]).toHaveAttribute("href", "/projects/3");
-    expect(within(violated).getByRole("link", { name: "Open Billing" })).toHaveAttribute("href", "/projects/6");
+    expect(within(violated).getAllByRole("link", { name: "Open project Checkout" })[0]).toHaveAttribute("href", "/projects/3");
+    expect(within(violated).getByRole("link", { name: "Open project Billing" })).toHaveAttribute("href", "/projects/6");
     expect(within(violated).getByRole("link", { name: "Open team Backend" })).toHaveAttribute("href", "/teams/4");
     expect(within(violated).getByRole("link", { name: "Open team Frontend" })).toHaveAttribute("href", "/teams/7");
     // The whole-project successor has a project link and no team link; the predecessor milestone has both.

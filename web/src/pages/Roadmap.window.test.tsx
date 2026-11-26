@@ -141,7 +141,7 @@ const windowPuts = () =>
 const gets = () => mockFetch.mock.calls.filter(([u, init]) => u === "/api/v1/views/roadmap" && ((init as RequestInit | undefined)?.method ?? "GET") === "GET").length;
 
 const grid = () => screen.getByRole("grid", { name: "Roadmap timeline" });
-const rowOf = (name: string) => within(grid()).getByRole("link", { name: `Open ${name}` }).closest('[role="row"]') as HTMLElement;
+const rowOf = (name: string) => within(grid()).getByRole("link", { name: `Open project ${name}` }).closest('[role="row"]') as HTMLElement;
 const liveText = () => screen.getAllByRole("status").map((region) => region.textContent).join(" | ");
 const settled = () => waitFor(() => expect(grid()).toHaveAttribute("aria-busy", "false"));
 /** The window bar of a project: an editable bar is a draggable named by `timeline.bar.window`; a read-only one is an image with ", read-only". */

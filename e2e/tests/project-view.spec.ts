@@ -203,7 +203,7 @@ test("a project owner creates milestones in the Unscheduled tray and cannot sche
   // The owner reaches the project through its name on the Plan page.
   await login(page, world.owner.email, world.owner.password);
   await page.goto("/plan");
-  await page.getByRole("link", { name: `Open ${world.project}` }).click();
+  await page.getByRole("link", { name: `Open project ${world.project}` }).click();
   await expect(page.getByRole("heading", { level: 2, name: world.project })).toBeVisible();
   const facts = page.getByRole("group", { name: "Project facts" });
   await expect(facts).toContainText("Target window: 2027-01-04 – 2027-03-26");

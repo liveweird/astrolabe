@@ -5,12 +5,13 @@ import type { HomeMe } from "../api/home";
 import { useTeamColours } from "../hooks/useTeamColours";
 import { violatedDependenciesPath } from "../utils/dependencyListLinks";
 import { deviationsForTeamPath } from "../utils/deviationLinks";
-import { teamPath } from "../utils/teamLinks";
+import { entityPath } from "../utils/entityLinks";
 import BadgeLink from "./BadgeLink";
 import { DeviationCount } from "./JiraChips";
 import ScrollRegion from "./ScrollRegion";
 import TeamFlags from "./TeamFlags";
 import TeamSwatch from "./TeamSwatch";
+import EntityLink from "./EntityLink";
 
 /**
  * "Your teams": the figures of the team page's header and facts line. Capacity is its two orange badges, Jira its chip's count badge (a link into the
@@ -42,9 +43,7 @@ export default function HomeTeamsTable({ teams }: { teams: HomeMe["teams"] }) {
               <Table.Td>
                 <Group gap="xs" wrap="nowrap">
                   <TeamSwatch colour={colours.get(team.id)} />
-                  <Anchor component={RouterLink} to={teamPath(team.id)} size="sm" fw={500} aria-label={t("teams.openAria", { name: team.name })}>
-                    {team.name}
-                  </Anchor>
+                  <EntityLink entity={{ kind: "team", id: team.id }} name={team.name} size="sm" fw={500} />
                 </Group>
               </Table.Td>
               <Table.Td ta="right">{team.milestones}</Table.Td>
@@ -52,7 +51,7 @@ export default function HomeTeamsTable({ teams }: { teams: HomeMe["teams"] }) {
                 {team.unscheduledMilestones > 0 ? (
                   <Anchor
                     component={RouterLink}
-                    to={teamPath(team.id)}
+                    to={entityPath({ kind: "team", id: team.id })}
                     size="sm"
                     aria-label={t("home.mine.notScheduledAria", { count: team.unscheduledMilestones, name: team.name })}
                   >

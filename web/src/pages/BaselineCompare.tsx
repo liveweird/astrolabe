@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate, useParams, useSearchParams, Link as RouterLink } from "react-router-dom";
-import { Anchor, Button, Group, Select, Stack, Switch, Table, Text, Title, VisuallyHidden } from "@mantine/core";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Button, Group, Select, Stack, Switch, Table, Text, Title, VisuallyHidden } from "@mantine/core";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -22,6 +22,7 @@ import { movementSentence, movementStatus, movementTotalsParts, signedDays } fro
 import { formatDateTime } from "../utils/formatDate";
 import { projectPath, roadmapPath } from "../utils/planLinks";
 import { loadErrorMessage } from "../utils/saveError";
+import EntityLink from "../components/EntityLink";
 
 const NO_WRAP = { whiteSpace: "nowrap" } as const;
 /** The status column shrinks to its badge (a Badge ellipsises in a squeezed cell, so it also keeps its full width: `miw`); the name column keeps room for a project's lines. */
@@ -258,9 +259,7 @@ function Comparison({ id }: { id: number }) {
                   <Table.Tbody key={project.projectId}>
                     <Table.Tr>
                       <Table.Th scope="row">
-                        <Anchor component={RouterLink} to={projectPath(project.projectId)} fw={600} size="sm" aria-label={t("baselines.compare.openProjectAria", { name: project.name })}>
-                          {project.name}
-                        </Anchor>
+                        <EntityLink entity={{ kind: "project", id: project.projectId }} name={project.name} fw={600} size="sm" />
                         <Text size="xs" c="dimmed" fw={400}>
                           {t("baselines.compare.location", { program: project.programName, workStream: project.workStreamName })}
                         </Text>

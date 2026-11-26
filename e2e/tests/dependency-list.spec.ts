@@ -190,7 +190,7 @@ test("the Roadmap's dependency panel lists a project's links with the violated o
   await expect(rows(page).first()).toContainText(world.b);
 
   // The predecessor's project name is the way into its page.
-  await rows(page).first().getByRole("cell").nth(1).getByRole("link", { name: `Open ${world.first.name}`, exact: true }).click();
+  await rows(page).first().getByRole("cell").nth(1).getByRole("link", { name: `Open project ${world.first.name}`, exact: true }).click();
   await expect(page.getByRole("heading", { level: 2, name: world.first.name, exact: true })).toBeVisible();
 });
 

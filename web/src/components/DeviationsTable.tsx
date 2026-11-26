@@ -1,16 +1,16 @@
-import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Anchor, Badge, Stack, Table, Text } from "@mantine/core";
+import { Badge, Stack, Table, Text } from "@mantine/core";
 import type { DeviationConnection, DeviationItem } from "../api/deviations";
 import type { Acknowledge } from "../hooks/useAcknowledge";
 import { ageText, deviationKindLabel, deviationSentence, goneBadge, isLineOpen, itemAckKeys } from "../utils/deviations";
 import { formatDateTime } from "../utils/formatDate";
-import { projectPath } from "../utils/planLinks";
+import { entityPath } from "../utils/entityLinks";
 import DeviationAckCell, { DeviationAckAll } from "./DeviationAckCell";
 import JiraKeyWithPrevious from "./JiraKeyWithPrevious";
 import JiraRollupText from "./JiraRollupText";
 import ScrollRegion from "./ScrollRegion";
 import SeverityBadge from "./SeverityBadge";
+import EntityLink from "./EntityLink";
 
 const GONE_BADGE = { movedOut: "deviations.jira.goneMovedOut", notListed: "deviations.jira.goneNotListed", gone: "deviations.jira.gone" } as const;
 
@@ -24,13 +24,17 @@ function PlanCell({ item }: { item: DeviationItem }) {
   return (
     <>
       {node.kind === "PROJECT" ? (
-        <Anchor component={RouterLink} to={projectPath(node.id)} size="sm" fw={500} aria-label={t("deviations.node.openProjectAria", { name: node.name })}>
-          {node.name}
-        </Anchor>
+        <EntityLink entity={{ kind: "project", id: node.id }} name={node.name} size="sm" fw={500} />
       ) : node.kind === "MILESTONE" && node.projectId !== null ? (
-        <Anchor component={RouterLink} to={projectPath(node.projectId)} size="sm" fw={500} aria-label={t("deviations.node.openMilestoneAria", { name: node.name, project: node.projectName ?? "" })}>
-          {node.name}
-        </Anchor>
+        <EntityLink
+          entity={{ kind: "milestone", id: node.id, projectId: node.projectId }}
+          name={node.name}
+          // A milestone's own address (`?milestone=`) is read by the project page from its own commit on; until then its link is its project's page.
+          to={entityPath({ kind: "project", id: node.projectId })}
+          size="sm"
+          fw={500}
+          aria-label={t("deviations.node.openMilestoneAria", { name: node.name, project: node.projectName ?? "" })}
+        />
       ) : (
         <Text size="sm" fw={500}>
           {node.name}

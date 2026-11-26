@@ -154,7 +154,7 @@ const rowLabels = () =>
     .getAllByRole("row")
     .slice(1)
     .map((row) => row.querySelector("a[href^='/projects/']")?.textContent ?? row.textContent?.trim());
-const rowOf = (name: string) => within(grid()).getByRole("link", { name: `Open ${name}` }).closest('[role="row"]') as HTMLElement;
+const rowOf = (name: string) => within(grid()).getByRole("link", { name: `Open project ${name}` }).closest('[role="row"]') as HTMLElement;
 const liveText = () => screen.getAllByRole("status").map((region) => region.textContent).join(" | ");
 
 async function openMenu(user: ReturnType<typeof userEvent.setup>, name: string) {

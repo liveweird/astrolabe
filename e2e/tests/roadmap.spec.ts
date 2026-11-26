@@ -77,8 +77,8 @@ async function openRoadmapOf(page: Page, programId: number): Promise<void> {
 }
 
 const grid = (page: Page) => page.getByRole("grid", { name: "Roadmap timeline" });
-/** The row of a project: the one that holds its "Open <name>" link. */
-const rowOf = (page: Page, name: string): Locator => grid(page).getByRole("row").filter({ has: page.getByRole("link", { name: `Open ${name}`, exact: true }) });
+/** The row of a project: the one that holds its "Open project <name>" link. */
+const rowOf = (page: Page, name: string): Locator => grid(page).getByRole("row").filter({ has: page.getByRole("link", { name: `Open project ${name}`, exact: true }) });
 const operations = (page: Page, name: string): Locator => page.getByRole("button", { name: `Operations for ${name}`, exact: true });
 
 /** The rows of the page top to bottom, as a project's name or "Unranked" for the divider (the picked program hides every other spec's rows). */
@@ -517,7 +517,7 @@ test("Home's unranked figure opens the Roadmap with the unranked projects only, 
   await field.fill(program);
   await page.getByRole("option", { name: program, exact: true }).click();
   await page.keyboard.press("Escape");
-  await expect(grid(page).getByRole("link", { name: /^Open / })).toHaveCount(2);
+  await expect(grid(page).getByRole("link", { name: /^Open project / })).toHaveCount(2);
   await expect(rowOf(page, flagged)).toHaveCount(1);
   await expect(rowOf(page, plain)).toHaveCount(1);
   await expect(page).toHaveURL(/[?&]unranked=true(&|$)/);
@@ -526,7 +526,7 @@ test("Home's unranked figure opens the Roadmap with the unranked projects only, 
   // A link naming a flag severity is shown as written: only the project with a warning, the severity select says so and the unranked switch (just used) is off.
   await page.goto(`/roadmap?severity=WARNING&programId=${programId}`);
   await expect(page.getByRole("heading", { level: 2, name: "Roadmap", exact: true })).toBeVisible();
-  await expect(grid(page).getByRole("link", { name: /^Open / })).toHaveCount(1);
+  await expect(grid(page).getByRole("link", { name: /^Open project / })).toHaveCount(1);
   await expect(rowOf(page, flagged)).toHaveCount(1);
   await expect(rowOf(page, plain)).toHaveCount(0);
   await openFilters(page);

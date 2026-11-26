@@ -1,6 +1,5 @@
 import type { ReactNode, Ref } from "react";
-import { Anchor, Group, Text } from "@mantine/core";
-import { Link as RouterLink } from "react-router-dom";
+import { Group, Text } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import type { TeamMilestone, TeamView } from "../api/teams";
@@ -9,7 +8,6 @@ import { useTeamColours } from "../hooks/useTeamColours";
 import { barList, baselineBars, newSince, removedRows } from "../utils/baselineOverlay";
 import { arrowSpecsFor, conflictsByBarFor, ghostRowId, markCriticalArrows } from "../utils/dependencyArrows";
 import { idleBands } from "../utils/idleGaps";
-import { projectPath } from "../utils/planLinks";
 import { withPinned } from "../utils/pinText";
 import { teamColourVar } from "../utils/teamColours";
 import { proposalBars, proposalRows, type TeamProposalView } from "../utils/scheduleProposal";
@@ -28,6 +26,7 @@ import TimelineArrows from "./TimelineArrows";
 import TimelineLoadStrip from "./TimelineLoadStrip";
 import TimelineRowHandle from "./TimelineRowHandle";
 import TimelineUnscheduledTray, { type TrayItem } from "./TimelineUnscheduledTray";
+import EntityLink from "./EntityLink";
 
 export type { TeamActions } from "./TeamTimelineMenu";
 
@@ -204,9 +203,7 @@ export default function TeamTimeline({
     cells: withOptional([
       <RowNameCell key="name" milestone={milestone} placement={view.team.can.editOrder && !previewing ? { index, count } : null} sinceBaseline={fresh?.has(milestone.id) === true} />,
       (stop: RovingTarget) => (
-        <Anchor component={RouterLink} to={projectPath(milestone.projectId)} size="sm" truncate title={milestone.projectName} aria-label={t("teams.view.openProjectAria", { name: milestone.projectName })} {...stop}>
-          {milestone.projectName}
-        </Anchor>
+        <EntityLink entity={{ kind: "project", id: milestone.projectId }} name={milestone.projectName} size="sm" truncate title={milestone.projectName} stop={stop} />
       ),
       estimateText(t, milestone),
       (stop: RovingTarget) => <MilestoneMenu milestone={milestone} view={view} actions={actions} placement={{ index, count }} trigger={stop} previewing={previewing} />,
@@ -268,9 +265,7 @@ export default function TeamTimeline({
       cells: withOptional([
         <NameCell key="name" milestone={milestone} isNew />,
         (stop: RovingTarget) => (
-          <Anchor component={RouterLink} to={projectPath(milestone.projectId)} size="sm" truncate title={milestone.projectName} aria-label={t("teams.view.openProjectAria", { name: milestone.projectName })} {...stop}>
-            {milestone.projectName}
-          </Anchor>
+          <EntityLink entity={{ kind: "project", id: milestone.projectId }} name={milestone.projectName} size="sm" truncate title={milestone.projectName} stop={stop} />
         ),
         estimateText(t, milestone),
         (stop: RovingTarget) => <MilestoneMenu milestone={milestone} view={view} actions={actions} trigger={stop} previewing proposedRow />,
@@ -315,9 +310,7 @@ export function TeamTray({ view, actions, label, previewing = false }: { view: T
       <NameWithFlags key="name" flags={milestone.flags} link={milestone.jira} sites={sites}>
         <NameCell milestone={milestone} note={jiraTrayNote(t, milestone.jira, milestone.flags)} />
       </NameWithFlags>,
-      <Anchor key="project" component={RouterLink} to={projectPath(milestone.projectId)} size="sm" truncate title={milestone.projectName} aria-label={t("teams.view.openProjectAria", { name: milestone.projectName })}>
-        {milestone.projectName}
-      </Anchor>,
+      <EntityLink key="project" entity={{ kind: "project", id: milestone.projectId }} name={milestone.projectName} size="sm" truncate title={milestone.projectName} />,
       estimateText(t, milestone),
     ],
     canSchedule: view.team.can.schedule,

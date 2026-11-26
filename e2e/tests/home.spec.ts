@@ -108,7 +108,7 @@ const table = (page: Page, name: string) => page.getByRole("table", { name, exac
 const bodyRows = (list: Locator) => list.locator("tbody tr");
 /** The row of "Your projects" whose name link is this project's (the order of unranked rows is by name, so a position says nothing). */
 const projectRowOf = (page: Page, project: string) =>
-  bodyRows(table(page, "Your projects")).filter({ has: page.getByRole("link", { name: `Open ${project}`, exact: true }) });
+  bodyRows(table(page, "Your projects")).filter({ has: page.getByRole("link", { name: `Open project ${project}`, exact: true }) });
 
 // The Home page: "Yours" is what the signed-in login's linked person may manage through the owner chain, each row naming its owner. Every row below is
 // the throwaway owner's chain, so the counts are exact; the plan-wide figures of the cards are not asserted here (scenario two, and vitest, pin their
@@ -122,7 +122,7 @@ test("the Home page shows a person the projects, teams, programs and work stream
   const projects = table(page, "Your projects");
   await expect(bodyRows(projects)).toHaveCount(2);
   const projectRow = projectRowOf(page, world.project);
-  await expect(projectRow.getByRole("link", { name: `Open ${world.project}`, exact: true })).toHaveText(world.project);
+  await expect(projectRow.getByRole("link", { name: `Open project ${world.project}`, exact: true })).toHaveText(world.project);
   await expect(projectRow.getByRole("cell").nth(1)).toHaveText(world.program);
   await expect(projectRow.getByRole("cell").nth(2)).toHaveText(world.personName);
   await expect(projectRow.getByRole("cell").nth(3)).toHaveText("Unranked");
@@ -167,7 +167,7 @@ test("the Home page shows a person the projects, teams, programs and work stream
   expect(await axeViolations(page)).toEqual([]);
 
   // A name opens its page; Home is one click away from either.
-  await projectRow.getByRole("link", { name: `Open ${world.project}`, exact: true }).click();
+  await projectRow.getByRole("link", { name: `Open project ${world.project}`, exact: true }).click();
   await expect(page.getByRole("heading", { level: 2, name: world.project, exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Home", exact: true }).click();
   await teamRow.getByRole("link", { name: `Open team ${world.team}`, exact: true }).click();
@@ -213,8 +213,8 @@ test("a figure under Yours opens the list it counts, and the owner's projects op
   await page.getByRole("link", { name: "Open the projects you own yourself on the roadmap", exact: true }).click();
   await expect(page.getByRole("heading", { level: 2, name: "Roadmap", exact: true })).toBeVisible();
   const roadmap = page.getByRole("grid", { name: "Roadmap timeline", exact: true });
-  await expect(roadmap.getByRole("link", { name: `Open ${world.project}`, exact: true })).toBeVisible();
-  await expect(roadmap.getByRole("link", { name: `Open ${world.otherProject}`, exact: true })).toHaveCount(0);
+  await expect(roadmap.getByRole("link", { name: `Open project ${world.project}`, exact: true })).toBeVisible();
+  await expect(roadmap.getByRole("link", { name: `Open project ${world.otherProject}`, exact: true })).toHaveCount(0);
   await expect(roadmap.locator('a[href^="/projects/"]')).toHaveCount(1);
   await openFilters(page);
   await expect(page.getByRole("combobox", { name: "Owner", exact: true })).toHaveValue(world.personName);

@@ -17,6 +17,17 @@
     "hidePassword": "Hide password",
     "reload": "Reload"
   },
+  "entity": {
+    "open": {
+      "workStream": "Open work stream {{name}}",
+      "program": "Open program {{name}}",
+      "project": "Open project {{name}}",
+      "milestone": "Open milestone {{name}}",
+      "team": "Open team {{name}}",
+      "person": "Open person {{name}}",
+      "user": "Open user {{name}}"
+    }
+  },
   "dateFormatHint": "YYYY-MM-DD",
   "field": {
     "email": "Email",

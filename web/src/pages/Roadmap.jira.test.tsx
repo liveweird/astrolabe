@@ -97,7 +97,7 @@ describe("Roadmap page: the Jira dates", () => {
       "Jira E2E-8: 2026-05-04 to 2026-05-29, read-only",
     ]);
     // the bar rides in its project's row, after the span bar
-    const row = screen.getByRole("link", { name: "Open Invoices" }).closest('[role="row"]') as HTMLElement;
+    const row = screen.getByRole("link", { name: "Open project Invoices" }).closest('[role="row"]') as HTMLElement;
     expect([...row.querySelectorAll("[data-tone]")].map((el) => el.getAttribute("data-tone"))).toEqual(["summary", "jira"]);
     expect(localStorage.getItem(KEY)).toBeNull();
   });
@@ -161,7 +161,7 @@ describe("Roadmap page: the Jira dates", () => {
   test("the flag icons and counts are unchanged: severity-driven, Jira kinds included", async () => {
     renderWithProviders(<Roadmap />);
     await waitForGrid();
-    const row = screen.getByRole("link", { name: "Open Invoices" }).closest('[role="row"]') as HTMLElement;
+    const row = screen.getByRole("link", { name: "Open project Invoices" }).closest('[role="row"]') as HTMLElement;
     expect(row.querySelector("[data-flags]")).toHaveAttribute("data-flags", "1,1");
   });
 });

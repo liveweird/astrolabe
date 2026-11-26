@@ -1,8 +1,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
-import { Link as RouterLink } from "react-router-dom";
-import { Anchor, Button, Group, Stack, Table, Text, Title } from "@mantine/core";
+import { Button, Group, Stack, Table, Text, Title } from "@mantine/core";
 import { IconLink, IconUsersGroup } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFlowTeamBinding, deleteFlowTeamBinding, listFlowTeams, matchFlowTeams, type FlowConnection, type FlowTeamListItem, type FlowTeamMatch } from "../api/flow";
@@ -11,7 +10,6 @@ import { formatDateTime } from "../utils/formatDate";
 import { linkFailure } from "../utils/flowLinkFailure";
 import { refreshFlowLinks } from "../utils/flowRefresh";
 import { saveErrorMessage } from "../utils/saveError";
-import { teamPath } from "../utils/teamLinks";
 import { IDLE_REFRESH_MS } from "../utils/syncRuns";
 import { showSuccessToast } from "../utils/toast";
 import ConfirmDeleteModal from "./ConfirmDeleteModal";
@@ -20,6 +18,7 @@ import ErrorAlert from "./ErrorAlert";
 import FormErrorAlert from "./FormErrorAlert";
 import LoadingBlock from "./LoadingBlock";
 import ScrollRegion from "./ScrollRegion";
+import EntityLink from "./EntityLink";
 
 /** The outcome of "Link all suggested": how many were linked and what was left (the server reports `NO_MATCH` / `ALREADY_BOUND` per Flow team). */
 function matchSummary(result: FlowTeamMatch, t: TFunction): string {
@@ -156,9 +155,7 @@ export default function FlowTeamsSection({ connection }: { connection: FlowConne
                     <Table.Td ta="right">{team.sprints}</Table.Td>
                     <Table.Td>
                       {team.boundTeamId !== null ? (
-                        <Anchor component={RouterLink} to={teamPath(team.boundTeamId)} size="sm">
-                          {team.boundTeamName}
-                        </Anchor>
+                        <EntityLink entity={team.boundTeamName === null ? null : { kind: "team", id: team.boundTeamId }} name={team.boundTeamName ?? ""} size="sm" />
                       ) : team.suggestedTeamId !== null ? (
                         <Text size="sm">{t("flow.teams.suggested", { name: team.suggestedTeamName })}</Text>
                       ) : (

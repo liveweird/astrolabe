@@ -8,7 +8,6 @@
   "loadFailed": "Nie udało się wczytać osób",
   "notFound": "Ta osoba nie istnieje (albo ktoś ją usunął).",
   "backToPeople": "Wróć do osób",
-  "openAria": "Otwórz osobę {{name}}",
   "column": {
     "login": "Login"
   },

@@ -202,7 +202,7 @@ describe("Plan page: filters in the address", () => {
     await user.click(screen.getByRole("switch", { name: "Hide closed work streams" }));
     expect(address()).toBe("?hideClosed=true&workStreamId=1");
     expect(keys()).toEqual(["ws:1", "pg:10", "pg:11", "pj:102"]);
-    expect(screen.queryByRole("link", { name: "Open Old ledger" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Open project Old ledger" })).not.toBeInTheDocument();
   });
 
   test("no row matching shows the empty state, whose button clears every filter and says so", async () => {

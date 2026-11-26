@@ -127,7 +127,7 @@ const puts = () =>
     .map(([u, init]) => ({ id: Number(/projects\/(\d+)\//.exec(u as string)?.[1]), body: JSON.parse((init as RequestInit).body as string) as unknown }));
 const gets = () => mockFetch.mock.calls.filter(([u, init]) => u === "/api/v1/views/programs" && ((init as RequestInit | undefined)?.method ?? "GET") === "GET").length;
 const grid = () => screen.getByRole("grid", { name: "Programs timeline" });
-const rowOf = (name: string) => within(grid()).getByRole("link", { name: `Open ${name}` }).closest('[role="row"]') as HTMLElement;
+const rowOf = (name: string) => within(grid()).getByRole("link", { name: `Open project ${name}` }).closest('[role="row"]') as HTMLElement;
 const nodeRow = (label: string) => within(grid()).getByRole("button", { name: label }).closest('[role="row"]') as HTMLElement;
 const liveText = () => screen.getAllByRole("status").map((region) => region.textContent).join(" | ");
 const settled = () => waitFor(() => expect(grid()).toHaveAttribute("aria-busy", "false"));
@@ -137,7 +137,7 @@ async function openProgram(user: ReturnType<typeof userEvent.setup>) {
   renderWithProviders(<Programs />);
   await screen.findByRole("grid", { name: "Programs timeline" });
   await user.click(within(grid()).getByRole("button", { name: "Program Billing" }));
-  await waitFor(() => expect(within(grid()).getByRole("link", { name: "Open Invoices" })).toBeInTheDocument());
+  await waitFor(() => expect(within(grid()).getByRole("link", { name: "Open project Invoices" })).toBeInTheDocument());
 }
 
 describe("Programs page: the target window", () => {

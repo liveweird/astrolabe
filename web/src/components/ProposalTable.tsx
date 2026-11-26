@@ -1,9 +1,7 @@
-import { Anchor, Badge, Checkbox, Group, Stack, Table, Text, VisuallyHidden } from "@mantine/core";
-import { Link as RouterLink } from "react-router-dom";
+import { Badge, Checkbox, Group, Stack, Table, Text, VisuallyHidden } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import type { ScheduleProposalMove, ScheduleProposalUnplaced } from "../api/teams";
 import classes from "../theme.module.css";
-import { projectPath } from "../utils/planLinks";
 import {
   changeSentence,
   endpointText,
@@ -17,6 +15,7 @@ import {
   type ScheduleCheckState,
 } from "../utils/scheduleProposal";
 import ScrollRegion from "./ScrollRegion";
+import EntityLink from "./EntityLink";
 
 /** The part of the ticked-subset check the table words: it is on its way, or it failed. */
 type ProposalCheckNote = Pick<ScheduleCheckState, "pending" | "failed">;
@@ -75,15 +74,12 @@ function Summary({ proposal, check }: { proposal: ProposalContent; check?: Propo
 
 /** The milestone's name with its project as the way into the project page (the team timeline's own link, same accessible name). */
 function MilestoneCell({ name, projectId, projectName }: { name: string; projectId: number; projectName: string }) {
-  const { t } = useTranslation();
   return (
     <Stack gap={0}>
       <Text size="sm" fw={500}>
         {name}
       </Text>
-      <Anchor component={RouterLink} to={projectPath(projectId)} size="xs" aria-label={t("teams.view.openProjectAria", { name: projectName })}>
-        {projectName}
-      </Anchor>
+      <EntityLink entity={{ kind: "project", id: projectId }} name={projectName} size="xs" />
     </Stack>
   );
 }

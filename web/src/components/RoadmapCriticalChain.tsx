@@ -2,7 +2,6 @@ import { Stack, Text, Title } from "@mantine/core";
 import type { ParseKeys } from "i18next";
 import { useTranslation } from "react-i18next";
 import type { RoadmapCriticalPath, RoadmapProject } from "../api/roadmap";
-import { projectPath } from "../utils/planLinks";
 import { chainProjects } from "../utils/roadmapCritical";
 import UpstreamTable, { type UpstreamRow } from "./UpstreamTable";
 
@@ -36,8 +35,7 @@ export default function RoadmapCriticalChain({
     key: String(project.id),
     hops,
     name: project.name,
-    to: projectPath(project.id),
-    ariaLabel: t("roadmap.openProjectAria", { name: project.name }),
+    entity: { kind: "project", id: project.id },
     context: project.programName,
     startDate: project.span?.start ?? null,
     endDate: project.span?.end ?? null,

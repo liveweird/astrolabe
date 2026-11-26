@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
-import { Anchor, Button, Group, Menu, Stack, Table, Text } from "@mantine/core";
+import { useNavigate } from "react-router-dom";
+import { Button, Group, Menu, Stack, Table, Text } from "@mantine/core";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconPencil, IconPlus, IconTrash, IconUsersGroup } from "@tabler/icons-react";
 import { useAdmin } from "../auth";
@@ -24,6 +24,7 @@ import { useRegistryListControls } from "../hooks/useRegistryListControls";
 import { saveErrorMessage } from "../utils/saveError";
 import { teamPath } from "../utils/teamLinks";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
+import EntityLink from "../components/EntityLink";
 
 const SORT_FIELDS = ["name", "updatedAt"] as const;
 type SortField = (typeof SORT_FIELDS)[number];
@@ -121,9 +122,7 @@ export default function Teams() {
                   {/* The name is the way into the team page — a real link (the detail-link rule); its colour swatch stands before it. */}
                   <Group gap="xs" wrap="nowrap">
                     <TeamSwatch colour={team.colour} />
-                    <Anchor component={RouterLink} to={teamPath(team.id)} fw={500} size="sm" aria-label={t("teams.openAria", { name: team.name })}>
-                      {team.name}
-                    </Anchor>
+                    <EntityLink entity={{ kind: "team", id: team.id }} name={team.name} fw={500} size="sm" />
                   </Group>
                 </Table.Td>
                 <Table.Td>

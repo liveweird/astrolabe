@@ -1,6 +1,7 @@
-import { Anchor, Badge, Table, Text } from "@mantine/core";
-import { Link as RouterLink } from "react-router-dom";
+import { Badge, Table, Text } from "@mantine/core";
 import { useTranslation } from "react-i18next";
+import type { EntityRef } from "../utils/entityLinks";
+import EntityLink from "./EntityLink";
 import ScrollRegion from "./ScrollRegion";
 
 const NO_WRAP = { whiteSpace: "nowrap" } as const;
@@ -14,11 +15,14 @@ const TABLE_MAX_HEIGHT = 420;
 export type UpstreamRow = {
   key: string;
   hops: number;
-  /** The visible text of the link into the project. */
+  /** The visible text of the link into the entity's page. */
   name: string;
-  to: string;
-  /** The link's accessible name; it keeps the visible text. */
-  ariaLabel: string;
+  /** What the name stands for: a project, or a milestone (its project's page). */
+  entity: EntityRef;
+  /** Where the link goes when that is not the entity's own address (a milestone's row goes to its project's page until the page reads `?milestone=`). */
+  to?: string;
+  /** The link's accessible name when it is not the entity's own (`common.entity.open.<kind>`); it keeps the visible text. */
+  ariaLabel?: string;
   /** The "Kind" column's text (only when the table has that column). */
   kind?: string;
   /** The context column's text: the project of a milestone (project page), the program of a project (roadmap). */
@@ -71,10 +75,8 @@ export default function UpstreamTable({
             <Table.Tr key={row.key}>
               <Table.Td>{row.hops}</Table.Td>
               <Table.Td>
-                {/* The accessible name keeps the visible text and says where the link goes (label-content-name-mismatch), like a ghost row's. */}
-                <Anchor component={RouterLink} to={row.to} aria-label={row.ariaLabel}>
-                  {row.name}
-                </Anchor>
+                {/* The entity's own accessible name ("Open project X"), or the row's `ariaLabel` (a ghost row's "text - open project X"): both keep the visible text (label-content-name-mismatch). */}
+                <EntityLink entity={row.entity} to={row.to} name={row.name} aria-label={row.ariaLabel} />
                 {row.note !== undefined && (
                   <Text span size="sm" c="dimmed">
                     {" "}

@@ -220,7 +220,7 @@ describe("Plan page: folds", () => {
     const names = screen.getAllByRole("button").map((button) => button.getAttribute("aria-label") ?? button.textContent);
     // The only menus left are the view ones (Show only this, Pin): everyone may focus and pin.
     expect(names.sort()).toEqual(["Collapse all", "Expand all", "Filters", "Operations for Billing", "Operations for Invoices", "Operations for Platform", "Program Billing", "Work stream Platform"]);
-    expect(screen.getByRole("link", { name: "Open Invoices" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open project Invoices" })).toBeInTheDocument();
   });
 
   test("the load failure shows no table and no fold controls", async () => {
@@ -276,7 +276,7 @@ describe("Plan page: a moved node stays in sight", () => {
     const [moved] = plan.workStreams[0].programs[0].projects.splice(0, 1);
     plan.workStreams[1].programs[0].projects.push({ ...moved, programId: 20, workStreamId: 2 });
     await user.click(within(dialog).getByRole("button", { name: "Move" }));
-    expect(await screen.findByRole("link", { name: "Open Invoices" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Open project Invoices" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Work stream Legacy" })).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("button", { name: "Program Archive" })).toHaveAttribute("aria-expanded", "true");
   });
@@ -285,12 +285,12 @@ describe("Plan page: a moved node stays in sight", () => {
     const user = userEvent.setup();
     renderWithProviders(<Plan />);
     await user.click(await screen.findByRole("button", { name: "Program Identity" }));
-    expect(screen.queryByRole("link", { name: "Open Login" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Open project Login" })).not.toBeInTheDocument();
     const dialog = await moveTo(user, "Invoices", "Move Invoices to another program", "New program", "ident", "Identity");
     const [moved] = plan.workStreams[0].programs[0].projects.splice(0, 1);
     plan.workStreams[0].programs[1].projects.push({ ...moved, programId: 11 });
     await user.click(within(dialog).getByRole("button", { name: "Move" }));
-    expect(await screen.findByRole("link", { name: "Open Invoices" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Open project Invoices" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Program Identity" })).toHaveAttribute("aria-expanded", "true");
   });
 

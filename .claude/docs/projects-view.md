@@ -45,7 +45,7 @@ The retired Milestones page's filters, kept for ONE project (the page is gone: `
 mounted only while the project has a milestone (an empty project has the page's own empty state).
 
 - **Rows** are the view's own `scheduled` then `unscheduled` (`projectMilestones`), nothing fetched or recomputed; a write that moves a milestone changes the table with the view.
-  - Columns: Milestone (plain text), Team (`TeamNameCell`: swatch and name, a link named by `teams.openAria`), Estimate, Start, End. A milestone without dates has ONE dimmed "Not scheduled" cell across Start and End.
+  - Columns: Milestone (plain text), Team (`TeamNameCell`: swatch and name, a link named by `common.entity.open.team`), Estimate, Start, End. A milestone without dates has ONE dimmed "Not scheduled" cell across Start and End.
   - The name cell is a `td`, not a row header: the timeline's rowheaders stay the only ones on the page (e2e addresses them by role).
 - **Controls**, inline above the table (no drawer: three small controls; `data-print="hide"`):
   - Schedule (All, Not scheduled, Scheduled; never clearable).

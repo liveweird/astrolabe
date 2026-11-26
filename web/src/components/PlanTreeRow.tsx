@@ -1,18 +1,17 @@
 import type { CSSProperties } from "react";
-import { ActionIcon, Anchor, Badge, Group, Table, Text, Tooltip, UnstyledButton, VisuallyHidden } from "@mantine/core";
+import { ActionIcon, Badge, Group, Table, Text, Tooltip, UnstyledButton, VisuallyHidden } from "@mantine/core";
 import { IconChevronDown, IconChevronRight, IconPin, IconPinnedOff, IconPlus } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
-import { Link as RouterLink } from "react-router-dom";
 import { usePlanDragKey } from "../hooks/usePlanDragKey";
 import type { PlanActions, PlanViewActions } from "../utils/planActions";
 import { nodeOf } from "../utils/planOrder";
-import { projectPath } from "../utils/planLinks";
 import { foldedMatchRange } from "../utils/text";
 import { scopedLabel, type PlanScope } from "../utils/planPins";
 import { rowName, type NodeRow, type PlanTreeRow } from "../utils/planTree";
 import classes from "../theme.module.css";
 import PlanRowHandle from "./PlanRowHandle";
 import PlanRowMenu from "./PlanRowMenu";
+import EntityLink from "./EntityLink";
 
 /** The weight of a name by level: work stream 600, program 500, project 400. */
 const WEIGHT = { workStream: 600, program: 500, project: 400 } as const;
@@ -121,9 +120,9 @@ function RowName({ row, label, highlight, onToggle }: { row: PlanTreeRow; label:
   if (row.kind === "project") {
     return (
       <span className={classes.planTreeLeaf}>
-        <Anchor component={RouterLink} to={projectPath(row.project.id)} size="sm" fw={WEIGHT.project} aria-label={label(t("plan.openProjectAria", { name }))}>
+        <EntityLink entity={{ kind: "project", id: row.project.id }} name={name} size="sm" fw={WEIGHT.project} aria-label={label(t("common.entity.open.project", { name }))}>
           {shown}
-        </Anchor>
+        </EntityLink>
       </span>
     );
   }

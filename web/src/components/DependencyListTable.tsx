@@ -1,16 +1,14 @@
 import { memo } from "react";
-import { Anchor, Menu, Stack, Table, Text } from "@mantine/core";
+import { Menu, Stack, Table, Text } from "@mantine/core";
 import { IconPencil, IconTrash } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
-import { Link as RouterLink } from "react-router-dom";
 import { dependencyEndpointText } from "../utils/dependencyForm";
 import type { DependencyListRow } from "../utils/dependencyListRows";
-import { projectPath } from "../utils/planLinks";
-import { teamPath } from "../utils/teamLinks";
 import { DependencyStatusBadge, DependencyLagText } from "./DependencyCells";
 import DestructiveMenuItem from "./DestructiveMenuItem";
 import RowActionsMenu from "./RowActionsMenu";
 import ScrollRegion from "./ScrollRegion";
+import EntityLink from "./EntityLink";
 
 const NO_WRAP = { whiteSpace: "nowrap" } as const;
 /** The table scrolls inside its region (1,000 rows at most, no virtualisation - a plain table, like the baseline comparison's). */
@@ -22,13 +20,9 @@ function EndCell({ end }: { end: DependencyListRow["predecessor"] }) {
   return (
     <Stack gap={2}>
       <Text size="sm">{end.kind === "PROJECT" ? t("project.dependency.wholeProject", { name: end.name }) : end.name}</Text>
-      <Anchor component={RouterLink} to={projectPath(end.projectId)} size="xs" aria-label={t("plan.openProjectAria", { name: end.projectName })}>
-        {end.projectName}
-      </Anchor>
+      <EntityLink entity={{ kind: "project", id: end.projectId }} name={end.projectName} size="xs" />
       {end.teamId !== null && end.teamName !== null && (
-        <Anchor component={RouterLink} to={teamPath(end.teamId)} size="xs" aria-label={t("teams.openAria", { name: end.teamName })}>
-          {end.teamName}
-        </Anchor>
+        <EntityLink entity={{ kind: "team", id: end.teamId }} name={end.teamName} size="xs" />
       )}
     </Stack>
   );

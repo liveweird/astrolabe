@@ -373,8 +373,8 @@ test("a program's owner imports the projects and milestones under their linked p
 
   // The Plan page lists both projects under the program; the API agrees, and no program was created.
   const projectRows = page.locator(`tr[data-scope="tree"][data-kind="project"][data-parent="pg:${world.programId}"]`);
-  await expect(projectRows.getByRole("link", { name: "Open IMC Initiative North" })).toBeVisible();
-  await expect(projectRows.getByRole("link", { name: "Open IMC Initiative South" })).toBeVisible();
+  await expect(projectRows.getByRole("link", { name: "Open project IMC Initiative North" })).toBeVisible();
+  await expect(projectRows.getByRole("link", { name: "Open project IMC Initiative South" })).toBeVisible();
   const planned = await projectsOf(world.programId);
   expect(planned).toEqual([
     { name: "IMC Initiative North", scheduled: [], unscheduled: ["IMC Epic One"] },
@@ -512,7 +512,7 @@ test("a project's owner starts the import from the Plan page's project row", asy
   await expect(dialog).toHaveCount(0);
 
   // The project's page lists the milestone; the API agrees, and the sibling project got nothing.
-  await page.getByRole("link", { name: `Open ${projectName}`, exact: true }).click();
+  await page.getByRole("link", { name: `Open project ${projectName}`, exact: true }).click();
   await expect(page.getByRole("heading", { level: 2, name: projectName })).toBeVisible();
   await expect(page.getByText("IMC Epic One").first()).toBeVisible();
   const planned = await projectsOf(world.programId);
@@ -681,9 +681,9 @@ test("a renamed item is offered as a link to the unlinked plan project, and link
 
   // The Plan page lists the plan's own project and the new South one, and no duplicate "IMC Initiative North".
   const projectRows = page.locator(`tr[data-scope="tree"][data-kind="project"][data-parent="pg:${world.programId}"]`);
-  await expect(projectRows.getByRole("link", { name: `Open ${PLAIN_PROJECT}`, exact: true })).toBeVisible();
-  await expect(projectRows.getByRole("link", { name: "Open IMC Initiative South", exact: true })).toBeVisible();
-  await expect(projectRows.getByRole("link", { name: "Open IMC Initiative North", exact: true })).toHaveCount(0);
+  await expect(projectRows.getByRole("link", { name: `Open project ${PLAIN_PROJECT}`, exact: true })).toBeVisible();
+  await expect(projectRows.getByRole("link", { name: "Open project IMC Initiative South", exact: true })).toBeVisible();
+  await expect(projectRows.getByRole("link", { name: "Open project IMC Initiative North", exact: true })).toHaveCount(0);
   expect(await projectsOf(world.programId)).toEqual([
     { name: "IMC Initiative South", scheduled: [], unscheduled: ["IMC Epic Three"] },
     { name: PLAIN_PROJECT, scheduled: [], unscheduled: ["IMC Epic One"] },

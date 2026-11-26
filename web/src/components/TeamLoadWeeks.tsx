@@ -1,12 +1,11 @@
-import { Anchor, Stack, Table, Text, Title } from "@mantine/core";
+import { Stack, Table, Text, Title } from "@mantine/core";
 import { useTranslation } from "react-i18next";
-import { Link as RouterLink } from "react-router-dom";
 import type { TeamLoadRow } from "../api/teamLoad";
 import { matchesWeek, type TeamLoadWarning } from "../utils/teamLoadFilters";
-import { teamPath } from "../utils/teamLinks";
 import { mdText, weekLabel } from "../utils/weekLoadText";
 import ScrollRegion from "./ScrollRegion";
 import { WeekStatus } from "./WeekLoadCells";
+import EntityLink from "./EntityLink";
 
 const NO_WRAP = { whiteSpace: "nowrap" } as const;
 const TABLE_MAX_HEIGHT = 420;
@@ -54,9 +53,7 @@ export default function TeamLoadWeeks({
             {weeks.map(({ row, week }) => (
               <Table.Tr key={`${row.id}-${week.weekStart}`}>
                 <Table.Td>
-                  <Anchor component={RouterLink} to={teamPath(row.id)} size="sm" fw={500} aria-label={t("teams.openAria", { name: row.name })}>
-                    {row.name}
-                  </Anchor>
+                  <EntityLink entity={{ kind: "team", id: row.id }} name={row.name} size="sm" fw={500} />
                 </Table.Td>
                 <Table.Td style={NO_WRAP}>{weekLabel(week.weekStart)}</Table.Td>
                 <Table.Td>{mdText(week.load)}</Table.Td>

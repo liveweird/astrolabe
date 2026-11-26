@@ -364,7 +364,7 @@ test("the roadmap shows the critical path to P: X and Y emphasised, the chain pa
   await expect(picker).toHaveValue("None");
   await expect(page.locator("[data-critical]")).toHaveCount(0);
   await expect(page.getByRole("heading", { level: 3, name: /^Critical path to / })).toHaveCount(0);
-  await expect(roadmap.getByRole("link", { name: `Open ${x.name}`, exact: true })).toBeVisible();
+  await expect(roadmap.getByRole("link", { name: `Open project ${x.name}`, exact: true })).toBeVisible();
 
   // The row menu of P (any viewer may ask: it is a question, not a write).
   await rowOperation(page, p.name, `Show critical path to this project: ${p.name}`);
@@ -390,7 +390,7 @@ test("the roadmap shows the critical path to P: X and Y emphasised, the chain pa
   await expect(rows).toHaveCount(3); // the header, Y and X
   await expect(rows.nth(1).getByRole("cell")).toHaveText(["1", y.name, program.name, `${WEEK_2.start} – ${WEEK_2.end}`, "0 working days", "On the chain"]);
   await expect(rows.nth(2).getByRole("cell")).toHaveText(["2", x.name, program.name, `${WEEK_1.start} – ${WEEK_1.end}`, "0 working days", "On the chain"]);
-  await expect(table.getByRole("link", { name: `Open ${x.name}` })).toHaveAttribute("href", `/projects/${x.id}`);
+  await expect(table.getByRole("link", { name: `Open project ${x.name}` })).toHaveAttribute("href", `/projects/${x.id}`);
 
   // None clears the emphasis and the panel.
   await picker.click();
@@ -436,7 +436,7 @@ test("the roadmap overview shows the critical path to P: the folded program is o
   // Folded: the one program row stands for X, Y and P, so ITS bar is outlined and says so, no project row exists, and the chain lies inside that one row, so no arrow is drawn.
   await expect(programBar).toHaveAttribute("data-critical", "true");
   await expect(page.locator('[data-critical="true"]')).toHaveCount(1);
-  await expect(tree.getByRole("link", { name: /^Open / })).toHaveCount(0);
+  await expect(tree.getByRole("link", { name: /^Open project / })).toHaveCount(0);
   await expect(page.locator("[data-arrow]")).toHaveCount(0);
 
   // The panel lists Y (1 hop) and X (2 hops), each marked as not on the timeline (folded).

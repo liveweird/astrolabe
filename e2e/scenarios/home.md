@@ -9,7 +9,7 @@
 1. The owner signs in.
    - *Expected*: the heading "Yours" (h3) and "Your login is linked to the person <name>."
 2. They read the table "Your projects".
-   - *Expected*: exactly two rows, found by their project's name (never by position): the owner's own project (its name as a link "Open <name>", its program, the Owner cell reading the owner's person, "Unranked", 2 milestones, 1 not scheduled, "1 warning" and "1 info") and the second person's project (its program, the Owner cell reading the second person, "Unranked", 0 milestones).
+   - *Expected*: exactly two rows, found by their project's name (never by position): the owner's own project (its name as a link "Open project <name>", its program, the Owner cell reading the owner's person, "Unranked", 2 milestones, 1 not scheduled, "1 warning" and "1 info") and the second person's project (its program, the Owner cell reading the second person, "Unranked", 0 milestones).
 3. They read "Your teams" and "Your programs and work streams".
    - *Expected*: exactly one team row (its link "Open team <name>", 2 milestones, 1 not scheduled); exactly two node rows, the work stream first and the program second, each with an Owner cell reading the owner's person, 2 projects, "1 warning" and "1 info" (the work stream with 1 program, the program naming its work stream); the "Open the roadmap overview" link; the sentence "Listed below: what you own, everything under a work stream or program you own, and the teams you manage." One axe scan of the page.
 4. They click the project's name, go back to Home, click the team's name.
@@ -25,7 +25,7 @@
 1. The owner signs in and clicks the owner's own project row's "1 not scheduled" link (its accessible name carries the project's name).
    - *Expected*: the project's page (h2 its name) at `?milestones=unscheduled`, its Milestones table with the Schedule select reading "Not scheduled" and exactly one row, the unscheduled milestone.
 2. Back on Home they click "Open the projects you own yourself on the roadmap".
-   - *Expected*: the Roadmap (h2) whose timeline holds exactly one project, the owner's own project (its "Open <name>" link; the second person's project is not there), and the Owner filter reads the owner's person.
+   - *Expected*: the Roadmap (h2) whose timeline holds exactly one project, the owner's own project (its "Open project <name>" link; the second person's project is not there), and the Owner filter reads the owner's person.
 3. Back on Home they click the team row's "1 not scheduled" link.
    - *Expected*: the team's page (`/teams/<id>`), its Unscheduled tray holding the unscheduled milestone.
 

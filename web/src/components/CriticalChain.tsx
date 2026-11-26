@@ -2,8 +2,8 @@ import { Stack, Text, Title } from "@mantine/core";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import type { ProjectView, UpstreamEntity } from "../api/milestones";
-import { projectPath } from "../utils/planLinks";
 import { chainEntries } from "../utils/projectDependencies";
+import { entityPath } from "../utils/entityLinks";
 import TableDisclosure from "./TableDisclosure";
 import UpstreamTable, { type UpstreamRow } from "./UpstreamTable";
 
@@ -13,7 +13,9 @@ function rowsOf(entries: readonly UpstreamEntity[], t: TFunction): UpstreamRow[]
     key: `${entry.kind}:${entry.id}`,
     hops: entry.hops,
     name: entry.name,
-    to: projectPath(entry.projectId),
+    entity: entry.kind === "MILESTONE" ? { kind: "milestone", id: entry.id, projectId: entry.projectId } : { kind: "project", id: entry.projectId },
+    // A milestone's own address (`?milestone=`) is read by the project page from its own commit on; until then its row goes to its project's page.
+    to: entityPath({ kind: "project", id: entry.projectId }),
     ariaLabel: t("project.ghostLinkAria", { text: entry.name, project: entry.projectName }),
     kind: t(`project.dependency.kind.${entry.kind}`),
     context: entry.projectName,

@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
-import { Anchor, Button, Menu, Stack, Table, Text } from "@mantine/core";
+import { useNavigate } from "react-router-dom";
+import { Button, Menu, Stack, Table, Text } from "@mantine/core";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconAddressBook, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useAdmin } from "../auth";
@@ -23,6 +23,7 @@ import { useRegistryListControls } from "../hooks/useRegistryListControls";
 import { personPath } from "../utils/peopleLinks";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
+import EntityLink from "../components/EntityLink";
 
 const SORT_FIELDS = ["name", "email", "updatedAt"] as const;
 type SortField = (typeof SORT_FIELDS)[number];
@@ -110,9 +111,7 @@ export default function People() {
           <Table.Tr key={person.id}>
             <Table.Td>
               {/* The name is the way into the person page — a real link (the detail-link rule). */}
-              <Anchor component={RouterLink} to={personPath(person.id)} fw={500} size="sm" aria-label={t("people.openAria", { name: person.name })}>
-                {person.name}
-              </Anchor>
+              <EntityLink entity={{ kind: "person", id: person.id }} name={person.name} fw={500} size="sm" />
             </Table.Td>
             <Table.Td>
               <Text size="sm" c={person.email ? undefined : "dimmed"}>
