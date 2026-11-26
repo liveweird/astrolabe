@@ -125,12 +125,14 @@ describe("Teams page", () => {
     renderPage();
     await user.click(await screen.findByRole("button", { name: /new team/i }));
     const modal = screen.getByRole("dialog");
+    // Both teams hold INDIGO, so the least-used key is the next one, TEAL: the editor preselects it once the teams are read.
+    await waitFor(() => expect(within(modal).getByRole("radio", { name: "Teal" })).toBeChecked());
     await user.type(within(modal).getByLabelText("Name"), "Ledger");
     await user.type(within(modal).getByLabelText("Description"), " keeps the books ");
     await user.click(within(modal).getByRole("button", { name: /^create$/i }));
     await waitFor(() => expect(findCall(mockFetch, "POST", "/api/v1/teams")).toBeDefined());
     const body = JSON.parse((findCall(mockFetch, "POST", "/api/v1/teams")![1] as RequestInit).body as string);
-    expect(body).toEqual({ name: "Ledger", description: "keeps the books", managerPersonId: null });
+    expect(body).toEqual({ name: "Ledger", description: "keeps the books", managerPersonId: null, colour: "TEAL" });
     expect(await screen.findByText("at /teams/9")).toBeInTheDocument();
   });
 
@@ -160,6 +162,7 @@ describe("Teams page", () => {
     // The manager and the name are on Home ("Yours"), which keeps its read for a minute: the save marks it stale.
     await waitFor(() => expect(homeReadIsStale(queryClient)).toBe(true));
     // Edit keeps the stored manager (a PUT is a full replace).
+    // The colour was not touched, so the PUT omits it and keeps the stored one.
     expect(body).toEqual({ name: "Payments", description: null, managerPersonId: 7 });
   });
 
@@ -199,6 +202,80 @@ describe("Teams page", () => {
     await user.click(within(modal).getByRole("button", { name: /^save$/i }));
     await waitFor(() => expect(findCall(mockFetch, "PUT", "/api/v1/teams/1")).toBeDefined());
     expect(JSON.parse((findCall(mockFetch, "PUT", "/api/v1/teams/1")![1] as RequestInit).body as string)).toMatchObject({ managerPersonId: null });
+  });
+
+  test("each row carries its team's colour as a swatch before the name link (the name stays the information)", async () => {
+    serve(mockFetch);
+    renderPage();
+    const link = await screen.findByRole("link", { name: "Open team Payments" });
+    const swatch = link.parentElement?.querySelector("[data-team-colour]");
+    expect(swatch).toHaveAttribute("data-team-colour", "INDIGO");
+    expect(swatch).toHaveAttribute("aria-hidden", "true");
+    expect(swatch).toHaveTextContent("");
+    expect(swatch?.compareDocumentPosition(link)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  test("the editor offers the twelve colours as a radio group, each with its visible name, and says who else holds the picked one", async () => {
+    serve(mockFetch, { "PUT /api/v1/teams/1": { status: 204 } });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Operations for Payments" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Edit Payments" }));
+    const modal = await screen.findByRole("dialog");
+    const group = within(modal).getByRole("radiogroup", { name: "Colour" });
+    expect(within(group).getAllByRole("radio").map((radio) => (radio as HTMLInputElement).value)).toEqual([
+      "INDIGO", "TEAL", "LIME", "RASPBERRY", "GRAPE", "PINK", "VIOLET", "COBALT", "AZURE", "LAVENDER", "SAPPHIRE", "GREEN",
+    ]);
+    expect(within(group).getAllByRole("radio")[0]).toBeChecked();
+    // A swatch inside every option, hidden from the accessible name, beside the visible name.
+    expect(group.querySelectorAll("[data-team-colour][aria-hidden='true']")).toHaveLength(12);
+    // Payments is edited; Identity holds INDIGO too: a dimmed hint (sharing is allowed), and picking another colour removes it.
+    expect(await within(modal).findByText("Also used by: Identity")).toBeInTheDocument();
+    await user.click(within(group).getByRole("radio", { name: "Raspberry" }));
+    expect(within(modal).queryByText(/Also used by/)).not.toBeInTheDocument();
+    await user.click(within(modal).getByRole("button", { name: /^save$/i }));
+    await waitFor(() => expect(findCall(mockFetch, "PUT", "/api/v1/teams/1")).toBeDefined());
+    expect(JSON.parse((findCall(mockFetch, "PUT", "/api/v1/teams/1")![1] as RequestInit).body as string)).toMatchObject({ colour: "RASPBERRY" });
+  });
+
+  test("a pick made before the teams read answers wins over the least-used colour that read would give", async () => {
+    serve(mockFetch, { "POST /api/v1/teams": { status: 201, body: { ...DETAIL, id: 9, name: "Ledger" } } });
+    const served = mockFetch.getMockImplementation() as (url: string, init?: RequestInit) => Promise<Response>;
+    const gate = deferred<Response>();
+    // The editor's teams read (100 a page) waits; the registry's own list (20 a page) answers.
+    mockFetch.mockImplementation((url: string, init?: RequestInit) =>
+      (init?.method ?? "GET") === "GET" && url.startsWith("/api/v1/teams?") && url.includes("pageSize=100") ? gate.promise : served(url, init),
+    );
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: /new team/i }));
+    const modal = screen.getByRole("dialog");
+    expect(within(modal).queryByRole("radio", { checked: true })).toBeNull();
+    await user.click(within(modal).getByRole("radio", { name: "Raspberry" }));
+    await user.type(within(modal).getByLabelText("Name"), "Ledger");
+    await act(async () => gate.resolve(jsonResponse(200, PAGE)));
+    // The read settles with TEAL as the least-used key, and the pick stays.
+    expect(within(modal).getByRole("radio", { name: "Raspberry" })).toBeChecked();
+    await user.click(within(modal).getByRole("button", { name: /^create$/i }));
+    await waitFor(() => expect(findCall(mockFetch, "POST", "/api/v1/teams")).toBeDefined());
+    expect(JSON.parse((findCall(mockFetch, "POST", "/api/v1/teams")![1] as RequestInit).body as string)).toMatchObject({ colour: "RASPBERRY" });
+  });
+
+  test("a new team's editor preselects the least-used colour and a pick overrides it", async () => {
+    serve(mockFetch, { "POST /api/v1/teams": { status: 201, body: { ...DETAIL, id: 9, name: "Ledger" } } });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: /new team/i }));
+    const modal = screen.getByRole("dialog");
+    await waitFor(() => expect(within(modal).getByRole("radio", { name: "Teal" })).toBeChecked());
+    expect(within(modal).queryByText(/Also used by/)).not.toBeInTheDocument();
+    await user.click(within(modal).getByRole("radio", { name: "Indigo" }));
+    // INDIGO is held by both existing teams, named in the hint.
+    expect(within(modal).getByText("Also used by: Payments, Identity")).toBeInTheDocument();
+    await user.type(within(modal).getByLabelText("Name"), "Ledger");
+    await user.click(within(modal).getByRole("button", { name: /^create$/i }));
+    await waitFor(() => expect(findCall(mockFetch, "POST", "/api/v1/teams")).toBeDefined());
+    expect(JSON.parse((findCall(mockFetch, "POST", "/api/v1/teams")![1] as RequestInit).body as string)).toMatchObject({ colour: "INDIGO" });
   });
 
   test("a 409 on save marks the name field", async () => {

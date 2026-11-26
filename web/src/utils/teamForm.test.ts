@@ -17,13 +17,14 @@ describe("teamForm", () => {
   });
 
   test("the body trims and sends a blank description as null; values round-trip from a response", () => {
-    const none = { managerPersonId: null, managerLabel: null };
+    const none = { managerPersonId: null, managerLabel: null, colour: null };
     expect(toTeamBody({ name: "  Payments ", description: "   ", ...none })).toEqual({ name: "Payments", description: null, managerPersonId: null });
     expect(toTeamBody({ name: "A", description: " movers ", ...none })).toEqual({ name: "A", description: "movers", managerPersonId: null });
-    expect(toTeamBody({ name: "A", description: "", managerPersonId: "7", managerLabel: "Ann (a@x.io)" })).toEqual({
+    expect(toTeamBody({ name: "A", description: "", managerPersonId: "7", managerLabel: "Ann (a@x.io)", colour: "TEAL" })).toEqual({
       name: "A",
       description: null,
       managerPersonId: 7,
+      colour: "TEAL",
     });
     expect(
       toTeamFormValues({
@@ -36,7 +37,7 @@ describe("teamForm", () => {
         createdAt: 0,
         updatedAt: 0,
       }),
-    ).toEqual({ name: "A", description: "", managerPersonId: null, managerLabel: null });
+    ).toEqual({ name: "A", description: "", managerPersonId: null, managerLabel: null, colour: "INDIGO" });
     expect(
       toTeamFormValues({
         id: 1,
@@ -48,7 +49,11 @@ describe("teamForm", () => {
         createdAt: 0,
         updatedAt: 0,
       }),
-    ).toEqual({ name: "A", description: "", managerPersonId: "7", managerLabel: "Ann Manager" });
+    ).toEqual({ name: "A", description: "", managerPersonId: "7", managerLabel: "Ann Manager", colour: "INDIGO" });
+  });
+
+  test("no colour (a new team before the teams are read) is left out of the body, so the server's own rule applies", () => {
+    expect(toTeamBody({ name: "A", description: "", managerPersonId: null, managerLabel: null, colour: null })).not.toHaveProperty("colour");
   });
 
   test("save errors map to the fixed vocabulary", () => {

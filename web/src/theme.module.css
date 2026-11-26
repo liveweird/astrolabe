@@ -1034,3 +1034,27 @@ table.table {
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+
+/* A team's colour mark (components/TeamSwatch.tsx, `.claude/docs/team-colours.md`): a small rounded square BESIDE the team's name, never text on a
+   colour. The fill is the per-scheme `--astrolabe-team-*` variable (themeVariables.ts), 3:1 on the row in both schemes (teamColours.test.ts).
+   `forced-color-adjust: none` because the colour IS the information here (a swatch, not decoration); the system-colour border keeps the mark
+   visible against whatever Canvas the user's forced palette picks. */
+.teamSwatch {
+  display: inline-block;
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 3px;
+  forced-color-adjust: none;
+}
+
+/* The box of a swatch whose colour is not known yet: reserved, invisible. */
+.teamSwatchPending {
+  visibility: hidden;
+}
+
+@media (forced-colors: active) {
+  .teamSwatch {
+    border: 1px solid CanvasText;
+  }
+}

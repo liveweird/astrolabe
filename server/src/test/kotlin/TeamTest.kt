@@ -508,6 +508,30 @@ class TeamTest {
     }
 
     @Test
+    fun `concurrent creates without a colour choose as evenly as the sequential application of leastUsed`() = testApplication {
+        usePostgresTestcontainer()
+        val admin = seededClient("teamcolourrace", UserRole.ADMIN)
+        val creates = 6
+        // The counts are read before and after, so the other teams of the shared database only move the starting point.
+        val before = TestTeams.activeColourCounts()
+        val expected = before.toMutableMap()
+        val sequential = List(creates) { TeamColour.leastUsed(expected).also { expected.merge(it, 1, Int::plus) } }
+        val created = coroutineScope {
+            (1..creates).map { i -> async { admin.postJson("/api/v1/teams", TeamCreateRequest(name = name("race$i"))) } }
+                .map { it.await() }
+        }
+        created.forEach { assertEquals(HttpStatusCode.Created, it.status) }
+        val bodies = created.map { it.body<TeamResponse>() }
+        try {
+            // Each create counted the one it waited for (the advisory lock), so the chosen colours are the sequential ones in some order.
+            assertEquals(sequential.sortedBy { it.ordinal }, bodies.map { it.colour }.sortedBy { it.ordinal })
+            assertEquals(expected.filterValues { it > 0 }, TestTeams.activeColourCounts(), "the counts end exactly as the sequential run's")
+        } finally {
+            bodies.forEach { admin.delete("/api/v1/teams/${it.id}") }
+        }
+    }
+
+    @Test
     fun `an unknown colour is 400 for an admin and a non-admin's stays 403`() = testApplication {
         usePostgresTestcontainer()
         val admin = seededClient("teamcolourbad", UserRole.ADMIN)

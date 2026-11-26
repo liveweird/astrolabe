@@ -19,6 +19,13 @@ const WIP = teamLoadRow({ id: 5, name: "Data", managerName: "Sam Lee", milestone
 const QUIET = teamLoadRow({ id: 6, name: "Mobile", managerName: "Kim Park", milestones: 2, unscheduledMilestones: 1, weeksWithoutCapacity: 6 });
 const ALL = [BOTH, OVERLOADED, WIP, QUIET];
 
+/** `GET /teams` as the colour read sees it: Backend INDIGO, Frontend TEAL, the rest in palette order. */
+function teamsPage(rows: typeof ALL) {
+  const colours = ["INDIGO", "TEAL", "LIME", "RASPBERRY"] as const;
+  const items = rows.map((row, index) => ({ id: row.id, name: row.name, description: null, managerPersonId: null, managerName: row.managerName, colour: colours[index], createdAt: 1, updatedAt: 2 }));
+  return { items, page: 1, pageSize: 100, total: items.length };
+}
+
 let answer: () => Response | Promise<Response>;
 let mockFetch: ReturnType<typeof vi.fn>;
 
@@ -50,6 +57,9 @@ function renderPage(route = "/team-load", queryClient?: QueryClient) {
   );
 }
 
+/** The reads of the document itself: the page also reads the teams (their colours, `useTeamColours`), which these counts must not include. */
+const loadReads = () => mockFetch.mock.calls.filter(([url]) => url === "/api/v1/views/team-load");
+
 const teamNames = () =>
   within(screen.getByRole("table", { name: "Load of every team" }))
     .getAllByRole("link", { name: /^Open team / })
@@ -60,6 +70,7 @@ describe("Team load page", () => {
     answer = () => jsonResponse(200, teamLoadView(ALL));
     mockFetch = vi.fn((url: string) => {
       if (url === "/api/v1/views/team-load") return Promise.resolve(answer());
+      if (url.startsWith("/api/v1/teams?")) return Promise.resolve(jsonResponse(200, teamsPage(ALL)));
       return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
     });
     vi.stubGlobal("fetch", mockFetch);
@@ -78,7 +89,18 @@ describe("Team load page", () => {
     expect(headingOutline()).toEqual([[2, "Team load"]]);
     expect(teamNames()).toEqual(["Backend", "Frontend", "Data", "Mobile"]);
     expect(within(table).getByText("Alex Rivera")).toBeInTheDocument();
-    expect(mockFetch.mock.calls.map(([url]) => String(url))).toEqual(["/api/v1/views/team-load"]);
+    expect(loadReads()).toHaveLength(1);
+  });
+
+  test("each team's name has its colour swatch before it, read from the teams list, never from the document", async () => {
+    renderPage();
+    const table = await screen.findByRole("table", { name: "Load of every team" });
+    await waitFor(() => expect(table.querySelectorAll("[data-team-colour]")).toHaveLength(4));
+    const swatches = [...table.querySelectorAll("[data-team-colour]")];
+    expect(swatches.map((swatch) => swatch.getAttribute("data-team-colour"))).toEqual(["INDIGO", "TEAL", "LIME", "RASPBERRY"]);
+    const link = within(table).getByRole("link", { name: "Open team Backend" });
+    expect(swatches[0].nextElementSibling).toBe(link);
+    expect(swatches[0]).toHaveAttribute("aria-hidden", "true");
   });
 
   test("the facts line shows the totals as they arrive, a zero badge absent", async () => {
@@ -129,7 +151,7 @@ describe("Team load page", () => {
     await user.click(await screen.findByRole("option", { name: "Every team" }));
     await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent(/^\/team-load$/));
     expect(teamNames()).toHaveLength(4);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(loadReads()).toHaveLength(1);
   });
 
   test("a team's name links to its page", async () => {
@@ -230,7 +252,7 @@ describe("Team load page", () => {
     expect(screen.queryByText("There are no teams yet")).toBeNull();
     // Two more tries would have started by now with retryDelay 0 had the policy retried it.
     await requestsAnswered(queryClient);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(loadReads()).toHaveLength(1);
   });
 
   test("an untyped 500 is still retried twice under the same policy", async () => {
@@ -238,7 +260,7 @@ describe("Team load page", () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: shouldRetryQuery, retryDelay: 0 } } });
     renderPage("/team-load", queryClient);
     expect(await screen.findByText("Load failed (500)")).toBeInTheDocument();
-    expect(mockFetch).toHaveBeenCalledTimes(3);
+    expect(loadReads()).toHaveLength(3);
   });
 
   test("a re-read the database did not finish keeps the rows under the sentence", async () => {
@@ -246,10 +268,10 @@ describe("Team load page", () => {
     renderPage("/team-load", queryClient);
     await screen.findByRole("table", { name: "Load of every team" });
     answer = () => jsonResponse(500, { type: DATABASE_TIMEOUT_PROBLEM, title: "Internal Server Error", status: 500 });
-    const before = mockFetch.mock.calls.length;
+    const before = loadReads().length;
     await queryClient.refetchQueries({ queryKey: TEAM_LOAD_KEY });
     expect(await screen.findByText("The request timed out. Try again.")).toBeInTheDocument();
-    expect(mockFetch.mock.calls.length - before).toBe(1);
+    expect(loadReads().length - before).toBe(1);
     expect(teamNames()).toEqual(["Backend", "Frontend", "Data", "Mobile"]);
   });
 
@@ -329,7 +351,7 @@ describe("Team load page: the weeks with a warning (1.21)", () => {
       ["Data", "W05 · 2027-02-01", "6.00", "10.00", "4", "Over WIP limit"],
     ]);
     expect(within(rows[1]!).getByText("Over WIP limit")).toBeInTheDocument();
-    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(loadReads()).toHaveLength(1);
   });
 
   test("a team's name links to its page in both tables, one name and one destination", async () => {
@@ -357,7 +379,7 @@ describe("Team load page: the weeks with a warning (1.21)", () => {
     renderPage(`/team-load?warning=${warning}`);
     const table = await weeksTable();
     expect(bodyRows(table).map((row) => within(row).getAllByRole("cell")[1]!.textContent)).toEqual(labels);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(loadReads()).toHaveLength(1);
   });
 
   test("a filter that leaves teams but none of their listed weeks shows no section and no sentence", async () => {
@@ -527,7 +549,7 @@ describe("Team load page: the weeks from this week on (1.22)", () => {
     await user.click(screen.getByRole("switch", { name: "Include past weeks" }));
     await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent(/^\/team-load$/));
     expect(weekLabels(await weeksTable())).toEqual(["W14 · 2027-04-05", "W15 · 2027-04-12"]);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(loadReads()).toHaveLength(1);
   });
 
   test("the Show select keeps past=true and the switch keeps the warning", async () => {

@@ -2,6 +2,7 @@ import { Anchor, Badge, Group, Table } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import type { HomeMe } from "../api/home";
+import { useTeamColours } from "../hooks/useTeamColours";
 import { violatedDependenciesPath } from "../utils/dependencyListLinks";
 import { deviationsForTeamPath } from "../utils/deviationLinks";
 import { unscheduledMilestonesPath } from "../utils/milestoneLinks";
@@ -10,6 +11,7 @@ import BadgeLink from "./BadgeLink";
 import { DeviationCount } from "./JiraChips";
 import ScrollRegion from "./ScrollRegion";
 import TeamFlags from "./TeamFlags";
+import TeamSwatch from "./TeamSwatch";
 
 /**
  * "Your teams": the figures of the team page's header and facts line. Capacity is its two orange badges, Jira its chip's count badge (a link into the
@@ -19,6 +21,7 @@ import TeamFlags from "./TeamFlags";
  */
 export default function HomeTeamsTable({ teams }: { teams: HomeMe["teams"] }) {
   const { t } = useTranslation();
+  const colours = useTeamColours();
   const label = t("home.mine.teams");
   return (
     <ScrollRegion label={label} minWidth={820}>
@@ -38,9 +41,12 @@ export default function HomeTeamsTable({ teams }: { teams: HomeMe["teams"] }) {
           {teams.map((team) => (
             <Table.Tr key={team.id}>
               <Table.Td>
-                <Anchor component={RouterLink} to={teamPath(team.id)} size="sm" fw={500} aria-label={t("teams.openAria", { name: team.name })}>
-                  {team.name}
-                </Anchor>
+                <Group gap="xs" wrap="nowrap">
+                  <TeamSwatch colour={colours.get(team.id)} />
+                  <Anchor component={RouterLink} to={teamPath(team.id)} size="sm" fw={500} aria-label={t("teams.openAria", { name: team.name })}>
+                    {team.name}
+                  </Anchor>
+                </Group>
               </Table.Td>
               <Table.Td ta="right">{team.milestones}</Table.Td>
               <Table.Td ta="right">

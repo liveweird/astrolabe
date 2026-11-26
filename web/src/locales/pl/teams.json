@@ -18,6 +18,25 @@
   "clearManager": "Wyczyść kierownika/czkę",
   "pickManager": "Szukaj osób po nazwie…",
   "managerHint": "Osoba, która zarządza zespołem.",
+  "colour": {
+    "label": "Kolor",
+    "hint": "Oznacza zespół wszędzie, gdzie jest wymieniony. Zespoły mogą mieć ten sam kolor.",
+    "sharedWith": "Ten kolor mają także: {{names}}",
+    "name": {
+      "INDIGO": "Indygo",
+      "TEAL": "Morski",
+      "LIME": "Limonkowy",
+      "RASPBERRY": "Malinowy",
+      "GRAPE": "Purpurowy",
+      "PINK": "Różowy",
+      "VIOLET": "Fioletowy",
+      "COBALT": "Kobaltowy",
+      "AZURE": "Lazurowy",
+      "LAVENDER": "Lawendowy",
+      "SAPPHIRE": "Szafirowy",
+      "GREEN": "Zielony"
+    }
+  },
   "deleteTitle": "Usunąć zespół?",
   "deleteBody": "Usuniemy zespół „{{name}}”.",
   "deleteFailed": "Nie udało się usunąć zespołu",

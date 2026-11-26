@@ -16,7 +16,7 @@ export default function TeamFilterSelect({
 }: {
   teamId: number | undefined;
   onChange: (teamId: number | undefined) => void;
-  teams: readonly TeamOption[];
+  teams: readonly Pick<TeamOption, "id" | "name">[];
   settled: boolean;
 }) {
   const { t } = useTranslation();

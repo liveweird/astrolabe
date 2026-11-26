@@ -4,9 +4,11 @@ import { useForm } from "@mantine/form";
 import { useTranslation } from "react-i18next";
 import { ApiError } from "../api/http";
 import { createTeam, updateTeam, type TeamResponse } from "../api/teams";
+import { useTeamOptions } from "../hooks/useTeamOptions";
 import PersonSelect from "./PersonSelect";
 import RegistryEditorActions from "./RegistryEditorActions";
 import RegistryMetadataFields from "./RegistryMetadataFields";
+import TeamColourField from "./TeamColourField";
 import {
   EMPTY_TEAM_FORM,
   MAX_TEAM_DESCRIPTION_LENGTH,
@@ -17,6 +19,7 @@ import {
   toTeamFormValues,
   type TeamFormValues,
 } from "../utils/teamForm";
+import { leastUsedColour } from "../utils/teamColours";
 import { showSuccessToast } from "../utils/toast";
 
 /**
@@ -41,6 +44,13 @@ export default function TeamEditorModal({
     initialValues: target ? toTeamFormValues(target) : EMPTY_TEAM_FORM,
     validate: teamFormValidation(t),
   });
+  // A NEW team shows (and sends) the least-used colour until a pick; before the teams are read nothing is preselected and the server's own rule applies.
+  const { teams, settled } = useTeamOptions();
+  const colour = form.values.colour ?? (target === null && settled ? leastUsedColour(teams.map((team) => team.colour)) : null);
+
+  // An EDIT sends the colour only when the user changed it: the prefill comes from a cached read, and an untouched colour must not overwrite one
+  // another administrator set meanwhile (a PUT that omits it keeps the stored one). A NEW team sends what the field shows.
+  const sentColour = target === null ? colour : colour !== target.colour ? colour : null;
 
   async function save(values: TeamFormValues) {
     setError(null);
@@ -48,10 +58,10 @@ export default function TeamEditorModal({
     try {
       let saved: TeamResponse | null = null;
       if (target) {
-        await updateTeam(target.id, toTeamBody(values));
+        await updateTeam(target.id, toTeamBody({ ...values, colour: sentColour }));
         showSuccessToast(t("teams.toast.saved"));
       } else {
-        saved = await createTeam(toTeamBody(values));
+        saved = await createTeam(toTeamBody({ ...values, colour: sentColour }));
         showSuccessToast(t("teams.toast.created"));
       }
       await onSaved(saved);
@@ -88,6 +98,7 @@ export default function TeamEditorModal({
               form.setFieldValue("managerLabel", picked?.label ?? null);
             }}
           />
+          <TeamColourField value={colour} onChange={(picked) => form.setFieldValue("colour", picked)} teams={teams} selfId={target?.id ?? null} />
           <RegistryEditorActions error={error} submitting={submitting} isEdit={Boolean(target)} onClose={onClose} gap="sm" />
         </Stack>
       </form>

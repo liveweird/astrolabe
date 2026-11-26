@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { listEveryTeam } from "../api/teams";
+import type { TeamColour } from "../utils/teamColours";
 
-/** One name and id per team: all a filter select needs. */
-export type TeamOption = { id: number; name: string };
+/** One name, id and colour per team: all a filter select, a swatch and the colour editor need. */
+export type TeamOption = { id: number; name: string; colour: TeamColour };
 
 /** Stable between renders while the read has not answered. */
 const NONE: readonly TeamOption[] = [];

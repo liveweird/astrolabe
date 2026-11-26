@@ -2,6 +2,7 @@ import type { TFunction } from "i18next";
 import type { TeamCreateBody, TeamResponse, TeamUpdateBody } from "../api/teams";
 import { descriptionRule, nameRule } from "./formRules";
 import { saveErrorMessage } from "./saveError";
+import type { TeamColour } from "./teamColours";
 
 // Server limits (teams/Team.kt) mirrored client-side.
 export const MAX_TEAM_NAME_LENGTH = 100;
@@ -14,9 +15,11 @@ export type TeamFormValues = {
   managerPersonId: string | null;
   /** The picked manager's display label, kept beside the id so it survives later searches. */
   managerLabel: string | null;
+  /** The picked colour; null on a NEW team until the user picks one (the editor then shows, and sends, the least-used colour once the teams are read). */
+  colour: TeamColour | null;
 };
 
-export const EMPTY_TEAM_FORM: TeamFormValues = { name: "", description: "", managerPersonId: null, managerLabel: null };
+export const EMPTY_TEAM_FORM: TeamFormValues = { name: "", description: "", managerPersonId: null, managerLabel: null, colour: null };
 
 export function toTeamFormValues(team: TeamResponse): TeamFormValues {
   return {
@@ -24,6 +27,7 @@ export function toTeamFormValues(team: TeamResponse): TeamFormValues {
     description: team.description ?? "",
     managerPersonId: team.managerPersonId === null ? null : String(team.managerPersonId),
     managerLabel: team.managerName,
+    colour: team.colour,
   };
 }
 
@@ -37,7 +41,8 @@ export function teamFormValidation(t: TFunction) {
 
 /**
  * The wire body: a blank description travels as null (the server stores NULL, never ""); a PUT is a
- * full replace, so no manager is an explicit null.
+ * full replace, so no manager is an explicit null. The colour travels when there is one (a PUT without it keeps the team's, a POST without it
+ * gets the server's least-used key).
  */
 export function toTeamBody(values: TeamFormValues): TeamCreateBody & TeamUpdateBody {
   const description = values.description.trim();
@@ -45,6 +50,7 @@ export function toTeamBody(values: TeamFormValues): TeamCreateBody & TeamUpdateB
     name: values.name.trim(),
     description: description === "" ? null : description,
     managerPersonId: values.managerPersonId === null ? null : Number(values.managerPersonId),
+    ...(values.colour === null ? {} : { colour: values.colour }),
   };
 }
 

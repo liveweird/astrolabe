@@ -1,6 +1,6 @@
 # Team colours
 
-Owns: a team's colour: the palette, how a colour is assigned and stored, who edits it, the wire shape and where the SPA draws it. Not here: the registry's guards and the audit catalogue (`authorization.md`, `observability.md`), the table list (`persistence.md`), the Timeline component (`timeline.md`). Added in 1.29; the server half (V35, the teams API) is below, the web half is added with the steps that build it.
+Owns: a team's colour: the palette, how a colour is assigned and stored, who edits it, the wire shape and where the SPA draws it. Not here: the registry's guards and the audit catalogue (`authorization.md`, `observability.md`), the table list (`persistence.md`), the Timeline component (`timeline.md`). Added in 1.29; the server half (V35, the teams API) and the web half (the palette, the swatch, the editor, where it shows) are below; the Timeline's `tint` is added with the step that builds it.
 
 ## Rules
 
@@ -13,7 +13,9 @@ Owns: a team's colour: the palette, how a colour is assigned and stored, who edi
 
 - **Column.** `teams.colour VARCHAR(16) NOT NULL DEFAULT 'INDIGO'` (V35), Exposed `enumerationByName<TeamColour>`. The `DEFAULT` stays on purpose: a 1.28 build rolled back onto V35 can still insert a team (it writes `INDIGO`), and the raw `INSERT`s of the tests rely on it.
 - **Backfill (V35).** Existing teams get distinct colours up to twelve: numbered by `ROW_NUMBER() OVER (ORDER BY marked_as_deleted, id)` (the ACTIVE teams first, by id), key `n` of the palette, wrapping after twelve. Run once, on the rows the migration finds; a team created later never goes through it.
-- **A new team.** `POST /teams` uses the request's `colour`, else `TeamColour.leastUsed` over the ACTIVE teams' colours, counted by one grouped read INSIDE the create's transaction (ties go to the earlier palette key; an unused key counts 0). No lock: two creates racing may pick the same key, which sharing allows.
+- **A new team.** `POST /teams` uses the request's `colour`, else `TeamColour.leastUsed` over the ACTIVE teams' colours, counted by one grouped read INSIDE the create's transaction (ties go to the earlier palette key; an unused key counts 0).
+  An omitted colour is chosen under a transaction-scoped advisory lock (`TEAM_COLOUR_LOCK_KEY`, the ASCII bytes of "AstroTCl", the house idiom of `JiraBindingService`), taken before the count and released by the create's commit, so concurrent creates (the sample loader's workers) come out as even as the sequential application of `leastUsed`.
+  An explicit colour takes no lock (sharing is allowed). Nothing else is held but the manager's person row `FOR SHARE`, so no order to invert.
 - **An update.** `PUT /teams/{id}` writes the colour only when the body names one. It is the one field that is NOT a full replace (an omitted `managerPersonId` clears the manager; an omitted `colour` keeps the colour), because "omitted = unset" has no meaning for a field that is never unset. `updatedAt` moves on every PUT as before, so a team view's tag moves with a recolour (its tag hashes the document).
 - **Who edits.** ADMIN only, through the registry's guard: `requireAdmin` BEFORE `call.receive`, so a non-admin's unknown colour stays `403`; an admin's is `400` (an enum that does not decode; the lower-case spelling is unknown too). `null` in the body is the same as omitted.
 - **Audit.** `team.created` and `team.updated` carry `colour` (`observability.md` "Teams and capacity"); no new event.
@@ -26,6 +28,18 @@ Owns: a team's colour: the palette, how a colour is assigned and stored, who edi
 ## Tests
 
 - `TeamColourTest`: pure `leastUsed`; the enum equals the spec enum and the migration's CHECK and backfill list.
-- `TeamTest`: a round trip through create, read, list and the team view; a PUT without it keeps it; unknown colour `400`, a non-admin's `403`; the audit fields. An omitted colour equals `leastUsed` of the ACTIVE teams' counts read right before the POST, and a deleted team no longer counts (a fork runs its classes one after another on its own container, so nothing else writes a team in between).
+- `TeamTest`: a round trip through create, read, list and the team view; a PUT without it keeps it; unknown colour `400`, a non-admin's `403`; the audit fields. An omitted colour equals `leastUsed` of the ACTIVE teams' counts read right before the POST, and a deleted team no longer counts; six concurrent creates end with the sequential run's colours and counts (a fork runs its classes one after another on its own container, so nothing else writes a team in between).
 - `ViewValidatorInputsTest`: a recolour moves the team view's tag. `MigrationChecksumTest`: V35's pin.
 - `TeamColourMigrationTest`, the `PersonMigrationTest` pattern: a scratch database migrated to V34 with sixteen teams, four soft-deleted, then to V35. The active ones read the palette in id order, the deleted ones follow and wrap; the `DEFAULT`, `ck_teams_colour` (23514) and NOT NULL are exercised. Still read the backfill on a copy of real data (`pg_dump -Fc` first) before a deploy.
+
+## Web: the palette, the swatch, the editor
+
+- **The palette.** `utils/teamColours.ts` `TEAM_COLOURS: Record<TeamColour, {light, dark}>`, typed on the generated enum (a key the server adds fails the build), each side a Mantine `hue.shade`; `cssVariablesResolver` (`themeVariables.ts`) emits `--astrolabe-team-<key>` (lower-case) per scheme as a hex, and `teamColourVar(key)` is the `var()` reader.
+  `teamColours.test.ts` recomputes from the theme: every shade >= 3:1 (WCAG 1.4.11) on the row, the canvas and the table hover in its scheme; the first eight keys >= 15 and all twelve >= 9 ΔE2000 apart; the keys equal `schema.ts`' `TeamColour`, in order.
+- **The mark.** `components/TeamSwatch.tsx`: a small square, `aria-hidden`, `data-team-colour="<KEY>"` (tests read it, never the colour), no text on it, `forced-color-adjust: none` (the colour IS the information) with a `CanvasText` border under `forced-colors`.  The name always stands beside it.
+- **The lookup.** `hooks/useTeamColours.ts`: team id to key over the one cached `["teams","options"]` read (`useTeamOptions` carries `colour`; a team write refreshes it).
+  A team the map lacks (deleted, or the read not answered) gets a hidden placeholder of the swatch's size. The Teams rows read their own `colour`; the team page its `team.colour` (`PageHeader`'s `titleLead`).
+- **The editor.** `components/TeamColourField.tsx`: a `Radio.Group` of the twelve, each a swatch with its visible name (`teams.colour.name.<KEY>`, EN and PL); under it, dimmed in a polite live region, "Also used by: A, B" (`teams.colour.sharedWith`) while another team holds the pick.
+  A new team preselects `leastUsedColour` of the read teams (the server's rule) once the read has settled, and sends it; before that nothing is preselected and the body omits `colour`, so the server picks. A POST carries `colour`; a PUT only when the user changed it (the prefill is a cached read, so an untouched colour must not overwrite another admin's recolour).
+- **Where it shows (C2).** A swatch before the name on the Teams registry, the team page title, Team load's teams table and Home "Your teams" (not Team load's weeks table, deliberately).
+  A swatch whose colour is not read yet keeps its box, hidden, so the name does not shift.

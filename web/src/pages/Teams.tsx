@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
-import { Anchor, Button, Menu, Stack, Table, Text } from "@mantine/core";
+import { Anchor, Button, Group, Menu, Stack, Table, Text } from "@mantine/core";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconPencil, IconPlus, IconTrash, IconUsersGroup } from "@tabler/icons-react";
 import { useAdmin } from "../auth";
@@ -16,6 +16,7 @@ import RegistryListTable from "../components/RegistryListTable";
 import RowActionsMenu from "../components/RowActionsMenu";
 import SortHeader from "../components/SortHeader";
 import TeamEditorModal from "../components/TeamEditorModal";
+import TeamSwatch from "../components/TeamSwatch";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useClampPage } from "../hooks/usePagedSort";
@@ -117,10 +118,13 @@ export default function Teams() {
           return (
             <Table.Tr key={team.id}>
                 <Table.Td>
-                  {/* The name is the way into the team page — a real link (the detail-link rule). */}
-                  <Anchor component={RouterLink} to={teamPath(team.id)} fw={500} size="sm" aria-label={t("teams.openAria", { name: team.name })}>
-                    {team.name}
-                  </Anchor>
+                  {/* The name is the way into the team page — a real link (the detail-link rule); its colour swatch stands before it. */}
+                  <Group gap="xs" wrap="nowrap">
+                    <TeamSwatch colour={team.colour} />
+                    <Anchor component={RouterLink} to={teamPath(team.id)} fw={500} size="sm" aria-label={t("teams.openAria", { name: team.name })}>
+                      {team.name}
+                    </Anchor>
+                  </Group>
                 </Table.Td>
                 <Table.Td>
                   <Text size="sm" c={team.description ? undefined : "dimmed"} lineClamp={1}>

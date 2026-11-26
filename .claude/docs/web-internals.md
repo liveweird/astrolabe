@@ -1894,7 +1894,7 @@ The co-located tests of the page and its parts (`Deviations*`, `JiraBind*`, `Jir
 ## Teams and the team page
 
 `/teams` is the flat teams registry (the Registries template of `web/CLAUDE.md`: everyone reads, ADMIN writes). Its name link opens `/teams/:id`, the team view (lazy; `TeamDetails` is
-`<TeamPage key={id}>`).
+`<TeamPage key={id}>`). Team colours: `team-colours.md`.
 
 Files: `api/teams.ts` (`listCapacityPeriods` is deliberately NOT wrapped: the view carries the periods); `hooks/useScheduleWritePath.ts` (the project view's write path, generic over the view document:
 `{queryKey, queryFn, apply, enabled, writeKey}`) with its wrappers `useMilestoneSchedule.ts` and `useTeamSchedule.ts`, `useTeamOrder.ts`, `useRefusal.ts`, `useScheduleProposal.ts`,

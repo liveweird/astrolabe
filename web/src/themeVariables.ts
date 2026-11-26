@@ -1,4 +1,5 @@
 import type { CSSVariablesResolver } from "@mantine/core";
+import { teamColourVariables } from "./utils/teamColours";
 
 /**
  * The colour tokens Astrolabe owns outside Mantine's defaults (Lettuce's v3.3.0 pass, ported) — every value here
@@ -75,13 +76,14 @@ function schemeVariables(tokens: typeof LIGHT_TOKENS | typeof DARK_TOKENS): Reco
   };
 }
 
-export const cssVariablesResolver: CSSVariablesResolver = () => ({
+export const cssVariablesResolver: CSSVariablesResolver = (theme) => ({
   variables: {},
   light: {
     ...schemeVariables(LIGHT_TOKENS),
+    ...teamColourVariables("light", theme.colors),
     ...Object.fromEntries(
       Object.entries(LIGHT_VARIANT_INKS).map(([hue, ink]) => [`--mantine-color-${hue}-light-color`, ink]),
     ),
   },
-  dark: schemeVariables(DARK_TOKENS),
+  dark: { ...schemeVariables(DARK_TOKENS), ...teamColourVariables("dark", theme.colors) },
 });

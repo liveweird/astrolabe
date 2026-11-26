@@ -18,6 +18,25 @@
   "clearManager": "Clear the manager",
   "pickManager": "Search people by name…",
   "managerHint": "The person who manages the team.",
+  "colour": {
+    "label": "Colour",
+    "hint": "Marks the team wherever it is listed. Teams may share a colour.",
+    "sharedWith": "Also used by: {{names}}",
+    "name": {
+      "INDIGO": "Indigo",
+      "TEAL": "Teal",
+      "LIME": "Lime",
+      "RASPBERRY": "Raspberry",
+      "GRAPE": "Grape",
+      "PINK": "Pink",
+      "VIOLET": "Violet",
+      "COBALT": "Cobalt",
+      "AZURE": "Azure",
+      "LAVENDER": "Lavender",
+      "SAPPHIRE": "Sapphire",
+      "GREEN": "Green"
+    }
+  },
   "deleteTitle": "Delete team?",
   "deleteBody": "\"{{name}}\" will be deleted.",
   "deleteFailed": "Could not delete the team",

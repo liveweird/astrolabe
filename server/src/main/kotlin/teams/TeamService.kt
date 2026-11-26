@@ -19,11 +19,22 @@ import ch.nokillswit.infra.db.nowMillis
 import ch.nokillswit.infra.db.lockActiveForWrite
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.core.dao.id.UIntIdTable
+import org.jetbrains.exposed.v1.core.statements.StatementType
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.r2dbc.*
 import org.jetbrains.exposed.v1.r2dbc.transactions.suspendTransaction
 
 val TeamServiceKey = AttributeKey<TeamService>("TeamService")
+
+/**
+ * The key of the transaction-scoped advisory lock a create takes (the ASCII bytes of "AstroTCl") when it OMITS the colour, before it counts
+ * the active teams: creates are human clicks (or the sample loader's workers), a few milliseconds each, so ONE global lock makes each
+ * choose from the previous one's committed row and concurrent creates come out as even as the sequential application of
+ * [TeamColour.leastUsed]. Nothing else is taken while it is held but the manager's person row `FOR SHARE`; an explicit colour takes
+ * no lock.
+ * A row lock cannot serialize this: the rows being counted are the ones about to be inserted.
+ */
+internal const val TEAM_COLOUR_LOCK_KEY = 0x417374726F54436CL
 
 private val SORTABLE_COLUMNS: Map<String, Column<*>> = mapOf(
     "id" to TeamService.Teams.id,
@@ -131,7 +142,7 @@ class TeamService(private val database: R2dbcDatabase) {
         validateTeamCreate(request) // re-checked service-side so direct callers stay guarded
         requireActiveManager(request.managerPersonId)
         val stamp = nowMillis()
-        // No lock: two creates racing may share the least-used colour, and sharing is allowed.
+        // An explicit colour takes no lock (sharing is allowed); an omitted one is chosen under the advisory lock.
         val chosen = request.colour ?: leastUsedAmongActive()
         val id = Teams.insert {
             it[name] = request.name
@@ -166,8 +177,12 @@ class TeamService(private val database: R2dbcDatabase) {
         TeamUpdateOutcome(affected, before[Teams.managerPersonId]?.value)
     }
 
-    /** The palette's least-used colour among the ACTIVE teams (ties by palette order, [TeamColour.leastUsed]); one grouped read. */
-    private suspend fun leastUsedAmongActive(): TeamColour {
+    /**
+     * The palette's least-used colour among the ACTIVE teams (ties by palette order, [TeamColour.leastUsed]); one grouped read, taken
+     * under [TEAM_COLOUR_LOCK_KEY], which the create's commit releases, so a create that waited counts the one it waited for.
+     */
+    private suspend fun R2dbcTransaction.leastUsedAmongActive(): TeamColour {
+        exec("SELECT pg_advisory_xact_lock($TEAM_COLOUR_LOCK_KEY)", explicitStatementType = StatementType.SELECT) { 0 }?.toList()
         val used = Teams.colour.count()
         val counts = Teams.select(Teams.colour, used).where { Teams.active() }.groupBy(Teams.colour)
             .map { it[Teams.colour] to it[used].toInt() }

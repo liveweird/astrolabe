@@ -418,6 +418,18 @@ describe("Team view page", () => {
     await waitFor(() => expect(viewGets(mockFetch)).toBeGreaterThan(before));
   });
 
+  test("a colour the user changed in the editor travels in the PUT; an untouched one never does (it must not overwrite another administrator's)", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: /^edit$/i }));
+    const modal = await screen.findByRole("dialog");
+    expect(within(modal).getByRole("radio", { name: "Indigo" })).toBeChecked();
+    await user.click(within(modal).getByRole("radio", { name: "Grape" }));
+    await user.click(within(modal).getByRole("button", { name: /^save$/i }));
+    await waitFor(() => expect(calls(mockFetch, "PUT", /\/teams\/1$/)).toHaveLength(1));
+    expect(calls(mockFetch, "PUT", /\/teams\/1$/)[0].body).toEqual({ name: "Payments", description: "Money movers", managerPersonId: 12, colour: "GRAPE" });
+  });
+
   test("the facts line is the arrows' text path: the red badge links to the team's violated dependencies, \"N dependencies\" to all of them, each name containing its text", async () => {
     renderPage();
     await screen.findByRole("grid", { name: "Team milestone timeline" });

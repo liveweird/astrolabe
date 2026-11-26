@@ -1,10 +1,11 @@
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import i18n from "../i18n";
 import type { HomeMe, HomeView } from "../api/home";
 import { homeMe, homeView } from "../test/home";
 import { headingOutline } from "../test/headings";
-import { renderWithProviders, screen, within } from "../test/render";
+import { jsonResponse } from "../test/http";
+import { renderWithProviders, screen, waitFor, within } from "../test/render";
 import HomeMine from "./HomeMine";
 
 const ROLES_KEY = "astrolabe.auth.roles";
@@ -50,7 +51,26 @@ const site = (state: "NEVER_SYNCED" | "CURRENT" | "STALE" | "FAILED" | "DISABLED
   mappingOk,
 });
 
+// The teams table reads the one cached teams list for its colour swatches (`useTeamColours`).
+beforeEach(() => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(() =>
+      Promise.resolve(
+        jsonResponse(200, {
+          items: [{ id: 4, name: "Payments", description: null, managerPersonId: null, managerName: null, colour: "COBALT", createdAt: 1, updatedAt: 2 }],
+          page: 1,
+          pageSize: 100,
+          total: 1,
+        }),
+      ),
+    ),
+  );
+  localStorage.setItem("astrolabe.auth.token", "fake-token");
+});
+
 afterEach(async () => {
+  vi.unstubAllGlobals();
   localStorage.clear();
   await i18n.changeLanguage("en");
 });
@@ -127,6 +147,16 @@ describe("HomeMine: Yours", () => {
     expect(table.getByRole("link", { name: "4 Jira deviations: team Payments" })).toHaveAttribute("href", "/deviations?teamId=4");
     const flow = table.getByText("Capacity differs from Flow: 2 open differences");
     expect(flow.closest("[data-team-flag]")).toHaveAttribute("data-team-flag", "FLOW_CAPACITY");
+  });
+
+  test("a team row's name has its colour swatch before it, from the cached teams read; before that read answers there is none", () => {
+    renderMine(viewWith(homeMe({ teams: [TEAM] })));
+    const table = within(screen.getByRole("table", { name: "Your teams" }));
+    expect(table.getByRole("link", { name: "Open team Payments" }).parentElement?.querySelector("[data-team-colour]")).toBeNull();
+    return waitFor(() => {
+      const link = table.getByRole("link", { name: "Open team Payments" });
+      expect(link.previousElementSibling).toHaveAttribute("data-team-colour", "COBALT");
+    });
   });
 
   test("a quiet team row has no badge and no Jira link", () => {

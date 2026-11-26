@@ -22,6 +22,18 @@ const FLAG: TeamView["team"]["flags"][number] = { kind: "FLOW_CAPACITY", severit
 
 const renderHeader = (t: TeamView["team"]) => renderWithProviders(<TeamPageHeader team={t} admin={false} onEdit={() => undefined} />);
 
+describe("TeamPageHeader: the colour swatch (1.29)", () => {
+  test("the team's own colour stands before the name, inside the title's row, hidden from the heading's name", () => {
+    renderHeader(team({ colour: "GRAPE" }));
+    const heading = screen.getByRole("heading", { level: 2, name: "Payments" });
+    const swatch = document.querySelector("[data-team-colour]") as HTMLElement;
+    expect(swatch).toHaveAttribute("data-team-colour", "GRAPE");
+    expect(swatch).toHaveAttribute("aria-hidden", "true");
+    expect(swatch.nextElementSibling).toBe(heading);
+    expect(heading).toHaveTextContent(/^Payments$/);
+  });
+});
+
 describe("TeamPageHeader: the Flow capacity flag (1.9)", () => {
   test("a FLOW_CAPACITY warning is its sentence in words beside the title, with no count badge and the sentence announced once", () => {
     renderHeader(team({ flags: [FLAG] }));

@@ -11,9 +11,12 @@ import LoadingBlock from "../components/LoadingBlock";
 import PageHeader from "../components/PageHeader";
 import ScrollRegion from "../components/ScrollRegion";
 import TeamLoadWeeks from "../components/TeamLoadWeeks";
+import TeamSwatch from "../components/TeamSwatch";
+import { useTeamColours } from "../hooks/useTeamColours";
 import { unscheduledMilestonesPath } from "../utils/milestoneLinks";
 import { earlierWeekCount, matchesWarning, parseTeamLoadFilter, teamLoadFilterParams } from "../utils/teamLoadFilters";
 import { teamPath } from "../utils/teamLinks";
+import type { TeamColour } from "../utils/teamColours";
 
 const CHOICES = ["all", "overloaded", "wip", "any"] as const;
 type Choice = (typeof CHOICES)[number];
@@ -39,14 +42,17 @@ function TeamLoadFacts({ totals }: { totals: TeamLoadView["totals"] }) {
   );
 }
 
-function TeamLoadTableRow({ row }: { row: TeamLoadRow }) {
+function TeamLoadTableRow({ row, colour }: { row: TeamLoadRow; colour: TeamColour | undefined }) {
   const { t } = useTranslation();
   return (
     <Table.Tr>
       <Table.Td>
-        <Anchor component={RouterLink} to={teamPath(row.id)} size="sm" fw={500} aria-label={t("teams.openAria", { name: row.name })}>
-          {row.name}
-        </Anchor>
+        <Group gap="xs" wrap="nowrap">
+          <TeamSwatch colour={colour} />
+          <Anchor component={RouterLink} to={teamPath(row.id)} size="sm" fw={500} aria-label={t("teams.openAria", { name: row.name })}>
+            {row.name}
+          </Anchor>
+        </Group>
       </Table.Td>
       <Table.Td>
         <Text size="sm" c={row.managerName === null ? "dimmed" : undefined}>
@@ -103,6 +109,7 @@ export default function TeamLoad() {
   const [params, setParams] = useSearchParams();
   const filter = parseTeamLoadFilter(params);
   const { data, isLoading, isError, error } = useQuery({ queryKey: TEAM_LOAD_KEY, queryFn: getTeamLoadView });
+  const colours = useTeamColours();
 
   const choose = (choice: Choice) => setParams(teamLoadFilterParams({ ...filter, warning: choice === "all" ? undefined : choice }), { replace: true });
   const choosePast = (past: boolean) => setParams(teamLoadFilterParams({ ...filter, past: past ? true : undefined }), { replace: true });
@@ -157,7 +164,7 @@ export default function TeamLoad() {
             </Table.Thead>
             <Table.Tbody>
               {rows.map((row) => (
-                <TeamLoadTableRow key={row.id} row={row} />
+                <TeamLoadTableRow key={row.id} row={row} colour={colours.get(row.id)} />
               ))}
             </Table.Tbody>
           </Table>

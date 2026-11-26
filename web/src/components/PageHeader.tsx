@@ -13,7 +13,7 @@ import classes from "../theme.module.css";
  * component, so a "New …" button can only ever be in one place. It also names the browser tab
  * after the title (`usePageTitle`): the one owner, so every routed page has a tab title. The title is programmatically focusable
  * (`tabIndex={-1}`, never a tab stop) and `titleRef` hands it out: `useDeleteConfirm` puts the focus there after a row delete. `titleAddon` (1.9: the
- * team page's Flow capacity flag) sits beside the title on its row; without it the title is rendered exactly as before.
+ * team page's Flow capacity flag) sits beside the title on its row; `titleLead` (1.29: the team page's colour swatch) sits before it; without either the title is rendered exactly as before.
  */
 export default function PageHeader({
   title,
@@ -23,6 +23,7 @@ export default function PageHeader({
   toolbar,
   titleRef,
   titleAddon,
+  titleLead,
 }: {
   title: string;
   description?: ReactNode;
@@ -31,6 +32,7 @@ export default function PageHeader({
   toolbar?: ReactNode;
   titleRef?: Ref<HTMLHeadingElement>;
   titleAddon?: ReactNode;
+  titleLead?: ReactNode;
 }) {
   usePageTitle(title);
   return (
@@ -45,8 +47,9 @@ export default function PageHeader({
               </Group>
             </Anchor>
           )}
-          {titleAddon ? (
+          {titleAddon || titleLead ? (
             <Group gap="xs" align="center" wrap="wrap">
+              {titleLead}
               <Title order={2} ref={titleRef} tabIndex={-1} className={classes.pageHeading}>
                 {title}
               </Title>
