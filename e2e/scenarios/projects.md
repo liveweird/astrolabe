@@ -34,7 +34,7 @@
 
 1. The administrator opens the first seeded project's page.
    - *Expected*: an h3 "Milestones" and a table named "Milestones of this project" with its two milestones, the scheduled one first and the
-     other one saying "Not scheduled".
+     other one saying "Not scheduled"; a sortable column header (Milestone, Start) is set at the same font size as a plain one (Estimate (man-days), End).
 2. They pick "Not scheduled" in the Schedule select.
    - *Expected*: the address gains `milestones=unscheduled`, only the unscheduled milestone is listed and the page says "Showing 1 of 2 milestones".
 3. They type a name that matches no milestone, then press "Clear the filters".

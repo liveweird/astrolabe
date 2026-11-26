@@ -6,7 +6,9 @@ export type SortDir = "asc" | "desc";
 /**
  * A sortable column header cycling the list sort (pair with usePagedSort's toggleSort).
  * Renders its own `Table.Th` so the sort state also lands as `aria-sort` on the header
- * cell — the icon alone is mouse-eyes-only.
+ * cell — the icon alone is mouse-eyes-only. The button inherits the header cell's font size and
+ * line height (the theme's 12 px, `.tableHead th`): Mantine's own button is 16 px, which made a sortable
+ * header larger than a plain one. `minHeight` keeps the 24 px target.
  */
 export default function SortHeader<F extends string>({
   field,
@@ -30,7 +32,7 @@ export default function SortHeader<F extends string>({
     <Table.Th aria-sort={!isActive ? "none" : activeDir === "asc" ? "ascending" : "descending"} w={width}>
       <UnstyledButton
         onClick={() => onToggle(field)}
-        style={{ display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 600 }}
+        style={{ display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 600, fontSize: "inherit", lineHeight: "inherit", minHeight: 24 }}
       >
         <span>{label}</span>
         <Icon size={14} stroke={1.5} opacity={isActive ? 1 : 0.4} />

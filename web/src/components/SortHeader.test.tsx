@@ -31,4 +31,12 @@ describe("SortHeader", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Name" }));
     expect(onToggle).toHaveBeenCalledWith("name");
   });
+
+  test("the button takes the header cell's font size and line height (the theme's 12 px), never Mantine's own 16 px", () => {
+    renderHeader("name", "asc");
+    const button = screen.getByRole("button", { name: "Name" });
+    expect(button.style.fontSize).toBe("inherit");
+    expect(button.style.lineHeight).toBe("inherit");
+    expect(button.style.minHeight).toBe("24px");
+  });
 });

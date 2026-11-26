@@ -131,6 +131,10 @@ test("the project page's Milestones table narrows by Schedule and name, and hide
   await expect(table.getByRole("row").nth(1)).toContainText(built);
   await expect(table.getByRole("row").nth(2)).toContainText(todo);
   await expect(table.getByRole("row").nth(2)).toContainText("Not scheduled");
+  // A sortable header reads at the size of a plain one (the theme's 12 px), not at the button's own 16 px.
+  const fontSizeOf = (name: string) => table.getByRole("columnheader", { name, exact: true }).evaluate((el) => getComputedStyle(el.querySelector("button") ?? el).fontSize);
+  expect(await fontSizeOf("Milestone")).toBe(await fontSizeOf("Estimate (man-days)"));
+  expect(await fontSizeOf("Start")).toBe(await fontSizeOf("End"));
 
   // The Schedule choice is kept in the address and narrows the rows.
   await page.getByRole("combobox", { name: "Schedule" }).click();

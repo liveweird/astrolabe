@@ -291,7 +291,7 @@ The rule (a Reload notice, never an automatic reload): `web/CLAUDE.md` "Error ha
 The template and its rules (the chrome, the colour vocabulary, delete, the entity name as the way into its page, row actions): `web/CLAUDE.md` "Shared
 list-page building blocks". The pieces behind them were copied from Lettuce (`pages/Users.tsx` is the reference page).
 
-- `SortHeader` renders its own `Table.Th` so the sort state lands as `aria-sort` on the header cell; wrapping it in another `Th` would lose that.
+- `SortHeader` renders its own `Table.Th` so the sort state lands as `aria-sort` on the header cell; wrapping it in another `Th` would lose that. Its button inherits the cell's font size and line height (the theme's 12 px; Mantine's own button is 16 px), `minHeight: 24`.
 - **Every paged list page calls `useClampPage`** (`hooks/usePagedSort.ts`) beside `usePagedSort`: when a SETTLED answer's `total` falls below the current page (a delete emptied the last page, a filter narrowed it elsewhere) it returns to the last real page; a failed or placeholder (`keepPreviousData`) answer never moves the user.
 - `FilterPanel` is collapsed by default, remembers open or closed per view, and badges the number of active filters; `ClearableTextInput` debounces.
 - **A filter select is complete, or says what it lacks.** The team options are ALL teams: `api/teams.ts` `listEveryTeam` reads pages of 100 by name until

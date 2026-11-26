@@ -23,7 +23,6 @@ Each increment gets its own plan (architect) before implementation. The domain s
 
 - [next] **Focus ring on a tinted timeline bar (1.29).** Team colours set the bar's fill; the focus ring is unchanged, so its contrast against each of the twelve fills in both schemes is unmeasured.
 - [next] **Team colours under forced-colours mode (1.29).** The swatch keeps its colour (`forced-color-adjust: none`) but a tinted bar follows the system palette like any bar, so the team shows by name only there.
-- [next] **The Milestones table's non-sortable header size (1.29).** The header cells without a sort (Estimate, End) are a different size from the sortable ones (Milestone, Team, Start).
 - [next] **The project picker could match milestone names (1.29).** The plan-wide milestone name search went with the Milestones page; the picker finds a project by its own, its program's, its work stream's or its owner's name only.
 - [next] **Trim `GET /milestones` if nothing uses it (1.29).** Its `workStreamId` and `programId` filters and the rank sort lost their only screen with the Milestones page; they stay documented and tested for the pickers' sake.
 - [next] **Team load could show a "not scheduled" total (1.29).** Home's plan-wide "not scheduled yet" figure now opens Team load, whose rows count each team's but add no total.
