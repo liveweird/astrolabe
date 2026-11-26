@@ -4967,6 +4967,11 @@ export interface components {
              * @description The teams with at least one week over the WIP limit (Home's `plan.wipExceededTeams`).
              */
             wipExceededTeams: number;
+            /**
+             * Format: int32
+             * @description The active milestones without dates, the rows' `unscheduledMilestones` summed over every active team (Home's `plan.unscheduledMilestones`).
+             */
+            unscheduledMilestones: number;
         };
         /** @description One team's figures. */
         TeamLoadRow: {

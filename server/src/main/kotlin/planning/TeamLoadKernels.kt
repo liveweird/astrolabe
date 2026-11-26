@@ -30,10 +30,11 @@ object TeamLoadKernels {
      * The document over [teams] (every ACTIVE team): rows by lowercase name then id, cut at [maxRows] ([TeamLoadView.truncated] says
      * it was), each with the [counts] of its milestones and the three week counts of its [teamWeeks] entry. A week with a null
      * capacity is counted as "without capacity" and never as overloaded ([WeekLoad.overloaded] is false for it). [TeamLoadTotals]
-     * count every team, whatever [maxRows] cuts. Each row also lists its warning weeks (overloaded or over the WIP limit, oldest
-     * first); [maxWarningWeeks] is the budget for the WHOLE document, handed out by date ([handOutWarningWeeks], with [currentWeek],
-     * the Monday of the server's current week, as the pivot) and [TeamLoadView.warningWeeksTruncated] is true when any listed row
-     * left a week out. A team past [maxRows] is not a row and uses no budget; the counts never change with the cut.
+     * count every team, whatever [maxRows] cuts (its `unscheduledMilestones` sums the same [counts] over every team in [teams]).
+     * Each row also lists its warning weeks (overloaded or over the WIP limit, oldest first); [maxWarningWeeks] is the budget for
+     * the WHOLE document, handed out by date ([handOutWarningWeeks], with [currentWeek], the Monday of the server's current week, as
+     * the pivot) and [TeamLoadView.warningWeeksTruncated] is true when any listed row left a week out. A team past [maxRows] is not
+     * a row and uses no budget; the counts never change with the cut.
      */
     fun view(
         revision: Long,
@@ -54,7 +55,12 @@ object TeamLoadKernels {
         return TeamLoadView(
             revision = revision,
             currentWeekStart = currentWeek.toString(),
-            totals = TeamLoadTotals(teams.size, warnings.overloadedTeams, warnings.wipExceededTeams),
+            totals = TeamLoadTotals(
+                teams = teams.size,
+                overloadedTeams = warnings.overloadedTeams,
+                wipExceededTeams = warnings.wipExceededTeams,
+                unscheduledMilestones = teams.sumOf { (counts[it.id] ?: EMPTY).unscheduled },
+            ),
             teams = rows,
             truncated = ordered.size > maxRows,
             warningWeeksTruncated = kept.sumOf { it.size } < warningOf.sumOf { it.size },

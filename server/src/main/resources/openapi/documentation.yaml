@@ -7177,12 +7177,13 @@ components:
             team cut from `teams` uses none). The week counts of a row and `totals` never change with the cut.
     TeamLoadTotals:
       type: object
-      required: [teams, overloadedTeams, wipExceededTeams]
+      required: [teams, overloadedTeams, wipExceededTeams, unscheduledMilestones]
       description: The figures over EVERY active team, whatever the rows cut.
       properties:
         teams: { type: integer, format: int32, minimum: 0, description: The active teams. }
         overloadedTeams: { type: integer, format: int32, minimum: 0, description: "The teams with at least one week the team view flags overloaded (Home's `plan.overloadedTeams`)." }
         wipExceededTeams: { type: integer, format: int32, minimum: 0, description: 'The teams with at least one week over the WIP limit (Home''s `plan.wipExceededTeams`).' }
+        unscheduledMilestones: { type: integer, format: int32, minimum: 0, description: "The active milestones without dates, the rows' `unscheduledMilestones` summed over every active team (Home's `plan.unscheduledMilestones`)." }
     TeamLoadRow:
       type: object
       required: [id, name, managerName, milestones, unscheduledMilestones, overloadedWeeks, wipExceededWeeks, weeksWithoutCapacity, warningWeeks]

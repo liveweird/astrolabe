@@ -30,6 +30,7 @@ export function teamLoadView(teams: Row[], over: Partial<View> = {}): View {
       teams: teams.length,
       overloadedTeams: teams.filter((row) => row.overloadedWeeks > 0).length,
       wipExceededTeams: teams.filter((row) => row.wipExceededWeeks > 0).length,
+      unscheduledMilestones: teams.reduce((sum, row) => sum + row.unscheduledMilestones, 0),
     },
     teams,
     truncated: false,

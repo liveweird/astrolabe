@@ -84,6 +84,13 @@ class TeamLoadKernelsTest {
     }
 
     @Test
+    fun `the not-scheduled total counts the listed teams' milestones only and reads zero without counts`() {
+        val withStray = counts + (99u to TeamMilestoneCount(7, 7))
+        assertEquals(5, TeamLoadKernels.view(1, teams, withStray, weeks, 200, all, currentWeek).totals.unscheduledMilestones)
+        assertEquals(0, TeamLoadKernels.view(1, teams, emptyMap(), weeks, 200, all, currentWeek).totals.unscheduledMilestones)
+    }
+
+    @Test
     fun `the cap cuts the rows and says so, but the totals count every team`() {
         val cut = TeamLoadKernels.view(1, teams, counts, weeks, maxRows = 2, maxWarningWeeks = all, currentWeek)
         assertEquals(listOf(2u, 4u), cut.teams.map { it.id })
@@ -91,12 +98,18 @@ class TeamLoadKernelsTest {
         assertEquals(5, cut.totals.teams)
         // The two team counts also count teams the cut dropped (team 1 is the last row).
         assertEquals(listOf(2, 1), listOf(cut.totals.overloadedTeams, cut.totals.wipExceededTeams))
+        // The not-scheduled total sums every team's count (2 + 3 + 0), also those of the teams the cut dropped.
+        assertEquals(5, cut.totals.unscheduledMilestones)
+        assertEquals(cut.teams.sumOf { it.unscheduledMilestones }, 3, "the two listed rows alone would read less")
         val exact = TeamLoadKernels.view(1, teams, counts, weeks, maxRows = 5, maxWarningWeeks = all, currentWeek)
         assertFalse(exact.truncated, "exactly at the cap is not cut")
         assertEquals(5, exact.teams.size)
         val none = TeamLoadKernels.view(1, emptyList(), emptyMap(), emptyMap(), 200, all, currentWeek)
         val totals = none.totals
-        assertEquals(listOf(0, 0, 0, 0), listOf(totals.teams, totals.overloadedTeams, totals.wipExceededTeams, none.teams.size))
+        assertEquals(
+            listOf(0, 0, 0, 0, 0),
+            listOf(totals.teams, totals.overloadedTeams, totals.wipExceededTeams, totals.unscheduledMilestones, none.teams.size),
+        )
     }
 
     // ---- The listed warning weeks (1.21.0) ----

@@ -35,10 +35,12 @@ data class TeamLoadView(
 /**
  * The plan's team figures: [teams] is every ACTIVE team; [overloadedTeams] and [wipExceededTeams] are how many teams have at least one
  * week the team page flags overloaded, and over the WIP limit - Home's `plan.overloadedTeams` and `plan.wipExceededTeams`, the same
- * expression ([TeamLoadKernels.totals]) over the same loader.
+ * expression ([TeamLoadKernels.totals]) over the same loader. [unscheduledMilestones] (1.30.0) is the plan-wide count of ACTIVE milestones
+ * without dates - the rows' own [TeamLoadRow.unscheduledMilestones] summed over every active team (from the counts the view already
+ * loads), so it is Home's `plan.unscheduledMilestones` whatever the rows cut.
  */
 @Serializable
-data class TeamLoadTotals(val teams: Int, val overloadedTeams: Int, val wipExceededTeams: Int)
+data class TeamLoadTotals(val teams: Int, val overloadedTeams: Int, val wipExceededTeams: Int, val unscheduledMilestones: Int)
 
 /**
  * One team: its ACTIVE manager's name ([managerName] is null without one, a deleted person included), its ACTIVE [milestones] and the

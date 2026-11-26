@@ -523,7 +523,7 @@ builder (`roadmapFilteredPath`, `projectUnscheduledPath`, `teamLoadWarningPath`)
 
 | Figure on Home | Leads to | Why the two agree |
 |---|---|---|
-| Plan: "N not scheduled yet" | `/team-load` | the rows count each team's `unscheduledMilestones`, whose sum is `plan.unscheduledMilestones` |
+| Plan: "N not scheduled yet" | `/team-load` | the rows count each team's `unscheduledMilestones`, whose sum is `plan.unscheduledMilestones` and the page's facts-line `totals.unscheduledMilestones` |
 | Roadmap: "N unranked" (a link when positive, text at zero) | `/roadmap?mode=prioritization&unranked=true` | `plan.unrankedProjects` and the Roadmap's "N unranked" count the same rows; a link is shown as written, so no remembered filter or pick narrows it; "N ranked" stays text (no "ranked only" filter) |
 | Roadmap: "N warnings" / "N infos" (each opens its own severity) | `/roadmap?mode=prioritization&severity=WARNING` / `…&severity=INFO` | every warning sits on a project that has one, so the facts line's warnings figure under the filter is Home's; the infos figure there counts the infos of those rows (fewer than Home's, as every filter narrows a count) |
 | Roadmap: "N teams with an overloaded week" / "over the WIP limit" | `/team-load?warning=overloaded` / `wip` | the page's rows and Home's count fold the same `teamWeeks` |
@@ -1277,8 +1277,8 @@ Files: `pages/TeamLoad.tsx`; `api/teamLoad.ts` (`getTeamLoadView`); `utils/teamL
 (`getTeamLoadView`, key `TEAM_LOAD_KEY = ["plan","teamLoad"]`, under `["plan"]` so a schedule or capacity write refreshes it; at most 200 rows with `truncated`, the same document for every
 caller, no `can`). The figures are the team page's own and are shown as they arrive, never recounted.
 
-- The facts line (`role="group"`, "N teams" and the two orange badges in Home's own strings `home.roadmap.overloadedTeams|wipTeams`, each only when positive) reads the document's `totals`
-  over EVERY team, so a filter or the 200-row cap never changes it.
+- The facts line (`role="group"`, "N teams", "N not scheduled yet" (`home.plan.notScheduled`, always shown, a 0 included: the server's `totals.unscheduledMilestones`, never a sum of the rows) and the two orange badges in Home's own
+  strings `home.roadmap.overloadedTeams|wipTeams`, each only when positive) reads the document's `totals` over EVERY team, so a filter or the 200-row cap never changes it.
 - Columns: Team (the link to the team page, `teams.openAria`), Manager (dimmed "No manager" when none), Milestones, Not scheduled (a link to the team's page named by
   its row, `teamLoad.notScheduledAria`, only when positive; a plain 0 otherwise), Overloaded and WIP (the team page's two orange badges, only when positive) and Capacity (a gray "N weeks
   without capacity" badge, only when positive: a team with scheduled work and no capacity period can never be overloaded, and the page says so instead of looking fine). No row or page ever

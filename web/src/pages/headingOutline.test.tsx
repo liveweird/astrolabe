@@ -33,7 +33,7 @@ function emptyApi() {
     "GET /api/v1/views/roadmap": roadmapView({ revision: 0 }),
     "GET /api/v1/views/programs": { revision: 0, teams: [], links: [], workStreams: [] },
     "GET /api/v1/baselines": { items: [], can: { manage: true } },
-    "GET /api/v1/views/team-load": { revision: 0, currentWeekStart: "2027-01-04", totals: { teams: 0, overloadedTeams: 0, wipExceededTeams: 0 }, teams: [], truncated: false, warningWeeksTruncated: false },
+    "GET /api/v1/views/team-load": { revision: 0, currentWeekStart: "2027-01-04", totals: { teams: 0, overloadedTeams: 0, wipExceededTeams: 0, unscheduledMilestones: 0 }, teams: [], truncated: false, warningWeeksTruncated: false },
     "GET /api/v1/views/dependencies": { revision: 0, totals: { links: 0, violated: 0, unscheduled: 0 }, projects: [], teams: [], milestones: [], dependencies: [], truncated: false },
     "GET /api/v1/users": emptyPage,
     "GET /api/v1/teams": emptyPage,

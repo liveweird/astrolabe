@@ -104,10 +104,11 @@ describe("Team load page", () => {
   });
 
   test("the facts line shows the totals as they arrive, a zero badge absent", async () => {
-    answer = () => jsonResponse(200, teamLoadView(ALL, { totals: { teams: 15, overloadedTeams: 2, wipExceededTeams: 0 } }));
+    answer = () => jsonResponse(200, teamLoadView(ALL, { totals: { teams: 15, overloadedTeams: 2, wipExceededTeams: 0, unscheduledMilestones: 41 } }));
     renderPage();
     const facts = await screen.findByRole("group", { name: "Team load in figures" });
     expect(within(facts).getByText("15 teams")).toBeInTheDocument();
+    expect(within(facts).getByText("41 not scheduled yet"), "the server's plan-wide total, never the rows' sum").toBeInTheDocument();
     expect(within(facts).getByText("2 teams with an overloaded week")).toBeInTheDocument();
     expect(within(facts).queryByText(/over the WIP limit/)).not.toBeInTheDocument();
   });
@@ -222,10 +223,11 @@ describe("Team load page", () => {
   });
 
   test("a cut list says so, with the number of rows shown, while the totals stay the server's", async () => {
-    answer = () => jsonResponse(200, teamLoadView(ALL, { truncated: true, totals: { teams: 230, overloadedTeams: 9, wipExceededTeams: 3 } }));
+    answer = () => jsonResponse(200, teamLoadView(ALL, { truncated: true, totals: { teams: 230, overloadedTeams: 9, wipExceededTeams: 3, unscheduledMilestones: 77 } }));
     renderPage();
     expect(await screen.findByText("The list shows its first 4 teams.")).toBeInTheDocument();
     expect(screen.getByText("230 teams")).toBeInTheDocument();
+    expect(screen.getByText("77 not scheduled yet")).toBeInTheDocument();
   });
 
   test("a complete list says nothing about a cut", async () => {
@@ -310,6 +312,7 @@ describe("Team load page", () => {
     const facts = screen.getByRole("group", { name: "Obciążenie zespołów w liczbach" });
     expect(within(facts).getByText("4 zespoły")).toBeInTheDocument();
     expect(within(facts).getByText("2 zespoły z przeciążonym tygodniem")).toBeInTheDocument();
+    expect(within(facts).getByText("jeszcze niezaplanowanych: 5")).toBeInTheDocument();
   });
 });
 

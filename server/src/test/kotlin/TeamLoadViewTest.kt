@@ -117,7 +117,9 @@ class TeamLoadViewTest {
             assertEquals(DayOfWeek.MONDAY, currentWeek.dayOfWeek, "the week's Monday")
             assertTrue(!currentWeek.isBefore(mondayOf(before)), "not before the week of the request's start: $currentWeek")
             assertTrue(!currentWeek.isAfter(mondayOf(after)), "not after the week of the response: $currentWeek")
-            assertEquals(setOf("teams", "overloadedTeams", "wipExceededTeams"), root.getValue("totals").jsonObject.keys)
+            assertEquals(
+                setOf("teams", "overloadedTeams", "wipExceededTeams", "unscheduledMilestones"), root.getValue("totals").jsonObject.keys,
+            )
             val row = root.getValue("teams").jsonArray.first().jsonObject
             assertEquals(
                 setOf(
@@ -155,6 +157,11 @@ class TeamLoadViewTest {
         val home = client.home().plan
         assertEquals(home.overloadedTeams, load.totals.overloadedTeams, "Home's badge and this page's line are one expression")
         assertEquals(home.wipExceededTeams, load.totals.wipExceededTeams)
+        // The not-scheduled total is compared by what it MOVES by, not absolutely: other classes of the shared container soft-delete a
+        // project or team with raw SQL and leave active milestones the two figures read differently (no API write can do that).
+        val loadMoved = load.totals.unscheduledMilestones - baseLoad.totals.unscheduledMilestones
+        assertEquals(1, loadMoved, "team c's one milestone without dates")
+        assertEquals(home.unscheduledMilestones - baseHome.unscheduledMilestones, loadMoved, "Home's not-scheduled figure moves with it")
         assertEquals(2, load.totals.overloadedTeams - baseLoad.totals.overloadedTeams)
         assertEquals(1, load.totals.wipExceededTeams - baseLoad.totals.wipExceededTeams)
         assertEquals(s.teams.size, load.totals.teams - baseLoad.totals.teams)

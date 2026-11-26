@@ -67,7 +67,7 @@ test("the Team load page lists a team with an overloaded week, and its name open
   await login(page);
 
   // Narrowed to the teams with an overloaded week (the link Home's badge uses): this spec's team is a row with its worded badge, and the facts line
-  // shows a count of teams with an overloaded week (present, never a value).
+  // shows a count of teams with an overloaded week and the plan-wide not-scheduled total (present, never a value).
   await page.goto("/team-load?warning=overloaded");
   await expect(page.getByRole("heading", { level: 2, name: "Team load", exact: true })).toBeVisible();
   const rows = page.getByRole("table", { name: "Load of every team", exact: true }).locator("tbody tr");
@@ -77,6 +77,7 @@ test("the Team load page lists a team with an overloaded week, and its name open
   const facts = page.getByRole("group", { name: "Team load in figures", exact: true });
   await expect(facts.getByText(/^\d+ teams?$/)).toBeVisible();
   await expect(facts.getByText(/^\d+ teams? with an overloaded week$/)).toBeVisible();
+  await expect(facts.getByText(/^\d+ not scheduled yet$/)).toBeVisible();
 
   // "Every team" drops the parameter; the team's name opens the page that shows the same overloaded week.
   await openFilters(page);

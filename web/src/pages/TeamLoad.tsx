@@ -35,6 +35,7 @@ function TeamLoadFacts({ totals }: { totals: TeamLoadView["totals"] }) {
   return (
     <Group gap="md" role="group" aria-label={t("teamLoad.factsAria")}>
       <Text size="sm">{t("teamLoad.facts.teams", { count: totals.teams })}</Text>
+      <Text size="sm">{t("home.plan.notScheduled", { count: totals.unscheduledMilestones })}</Text>
       <WarningBadge text={totals.overloadedTeams > 0 ? t("home.roadmap.overloadedTeams", { count: totals.overloadedTeams }) : null} />
       <WarningBadge text={totals.wipExceededTeams > 0 ? t("home.roadmap.wipTeams", { count: totals.wipExceededTeams }) : null} />
     </Group>
