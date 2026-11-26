@@ -81,8 +81,7 @@ data class MilestoneResponse(
 
 /**
  * A list row of `GET /api/v1/milestones` (the picker list): the [MilestoneResponse] fields plus the name of the (ACTIVE) project, so the
- * picker can tell the many milestones called "Design" apart ("Design · Project Alpha"), and the project's [rankPosition] (the Milestones
- * page's Rank column).
+ * picker can tell the many milestones called "Design" apart ("Design · Project Alpha").
  */
 @Serializable
 data class MilestoneListItem(
@@ -93,8 +92,6 @@ data class MilestoneListItem(
     val description: String?,
     val teamId: UInt,
     val teamName: String,
-    /** The project's position in the global rank (1-based); null = the project is unranked. */
-    val rankPosition: Int?,
     val estimateMd: Double,
     val startDate: String?,
     val endDate: String?,
@@ -107,17 +104,12 @@ data class MilestoneListItem(
 typealias MilestonePageResponse = PageResponse<MilestoneListItem>
 
 /**
- * The list filters of `GET /milestones`, ANDed: [name] is a case- and accent-insensitive substring of the milestone name; [scheduled]
- * `true` keeps the milestones with dates, `false` those without; [teamId], [projectId], [programId] and [workStreamId] keep the milestones
- * of that team, project, program (of its projects) or work stream (of its programs' projects); an id that names nothing matches nothing.
+ * The list filters of `GET /milestones`, ANDed: [name] is a case- and accent-insensitive substring of the milestone name; [projectId]
+ * keeps the milestones of that project (an id that names nothing matches nothing). The 1.27 filters beyond these were removed in 1.30.
  */
 data class MilestoneListFilter(
     val name: String? = null,
-    val scheduled: Boolean? = null,
-    val teamId: UInt? = null,
     val projectId: UInt? = null,
-    val programId: UInt? = null,
-    val workStreamId: UInt? = null,
 )
 
 data class MilestoneListResult(val items: List<MilestoneListItem>, val total: Long)

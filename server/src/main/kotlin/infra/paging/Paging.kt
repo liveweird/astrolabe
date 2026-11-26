@@ -68,20 +68,13 @@ fun ApplicationCall.parsePaging(
 }
 
 /**
- * Orders, limits and offsets [this] by [req]. A field named in [nullsLast] sorts its NULLs after every value in BOTH directions
- * (`ASC NULLS LAST` / `DESC NULLS LAST`; PostgreSQL's `DESC` default would put them first); the rest keep the database default.
+ * Orders, limits and offsets [this] by [req], each field in the database's default NULL order.
  */
-fun Query.applyPaging(req: PageRequest, columns: Map<String, Column<*>>, nullsLast: Set<String> = emptySet()): Query {
+fun Query.applyPaging(req: PageRequest, columns: Map<String, Column<*>>): Query {
     val order = req.sort.map { sf ->
         val column = columns[sf.name]
             ?: error("Sort field '${sf.name}' has no mapped column (paging helper invariant violated)")
-        val keepNullsLast = sf.name in nullsLast
-        column to when {
-            sf.descending && keepNullsLast -> SortOrder.DESC_NULLS_LAST
-            sf.descending -> SortOrder.DESC
-            keepNullsLast -> SortOrder.ASC_NULLS_LAST
-            else -> SortOrder.ASC
-        }
+        column to if (sf.descending) SortOrder.DESC else SortOrder.ASC
     }
     return orderBy(*order.toTypedArray())
         .limit(req.pageSize)

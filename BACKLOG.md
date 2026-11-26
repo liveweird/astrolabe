@@ -21,7 +21,6 @@ The `backlog` mod (`liveweird/claude-mods`) summarises the tags on the status li
 
 Each increment gets its own plan (architect) before implementation. The domain sketch is `.claude/docs/planning-model.md`; the timeline approach is `.claude/docs/timeline.md`.
 
-- [next] **Trim `GET /milestones` if nothing uses it (1.29).** Its `workStreamId` and `programId` filters and the rank sort lost their only screen with the Milestones page; they stay documented and tested for the pickers' sake.
 - [next] **Team load could show a "not scheduled" total (1.29).** Home's plan-wide "not scheduled yet" figure now opens Team load, whose rows count each team's but add no total.
 - [new] **Forced colours leftovers (1.30).** Only the filled bars are drawn there: the bars' edge handles, the today line, the load strip (the column fill and the capacity hairline), the weekend and idle hatch, and the window band and ghost fills still follow the browser's forcing or read tokens that were not re-pointed; a pass over them is a separate piece of work with a real High Contrast walk-through.
 - [new] **Ghost rows beyond the direct neighbours on the PROJECT page, if the Critical chain list proves insufficient.** Farther chain members are a list there (names, dates, hops, slack), not timeline rows; the team page draws the whole chain since 1.27.

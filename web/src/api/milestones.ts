@@ -23,18 +23,13 @@ type MilestoneListQuery = {
   pageSize: number;
   sort?: string;
   name?: string;
-  /** `true`: only milestones with dates, `false`: only those without; absent: both. */
-  scheduled?: boolean;
-  teamId?: number;
-  /** Only the milestones of this work stream's programs / this program's projects / this project; an id that names nothing is an empty page. */
-  workStreamId?: number;
-  programId?: number;
+  /** Only this project's milestones; an id that names nothing is an empty page. */
   projectId?: number;
 };
 
 /**
- * The paged milestone list across every project (each row carries `projectName` and `teamName`) - the milestone pickers' search; `name` is a case- and accent-insensitive substring, the other filters narrow by schedule, team, work stream, program and project. The sort keys include `rankPosition` and `startDate`
- * (nulls last both ways).
+ * The paged milestone list across every project (each row carries `projectName` and `teamName`) - the milestone pickers' search; `name` is a case- and accent-insensitive substring and `projectId` narrows to one project.
+ * The sort keys are `id`, `name`, `createdAt` and `updatedAt` (the filters and sort keys of 1.27 beyond these were removed in 1.30).
  */
 export async function listMilestones(q: MilestoneListQuery): Promise<MilestonePage> {
   const params = buildQuery({
@@ -42,10 +37,6 @@ export async function listMilestones(q: MilestoneListQuery): Promise<MilestonePa
     pageSize: q.pageSize,
     sort: q.sort,
     name: q.name,
-    scheduled: q.scheduled,
-    teamId: q.teamId,
-    workStreamId: q.workStreamId,
-    programId: q.programId,
     projectId: q.projectId,
   });
   return jsonRequest<MilestonePage>(`/api/v1/milestones?${params}`);

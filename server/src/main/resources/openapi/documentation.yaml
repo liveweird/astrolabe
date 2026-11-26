@@ -1527,42 +1527,20 @@ paths:
       summary: List milestones
       description: >-
         Lists the active milestones whose project, program and work stream are active, each with its `projectName`. Any
-        authenticated user. Paged; sortable by `id` (default, also the tiebreaker), `name`, `createdAt`, `updatedAt`,
-        `projectName`, `teamName`, `rankPosition` (the project's place in the global rank) and `startDate`; the last two put
-        their nulls (an unranked project, an unscheduled milestone) after every value, ascending or descending. Filters,
-        combined with AND: `name` (case- and accent-insensitive substring), `scheduled`, `teamId`, `projectId`, `programId`
-        and `workStreamId`; an id that names no active node matches nothing (an empty page, never `404`). A malformed or
-        repeated filter is `400`. A project's own milestones are read through the project view.
+        authenticated user. Paged; sortable by `id` (default, also the tiebreaker), `name`, `createdAt` and `updatedAt`; any
+        other sort key is `400`. Filters, combined with AND: `name` (case- and accent-insensitive substring) and `projectId`;
+        an id that names no active project matches nothing (an empty page, never `404`). A malformed or repeated filter is
+        `400`; any other parameter name is ignored. A project's own milestones are read through the project view.
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
         - $ref: '#/components/parameters/Sort'
         - $ref: '#/components/parameters/NameQuery'
-        - name: scheduled
-          in: query
-          required: false
-          schema: { type: boolean }
-          description: Strictly `true` or `false`. `true` lists the scheduled milestones, `false` the ones without dates.
-        - name: teamId
-          in: query
-          required: false
-          schema: { type: integer, format: int32, minimum: 0 }
-          description: Only the milestones of this team.
         - name: projectId
           in: query
           required: false
           schema: { type: integer, format: int32, minimum: 0 }
           description: Only the milestones of this project.
-        - name: programId
-          in: query
-          required: false
-          schema: { type: integer, format: int32, minimum: 0 }
-          description: Only the milestones of the projects of this program.
-        - name: workStreamId
-          in: query
-          required: false
-          schema: { type: integer, format: int32, minimum: 0 }
-          description: Only the milestones of the projects of this work stream's programs.
       responses:
         '200':
           description: A page of milestones
@@ -5658,7 +5636,7 @@ components:
           minimum: 0
     MilestoneListItem:
       type: object
-      required: [id, projectId, projectName, name, description, teamId, teamName, rankPosition, estimateMd, startDate, endDate, pinned, createdAt, updatedAt]
+      required: [id, projectId, projectName, name, description, teamId, teamName, estimateMd, startDate, endDate, pinned, createdAt, updatedAt]
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         projectId: { type: integer, format: int32, minimum: 0 }
@@ -5667,7 +5645,6 @@ components:
         description: { type: string, nullable: true }
         teamId: { type: integer, format: int32, minimum: 0 }
         teamName: { type: string }
-        rankPosition: { type: integer, format: int32, minimum: 1, nullable: true, description: The project's position in the global project rank; null = the project is unranked. }
         estimateMd: { type: number, format: double, minimum: 0, description: Man-days with at most two decimals. }
         startDate: { type: string, format: date, nullable: true, description: Null = unscheduled (both dates are null together). }
         endDate: { type: string, format: date, nullable: true }

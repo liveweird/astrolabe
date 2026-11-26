@@ -179,10 +179,11 @@ The standing rules the pages after 1.16 follow; the answers with their rejected 
 
 - **Home.** The Plan and Roadmap cards show the plan's own figures, including two capacity figures (teams with an overloaded week, teams over the WIP limit; the one answer off the recommended option, 1.18 Q1 b). "Yours" is what the person linked to the login owns and the teams that person manages;
   since 1.23 (Q3 b) it lists everything under a work stream or program you own, each row names its owner, and a switch "Only what I own myself" (off by default, remembered in this browser) narrows both tables to the rows you own yourself. A login without a person gets one plain sentence. Home's figures are links to the filtered view behind them; a badge or link shows only when its count is positive (zero is not a claim).
-- **Filters live in the address.** The address always holds the filters shown; a link naming a filter is shown as written and not remembered; opening a page from the menu restores what the user last set; only the user's own change is remembered (Roadmap 1.19 Q1 a, Programs 1.21 Q1; Milestones, Team load and Dependencies keep theirs in the address only).
+- **Filters live in the address.** The address always holds the filters shown; a link naming a filter is shown as written and not remembered; opening a page from the menu restores what the user last set; only the user's own change is remembered (Roadmap 1.19 Q1 a, Programs 1.21 Q1; Team load and Dependencies keep theirs in the address only).
 - **One staleness rule.** A Jira source is stale when its server-derived state is not `CURRENT` or its mapping does not fit; the chips, the Deviations banner, the dated "no deviations" claim, Flow's section and the plan pages' facts line ("Jira data may be out of date") all use it (1.17 Q1 and Q2).
 - **A deploy notice.** The build writes its commit into `index.html`; the shell compares it with the bundle's own and shows a notice with a Reload button at the top of every page, with no way to dismiss it (1.17 Q4, Q5).
 - **Dependencies page.** One list of every active link, the violated first, at most 1,000 rows, filters in the browser and the address (1.20 Q1); a row says what the caller may do (`can`) and offers "Edit..." and "Delete" only then (1.22 Q3, reversing 1.20 Q2 "read-only"). Since 1.29 the list is the Roadmap's panel; the page is gone.
+- **`GET /milestones` is trimmed (decided 2026-11-26, 1.30).** Removed, not deprecated (the 1.24 Q5 exception to API-VER-002 again; one client, the first-party SPA): the filters `scheduled`, `teamId`, `programId`, `workStreamId`, the sorts `rankPosition`, `projectName`, `teamName`, `startDate`, the row's `rankPosition`. An old tab's removed filter is ignored (API-LIST-004) and lists every milestone; a removed sort is `400`.
 - **Team load.** Per week, "Weeks with a warning" under the table (1.21 Q4); it opens on the weeks from this week on and an "Include past weeks" switch (`?past=true`) brings the earlier ones back (1.22 Q4).
 - **View validators.** Ten view reads answer a weak `ETag` and `304`; the tag is a hash of the rendered document and the caller's user id, so it cannot go stale; the two Deviations documents are left out (1.22 Q1, Q2).
 - **A database time limit.** One statement limit of 15 seconds on the whole pool, 0 = off (1.23 Q1 a). **Flow capacity on project rows.** One flag per team, only when a SCHEDULED milestone of the project on that team lies in days an OPEN capacity difference covers (1.23 Q2 a; reverses 1.9 Q3 "team view only" in part).
@@ -303,7 +304,7 @@ Built overnight on 2026-11-25 to 26 from the user's answers of 2026-11-25 (`plan
 
 Built overnight and released on the user's word on 2026-11-25; a minor bump, the API only gains members. No migration.
 
-- `GET /milestones` takes `programId`, `workStreamId` and the sort keys `rankPosition` and `startDate` (`planning-model.md` "The picker and milestone lists"); the plan view's project gains `can.createDependency` (a hint equal to the guard, `authorization.md` "Dependencies"); `GET /views/team/{id}?criticalChain=true` carries the chain, at most 100 members and 500 links (`planning-model.md` "The critical path").
+- `GET /milestones` gains `programId`, `workStreamId` and two sort keys (all removed in 1.30); the plan view's project gains `can.createDependency` (a hint equal to the guard, `authorization.md` "Dependencies"); `GET /views/team/{id}?criticalChain=true` carries the chain, at most 100 members and 500 links (`planning-model.md` "The critical path").
 - The e2e rank test appends two throwaway projects to the global ranking (the plan had meant none to); U4 cannot be shown without ranked projects.
 - Measured: `timeline.md` "Measured figures"; the five untested cells are decided (three scale tests, two design notes); no stop line was crossed.
 
@@ -443,12 +444,12 @@ Released on the user's word the same day (2026-11-14), a minor bump (two new pag
 
 **The answers (all (a)):**
 - Q1 the Roadmap's filters live in the address by Flow's rule (see "Home and the lists").
-- Q2 a **Milestones** page under Planning: every milestone with its project, team, estimate and dates, filtered by schedule (Not scheduled / Scheduled / All), team, project (a removable chip from a link) and name, the filters in the address only; `?scheduled=false` counts exactly Home's "not scheduled yet" set.
+- Q2 a **Milestones** page under Planning: every milestone, filtered by schedule, team, project and name in the address only (a table on Projects since 1.29); its not-scheduled count was exactly Home's.
 - Q3 a **Team load** page under Planning: every team with its manager, milestones, how many are not scheduled, its overloaded weeks, weeks over the WIP limit and weeks without capacity, filtered by warning in the address; its totals and Home's two team counts are one function over one loader; at most 200 rows with `truncated`.
 - Q4 Home's read (`GET /views/home`) is kept for 60 seconds like the two deviation counts: a return within the minute makes no request, the user's own writes still show at once, another person's change or a Jira/Flow observation shows after at most a minute.
 
-**Also:** the connection pool moved out of `Database.kt` into `ConnectionPool.kt` (a pure move). Home's figures became links ("Home and the lists"). **Defaults taken:** `GET /milestones` grows rather than a new list; both pages get a menu leaf; zero is not a claim;
-a team with work and no capacity can never be overloaded, so Team load says so in gray. **Not built:** a rank sort on Milestones (`BACKLOG.md`); the violated-dependency list, the address filters and Team load per week came in 1.20 and 1.21.
+**Also:** Home's figures became links ("Home and the lists"). **Defaults taken:** `GET /milestones` grows rather than a new list; both pages get a menu leaf; zero is not a claim;
+a team with work and no capacity can never be overloaded, so Team load says so in gray. **Not built:** a rank sort on Milestones (`BACKLOG.md`); the violated-dependency list, address filters and weekly Team load came in 1.20 and 1.21.
 
 ### v1.18.0 — what shipped
 
