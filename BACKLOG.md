@@ -21,13 +21,13 @@ The `backlog` mod (`liveweird/claude-mods`) summarises the tags on the status li
 
 Each increment gets its own plan (architect) before implementation. The domain sketch is `.claude/docs/planning-model.md`; the timeline approach is `.claude/docs/timeline.md`.
 
-- [new] **Focus ring on a tinted timeline bar (1.29).** Team colours set the bar's fill; the focus ring is unchanged, so its contrast against each of the twelve fills in both schemes is unmeasured.
-- [new] **Team colours under forced-colours mode (1.29).** The swatch keeps its colour (`forced-color-adjust: none`) but a tinted bar follows the system palette like any bar, so the team shows by name only there.
-- [new] **The Milestones table's non-sortable header size (1.29).** The header cells without a sort (Estimate, End) are a different size from the sortable ones (Milestone, Team, Start).
-- [new] **The project picker could match milestone names (1.29).** The plan-wide milestone name search went with the Milestones page; the picker finds a project by its own, its program's, its work stream's or its owner's name only.
-- [new] **Trim `GET /milestones` if nothing uses it (1.29).** Its `workStreamId` and `programId` filters and the rank sort lost their only screen with the Milestones page; they stay documented and tested for the pickers' sake.
-- [new] **Team load could show a "not scheduled" total (1.29).** Home's plan-wide "not scheduled yet" figure now opens Team load, whose rows count each team's but add no total.
-- [new] **The Roadmap's dependency panel is unreachable while the Roadmap's own read fails (1.29).** The panel sits under the timeline, so an error on the Roadmap read hides it, and with it the list the old Dependencies page showed on its own.
+- [next] **Focus ring on a tinted timeline bar (1.29).** Team colours set the bar's fill; the focus ring is unchanged, so its contrast against each of the twelve fills in both schemes is unmeasured.
+- [next] **Team colours under forced-colours mode (1.29).** The swatch keeps its colour (`forced-color-adjust: none`) but a tinted bar follows the system palette like any bar, so the team shows by name only there.
+- [next] **The Milestones table's non-sortable header size (1.29).** The header cells without a sort (Estimate, End) are a different size from the sortable ones (Milestone, Team, Start).
+- [next] **The project picker could match milestone names (1.29).** The plan-wide milestone name search went with the Milestones page; the picker finds a project by its own, its program's, its work stream's or its owner's name only.
+- [next] **Trim `GET /milestones` if nothing uses it (1.29).** Its `workStreamId` and `programId` filters and the rank sort lost their only screen with the Milestones page; they stay documented and tested for the pickers' sake.
+- [next] **Team load could show a "not scheduled" total (1.29).** Home's plan-wide "not scheduled yet" figure now opens Team load, whose rows count each team's but add no total.
+- [next] **The Roadmap's dependency panel is unreachable while the Roadmap's own read fails (1.29).** The panel sits under the timeline, so an error on the Roadmap read hides it, and with it the list the old Dependencies page showed on its own.
 - [new] **Ghost rows beyond the direct neighbours on the PROJECT page, if the Critical chain list proves insufficient.** Farther chain members are a list there (names, dates, hops, slack), not timeline rows; the team page draws the whole chain since 1.27.
 - [new] **Ghost rows for every cross-team link on the team page (1.27).** Only the critical chain's members get a dimmed row; a non-critical link to another team's milestone is drawn only when that milestone is on the chain.
 - [new] **A milestone that drives another project's end is not marked on its team's page (1.27).** The chain is measured toward the end of a project the team works on (1.7's reach), so work that is critical only for a project downstream shows no mark.
