@@ -6,7 +6,7 @@ describe("visibleSections", () => {
     const sections = visibleSections(false);
     expect(sections.map((s) => s.label)).toEqual(["appShell.section.overview", "appShell.section.planning", "appShell.section.teams", "appShell.section.integrations"]);
     const paths = sections.flatMap((s) => s.items.map((l) => l.to));
-    expect(paths).toEqual(["/", "/plan", "/roadmap", "/programs", "/milestones", "/dependencies", "/baselines", "/teams", "/team-load", "/schedule-proposals", "/people", "/public-holidays", "/deviations"]);
+    expect(paths).toEqual(["/", "/plan", "/roadmap", "/projects", "/programs", "/milestones", "/dependencies", "/baselines", "/teams", "/team-load", "/schedule-proposals", "/people", "/public-holidays", "/deviations"]);
   });
 
   test("an admin session gets account controls under Administration and connection settings under Integrations", () => {
@@ -20,6 +20,12 @@ describe("visibleSections", () => {
     expect(regular).not.toContain("/integrations/flow");
   });
 
+  test("the Projects leaf sits after the Roadmap and is findable in the palette by its old words", () => {
+    const projects = visibleSections(false).flatMap((s) => s.items).find((l) => l.to === "/projects");
+    expect(projects?.label).toBe("appShell.nav.projects");
+    expect(projects?.keywords).toEqual(["project", "milestones", "kamienie milowe"]);
+  });
+
   test("the Flow leaf is findable in the palette by what it is for: flow, capacity, roster", () => {
     const flow = visibleSections(true).flatMap((s) => s.items).find((l) => l.to === "/integrations/flow");
     expect(flow?.label).toBe("appShell.nav.flow");
@@ -29,7 +35,7 @@ describe("visibleSections", () => {
   test("Planning groups plan views and lists for every role", () => {
     for (const admin of [false, true]) {
       const planning = visibleSections(admin).find((s) => s.label === "appShell.section.planning");
-      expect(planning?.items.map((l) => l.to)).toEqual(["/plan", "/roadmap", "/programs", "/milestones", "/dependencies", "/baselines"]);
+      expect(planning?.items.map((l) => l.to)).toEqual(["/plan", "/roadmap", "/projects", "/programs", "/milestones", "/dependencies", "/baselines"]);
     }
   });
 
@@ -53,7 +59,9 @@ describe("activeNavPath", () => {
     expect(activeNavPath("/people/3", leaves)).toBe("/people");
     expect(activeNavPath("/public-holidays", leaves)).toBe("/public-holidays");
     expect(activeNavPath("/plan", leaves)).toBe("/plan");
-    expect(activeNavPath("/projects/42", leaves)).toBe("/plan");
+    // A project's page is the Projects leaf's (Plan's `activeFor` was dropped: the two would tie on length 9).
+    expect(activeNavPath("/projects", leaves)).toBe("/projects");
+    expect(activeNavPath("/projects/42", leaves)).toBe("/projects");
     expect(activeNavPath("/roadmap", leaves)).toBe("/roadmap");
     expect(activeNavPath("/programs", leaves)).toBe("/programs");
     expect(activeNavPath("/milestones", leaves)).toBe("/milestones");

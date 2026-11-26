@@ -57,7 +57,7 @@ The model is `utils/navigation.ts`, shared by the sidebar and the command palett
 - `NAV_SECTIONS` is the labelled sections of `NavLeaf`s: the `label` is a typed i18n key, `adminOnly?` gates admin leaves, `keywords?` adds raw palette search
   terms (a renamed page's old name), and `visibleSections(isAdmin())` drops an emptied section.
 - `ACCOUNT_NAV` (Change password, Changelog) is rendered by the header `UserMenu` and the palette, never by the sidebar.
-- Leaf clicks close mobile navigation. `activeNavPath` picks the longest prefix and highlights Plan on project details.
+- Leaf clicks close mobile navigation. `activeNavPath` picks the longest prefix and highlights Projects on a project's page.
 - Planning groups plan views and lists. Teams and capacity groups staffing and scheduling. Integrations holds deviations and connection
   settings. Administration holds account controls and appears for administrators.
 - **The icon rail** (Lettuce's): a header `ActionIcon` beside the Burger (`appShell.toggleNav`, `data-expanded` while expanded) narrows the desktop navbar from
@@ -84,7 +84,7 @@ The model is `utils/navigation.ts`, shared by the sidebar and the command palett
 
 The rules (the `Stack`, the widths, the one spinner, the heading outline, the tab title): `web/CLAUDE.md` "Layout conventions". The mechanics behind them:
 
-- `components/PageHeader.tsx` takes `title` (the `order={2}` heading), `description?`, `backTo?`, `actions?` and a `toolbar?` row.
+- `components/PageHeader.tsx` takes `title` (the `order={2}` heading), `description?`, `backTo?`, `actions?`, a `toolbar?` row and a `switcher?` above the title.
 - `components/LoadingBlock.tsx` is the one spinner (`TableLoadingRow` wraps it); `components/EditPageLoadState.tsx` is the edit pages' shared load-failure
   triage (a centred loader, else a back-to-list alert); `EmptyState` sizes the Tabler icon itself, and an optional `hint` is the next step under the label.
 - Page tests pin the outline with `test/headings.ts`'s `headingOutline()`.
@@ -662,7 +662,7 @@ Files:
 
 ### Route and data
 
-`/projects/:id` (a detail page, no nav leaf: the Plan page's project NAME is the link, `plan.openProjectAria`; `projectPath(id)` in `utils/planLinks.ts`) renders
+`/projects/:id` (the Projects leaf; the Plan page's project NAME links it, `plan.openProjectAria`; `projectPath(id)` in `utils/planLinks.ts`; the picker and the bare `/projects`: `projects-view.md`) renders
 `GET /views/project/{id}` under `["plan","project",id]` - under the `["plan"]` prefix, so every Plan mutation also refreshes a mounted project view. `ProjectView` is
 `<ProjectPage key={id}>`, so another project starts with its own range and editors.
 
@@ -2519,6 +2519,7 @@ When a feature needs one of these, port the sibling's `web/` implementation and 
   pages' `…filter.*` and `…filtersOpen`, and the timeline and planning keys below.
 - **The Roadmap's six filter keys** (`roadmap.filter.workStream|team|owner|flagged|severity|unranked`) and `planning.programPick` are MEMORY, not state: the address holds the state and only the user's
   own change writes them ("The URL holds the filters" under "Roadmap"); the Programs page reads and writes `planning.programPick` alone on the same terms.
+- **`projects.last`** (the project `/projects` opens; `projects-view.md`).
 - **The Plan page's** `plan.collapsed` (folded node keys), `plan.pins`, `plan.pinnedCollapsed`, `plan.pinnedOpen` and `plan.filtersOpen` (`plan-tree.md`); its filters and focus are address-only.
 - **Timeline view settings** (`timeline.*`, shared by the pages that show them): `zoom` (project, team), `planZoom` (roadmap, programs), `criticalPath` (project and team, default false;
   `hooks/useCriticalPathPick.ts`), `baseline` (all four, an id or none; `hooks/useBaselinePick.ts`), and **`jiraBars`** (all four pages; a boolean, **default true**: the "Jira dates" toggle of the

@@ -255,6 +255,8 @@ export default function App() {
           <Route element={<Shell />}>
             <Route index element={<Home />} />
             <Route path="plan" element={<Plan />} />
+            {/* One page for both: `projects` (no project picked yet) and `projects/:id`. */}
+            <Route path="projects" element={<ProjectView />} />
             <Route path="projects/:id" element={<ProjectView />} />
             <Route path="roadmap" element={<Roadmap />} />
             <Route path="programs" element={<Programs />} />

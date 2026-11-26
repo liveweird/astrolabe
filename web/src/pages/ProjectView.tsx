@@ -15,6 +15,8 @@ import EmptyState from "../components/EmptyState";
 import ErrorAlert from "../components/ErrorAlert";
 import MilestoneScheduleModal from "../components/MilestoneScheduleModal";
 import ProjectPageHeader from "../components/ProjectPageHeader";
+import ProjectPicker from "../components/ProjectPicker";
+import ProjectsStart from "../components/ProjectsStart";
 import ProjectViewNotices from "../components/ProjectViewNotices";
 import CriticalChain from "../components/CriticalChain";
 import CriticalPathToggle from "../components/CriticalPathToggle";
@@ -31,6 +33,7 @@ import TimelineDndContext from "../components/TimelineDndContext";
 import TimelineTitle from "../components/TimelineTitle";
 import UnscheduledTraySection from "../components/UnscheduledTraySection";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
+import { forgetLastProject, useRememberProject } from "../hooks/useLastProject";
 import { useBaselinePick, useDropUnknownPick } from "../hooks/useBaselinePick";
 import { useCriticalPathPick } from "../hooks/useCriticalPathPick";
 import { useDialogFocus } from "../hooks/useDialogFocus";
@@ -45,7 +48,7 @@ import { baselineDays } from "../utils/baselineOverlay";
 import { localIsoDate } from "../utils/isoDate";
 import { jiraPageRange, jiraScheduleDates } from "../utils/jiraBars";
 import { markKey, projectMarks, type JiraMark } from "../utils/jiraMarks";
-import { planPath } from "../utils/planLinks";
+import { planPath, projectsPath } from "../utils/planLinks";
 import { needsJiraConnections, type Editor } from "../utils/projectEditor";
 import { growSeenRange, type SeenRange } from "../utils/seenRange";
 import { linksOfMilestone } from "../utils/projectDependencies";
@@ -58,13 +61,14 @@ import { defaultRange, makeScale, MILESTONE_ZOOMS, toEpochDay, type Zoom } from 
 type Scheduling = { milestone: ProjectMilestone; revision: number };
 
 /**
- * The project view (`/projects/:id`): the project's facts, its scheduled milestones on the shared timeline and the Unscheduled
+ * The project view (`/projects/:id`; the bare `/projects` is `ProjectsStart`, the same page without a project): the project's facts, its scheduled milestones on the shared timeline and the Unscheduled
  * tray. What each control offers comes from the view's `can:{…}` flags — the owner chain edits a milestone's plan fields, ONLY
  * the team's manager or an ADMIN moves its dates, so a bar is read-only for anyone else. Every date change (a drag, a resize, the
  * Schedule button, the schedule dialog) goes through the one write path `useMilestoneSchedule`.
  */
 export default function ProjectView() {
   const { id } = useParams();
+  if (id === undefined) return <ProjectsStart />;
   // Keyed by the id: another project's page starts from its own range and editors.
   return <ProjectPage key={id} id={Number(id)} />;
 }
@@ -78,6 +82,8 @@ function ProjectPage({ id }: { id: number }) {
   const schedule = useMilestoneSchedule(id, pick);
   const { view, query } = schedule;
   const dropping = useDropUnknownPick(query.error, pick, setPick);
+  // The project `/projects` opens next: remembered once this page has loaded, forgotten with the project.
+  useRememberProject(id, view !== undefined);
   // The "Jira dates" toggle (1.3, remembered, on by default; offered only where the view links a Jira site).
   const jiraBars = useJiraBarsPick();
   const [zoom, setZoom] = useStoredState<Zoom>("timeline.zoom", "week", isOneOf(MILESTONE_ZOOMS));
@@ -109,7 +115,8 @@ function ProjectPage({ id }: { id: number }) {
   const removeProject = useDeleteConfirm<{ id: number; name: string; milestones: number; links: number }>({
     mutationFn: (project) => deleteProject(project.id),
     // Leave first: the unmounted page's query is then only invalidated, never refetched for a project that is gone.
-    onSuccess: async () => {
+    onSuccess: async (project) => {
+      forgetLastProject(project.id);
       navigate(planPath);
       await refreshQueriesAfterMutation(queryClient, ["plan"], ["roadmap"]);
     },
@@ -124,9 +131,10 @@ function ProjectPage({ id }: { id: number }) {
       <PickedLoadState
         isLoading={query.isLoading}
         message={notFound ? t("project.notFound") : loadErrorMessage(query.error, t)}
-        backTo={planPath}
-        backLabel={t("project.backToPlan")}
+        backTo={projectsPath}
+        backLabel={t("project.backToProjects")}
         title={t("project.pageTitle")}
+        switcher={<ProjectPicker projectId={notFound ? null : id} />}
         pick={pick}
         isError={query.isError}
         dropping={dropping}

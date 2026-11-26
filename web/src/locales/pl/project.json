@@ -1,6 +1,18 @@
 {
   "pageTitle": "Projekt",
-  "backToPlan": "Wróć do planu",
+  "backToProjects": "Wróć do projektów",
+  "pickTitle": "Projekty",
+  "pickIntro": "Wybierz projekt, aby zobaczyć jego kamienie milowe na osi czasu.",
+  "nonePicked": "Nie wybrano projektu",
+  "offline": "Nie można połączyć się z serwerem. Lista może być nieaktualna.",
+  "noProjects": "Nie ma jeszcze projektów",
+  "noProjectsHint": "Projekty dodaje się na stronie Plan.",
+  "openPlan": "Otwórz plan",
+  "picker": {
+    "placeholder": "Projekt, program lub właściciel/ka",
+    "nothingFound": "Żaden projekt nie pasuje",
+    "closedStream": "(zamknięty)"
+  },
   "notFound": "Ten projekt już nie istnieje.",
   "loadFailed": "Nie udało się wczytać projektu",
   "metaLine": "{{program}} · {{workStream}} · Właściciel/ka: {{owner}}",

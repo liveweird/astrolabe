@@ -163,6 +163,7 @@ disagree, the doc wins. The always-loaded set (this file plus the two imports) s
 | `.claude/docs/planning-model.md` | the planning domain: plan structure, lock, guards; milestones … capacity (sketch) |
 | `.claude/docs/plan-tree.md` | the shared order of work streams and of a stream's programs: order tables, the two PUTs, staleness, delete and move hooks |
 | `.claude/docs/team-colours.md` | a team's colour: the palette, assignment, storage, who edits, where it shows |
+| `.claude/docs/projects-view.md` | the Projects page: the picker, the bare `/projects`, the remembered project, its empty states |
 | `.claude/docs/scheduling.md` | the auto-proposal and the cross-team run: kernels, scope token, ledger, accept, check |
 | `.claude/docs/timeline.md` | the shared `Timeline*` component and Gantt-like pages: approach, measured figures |
 | `.claude/docs/test-fixtures.md` | any server test fixture, the harness, fork warm-up, OpenAPI conformance internals, e2e scenario files, Schemathesis |

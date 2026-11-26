@@ -158,6 +158,14 @@ const homeFigures: Settled = async (page) => {
 // the loader check are all there is to wait for).
 const AUTHED_PAGES: { path: string; heading: string; settled?: Settled }[] = [
   { path: "/", heading: "Astrolabe", settled: homeFigures },
+  // 1.29: the bare Projects page with its picker (nothing is remembered in a fresh browser): the empty state of a plan with projects or without.
+  {
+    path: "/projects",
+    heading: "Projects",
+    settled: async (page) => {
+      await expect(page.getByText(/^(No project picked|No projects yet)$/)).toBeVisible();
+    },
+  },
   { path: "/milestones", heading: "Milestones", settled: tableRow("Milestones") },
   {
     path: "/dependencies",

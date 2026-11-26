@@ -1,6 +1,18 @@
 {
   "pageTitle": "Project",
-  "backToPlan": "Back to the plan",
+  "backToProjects": "Back to projects",
+  "pickTitle": "Projects",
+  "pickIntro": "Pick a project to see its milestones on the timeline.",
+  "nonePicked": "No project picked",
+  "offline": "The server cannot be reached. The list may be out of date.",
+  "noProjects": "No projects yet",
+  "noProjectsHint": "Projects are added on the Plan page.",
+  "openPlan": "Open the plan",
+  "picker": {
+    "placeholder": "Project, program or owner",
+    "nothingFound": "No project matches",
+    "closedStream": "(closed)"
+  },
   "notFound": "This project no longer exists.",
   "loadFailed": "Could not load the project",
   "metaLine": "{{program}} · {{workStream}} · Owner: {{owner}}",

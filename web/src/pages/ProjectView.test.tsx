@@ -824,6 +824,26 @@ describe("Project view page: schedule write outcomes", () => {
     expect(await screen.findByText("The plan")).toBeInTheDocument();
   });
 
+  test("a loaded project page is remembered for /projects; deleting the project forgets it", async () => {
+    const user = userEvent.setup();
+    const remembered = () => localStorage.getItem("astrolabe.viewSettings.projects.last");
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    await waitFor(() => expect(remembered()).toBe("7"));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(within(await screen.findByRole("dialog", { name: "Delete project?" })).getByRole("button", { name: "Delete" }));
+    expect(await screen.findByText("The plan")).toBeInTheDocument();
+    expect(remembered()).toBe("null");
+  });
+
+  test("a project that does not load is not remembered: the stored one stays", async () => {
+    localStorage.setItem("astrolabe.viewSettings.projects.last", "99");
+    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(404, { title: "Not found", status: 404 })));
+    renderPage();
+    expect(await screen.findByText("This project no longer exists.")).toBeInTheDocument();
+    expect(localStorage.getItem("astrolabe.viewSettings.projects.last")).toBe("99");
+  });
+
   test("a project without milestones shows the empty state with its next step", async () => {
     view = viewOf({ scheduled: [], unscheduled: [], span: null, drift: null });
     renderPage();
@@ -904,7 +924,17 @@ describe("Project view page: rows, rights and edge cases", () => {
     renderPage();
     expect(await screen.findByText("This project no longer exists.")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Project" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Back to the plan" })).toHaveAttribute("href", "/plan");
+    expect(screen.getByRole("link", { name: "Back to projects" })).toHaveAttribute("href", "/projects");
+    // The picker is the way to another project; nothing is picked for a project that is gone.
+    expect(screen.getByRole("combobox", { name: "Project" })).toHaveValue("");
+  });
+
+  test("the loaded page has the picker above the title, naming its project, and no back link", async () => {
+    renderPage();
+    await screen.findByRole("grid", { name: "Milestone timeline" });
+    // The plan view answers 404 here: the picker still names the project it shows (`currentName`).
+    expect(screen.getByRole("combobox", { name: "Project" })).toHaveValue("Invoices");
+    expect(screen.queryByRole("link", { name: /^Back to/ })).not.toBeInTheDocument();
   });
 });
 

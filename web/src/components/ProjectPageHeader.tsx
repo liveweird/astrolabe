@@ -3,10 +3,10 @@ import { useTranslation } from "react-i18next";
 import { Button, Text } from "@mantine/core";
 import { IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import type { ProjectView as ProjectViewDocument } from "../api/milestones";
-import { planPath } from "../utils/planLinks";
 import type { JiraMark, JiraMarks } from "../utils/jiraMarks";
 import { ProjectJiraButton, ProjectJiraImportButton } from "./JiraChips";
 import PageHeader from "./PageHeader";
+import ProjectPicker from "./ProjectPicker";
 
 type ProjectHeaderProps = {
   project: ProjectViewDocument["project"];
@@ -21,7 +21,7 @@ type ProjectHeaderProps = {
 };
 
 /**
- * The project page's header: the name, the description and meta lines, and the actions the project's own `can:{…}` offers (New
+ * The project page's header: the picker above the name (1.29: it replaced the back link), the name, the description and meta lines, and the actions the project's own `can:{…}` offers (New
  * milestone, Edit, the Jira link/unlink, Import from Jira, Delete).
  */
 export default function ProjectPageHeader({ project, marks, titleRef, onNewMilestone, onEdit, onLinkJira, onImportJira, onUnlinkJira, onDelete }: ProjectHeaderProps) {
@@ -42,7 +42,7 @@ export default function ProjectPageHeader({ project, marks, titleRef, onNewMiles
           </Text>
         </>
       }
-      backTo={{ to: planPath, label: t("project.backToPlan") }}
+      switcher={<ProjectPicker projectId={project.id} currentName={project.name} />}
       actions={
         <>
           {project.can.createMilestone && (

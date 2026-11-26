@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { Button, Group, Stack } from "@mantine/core";
 import LoadingBlock from "./LoadingBlock";
@@ -9,7 +10,7 @@ import FormErrorAlert from "./FormErrorAlert";
  * alert with a back-to-list button. The page owns the surrounding container/title and computes
  * the not-found vs status-tagged message itself — or, for a page whose real title only exists
  * once the entity has loaded, passes a static `title` so the load/failure state still opens with
- * the page's h2 (a page with no heading is a dead end for a screen reader).
+ * the page's h2 (a page with no heading is a dead end for a screen reader). `switcher` is the header's control slot (the project page's picker).
  */
 export default function EditPageLoadState({
   isLoading,
@@ -17,12 +18,14 @@ export default function EditPageLoadState({
   backTo,
   backLabel,
   title,
+  switcher,
 }: {
   isLoading: boolean;
   message: string;
   backTo: string;
   backLabel: string;
   title?: string;
+  switcher?: ReactNode;
 }) {
   const state = isLoading ? (
     <LoadingBlock />
@@ -42,7 +45,7 @@ export default function EditPageLoadState({
     state
   ) : (
     <Stack gap="md">
-      <PageHeader title={title} />
+      <PageHeader title={title} switcher={switcher} />
       {state}
     </Stack>
   );

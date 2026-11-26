@@ -8,7 +8,7 @@ import { flowConnectionsPath } from "./flowLinks";
 import { jiraConnectionsPath } from "./jiraLinks";
 import { milestonesPath } from "./milestoneLinks";
 import { peoplePath } from "./peopleLinks";
-import { planPath, programsPath, roadmapPath } from "./planLinks";
+import { planPath, programsPath, projectsPath, roadmapPath } from "./planLinks";
 import { scheduleProposalsPath } from "./scheduleProposalLinks";
 import { teamLoadPath } from "./teamLoadLinks";
 import { teamsPath } from "./teamLinks";
@@ -53,8 +53,9 @@ const NAV_SECTIONS: ReadonlyArray<NavSection> = [
   {
     label: "appShell.section.planning",
     items: [
-      { to: planPath, label: "appShell.nav.plan", icon: IconSitemap, activeFor: ["/projects"] },
+      { to: planPath, label: "appShell.nav.plan", icon: IconSitemap },
       { to: roadmapPath, label: "appShell.nav.roadmap", icon: IconListNumbers },
+      { to: projectsPath, label: "appShell.nav.projects", icon: IconTimelineEvent, keywords: ["project", "milestones", "kamienie milowe"] },
       { to: programsPath, label: "appShell.nav.programs", icon: IconListTree },
       { to: milestonesPath, label: "appShell.nav.milestones", icon: IconTimelineEvent },
       { to: dependenciesPath, label: "appShell.nav.dependencies", icon: IconLink },
