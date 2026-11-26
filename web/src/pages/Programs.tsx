@@ -16,6 +16,7 @@ import JiraBarsToggle from "../components/JiraBarsToggle";
 import { JiraStaleNote } from "../components/JiraChips";
 import LoadingBlock from "../components/LoadingBlock";
 import PageHeader from "../components/PageHeader";
+import PlanDependenciesPanel from "../components/PlanDependenciesPanel";
 import type { WindowActions } from "../components/PlanProjectCells";
 import ProgramPickField from "../components/ProgramPickField";
 import ProgramsTimeline from "../components/ProgramsTimeline";
@@ -296,6 +297,9 @@ function ProgramsBody({
           />
         </Stack>
       </TimelineDndContext>
+
+      {/* 1.29: the explicit list of every dependency of the plan (the arrows' text), hidden until asked for. */}
+      <PlanDependenciesPanel />
 
       <RoadmapCriticalChain
         projects={projects}

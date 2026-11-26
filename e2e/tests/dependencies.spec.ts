@@ -301,3 +301,50 @@ test("the owner edits a link's type and lag in place and reads the new check; th
   await expect(arrows(page)).toHaveAttribute("data-violated", "false");
   await expect(facts(page)).not.toContainText("conflict");
 });
+
+// 1.29: the list can be hidden; the arrows stay. The choice is a browser memory (reload keeps it) and `?dependencies=all` opens a hidden list.
+test("the owner hides and shows the project's dependency list: the arrow and the header's words stay, a reload keeps the choice, and an address opens it", async ({ page }) => {
+  const { api, owner, a, b } = await seedWorld();
+  const link = await api.post(`/api/v1/projects/${b.id}/dependencies`, {
+    data: { predecessor: { kind: "MILESTONE", id: a.milestoneId }, successor: { kind: "MILESTONE", id: b.milestoneId }, type: "FS", lagDays: 0 },
+  });
+  expect(link.status(), await link.text()).toBe(201);
+  await api.dispose();
+
+  await login(page, owner.email, owner.password);
+  await openProject(page, b);
+  const toggle = (name: string) => page.getByRole("button", { name, exact: true });
+  await expect(dependenciesTable(page)).toBeVisible();
+  await expect(toggle("Hide the dependency list")).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByText("1 dependency", { exact: true })).toBeVisible();
+
+  // Hidden: the table and the Add button go, the heading, the words and the arrow stay, and the toggle keeps the focus.
+  await toggle("Hide the dependency list").click();
+  await expect(dependenciesTable(page)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add dependency", exact: true })).toHaveCount(0);
+  await expect(toggle("Show the dependency list")).toBeFocused();
+  await expect(toggle("Show the dependency list")).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("heading", { level: 3, name: "Dependencies", exact: true })).toBeVisible();
+  await expect(page.getByText("1 dependency", { exact: true })).toBeVisible();
+  await expect(arrows(page)).toHaveCount(1);
+
+  // The choice is remembered per browser.
+  await page.reload();
+  await expect(page.getByRole("grid", { name: "Milestone timeline" })).toBeVisible();
+  await expect(toggle("Show the dependency list")).toBeVisible();
+  await expect(dependenciesTable(page)).toHaveCount(0);
+
+  // An address opens it for the visit and brings the focus to the heading; hiding it again takes the parameter away.
+  await page.goto(`/projects/${b.id}?dependencies=all`);
+  await expect(dependenciesTable(page)).toBeVisible();
+  await expect(page.getByRole("heading", { level: 3, name: "Dependencies", exact: true })).toBeFocused();
+  await toggle("Hide the dependency list").click();
+  await expect(dependenciesTable(page)).toHaveCount(0);
+  await expect(page).not.toHaveURL(/dependencies=/);
+
+  // Shown again, it stays shown after a reload.
+  await toggle("Show the dependency list").click();
+  await expect(dependenciesTable(page)).toBeVisible();
+  await page.reload();
+  await expect(dependenciesTable(page)).toBeVisible();
+});

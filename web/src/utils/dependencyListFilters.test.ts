@@ -1,6 +1,16 @@
 import { describe, expect, test } from "vitest";
 import { dependencyRow, milestoneEnd, projectEnd, unscheduledRow, violatedRow } from "../test/dependencyList";
-import { dependencyListFilterParams, matchesDependencyFilter, narrowingCount, parseDependencyListFilter, type DependencyListFilter } from "./dependencyListFilters";
+import {
+  dependencyListFilterParams,
+  matchesDependencyFilter,
+  namesPanel,
+  narrowingCount,
+  PANEL_PARAMS,
+  parseDependencyListFilter,
+  withoutPanelWord,
+  withPanelFilter,
+  type DependencyListFilter,
+} from "./dependencyListFilters";
 
 const parse = (query: string) => parseDependencyListFilter(new URLSearchParams(query));
 
@@ -86,5 +96,35 @@ describe("matchesDependencyFilter", () => {
     expect(matchesDependencyFilter(held, { status: "violated", teamId: 4 })).toBe(false);
     expect(matchesDependencyFilter(broken, { status: "violated", teamId: 9 })).toBe(false);
     expect(matchesDependencyFilter(broken, { teamId: 4, projectId: 5 })).toBe(false);
+  });
+});
+
+describe("the panel's prefixed names (1.29)", () => {
+  const panel = (query: string) => parseDependencyListFilter(new URLSearchParams(query), PANEL_PARAMS);
+
+  test("reads the three filters under their own names and ignores the page's", () => {
+    expect(panel("dependencies=violated&dependencyTeamId=4&dependencyProjectId=5")).toEqual({ status: "violated", teamId: 4, projectId: 5 });
+    expect(panel("status=violated&teamId=4&projectId=5")).toEqual({});
+    expect(panel("dependencies=all")).toEqual({});
+    expect(panel("dependencies=bogus&dependencyTeamId=abc&dependencyProjectId=0")).toEqual({});
+  });
+
+  test("the word names the panel only when it is one of the four", () => {
+    for (const word of ["all", "violated", "ok", "unscheduled"]) expect(namesPanel(new URLSearchParams(`dependencies=${word}`))).toBe(true);
+    for (const query of ["", "dependencies=", "dependencies=bogus", "dependencies=VIOLATED", "dependencyTeamId=4", "status=violated"]) {
+      expect(namesPanel(new URLSearchParams(query))).toBe(false);
+    }
+  });
+
+  test("withPanelFilter always writes the word, keeps foreign parameters and drops what the filter no longer names", () => {
+    const current = new URLSearchParams("programId=3&dependencies=ok&dependencyTeamId=4&dependencyProjectId=5&teamId=9");
+    expect(withPanelFilter(current, {}).toString()).toBe("programId=3&teamId=9&dependencies=all");
+    expect(withPanelFilter(current, { status: "violated", teamId: 7 }).toString()).toBe("programId=3&teamId=9&dependencies=violated&dependencyTeamId=7");
+    expect(withPanelFilter(new URLSearchParams(), { projectId: 2 }).toString()).toBe("dependencies=all&dependencyProjectId=2");
+    expect(current.toString()).toContain("dependencyTeamId=4");
+  });
+
+  test("withoutPanelWord removes only the word", () => {
+    expect(withoutPanelWord(new URLSearchParams("programId=3&dependencies=ok&dependencyTeamId=4")).toString()).toBe("programId=3&dependencyTeamId=4");
   });
 });

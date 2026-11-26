@@ -1,12 +1,16 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Badge, Button, Group, Menu, Stack, Table, Text, Title } from "@mantine/core";
 import { IconLink, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 import { deleteDependency, type ProjectDependency } from "../api/dependencies";
 import type { ProjectView } from "../api/milestones";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
+import { isBoolean, useStoredState } from "../hooks/useStoredState";
 import { dependencyEndpointText } from "../utils/dependencyForm";
+import { namesPanel, withoutPanelWord } from "../utils/dependencyListFilters";
+import { ANCHORED_HEADING_STYLE } from "../utils/layout";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { DependencyStatusBadge, DependencyLagText } from "./DependencyCells";
 import DependencyDeleteModal from "./DependencyDeleteModal";
@@ -15,8 +19,12 @@ import EmptyState from "./EmptyState";
 import RowActionsMenu from "./RowActionsMenu";
 import ScrollRegion from "./ScrollRegion";
 import SlackCell from "./SlackCell";
+import TableDisclosure from "./TableDisclosure";
 
 const NO_WRAP = { whiteSpace: "nowrap" } as const;
+
+/** The view-settings key of the show/hide choice (`astrolabe.viewSettings.project.dependenciesOpen`), shared by every project. */
+const OPEN_KEY = "project.dependenciesOpen";
 
 function DependencyRow({
   dependency,
@@ -90,6 +98,12 @@ function DependencyRow({
  * `can.delete`) confirms through `useDeleteConfirm`; "Add dependency" asks the page to open the editor (`onAdd`), which also serves the
  * milestone row menu's shortcut. `showCritical` (the page's critical-path toggle,
  * v0.7) adds a gray "Critical path" badge to the links the server marked `critical` and (1.7) a Slack column: each link's own slack from `check.slackDays`.
+ *
+ * 1.29: the list can be hidden (`TableDisclosure`, controlled; shown by default, remembered per browser under `project.dependenciesOpen`), the arrows staying.
+ * The header says what is hidden - "N dependencies" and, when any is violated, a red "K violated" - so the arrows keep a statement in words on screen. A hidden
+ * list is not rendered (so it does not print); `?dependencies=all|violated|ok|unscheduled` opens it for the visit WITHOUT writing the memory and moves the focus to the heading once;
+ * hiding a list the address opened takes the parameter away, or it would stay open. "Add dependency" is the header's while the list is shown (the milestone
+ * row menu's shortcut works either way).
  */
 export default function ProjectDependencies({
   view,
@@ -112,48 +126,77 @@ export default function ProjectDependencies({
     focusAfterDelete: headingRef,
   });
   const { dependencies, project } = view;
+  const [params, setParams] = useSearchParams();
+  // `?dependencies=all|violated|ok|unscheduled` (the Roadmap panel's words) opens the section; this list has no filter, so the word only opens it.
+  const fromAddress = namesPanel(params);
+  const [remembered, setRemembered] = useStoredState(OPEN_KEY, true, isBoolean);
+  const open = remembered || fromAddress;
+  const arrivedByAddress = useRef(fromAddress);
+  useEffect(() => {
+    if (arrivedByAddress.current) headingRef.current?.focus();
+  }, []);
+  const toggle = (next: boolean) => {
+    setRemembered(next);
+    if (!next && fromAddress) {
+      setParams((previous) => withoutPanelWord(previous), { replace: true });
+    }
+  };
+  const violated = dependencies.filter((dependency) => dependency.check.status === "VIOLATED").length;
   return (
     <Stack gap="xs">
       <Group gap="sm" align="center" justify="space-between">
-        <Title order={3} size="h4" ref={headingRef} tabIndex={-1}>
-          {t("project.dependenciesTitle")}
-        </Title>
-        {project.can.createDependency && (
-          <Button variant="default" size="compact-md" leftSection={<IconPlus size={16} />} onClick={onAdd}>
+        <Group gap="sm" align="center">
+          <Title order={3} size="h4" ref={headingRef} tabIndex={-1} style={ANCHORED_HEADING_STYLE}>
+            {t("project.dependenciesTitle")}
+          </Title>
+          {/* What the list holds, said in words even while it is hidden (the arrows are decoration). */}
+          <Text size="sm" c="dimmed">
+            {t("dependencyList.facts.links", { count: dependencies.length })}
+          </Text>
+          {violated > 0 && (
+            <Badge color="red" tt="none">
+              {t("project.dependency.violatedCount", { count: violated })}
+            </Badge>
+          )}
+        </Group>
+        {open && project.can.createDependency && (
+          <Button variant="default" size="compact-md" data-print="hide" leftSection={<IconPlus size={16} />} onClick={onAdd}>
             {t("project.dependency.add")}
           </Button>
         )}
       </Group>
-      {dependencies.length === 0 ? (
-        <EmptyState icon={IconLink} label={t("project.noDependencies")} hint={project.can.createDependency ? t("project.noDependenciesHint") : t("project.noDependenciesHintReadOnly")} />
-      ) : (
-        <>
-          <Text size="sm" c="dimmed">
-            {t("project.dependenciesIntro")}
-          </Text>
-          <ScrollRegion label={t("project.dependenciesAria")} minWidth={900}>
-            <Table aria-label={t("project.dependenciesAria")}>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>{t("project.dependency.column.status")}</Table.Th>
-                  <Table.Th>{t("project.dependency.column.predecessor")}</Table.Th>
-                  <Table.Th>{t("project.dependency.column.type")}</Table.Th>
-                  <Table.Th>{t("project.dependency.column.lag")}</Table.Th>
-                  <Table.Th>{t("project.dependency.column.successor")}</Table.Th>
-                  <Table.Th>{t("project.dependency.column.dates")}</Table.Th>
-                  {showCritical && <Table.Th>{t("project.column.slack")}</Table.Th>}
-                  <Table.Th aria-label={t("common.table.operations")} style={{ width: 1 }} />
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {dependencies.map((dependency) => (
-                  <DependencyRow key={dependency.id} dependency={dependency} ownProjectId={project.id} showCritical={showCritical} onEdit={onEdit} onDelete={removal.requestDelete} />
-                ))}
-              </Table.Tbody>
-            </Table>
-          </ScrollRegion>
-        </>
-      )}
+      <TableDisclosure open={open} onOpenChange={toggle} showLabel={t("project.dependency.show")} hideLabel={t("project.dependency.hide")}>
+        {dependencies.length === 0 ? (
+          <EmptyState icon={IconLink} label={t("project.noDependencies")} hint={project.can.createDependency ? t("project.noDependenciesHint") : t("project.noDependenciesHintReadOnly")} />
+        ) : (
+          <Stack gap="xs">
+            <Text size="sm" c="dimmed">
+              {t("project.dependenciesIntro")}
+            </Text>
+            <ScrollRegion label={t("project.dependenciesAria")} minWidth={900}>
+              <Table aria-label={t("project.dependenciesAria")}>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>{t("project.dependency.column.status")}</Table.Th>
+                    <Table.Th>{t("project.dependency.column.predecessor")}</Table.Th>
+                    <Table.Th>{t("project.dependency.column.type")}</Table.Th>
+                    <Table.Th>{t("project.dependency.column.lag")}</Table.Th>
+                    <Table.Th>{t("project.dependency.column.successor")}</Table.Th>
+                    <Table.Th>{t("project.dependency.column.dates")}</Table.Th>
+                    {showCritical && <Table.Th>{t("project.column.slack")}</Table.Th>}
+                    <Table.Th aria-label={t("common.table.operations")} style={{ width: 1 }} />
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {dependencies.map((dependency) => (
+                    <DependencyRow key={dependency.id} dependency={dependency} ownProjectId={project.id} showCritical={showCritical} onEdit={onEdit} onDelete={removal.requestDelete} />
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </ScrollRegion>
+          </Stack>
+        )}
+      </TableDisclosure>
       <DependencyDeleteModal confirm={removal} ownProjectId={project.id} />
     </Stack>
   );

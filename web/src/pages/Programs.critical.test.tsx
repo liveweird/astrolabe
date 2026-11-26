@@ -171,6 +171,7 @@ describe("Programs page: the critical path to a picked project", () => {
     expect(headingOutline()).toEqual([
       [2, "Programs"],
       [3, "Timeline"],
+      [3, "Dependencies"],
     ]);
     await openProgram(user, "Billing");
     await user.click(await screen.findByRole("button", { name: "Operations for Taxes" }));

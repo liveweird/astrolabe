@@ -1240,10 +1240,10 @@ The page's co-located tests (`Milestones.test.tsx`, the `milestoneFilters|milest
 
 ## Dependencies
 
-Files: `pages/Dependencies.tsx`; `api/dependencyList.ts` (`getDependencyListView`); `utils/dependencyListRows.ts` (`resolveDependencyList`); `utils/dependencyListFilters.ts`
-(`parseDependencyListFilter`, `dependencyListFilterParams`, `matchesDependencyFilter`, `narrowingCount`); `utils/dependencyListLinks.ts` (`dependenciesPath`,
-`dependenciesFilteredPath(filter)`, `violatedDependenciesPath({teamId?, projectId?})`, the builders the plan pages' and Home's links use); `components/DependencyListFilters.tsx`;
-`components/DependencyListTable.tsx`; `components/DependencyCells.tsx`; `components/ProjectScopeChip.tsx`; `components/DependencyAddModal.tsx`, `DependencyFormParts.tsx`.
+Files: `pages/Dependencies.tsx` (1.29: a thin host of `hooks/usePlanDependencies.ts` and `components/PlanDependenciesContent.tsx`, which the Roadmap's and Programs'
+`PlanDependenciesPanel` mounts too: `projects-view.md` "Dependency panels"); `api/dependencyList.ts`; `utils/dependencyListRows.ts`, `…Filters.ts`, `…Links.ts` (`dependenciesPath`,
+`dependenciesFilteredPath(filter)`, `violatedDependenciesPath({teamId?, projectId?})`: the plan pages' and Home's links); `components/DependencyListFilters.tsx`, `DependencyListTable.tsx`,
+`DependencyCells.tsx`, `ProjectScopeChip.tsx`, `DependencyAddModal.tsx`, `DependencyFormParts.tsx`.
 
 ### Route and data
 
@@ -1252,9 +1252,9 @@ Files: `pages/Dependencies.tsx`; `api/dependencyList.ts` (`getDependencyListView
 the caller's own `can{edit, delete}`, the project view's flags, and nothing else differs between callers.
 
 - **The wire document names its ends once.** A row holds `predecessor`/`successor` as `{kind, id}` and the names are in `milestones`, `projects` and `teams`, exactly what the listed
-  rows name. `resolveDependencyList` joins them back, once, in the page's query function (`readDependencyList`), so the cache holds the resolved list: each row's two ends are
+  rows name. `resolveDependencyList` joins them back, once, in the query function (`readDependencyList`), so the cache holds the resolved list: each row's two ends are
   `{kind, id, name, projectId, projectName, teamId, teamName}` (the table, the filter and their tests read that).
-- It is NOT a `select`: a reference the lists do not hold throws in the query function, a failed read (below); why, in the comment at `Dependencies.tsx:29-33`.
+- It is NOT a `select`: a reference the lists do not hold throws in the query function, a failed read (below); why, in `usePlanDependencies.ts`.
 - Each row is the project view's own item minus `critical` and `can`, in the server's order: the page never sorts
   or recounts.
 - The facts line (`role="group"`, "N dependencies", Home's own red string `home.roadmap.conflicts` and a gray "N not scheduled yet", each badge only when positive, the whole line absent
@@ -2519,7 +2519,7 @@ When a feature needs one of these, port the sibling's `web/` implementation and 
   pages' `…filter.*` and `…filtersOpen`, and the timeline and planning keys below.
 - **The Roadmap's six filter keys** (`roadmap.filter.workStream|team|owner|flagged|severity|unranked`) and `planning.programPick` are MEMORY, not state: the address holds the state and only the user's
   own change writes them ("The URL holds the filters" under "Roadmap"); the Programs page reads and writes `planning.programPick` alone on the same terms.
-- **`projects.last`** (the project `/projects` opens), **`project.milestonesOpen`**: `projects-view.md`.
+- **`projects.last`** (the project `/projects` opens), **`project.milestonesOpen`**, **`project.dependenciesOpen`**, **`roadmap.dependenciesOpen`**: `projects-view.md`.
 - **The Plan page's** `plan.collapsed` (folded node keys), `plan.pins`, `plan.pinnedCollapsed`, `plan.pinnedOpen` and `plan.filtersOpen` (`plan-tree.md`); its filters and focus are address-only.
 - **Timeline view settings** (`timeline.*`, shared by the pages that show them): `zoom` (project, team), `planZoom` (roadmap, programs), `criticalPath` (project and team, default false;
   `hooks/useCriticalPathPick.ts`), `baseline` (all four, an id or none; `hooks/useBaselinePick.ts`), and **`jiraBars`** (all four pages; a boolean, **default true**: the "Jira dates" toggle of the

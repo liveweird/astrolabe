@@ -223,6 +223,12 @@
   "noDependenciesHintReadOnly": "Zależności dodaje właściciel/ka projektu.",
   "dependency": {
     "add": "Dodaj zależność",
+    "show": "Pokaż listę zależności",
+    "hide": "Ukryj listę zależności",
+    "violatedCount_one": "{{count}} niedotrzymana",
+    "violatedCount_few": "{{count}} niedotrzymane",
+    "violatedCount_many": "{{count}} niedotrzymanych",
+    "violatedCount_other": "{{count}} niedotrzymanej",
     "createTitle": "Dodaj zależność",
     "editTitle": "Edytuj zależność",
     "edit": "Edytuj…",

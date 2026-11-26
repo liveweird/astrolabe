@@ -139,6 +139,7 @@ describe("Roadmap page: the critical path to a picked project", () => {
       [2, "Roadmap"],
       [3, "Timeline"],
       [3, "Flags"],
+      [3, "Dependencies"],
     ]);
   });
 
@@ -164,6 +165,7 @@ describe("Roadmap page: the critical path to a picked project", () => {
       [2, "Roadmap"],
       [3, "Timeline"],
       [3, "Flags"],
+      [3, "Dependencies"],
       [3, "Critical path to Audit"],
     ]);
     const table = screen.getByRole("table", { name: "Projects upstream of Audit" });

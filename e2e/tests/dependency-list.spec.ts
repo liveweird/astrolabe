@@ -343,3 +343,52 @@ test("a project owner adds a dependency from the Dependencies page choosing amon
   await expect(rows(page)).toHaveCount(4);
   await expect(addButton).toHaveCount(0);
 });
+
+// 1.29: the Roadmap's and the Programs page's panel is the same list, hidden until asked for. The plan is shared by four workers, so every count is taken
+// after the panel is narrowed to the spec's own project (its address names it).
+test("the Roadmap and the Programs page hide the dependency list until asked for, then list a project's links with the filters in the address", async ({ page }) => {
+  const world = await seedWorld();
+  await login(page);
+
+  // The Roadmap narrowed to the spec's program: the panel is hidden, nothing is listed, and showing it is a browser memory.
+  await page.goto(`/roadmap?programId=${world.programId}`);
+  await expect(page.getByRole("grid", { name: "Roadmap timeline" })).toBeVisible();
+  const panel = page.getByRole("region", { name: "Dependencies", exact: true });
+  await expect(panel.getByRole("button", { name: "Show the dependency list", exact: true })).toHaveAttribute("aria-expanded", "false");
+  await expect(rows(page)).toHaveCount(0);
+  await panel.getByRole("button", { name: "Show the dependency list", exact: true }).click();
+  await expect(panel.getByRole("button", { name: "Hide the dependency list", exact: true })).toBeFocused();
+  await expect(panel.getByRole("table", { name: "Dependencies of the plan", exact: true })).toBeVisible();
+  await page.reload();
+  await expect(panel.getByRole("table", { name: "Dependencies of the plan", exact: true })).toBeVisible();
+
+  // Narrowed to the first project by the address: the three links with an end in it, violated first; the status filter writes its own name, the
+  // Roadmap's own parameters stay, and the panel's heading has the focus on arrival.
+  await page.goto(`/roadmap?programId=${world.programId}&dependencies=all&dependencyProjectId=${world.first.id}`);
+  await expect(panel.getByRole("heading", { level: 3, name: "Dependencies", exact: true })).toBeFocused();
+  await expect(rows(page)).toHaveCount(3);
+  await expect(rows(page).nth(0).getByText(/^Violated · \d+ working days? short$/)).toBeVisible();
+  await expect(rows(page).nth(1).getByText("OK", { exact: true })).toBeVisible();
+  await expect(rows(page).nth(2).getByText("Not scheduled yet", { exact: true })).toBeVisible();
+  await panel.getByRole("button", { name: /^Filters/ }).click();
+  await panel.getByRole("combobox", { name: "Status", exact: true }).click();
+  await page.getByRole("option", { name: "Violated", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`programId=${world.programId}&dependencies=violated&dependencyProjectId=${world.first.id}$`));
+  await expect(rows(page)).toHaveCount(1);
+  await expect(rows(page).first()).toContainText(world.a);
+  await expect(rows(page).first()).toContainText(world.b);
+
+  // Hiding a panel the address opened takes its word away (the filters stay); the memory says "hidden" from now on.
+  await panel.getByRole("button", { name: "Hide the dependency list", exact: true }).click();
+  await expect(rows(page)).toHaveCount(0);
+  await expect(page).not.toHaveURL(/dependencies=/);
+  await expect(page).toHaveURL(new RegExp(`dependencyProjectId=${world.first.id}`));
+
+  // The Programs page has the same panel, hidden, and the one memory.
+  await page.goto(`/programs?programId=${world.programId}`);
+  await expect(page.getByRole("grid", { name: "Programs timeline" })).toBeVisible();
+  await expect(panel.getByRole("button", { name: "Show the dependency list", exact: true })).toHaveAttribute("aria-expanded", "false");
+  await page.goto(`/programs?programId=${world.programId}&dependencies=violated&dependencyProjectId=${world.first.id}`);
+  await expect(rows(page)).toHaveCount(1);
+  await expect(rows(page).first()).toContainText(world.b);
+});

@@ -66,6 +66,19 @@
    - *Expected*: the row reads **OK** and "needs 2027-02-08 · is 2027-02-08"; the arrow is not violated; the facts line shows no
      conflicts.
 
+## Scenario: the owner hides and shows the project's dependency list: the arrow and the header's words stay, a reload keeps the choice, and an address opens it
+
+1. The administrator links a1 -> b1 through the API. The project owner signs in and opens project B.
+   - *Expected*: the Dependencies table is shown; the toggle reads **Hide the dependency list** (`aria-expanded` true); the header says "1 dependency".
+2. They press **Hide the dependency list**.
+   - *Expected*: the table and the **Add dependency** button are gone; the toggle now reads **Show the dependency list** (`aria-expanded` false) and keeps the focus; the h3 "Dependencies", the words "1 dependency" and the one arrow stay.
+3. They reload the page.
+   - *Expected*: the list is still hidden (a browser memory).
+4. They open `/projects/<B>?dependencies=all`.
+   - *Expected*: the list is shown although the memory says hidden, and the h3 "Dependencies" has the focus. Hiding it again removes the parameter from the address.
+5. They press **Show the dependency list** and reload.
+   - *Expected*: the table is shown before and after the reload.
+
 ## Not covered here (and why)
 
 - **The pointer and keyboard gestures of the timeline** (drag, resize, the keyboard sensor) - unchanged, owned by

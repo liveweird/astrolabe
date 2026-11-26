@@ -46,10 +46,24 @@
 5. A second throwaway login (linked to no person) signs in and opens the same address.
    - *Expected*: the chip and the four rows show (the plan has been read), and the page has no "Add dependency" button.
 
+## Scenario: the Roadmap and the Programs page hide the dependency list until asked for, then list a project's links with the filters in the address
+
+1. The administrator opens `/roadmap?programId=<the spec's program>`.
+   - *Expected*: the h3 "Dependencies" region holds a toggle **Show the dependency list** (`aria-expanded` false) and no table: a hidden panel is not read.
+2. They press it, then reload.
+   - *Expected*: the toggle reads **Hide the dependency list** and has the focus; the plan's table "Dependencies of the plan" is shown before and after the reload (a browser memory).
+3. They open `/roadmap?programId=<program>&dependencies=all&dependencyProjectId=<the first project>`.
+   - *Expected*: the panel's h3 has the focus; exactly three rows in the order violated, kept, not scheduled yet. In the panel's own Filters they choose Status "Violated": the address becomes `…&dependencies=violated&dependencyProjectId=<the first project>` (the Roadmap's `programId` stays) and the one row of A and B is left.
+4. They press **Hide the dependency list**.
+   - *Expected*: no rows; the address no longer has `dependencies=` but keeps `dependencyProjectId`.
+5. They open `/programs?programId=<program>`.
+   - *Expected*: the same panel is hidden (the memory now says hidden); `/programs?programId=<program>&dependencies=violated&dependencyProjectId=<the first project>` shows one row, the link from A to B.
+
 ## Not covered here (and why)
 
 - The values of `totals` and of Home's figure: four workers share the plan; vitest and `DependencyListViewTest` pin them.
 - "Yours" on Home (vitest pins the hrefs), the Programs page's menu item (vitest; the Roadmap's is the same component), the cut note (vitest and `DependencyListViewTest`) and the Polish text (vitest).
 - The cycle `409` and the `403` of the edit dialog (vitest and `DependencyListViewTest`), a row whose two flags differ (they cannot today) and the Polish text (vitest).
+- The panel's row menu by `can`, the edit and delete flows, the focus on its h3 and what a save and a delete refresh (vitest `PlanDependenciesPanel.write.test.tsx`; the same components as the page, whose scenarios above drive them in the browser), the add dialog's writes (vitest, `Dependencies.add.test.tsx`) and its axe scan (`accessibility.spec.ts`, the `/roadmap` scans with the panel open, light and dark).
 - The page's axe scans: `accessibility.spec.ts` (the page joins its list, light and dark).
 - The cycle, the duplicate pair, a refused write (`403`/`404`), a whole project as the successor, the prefill from a project the caller may not manage and the lag (vitest, `Dependencies.add.test.tsx`, `DependencyAddModal.test.tsx`; the server pins `can.createDependency` against the guard in `PlanViewTest` and `PlanPermissionsTest`).

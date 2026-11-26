@@ -116,6 +116,7 @@ describe("Programs page", () => {
     expect(headingOutline()).toEqual([
       [2, "Programs"],
       [3, "Timeline"],
+      [3, "Dependencies"],
     ]);
     expect(rowLabels()).toEqual(["Work stream Platform", "Program Billing", "Program Reports", "Work stream Archive", LEGACY_ROW]);
     const facts = screen.getByRole("group", { name: "Programs facts" });

@@ -7,3 +7,6 @@
  */
 export const CONTENT_MAX_WIDTH = 1120;
 export const FORM_MAX_WIDTH = 640;
+
+/** A section heading that is a link target (`?dependencies=…` moves the focus to it): the scroll leaves it clear of the app header (Mantine's `--app-shell-header-height`). */
+export const ANCHORED_HEADING_STYLE = { scrollMarginTop: "calc(var(--app-shell-header-height, 0px) + var(--mantine-spacing-sm))" } as const;

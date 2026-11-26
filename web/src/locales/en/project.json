@@ -197,6 +197,10 @@
   "noDependenciesHintReadOnly": "The project's owner adds dependencies.",
   "dependency": {
     "add": "Add dependency",
+    "show": "Show the dependency list",
+    "hide": "Hide the dependency list",
+    "violatedCount_one": "{{count}} violated",
+    "violatedCount_other": "{{count}} violated",
     "createTitle": "Add dependency",
     "editTitle": "Edit dependency",
     "edit": "Edit…",

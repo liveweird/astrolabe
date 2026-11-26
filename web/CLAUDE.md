@@ -130,9 +130,9 @@ Everything is lazy under `RequireAuth` unless noted.
 
 - `/` — Overview, everyone — "Home" (links, the plan's figures, the open deviation counts and what you manage).
 - `/plan` — Planning, everyone (actions by the view's `can`; one tree table, folds and pins per browser, work streams and programs re-arranged by drag and menu) — "Plan" + `plan-tree.md`.
-- `/roadmap` — Planning, everyone (`can.editRank`, `can.editTargetWindow`; filters in the URL, remembered) — "Roadmap" + `timeline.md`.
+- `/roadmap` — Planning, everyone (`can.editRank`, `can.editTargetWindow`; filters in the URL, remembered; the dependency panel) — "Roadmap" + `timeline.md` + `projects-view.md`.
 - `/projects`, `/projects/:id` — Planning, everyone (`can`; the picker, the remembered project) — "Project view" + `projects-view.md` + `timeline.md`.
-- `/programs` — Planning, everyone (the target window by `can`; the program pick in the URL, remembered) — "Programs" + `timeline.md`.
+- `/programs` — Planning, everyone (the target window by `can`; the program pick in the URL, remembered; the dependency panel) — "Programs" + `timeline.md` + `projects-view.md`.
 - `/milestones` — Planning, everyone (read-only; filters in the URL) — "Milestones".
 - `/dependencies` — Planning, everyone (add, edit and delete by `can`; filters in the URL) — "Dependencies".
 - `/baselines`, `/baselines/:id` — Planning, everyone (`can.manage` writes) — "Baselines".

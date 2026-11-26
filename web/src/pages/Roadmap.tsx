@@ -14,6 +14,7 @@ import JiraBarsToggle from "../components/JiraBarsToggle";
 import { JiraStaleNote } from "../components/JiraChips";
 import LoadingBlock from "../components/LoadingBlock";
 import PageHeader from "../components/PageHeader";
+import PlanDependenciesPanel from "../components/PlanDependenciesPanel";
 import RoadmapCriticalChain from "../components/RoadmapCriticalChain";
 import RoadmapCriticalPicker from "../components/RoadmapCriticalPicker";
 import RoadmapFilterFields from "../components/RoadmapFilters";
@@ -307,6 +308,9 @@ function RoadmapBody({
       )}
 
       <RoadmapFlagPanel entries={flagEntries(visible)} names={names} jiraSites={view.jiraSites} onShow={(projectId) => timelineRef.current?.focusRow(projectId)} />
+
+      {/* 1.29: the explicit list of every dependency of the plan (the arrows' text), hidden until asked for. */}
+      <PlanDependenciesPanel />
 
       <RoadmapCriticalChain
         projects={allProjects(view)}

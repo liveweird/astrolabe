@@ -201,6 +201,7 @@ describe("Roadmap page", () => {
       [2, "Roadmap"],
       [3, "Timeline"],
       [3, "Flags"],
+      [3, "Dependencies"],
     ]);
     expect(rowLabels()).toEqual(["Invoices", "Taxes", "Audit", "Unranked", "Ledger"]);
     const facts = screen.getByRole("group", { name: "Roadmap facts" });
@@ -873,7 +874,7 @@ describe("Roadmap page: flags", () => {
     renderWithProviders(<Roadmap />);
     await screen.findByRole("grid", { name: "Roadmap timeline" });
     expect(screen.getByText("No flags on the projects shown.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^Show the/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Show the \d+ flags?$/ })).toBeNull();
   });
 });
 

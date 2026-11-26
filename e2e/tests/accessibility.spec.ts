@@ -286,6 +286,14 @@ test.describe("mobile width", () => {
   });
 });
 
+/** The Roadmap's two disclosure panels, open with their tables on screen: the flags (its table of severities) and, since 1.29, the dependency list (the violated fixture link). */
+async function openRoadmapPanels(page: Page): Promise<void> {
+  await page.getByRole("button", { name: /^Show the \d+ flags?$/ }).click();
+  await expect(page.getByRole("table", { name: "Flags of the projects shown" })).toBeVisible();
+  await page.getByRole("button", { name: "Show the dependency list", exact: true }).click();
+  await expect(page.getByRole("table", { name: "Dependencies of the plan", exact: true })).toBeVisible();
+}
+
 test.describe("detail pages and overlays", () => {
   let api: APIRequestContext;
   let adminId: number;
@@ -512,8 +520,7 @@ test.describe("detail pages and overlays", () => {
         await page.goto("/roadmap");
         await expect(page.getByRole("link", { name: `Open ${projectName}`, exact: true })).toBeVisible();
         await expect(page.getByRole("grid", { name: "Roadmap timeline" })).toBeVisible();
-        await page.getByRole("button", { name: /^Show the \d+ flags?$/ }).click();
-        await expect(page.getByRole("table", { name: "Flags of the projects shown" })).toBeVisible();
+        await openRoadmapPanels(page);
         await expectScheme(page, scheme);
         await scan(page);
       } finally {

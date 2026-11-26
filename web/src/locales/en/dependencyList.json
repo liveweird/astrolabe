@@ -1,6 +1,12 @@
 {
   "title": "Dependencies",
   "intro": "Every dependency of the plan: the successor waits for the predecessor. The ones that do not hold are listed first and only warn; nothing moves. The owners of the successor's project, or an administrator, can add a dependency here, and change its type and lag or delete it in its row.",
+  "panel": {
+    "title": "Dependencies",
+    "intro": "Every dependency of the plan, whatever the filters above, the ones that do not hold first. The arrows on the timeline show the links between projects; nothing moves because of either.",
+    "show": "Show the dependency list",
+    "hide": "Hide the dependency list"
+  },
   "add": {
     "successorProject": "Successor's project",
     "successorProjectHint": "The project that waits. Only projects you can manage are listed.",
