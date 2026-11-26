@@ -15,7 +15,7 @@ Scale assumed: about 15 teams, 5 work streams, 20 programs, 100 projects, 1,000 
 
 ## Roadmap
 
-Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.27.1** (1.28.0 and 1.29.0 built, not released). Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-visible fix between two increments is a patch bump. One row a version (patches ride their minor's row); the scope only, the detail is in "Release history".
+Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.29.0**. Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-visible fix between two increments is a patch bump. One row a version (patches ride their minor's row); the scope only, the detail is in "Release history".
 
 ### 0.1 to 0.9: the plan
 
@@ -68,8 +68,8 @@ Each increment gets its own plan (architect) before implementation; only v0.1.0 
 | **1.25.0 Reliability and navigation** | Complete Flow sprint snapshots (V31), atomic project edits, consistent API reads, grouped navigation and refreshed Home; 1.25.1 a new logo |
 | **1.26.0 Saved proposals, frozen links and capacity** | Cross-team runs saved and read by every signed-in user (V32); baselines freeze links and capacity (V33); paged `GET /work-streams` and `/programs`; docs under byte ceilings, fewer test sleeps; 1.26.1 dependency updates (`dependencies.md`) |
 | **1.27.0 Finding and linking work** | A dependency added from its list; Milestones by program, work stream and rank; the whole critical chain on the team page; the last untested timings measured; 1.27.1 dependency updates (`dependencies.md`) |
-| **1.28.0 The Plan page as one tree** (built, not released) | One tree table with folds, search and filters in the address, Show only this, pins on top, work streams and programs re-arranged and shared with the Programs page (V34) |
-| **1.29.0 One Roadmap, Projects, team colours** (built, not released) | Roadmap and Programs in two modes on one page, a Projects view (picker, Milestones table), dependency lists beside the timelines, team colours (V35); the Milestones and Dependencies pages folded in |
+| **1.28.0 The Plan page as one tree** | One tree table with folds, search and filters in the address, Show only this, pins on top, work streams and programs re-arranged and shared with the Programs page (V34) |
+| **1.29.0 One Roadmap, Projects, team colours** | Roadmap and Programs in two modes on one page, a Projects view (picker, Milestones table), dependency lists beside the timelines, team colours (V35); the Milestones and Dependencies pages folded in |
 
 ## Domain decisions taken with the user
 
@@ -283,7 +283,7 @@ What was ported later, and what was left in Flow on purpose:
 
 Newest first. Each version: its scope, the user's answers, the defaults that still bind and what was not built; the commits, the plans (they live outside the repository) and the test runs are in git. "No migration" means the preceding schema still applies. Every release leaves "nothing is written to Jira or Flow" true.
 
-### v1.29.0 — one Roadmap, a Projects view, team colours (built, not released)
+### v1.29.0 — one Roadmap, a Projects view, team colours
 
 Built overnight on 2026-11-26 from the user's answers of 2026-11-25; a minor bump, the API only gains `colour` on teams. Migration V35. Designs: `team-colours.md`, `projects-view.md`, `web-internals.md` "Programs" (the modes).
 
@@ -291,7 +291,7 @@ Built overnight on 2026-11-26 from the user's answers of 2026-11-25; a minor bum
 - **Defaults taken:** the dependency panel on the Roadmap in both modes, every dependency, as Home's count does; only milestone bars take a team colour; ADMIN edits it, a PUT without one keeps it; `/projects` reopens the last project viewed; Milestones table: Schedule in the address, team and name page state; `/programs`, `/milestones`, `/dependencies` redirect; every endpoint stays.
 - A mode switch drops the Prioritization-only filters and the program pick (a link-only pick is not carried across); the row menu's "Dependencies" narrows the panel to that project alone; the cross-project milestone list is gone (`GET /milestones` stays for the pickers).
 
-### v1.28.0 — the Plan page as one tree (built, not released)
+### v1.28.0 — the Plan page as one tree
 
 Built overnight on 2026-11-25 to 26 from the user's answers of 2026-11-25 (`plan-tree.md`); a minor bump, the API only gains members. Migration V34 (the two order tables).
 
