@@ -160,13 +160,13 @@ describe("Roadmap page: the critical path to a picked project", () => {
       ["41", "true"],
       ["bundle:2-1", null],
     ]);
-    // the panel: under the flag panel, the server's order, Taxes with its slack and no badge
+    // the panel: under the flag panel (1.30: before the dependency panel, which now closes the page), the server's order, Taxes with its slack and no badge
     expect(headingOutline()).toEqual([
       [2, "Roadmap"],
       [3, "Timeline"],
       [3, "Flags"],
-      [3, "Dependencies"],
       [3, "Critical path to Audit"],
+      [3, "Dependencies"],
     ]);
     const table = screen.getByRole("table", { name: "Projects upstream of Audit" });
     expect(within(table).getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent))).toEqual([

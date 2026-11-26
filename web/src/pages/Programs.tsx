@@ -105,6 +105,10 @@ export default function Programs({ modeSwitch }: { modeSwitch?: ReactNode }) {
       {(query.isLoading || dropping) && <LoadingBlock />}
       {empty && <EmptyState icon={IconListTree} label={t("programs.empty")} hint={t("programs.emptyHint")} />}
       {view && !empty && <ProgramsBody view={view} pick={pick} onPick={setPick} target={critical.target} onTarget={critical.set} loading={query.isPlaceholderData} />}
+      {/* 1.29: the explicit list of every dependency of the plan (the arrows' text), hidden until asked for. It reads its own endpoint, so it sits
+          OUTSIDE the body (an error on this page's view read must not hide it) and at ONE position in every state (loading, error, data: a recovery
+          never remounts it, so an open Add dialog survives); `ready` holds its arrival focus back until the page's own read has settled. */}
+      {!empty && <PlanDependenciesPanel ready={!query.isLoading && !dropping} />}
     </Stack>
   );
 }
@@ -298,9 +302,6 @@ function ProgramsBody({
           />
         </Stack>
       </TimelineDndContext>
-
-      {/* 1.29: the explicit list of every dependency of the plan (the arrows' text), hidden until asked for. */}
-      <PlanDependenciesPanel />
 
       <RoadmapCriticalChain
         projects={projects}

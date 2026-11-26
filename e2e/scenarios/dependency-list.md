@@ -58,7 +58,7 @@
 2. They press it, then reload.
    - *Expected*: the toggle reads **Hide the dependency list** and has the focus; the plan's table "Dependencies of the plan" is shown before and after the reload (a browser memory).
 3. They open `/roadmap?programId=<program>&dependencies=all&dependencyProjectId=<the first project>`.
-   - *Expected*: the panel's h3 has the focus; exactly three rows in the order violated, kept, not scheduled yet. In the panel's own Filters they choose Status "Violated": the address becomes `…&dependencies=violated&dependencyProjectId=<the first project>` (the Roadmap's `programId` stays) and the one row of A and B is left.
+   - *Expected*: the panel's h3 has the focus and is within the viewport (the focus waits for the Roadmap's own view, so the timeline loading above does not push it off screen); exactly three rows in the order violated, kept, not scheduled yet. In the panel's own Filters they choose Status "Violated": the address becomes `…&dependencies=violated&dependencyProjectId=<the first project>` (the Roadmap's `programId` stays) and the one row of A and B is left.
 4. They press **Hide the dependency list**.
    - *Expected*: no rows; the address no longer has `dependencies=` but keeps `dependencyProjectId`.
 5. They open `/roadmap?mode=overview&programId=<program>`.

@@ -140,6 +140,10 @@ export default function Roadmap({ modeSwitch }: { modeSwitch?: ReactNode }) {
       {(query.isLoading || dropping) && <LoadingBlock />}
       {empty && <EmptyState icon={IconListNumbers} label={t("roadmap.empty")} hint={t("roadmap.emptyHint")} />}
       {view && !empty && <RoadmapBody view={view} ranking={ranking} windowWrite={windowWrite} pick={pick} onPick={setPick} target={critical.target} onTarget={critical.set} />}
+      {/* 1.29: the explicit list of every dependency of the plan (the arrows' text), hidden until asked for. It reads its own endpoint, so it sits
+          OUTSIDE the body (an error on this page's view read must not hide it) and at ONE position in every state (loading, error, data: a recovery
+          never remounts it, so an open Add dialog survives); `ready` holds its arrival focus back until the page's own read has settled. */}
+      {!empty && <PlanDependenciesPanel ready={!query.isLoading && !dropping} />}
     </Stack>
   );
 }
@@ -309,9 +313,6 @@ function RoadmapBody({
       )}
 
       <RoadmapFlagPanel entries={flagEntries(visible)} names={names} jiraSites={view.jiraSites} onShow={(projectId) => timelineRef.current?.focusRow(projectId)} />
-
-      {/* 1.29: the explicit list of every dependency of the plan (the arrows' text), hidden until asked for. */}
-      <PlanDependenciesPanel />
 
       <RoadmapCriticalChain
         projects={allProjects(view)}

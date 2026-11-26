@@ -396,6 +396,8 @@ test("the Roadmap and the Programs page hide the dependency list until asked for
   // Roadmap's own parameters stay, and the panel's heading has the focus on arrival.
   await page.goto(`/roadmap?programId=${world.programId}&dependencies=all&dependencyProjectId=${world.first.id}`);
   await expect(panel.getByRole("heading", { level: 3, name: "Dependencies", exact: true })).toBeFocused();
+  // On screen too: the focus waits for the page's own view, so the timeline arriving above never pushes the heading below the fold.
+  await expect(panel.getByRole("heading", { level: 3, name: "Dependencies", exact: true })).toBeInViewport();
   await expect(rows(page)).toHaveCount(3);
   await expect(rows(page).nth(0).getByText(/^Violated · \d+ working days? short$/)).toBeVisible();
   await expect(rows(page).nth(1).getByText("OK", { exact: true })).toBeVisible();
