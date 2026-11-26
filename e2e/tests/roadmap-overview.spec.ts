@@ -1,8 +1,8 @@
-// The Programs page (the plan as a tree on a timeline): an admin reads work stream -> program -> project, folds the programs open and shut from
+// The Roadmap's overview mode (1.29; the former Programs page: the plan as a tree on a timeline): an admin reads work stream -> program -> project, folds the programs open and shut from
 // the keyboard (the chevron button, said in the status region), checks that a program's bar is the span its projects cover and that the roll-up
 // counts add up the flags of its projects, sees the project link as ONE arrow between the rows that stand for its two projects (the two folded programs'
 // rows, a project row and a folded program's row, the two project rows; none inside a folded work stream), and switches to Year zoom; the program pick set on
-// this page narrows the Roadmap (after a reload) and the one set there narrows this page; a user without any right reads the same tree with
+// this mode narrows the Prioritization mode (after a reload) and the one set there narrows this mode; a user without any right reads the same tree with
 // read-only bars and a row menu that opens the project or shows its critical path; the pick is also in the address (1.21): a link that names a program
 // shows exactly it and leaves the remembered pick alone, and the menu brings the remembered one back. The pick (a browser setting, `astrolabe.viewSettings.planning.programPick`)
 // narrows every assertion to this spec's own program(s): the compose stack may hold the loaded sample plan, whatever other specs add, and an
@@ -80,12 +80,19 @@ const nodeButton = (page: Page, label: string): Locator => grid(page).getByRole(
 const projectRow = (page: Page, name: string): Locator => grid(page).getByRole("row").filter({ has: page.getByRole("link", { name: `Open ${name}`, exact: true }) });
 const status = (page: Page, text: string): Locator => page.getByRole("status").filter({ hasText: text });
 
-/** Set the program pick (a remembered browser setting) on the loaded page, then open the Programs page from the sidebar. */
+/** Switch the Roadmap to its overview mode with the mode switch (remembered, so the next sidebar visit opens it too). */
+async function chooseOverview(page: Page): Promise<void> {
+  await page.getByRole("radiogroup", { name: "Roadmap mode" }).getByText("Roadmap overview", { exact: true }).click();
+  await expect(page.getByRole("radio", { name: "Roadmap overview" })).toBeChecked();
+  await expect(grid(page)).toBeVisible();
+}
+
+/** Set the program pick (a remembered browser setting) on the loaded page, then open the Roadmap from the sidebar and switch it to its overview mode. */
 async function openProgramsOf(page: Page, ...programIds: number[]): Promise<void> {
   await page.evaluate(([key, value]) => localStorage.setItem(key, value), [PICK_KEY, JSON.stringify(programIds)]);
-  await page.getByRole("group", { name: "Planning" }).getByRole("link", { name: "Programs" }).click();
-  await expect(page.getByRole("heading", { level: 2, name: "Programs" })).toBeVisible();
-  await expect(grid(page)).toBeVisible();
+  await page.getByRole("group", { name: "Planning" }).getByRole("link", { name: "Roadmap", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Roadmap", exact: true })).toBeVisible();
+  await chooseOverview(page);
 }
 
 /** The rolled-up arrows (1.16): the project link as seen between rows of which at least one is a folded program (ids `rollup:<from row>-<to row>`). */
@@ -101,7 +108,7 @@ async function pickProgram(page: Page, name: string): Promise<void> {
   await page.keyboard.press("Escape");
 }
 
-test("an admin reads the plan as a tree, folds programs from the keyboard, sees spans, roll-up counts and an arrow, and switches to Year zoom", async ({ page }) => {
+test("the Roadmap overview: an admin reads the plan as a tree, folds programs from the keyboard, sees spans, roll-up counts and an arrow, and switches to Year zoom", async ({ page }) => {
   const plan = await seedPlan();
   await login(page);
   await openProgramsOf(page, plan.aId, plan.bId);
@@ -187,20 +194,20 @@ test("an admin reads the plan as a tree, folds programs from the keyboard, sees 
   await expect(grid(page).getByText("2026", { exact: true }).first()).toBeVisible();
 });
 
-test("the program pick set on the Programs page narrows the Roadmap after a reload, and the pick set on the Roadmap narrows the Programs page", async ({ page }) => {
+test("the program pick set in the Roadmap overview narrows the Prioritization mode after a reload, and the pick set there narrows the overview", async ({ page }) => {
   const plan = await seedPlan();
   await login(page);
   // No pick yet: the page may hold every program of the stack (the sample plan); pick this spec's program A from the filter panel.
-  await page.getByRole("group", { name: "Planning" }).getByRole("link", { name: "Programs" }).click();
-  await expect(grid(page)).toBeVisible();
+  await page.getByRole("group", { name: "Planning" }).getByRole("link", { name: "Roadmap", exact: true }).click();
+  await chooseOverview(page);
   await pickProgram(page, plan.a);
   await expect(grid(page).getByRole("button", { name: /^Work stream / })).toHaveCount(1);
   await expect(nodeButton(page, `Program ${plan.a}`)).toBeVisible();
   await expect(nodeButton(page, `Program ${plan.b}`)).toHaveCount(0);
 
-  // The Roadmap reads the same remembered pick, also after a reload: only A's two projects (unranked) are on it.
-  await page.getByRole("group", { name: "Planning" }).getByRole("link", { name: "Roadmap" }).click();
-  await expect(page.getByRole("heading", { level: 2, name: "Roadmap" })).toBeVisible();
+  // The Prioritization mode reads the same remembered pick, also after a reload: only A's two projects (unranked) are on it.
+  await page.getByRole("radiogroup", { name: "Roadmap mode" }).getByText("Prioritization", { exact: true }).click();
+  await expect(page.getByRole("radio", { name: "Prioritization" })).toBeChecked();
   await page.reload();
   const roadmap = page.getByRole("grid", { name: "Roadmap timeline" });
   await expect(roadmap).toBeVisible();
@@ -208,7 +215,7 @@ test("the program pick set on the Programs page narrows the Roadmap after a relo
   await expect(roadmap.getByRole("link", { name: `Open ${plan.late}`, exact: true })).toBeVisible();
   await expect(roadmap.getByRole("link", { name: `Open ${plan.early}`, exact: true })).toBeVisible();
 
-  // Change the pick on the Roadmap to program B (clear A first): the Programs page shows B only, also after a reload.
+  // Change the pick on the Roadmap to program B (clear A first): the overview shows B only, also after a reload.
   await openFilters(page);
   // Mantine hides its clear button from the accessibility tree (aria-hidden), so it is found by its label, not its role.
   await page.getByLabel("Clear the program pick").click();
@@ -219,15 +226,14 @@ test("the program pick set on the Programs page narrows the Roadmap after a relo
   await page.keyboard.press("Escape");
   await expect(roadmap.getByRole("link", { name: /^Open / })).toHaveCount(1);
   await expect(roadmap.getByRole("link", { name: `Open ${plan.other}`, exact: true })).toBeVisible();
-  await page.getByRole("group", { name: "Planning" }).getByRole("link", { name: "Programs" }).click();
-  await expect(page.getByRole("heading", { level: 2, name: "Programs" })).toBeVisible();
+  await chooseOverview(page);
   await page.reload();
   await expect(grid(page)).toBeVisible();
   await expect(nodeButton(page, `Program ${plan.b}`)).toBeVisible();
   await expect(nodeButton(page, `Program ${plan.a}`)).toHaveCount(0);
 });
 
-test("a user without any right reads the tree with read-only bars and a row menu that opens the project or shows its critical path", async ({ page }) => {
+test("in the Roadmap overview a user without any right reads the tree with read-only bars and a row menu that opens the project or shows its critical path", async ({ page }) => {
   await login(page);
   const account = await createUserViaUi(page, "E2E Programs Reader");
   const plan = await seedPlan();
@@ -255,13 +261,15 @@ test("a user without any right reads the tree with read-only bars and a row menu
   await deleteUserRow(page, account.name);
 });
 
-test("a Programs link that names a program shows it without changing what the browser remembers", async ({ page }) => {
+test("a Roadmap overview link that names a program shows it without changing what the browser remembers, and the old Programs address leads there", async ({ page }) => {
   const plan = await seedPlan();
   await login(page);
-  // The browser remembers program B; the link names program A. It is shown exactly as written: A in the tree, B not, A in the Programs field.
+  // The browser remembers program B; the link names program A. It is shown exactly as written: A in the tree, B not, A in the Programs field (the pick's own label).
   await page.evaluate(([key, value]) => localStorage.setItem(key, value), [PICK_KEY, JSON.stringify([plan.bId])]);
+  // The old address is the link: it redirects to the overview and keeps the program it names.
   await page.goto(`/programs?programId=${plan.aId}`);
-  await expect(page.getByRole("heading", { level: 2, name: "Programs" })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/roadmap\\?mode=overview&programId=${plan.aId}$`));
+  await expect(page.getByRole("heading", { level: 2, name: "Roadmap", exact: true })).toBeVisible();
   await expect(grid(page)).toBeVisible();
   await expect(nodeButton(page, `Program ${plan.a}`)).toBeVisible();
   await expect(nodeButton(page, `Program ${plan.b}`)).toHaveCount(0);
@@ -273,8 +281,11 @@ test("a Programs link that names a program shows it without changing what the br
   // Looking at a link wrote nothing: the remembered pick is still program B.
   expect(await page.evaluate((key) => localStorage.getItem(key), PICK_KEY)).toBe(JSON.stringify([plan.bId]));
 
-  // Opened from the menu, the page brings the remembered pick back: the address says program B, and B's row is in the tree and A's is not.
-  await page.getByRole("group", { name: "Planning" }).getByRole("link", { name: "Programs" }).click();
+  // Opened from the menu, the Roadmap brings the remembered mode (Prioritization: the link wrote nothing) and pick back; the switch then shows B only in the tree.
+  await page.getByRole("group", { name: "Planning" }).getByRole("link", { name: "Roadmap", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`[?&]programId=${plan.bId}(&|$)`));
+  await expect(page).toHaveURL(/[?&]mode=prioritization(&|$)/);
+  await chooseOverview(page);
   await expect(page).toHaveURL(new RegExp(`[?&]programId=${plan.bId}(&|$)`));
   await expect(nodeButton(page, `Program ${plan.b}`)).toBeVisible();
   await expect(nodeButton(page, `Program ${plan.a}`)).toHaveCount(0);

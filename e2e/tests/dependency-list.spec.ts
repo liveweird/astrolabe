@@ -385,10 +385,10 @@ test("the Roadmap and the Programs page hide the dependency list until asked for
   await expect(page).toHaveURL(new RegExp(`dependencyProjectId=${world.first.id}`));
 
   // The Programs page has the same panel, hidden, and the one memory.
-  await page.goto(`/programs?programId=${world.programId}`);
+  await page.goto(`/roadmap?mode=overview&programId=${world.programId}`);
   await expect(page.getByRole("grid", { name: "Programs timeline" })).toBeVisible();
   await expect(panel.getByRole("button", { name: "Show the dependency list", exact: true })).toHaveAttribute("aria-expanded", "false");
-  await page.goto(`/programs?programId=${world.programId}&dependencies=violated&dependencyProjectId=${world.first.id}`);
+  await page.goto(`/roadmap?mode=overview&programId=${world.programId}&dependencies=violated&dependencyProjectId=${world.first.id}`);
   await expect(rows(page)).toHaveCount(1);
   await expect(rows(page).first()).toContainText(world.b);
 });

@@ -312,7 +312,7 @@ const roadmapRow = (page: Page): Locator =>
 
 /** The Programs page narrowed to the world's own program; the work stream opens expanded, the program folded. */
 async function openPrograms(page: Page): Promise<void> {
-  await page.goto(`/programs?programId=${world.plan.programId}`);
+  await page.goto(`/roadmap?mode=overview&programId=${world.plan.programId}`);
   await expect(page.getByRole("grid", { name: "Programs timeline" })).toBeVisible();
   await expect(page.getByRole("button", { name: `Program ${world.plan.program}`, exact: true })).toBeVisible();
 }

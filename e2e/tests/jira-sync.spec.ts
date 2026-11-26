@@ -795,11 +795,11 @@ test("the Jira chip says the data may be out of date until the connection's firs
   // 1.17: the plan pages say it on their facts line while some site the plan's rows link through is behind. The line is plan-wide, so it is asserted present here
   // (this connection is never refreshed before this point) and never absent afterwards: another file's never-refreshed connection may keep it up.
   const planFacts = (p: Page, name: "Roadmap facts" | "Programs facts") => p.getByRole("group", { name }).getByText("Jira data may be out of date", { exact: true });
-  await page.goto("/roadmap");
+  await page.goto("/roadmap?mode=prioritization");
   await expect(page.getByRole("grid", { name: "Roadmap timeline" })).toBeVisible();
   await expect(planFacts(page, "Roadmap facts")).toBeVisible();
   expect(await axeViolations(page)).toEqual([]);
-  await page.goto("/programs");
+  await page.goto("/roadmap?mode=overview");
   await expect(page.getByRole("grid", { name: "Programs timeline" })).toBeVisible();
   await expect(planFacts(page, "Programs facts")).toBeVisible();
 

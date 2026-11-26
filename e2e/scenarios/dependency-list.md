@@ -56,8 +56,8 @@
    - *Expected*: the panel's h3 has the focus; exactly three rows in the order violated, kept, not scheduled yet. In the panel's own Filters they choose Status "Violated": the address becomes `…&dependencies=violated&dependencyProjectId=<the first project>` (the Roadmap's `programId` stays) and the one row of A and B is left.
 4. They press **Hide the dependency list**.
    - *Expected*: no rows; the address no longer has `dependencies=` but keeps `dependencyProjectId`.
-5. They open `/programs?programId=<program>`.
-   - *Expected*: the same panel is hidden (the memory now says hidden); `/programs?programId=<program>&dependencies=violated&dependencyProjectId=<the first project>` shows one row, the link from A to B.
+5. They open `/roadmap?mode=overview&programId=<program>`.
+   - *Expected*: the same panel is hidden (the memory now says hidden); `/roadmap?mode=overview&programId=<program>&dependencies=violated&dependencyProjectId=<the first project>` shows one row, the link from A to B.
 
 ## Not covered here (and why)
 

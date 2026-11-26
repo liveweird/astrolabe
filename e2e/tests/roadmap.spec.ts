@@ -506,7 +506,7 @@ test("Home's unranked figure opens the Roadmap with the unranked projects only, 
   const card = page.getByRole("group", { name: "The roadmap in figures", exact: true });
   await card.getByRole("link", { name: /^\d+ unranked$/ }).click();
   await expect(page.getByRole("heading", { level: 2, name: "Roadmap", exact: true })).toBeVisible();
-  await expect(page).toHaveURL(/\/roadmap\?unranked=true$/);
+  await expect(page).toHaveURL(/\/roadmap\?mode=prioritization&unranked=true$/);
   await expect(page.getByRole("group", { name: "Roadmap facts", exact: true }).getByText("0 ranked", { exact: true })).toBeVisible();
   await openFilters(page);
   await expect(page.getByRole("switch", { name: "Unranked projects only", exact: true })).toBeChecked();
@@ -532,4 +532,46 @@ test("Home's unranked figure opens the Roadmap with the unranked projects only, 
   await openFilters(page);
   await expect(page.getByRole("combobox", { name: "Flag severity", exact: true })).toHaveValue("Warning");
   await expect(page.getByRole("switch", { name: "Unranked projects only", exact: true })).not.toBeChecked();
+});
+
+// 1.29: the Roadmap is one page in two modes. A first visit opens Prioritization; the mode chosen with the switch is remembered per browser and opens on the next
+// bare visit; a link that names a mode shows it as written and changes nothing the browser remembers. The spec's own program pick keeps the page to its one project.
+test("the Roadmap opens in the mode last used, and a link that names a mode shows it without changing it", async ({ page }) => {
+  const name = uniqueText("e2e-rm-mode");
+  const { programId } = await seedProjects([name]);
+  await login(page);
+  await page.evaluate(([key, value]) => localStorage.setItem(key, value), [PICK_KEY, JSON.stringify([programId])]);
+  const planning = page.getByRole("group", { name: "Planning" });
+  const modes = page.getByRole("radiogroup", { name: "Roadmap mode" });
+  const overview = page.getByRole("grid", { name: "Programs timeline" });
+
+  // First visit: Prioritization, and the address says so.
+  await planning.getByRole("link", { name: "Roadmap", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Roadmap", exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/[?&]mode=prioritization(&|$)/);
+  await expect(page.getByRole("radio", { name: "Prioritization" })).toBeChecked();
+  await expect(rowOf(page, name)).toHaveCount(1);
+
+  // The switch: the overview shows the tree, the address says so and the focus stays on the control.
+  await modes.getByText("Roadmap overview", { exact: true }).click();
+  await expect(page).toHaveURL(/[?&]mode=overview(&|$)/);
+  await expect(overview).toBeVisible();
+  await expect(page.getByRole("radio", { name: "Roadmap overview" })).toBeFocused();
+
+  // A bare visit (the bare address, and the sidebar link) opens the mode last used.
+  await page.goto("/roadmap");
+  await expect(page).toHaveURL(/[?&]mode=overview(&|$)/);
+  await expect(overview).toBeVisible();
+  await page.goto("/");
+  await planning.getByRole("link", { name: "Roadmap", exact: true }).click();
+  await expect(page).toHaveURL(/[?&]mode=overview(&|$)/);
+  await expect(overview).toBeVisible();
+
+  // A link naming the other mode shows it and leaves the memory alone: the next bare visit is still the overview.
+  await page.goto("/roadmap?mode=prioritization");
+  await expect(page.getByRole("radio", { name: "Prioritization" })).toBeChecked();
+  await expect(rowOf(page, name)).toHaveCount(1);
+  await page.goto("/roadmap");
+  await expect(page).toHaveURL(/[?&]mode=overview(&|$)/);
+  await expect(overview).toBeVisible();
 });

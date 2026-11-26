@@ -116,3 +116,14 @@
   through the span bar is the part a unit test cannot show), the real handle resize is the project view's scenario.
 - **Flags with real data** - the flag icons and panel are scanned with a drifting fixture project and a violated link by `accessibility.spec.ts`.
 - **The clicks on Home's two flag badges** (`severity=WARNING` / `INFO`) - vitest (`Home.test.tsx`) pins the hrefs; step 3 opens the address a badge writes. The focus after Rank under "Unranked projects only", the Info severity, the filter chain's combinations and the remembered keys - pinned by `Roadmap.test.tsx`, `roadmapRows.test.ts`, `roadmapFilterParams.test.ts` and `useRoadmapFilters.test.tsx`; the Polish text (vitest).
+
+## Scenario: the Roadmap opens in the mode last used, and a link that names a mode shows it without changing it
+
+1. The admin signs in, the program pick is set to a program seeded through the API with one project, and they open **Roadmap** from the Planning section of the sidebar (a first visit in this browser).
+   - *Expected*: the heading is "Roadmap", the address names `mode=prioritization`, the mode switch reads **Prioritization** and the project's row is in the grid.
+2. They choose **Roadmap overview** with the mode switch.
+   - *Expected*: the address names `mode=overview`, the tree ("Programs timeline") is shown and the focus is on the chosen option of the switch.
+3. They open the bare `/roadmap`, then Home and **Roadmap** from the sidebar.
+   - *Expected*: both land on `mode=overview` (the mode last chosen is remembered per browser) and show the tree.
+4. They open `/roadmap?mode=prioritization` (a link), then the bare `/roadmap` again.
+   - *Expected*: the link shows Prioritization with the project's row; the bare visit after it is still the overview (a link that names a mode wrote nothing).

@@ -1,5 +1,5 @@
 import type { ParseKeys } from "i18next";
-import { IconActivity, IconAddressBook, IconCalendarOff, IconCalendarStats, IconCamera, IconGauge, IconGitCompare, IconHistory, IconHome2, IconKey, IconLink, IconListNumbers, IconListTree, IconPlugConnected, IconSitemap, IconTimelineEvent, IconToggleLeft, IconUsers, IconUsersGroup, type Icon } from "@tabler/icons-react";
+import { IconActivity, IconAddressBook, IconCalendarOff, IconCalendarStats, IconCamera, IconGauge, IconGitCompare, IconHistory, IconHome2, IconKey, IconLink, IconListNumbers, IconPlugConnected, IconSitemap, IconTimelineEvent, IconToggleLeft, IconUsers, IconUsersGroup, type Icon } from "@tabler/icons-react";
 import { baselinesPath } from "./baselineLinks";
 import { dependenciesPath } from "./dependencyListLinks";
 import { deviationsPath } from "./deviationLinks";
@@ -8,7 +8,7 @@ import { flowConnectionsPath } from "./flowLinks";
 import { jiraConnectionsPath } from "./jiraLinks";
 import { milestonesPath } from "./milestoneLinks";
 import { peoplePath } from "./peopleLinks";
-import { planPath, programsPath, projectsPath, roadmapPath } from "./planLinks";
+import { planPath, projectsPath, roadmapPath } from "./planLinks";
 import { scheduleProposalsPath } from "./scheduleProposalLinks";
 import { teamLoadPath } from "./teamLoadLinks";
 import { teamsPath } from "./teamLinks";
@@ -54,9 +54,8 @@ const NAV_SECTIONS: ReadonlyArray<NavSection> = [
     label: "appShell.section.planning",
     items: [
       { to: planPath, label: "appShell.nav.plan", icon: IconSitemap },
-      { to: roadmapPath, label: "appShell.nav.roadmap", icon: IconListNumbers },
+      { to: roadmapPath, label: "appShell.nav.roadmap", icon: IconListNumbers, keywords: ["programs", "programy", "overview", "prioritization", "rank"] },
       { to: projectsPath, label: "appShell.nav.projects", icon: IconTimelineEvent, keywords: ["project", "milestones", "kamienie milowe"] },
-      { to: programsPath, label: "appShell.nav.programs", icon: IconListTree },
       { to: milestonesPath, label: "appShell.nav.milestones", icon: IconTimelineEvent },
       { to: dependenciesPath, label: "appShell.nav.dependencies", icon: IconLink },
       { to: baselinesPath, label: "appShell.nav.baselines", icon: IconCamera },

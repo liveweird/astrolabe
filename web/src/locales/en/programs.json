@@ -1,5 +1,4 @@
 {
-  "title": "Programs",
   "intro": "The plan as a tree on a timeline: work streams, their programs and the projects in each program. A work stream's or program's bar is the span its projects cover, and the counts beside it add up the flags raised on those projects. Open a program to see its projects. Everyone can read it.",
   "empty": "No work streams yet",
   "emptyHint": "Work streams, programs and projects are created on the Plan page and appear here.",

@@ -3,11 +3,18 @@ import { roadmapFilterParams, type RoadmapFilterLink } from "./roadmapFilterPara
 /** The ONE place the Plan route is spelled out — never hand-assemble the URL. */
 export const planPath = "/plan";
 
-/** The ONE place the Roadmap route is spelled out — the global project ranking, next to the Plan in the Planning section. */
+/** The ONE place the Roadmap route is spelled out, bare: it opens in the mode last used in this browser (Prioritization on a first visit). */
 export const roadmapPath = "/roadmap";
 
-/** The ONE place the Programs route is spelled out — the plan as a tree on the timeline, after the Roadmap in the Planning section. */
-export const programsPath = "/programs";
+/** The Roadmap's two modes (1.29), the exact words of `?mode=`: the projects by global rank, and the tree of projects under programs and work streams. */
+export const ROADMAP_MODES = ["prioritization", "overview"] as const;
+export type RoadmapMode = (typeof ROADMAP_MODES)[number];
+
+/** The ONE place a Roadmap link naming its mode is spelled out (such a link is shown as written and does not change what the browser remembers). */
+export const roadmapModePath = (mode: RoadmapMode) => `${roadmapPath}?mode=${mode}`;
+
+/** The Roadmap overview (the tree of projects under programs and work streams): where the former `/programs` leads. */
+export const roadmapOverviewPath = roadmapModePath("overview");
 
 /** The ONE place the Projects route is spelled out — the project view without a project yet (it opens the remembered one), after the Roadmap in the Planning section. */
 export const projectsPath = "/projects";
@@ -16,12 +23,12 @@ export const projectsPath = "/projects";
 export const projectPath = (id: number) => `${projectsPath}/${id}`;
 
 /**
- * The ONE place a filtered Roadmap URL is spelled out: the filters and the program pick a link names (an unnamed one is off); no filter = the bare
- * `/roadmap`. Such a link is shown as written and does not change what the browser remembers.
+ * The ONE place a filtered Roadmap URL is spelled out: the Prioritization mode, written first, then the filters and the program pick a link names (an
+ * unnamed one is off). Such a link is shown as written and does not change what the browser remembers.
  */
 export function roadmapFilteredPath(state: RoadmapFilterLink): string {
   const query = roadmapFilterParams(state).toString();
-  return query === "" ? roadmapPath : `${roadmapPath}?${query}`;
+  return query === "" ? roadmapModePath("prioritization") : `${roadmapModePath("prioritization")}&${query}`;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Alert, Badge, Button, Group, Loader, Stack, Text, Title, VisuallyHidden } from "@mantine/core";
 import { IconArrowsMaximize, IconArrowsMinimize, IconListTree } from "@tabler/icons-react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -73,14 +73,15 @@ function ProgramsFacts({ view, pick }: { view: ProgramsView; pick: ReadonlySet<n
 }
 
 /**
- * The Programs page (`/programs`): the plan as a collapsible tree - work stream -> program -> project - on the shared timeline. A work stream or
+ * The Roadmap's overview mode (`/roadmap?mode=overview`, 1.29; the former Programs page): the plan as a collapsible tree - work stream -> program -> project - on the shared timeline. A work stream or
  * program row is a summary bar over the span its projects cover with the roll-up of their flags; a project row is the roadmap's (the target window
  * band, the span bar, the drift band, the flag icons). Work streams open expanded and programs collapsed; the chevron button of a node is its
  * keyboard path and the page SAYS what it did. Everyone reads it; the one thing written here is a project's target window - the band's move
  * and resize, a draw on a row without one, the row menu's dialog - wherever the project's own `can.editTargetWindow` is set, through the
- * roadmap's write path (`hooks/useTargetWindow.ts`). The program pick is the Roadmap's, in the address and remembered under the one key they share.
+ * roadmap's write path (`hooks/useTargetWindow.ts`). The program pick is the Prioritization mode's, in the address and remembered under the one key they share.
+ * `modeSwitch` (from `RoadmapModes`) is the mode control, in the header's toolbar row.
  */
-export default function Programs() {
+export default function Programs({ modeSwitch }: { modeSwitch?: ReactNode }) {
   const { t } = useTranslation();
   // v0.9: the baseline pick (one for every timeline page) keys the view's query - the window write path's optimistic step too; the typed 400
   // "unknown baseline" clears it. `keepPreviousData` keeps the page (and the focused picker) while another pick loads, without the old overlay.
@@ -97,7 +98,7 @@ export default function Programs() {
 
   return (
     <Stack gap="md">
-      <PageHeader title={t("programs.title")} description={t("programs.intro")} />
+      <PageHeader title={t("roadmap.title")} description={t("programs.intro")} toolbar={modeSwitch} />
       {critical.rejected && <FormErrorAlert>{t("roadmap.critical.unknown")}</FormErrorAlert>}
       {query.isError && !dropping && <ErrorAlert error={query.error} title={t("programs.loadFailed")} />}
       {pick !== null && query.isError && !dropping && view === undefined && <ShowWithoutBaseline onClick={() => setPick(null)} />}

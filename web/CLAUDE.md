@@ -130,9 +130,8 @@ Everything is lazy under `RequireAuth` unless noted.
 
 - `/` — Overview, everyone — "Home" (links, the plan's figures, the open deviation counts and what you manage).
 - `/plan` — Planning, everyone (actions by the view's `can`; one tree table, folds and pins per browser, work streams and programs re-arranged by drag and menu) — "Plan" + `plan-tree.md`.
-- `/roadmap` — Planning, everyone (`can.editRank`, `can.editTargetWindow`; filters in the URL, remembered; the dependency panel) — "Roadmap" + `timeline.md` + `projects-view.md`.
+- `/roadmap` — Planning, everyone, ONE page in two modes (`?mode=prioritization|overview`, the last one remembered; `/programs` redirects): Prioritization (`can.editRank`, `can.editTargetWindow`; filters in the URL, remembered) and the overview tree (the target window by `can`; the program pick in the URL, remembered); both with the dependency panel — "Roadmap", "Programs" + `timeline.md` + `projects-view.md`.
 - `/projects`, `/projects/:id` — Planning, everyone (`can`; the picker, the remembered project) — "Project view" + `projects-view.md` + `timeline.md`.
-- `/programs` — Planning, everyone (the target window by `can`; the program pick in the URL, remembered; the dependency panel) — "Programs" + `timeline.md` + `projects-view.md`.
 - `/milestones` — Planning, everyone (read-only; filters in the URL) — "Milestones".
 - `/dependencies` — Planning, everyone (add, edit and delete by `can`; filters in the URL) — "Dependencies".
 - `/baselines`, `/baselines/:id` — Planning, everyone (`can.manage` writes) — "Baselines".
@@ -163,7 +162,7 @@ Everything is lazy under `RequireAuth` unless noted.
   allowed actions and let the server's 403/409/400 reach the dialog inline.
 - **Writes on a view** go through ONE write path per cached view (optimistic step, the view's `revision`, rollback that AWAITS the refetch,
   `refreshQueriesAfterMutation`); a change made while a write is in flight is REFUSED out loud (`role="note"`, the page's one polite status region is the single
-  announcer — never an `Alert` with its implicit `role="alert"`), never lost silently. The Roadmap and Programs pages share the project row
+  announcer — never an `Alert` with its implicit `role="alert"`), never lost silently. The Roadmap's two modes share the project row
   (`utils/planTrack.ts` `projectTrack`/`planArrows`, `PlanProjectCells.tsx`, `usePlanScale`) and the target-window path, which are never forked.
 - **The Timeline** (`components/Timeline*.tsx`, `timeline.md`) draws and proposes; the page decides: `editable` comes from `can`, a drop is only
   `onSchedule(id, start, end)`/`onReorder` on the page's `TimelineDndContext`. Every pointer gesture has a keyboard path announced in the UI language; bars are
@@ -178,7 +177,7 @@ Everything is lazy under `RequireAuth` unless noted.
   `requireAdmin` is the rule). A generated password is revealed exactly once (`OneTimePasswordModal`: `closeOnClickOutside={false} closeOnEscape={false}`;
   closing drops the plaintext for good), and the feature-flag PUT is wholesale — a disabled set that omits `MFA` ENABLES it.
 - **Deviations wording**: `totals.bindings` is never worded as "how many are linked"; an empty list is a claim about a READ and is dated; the chips on the
-  project and team pages (and the facts line of the Roadmap and Programs pages) show the last observation and add "may be out of date" while a site behind them is not `CURRENT` or its mapping does not fit; the banner,
+  project and team pages (and the facts line of the Roadmap's two modes) show the last observation and add "may be out of date" while a site behind them is not `CURRENT` or its mapping does not fit; the banner,
   the dated claim and the chips share ONE predicate, `isStaleSource` (`utils/staleness.ts`), read off the server's derived state, never the client's clock.
 - The ADMIN telemetry panel (`components/Telemetry*.tsx`) is the only chart surface; it shares `SyncStatusBadge` / `utils/syncStatus.ts` with the Jira pages.
 

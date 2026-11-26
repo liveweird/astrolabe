@@ -1,5 +1,4 @@
 {
-  "title": "Programy",
   "intro": "Plan jako drzewo na osi czasu: strumienie pracy, ich programy i projekty każdego programu. Pasek strumienia pracy lub programu to okres objęty jego projektami, a liczby obok sumują flagi wystawione na tych projektach. Otwórz program, aby zobaczyć jego projekty. Każdy może to czytać.",
   "empty": "Brak strumieni pracy",
   "emptyHint": "Strumienie pracy, programy i projekty tworzysz na stronie Plan; pojawiają się tutaj.",

@@ -1,6 +1,6 @@
-# Programs (the plan as a tree on a timeline)
+# Roadmap overview (the plan as a tree on a timeline; the Roadmap's second mode since 1.29, the former Programs page)
 
-- **Spec**: [tests/programs.spec.ts](../tests/programs.spec.ts)
+- **Spec**: [tests/roadmap-overview.spec.ts](../tests/roadmap-overview.spec.ts)
 - **Actors**: the seed administrator (`admin@astrolabe.local`) in the first, second and fourth tests; in the third one a throwaway user with no right (the
   admin creates it through the Users page and deletes it at the end)
 - **Owns** (exclusive server-side state): its throwaway person, team, work stream, two programs (A and B), three projects and their
@@ -13,10 +13,10 @@
   `astrolabe.viewSettings.planning.programPick`, the one key the plan pages share) to its own programs: the compose stack may hold the loaded
   sample plan (100 projects, an unfolded grid over 80 rows virtualises), so only this spec's rows are on screen.
 
-## Scenario: an admin reads the plan as a tree, folds programs from the keyboard, sees spans, roll-up counts and an arrow, and switches to Year zoom
+## Scenario: the Roadmap overview: an admin reads the plan as a tree, folds programs from the keyboard, sees spans, roll-up counts and an arrow, and switches to Year zoom
 
-1. The admin signs in, the program pick is set to programs A and B, and they open **Programs** from the Planning section of the sidebar.
-   - *Expected*: the heading is "Programs"; the work stream's chevron button ("Work stream <name>") is expanded, the buttons "Program A" and
+1. The admin signs in, the program pick is set to programs A and B, and they open **Roadmap** from the Planning section of the sidebar and choose **Roadmap overview** with the mode switch.
+   - *Expected*: the heading is "Roadmap" and the switch reads **Roadmap overview**; the work stream's chevron button ("Work stream <name>") is expanded, the buttons "Program A" and
      "Program B" are collapsed and no project row is shown; the facts line reads "1 work stream", "2 programs", "3 projects" and "1 warning".
    - *Expected* (1.16): with both programs folded the project link is ONE rolled-up arrow (`data-arrow` starting `rollup:`) between the two program
      rows, not violated (`data-violated="false"`), titled "<A> → <B>, 1 link (0 violated)" (the only arrow on the page).
@@ -41,21 +41,21 @@
 7. The timeline is on Quarter zoom; they switch to **Year**.
    - *Expected*: at Quarter no header cell reads exactly "2026"; at Year the header shows the year.
 
-## Scenario: the program pick set on the Programs page narrows the Roadmap after a reload, and the pick set on the Roadmap narrows the Programs page
+## Scenario: the program pick set in the Roadmap overview narrows the Prioritization mode after a reload, and the pick set there narrows the overview
 
-1. The admin signs in (no pick stored) and opens **Programs**. They open the filter panel and pick program A in the **Programs** multi-select.
+1. The admin signs in (no pick stored) and opens **Roadmap** and chooses **Roadmap overview**. They open the filter panel and pick program A in the **Programs** multi-select.
    - *Expected*: exactly one work stream row remains, with the button "Program A" and no "Program B".
-2. They open **Roadmap** from the sidebar and reload the page.
+2. They choose **Prioritization** with the mode switch and reload the page.
    - *Expected*: the roadmap's grid holds exactly two project rows, `late` and `early` (A's projects, unranked): the pick is the one shared key.
-3. On the Roadmap they open the filters, clear the program pick and pick program B.
+3. In the Prioritization mode they open the filters, clear the program pick and pick program B.
    - *Expected*: the grid holds exactly one project row, `other`.
-4. They open **Programs** and reload.
+4. They choose **Roadmap overview** and reload.
    - *Expected*: the button "Program B" is shown and "Program A" is not.
 
-## Scenario: a user without any right reads the tree with read-only bars and a row menu that opens the project or shows its critical path
+## Scenario: in the Roadmap overview a user without any right reads the tree with read-only bars and a row menu that opens the project or shows its critical path
 
 1. The admin creates a throwaway user through the Users page, seeds the plan through the API and signs out. The user signs in, the program pick
-   is set to programs A and B, and they open **Programs** and press **Expand all**.
+   is set to programs A and B, and they open **Roadmap**, choose **Roadmap overview** and press **Expand all**.
    - *Expected*: the project rows are shown; A's bar is named "<A>, program span 2026-02-02 to 2026-04-10, read-only".
 2. They look for anything that could be edited.
    - *Expected*: there is no row handle; `late`'s target window is an image named "<late>, target window 2026-03-02 to 2026-03-31, read-only"
@@ -64,12 +64,12 @@
    - *Expected*: the menu offers exactly three items, in this order: **Show critical path to this project: <late>** (1.16), **Dependencies of <late>** (1.20) and **Open project <late>**.
 4. The user signs out; the admin signs back in and deletes the user.
 
-## Scenario: a Programs link that names a program shows it without changing what the browser remembers
+## Scenario: a Roadmap overview link that names a program shows it without changing what the browser remembers, and the old Programs address leads there
 
-1. The administrator signs in; the browser remembers program B (the stored program pick is set to B); they open `/programs?programId=<A>` (a link, 1.21).
-   - *Expected*: the heading is "Programs"; program A's chevron button is in the tree and program B's is not; in the filter panel the Programs field holds exactly one program, A; the stored pick is still B (looking at a link wrote nothing).
-2. They open **Programs** from the Planning section of the sidebar.
-   - *Expected*: the address names `programId=<B>` (the remembered pick is brought back); program B's chevron button is in the tree and program A's is not.
+1. The administrator signs in; the browser remembers program B (the stored program pick is set to B); they open `/programs?programId=<A>` (the retired Programs address, a link since 1.21).
+   - *Expected*: the address becomes `/roadmap?mode=overview&programId=<A>` (a redirect); the heading is "Roadmap"; program A's chevron button is in the tree and program B's is not; in the filter panel the Programs field holds exactly one program, A; the stored pick is still B (looking at a link wrote nothing).
+2. They open **Roadmap** from the Planning section of the sidebar (the link wrote no mode, so it opens Prioritization) and choose **Roadmap overview**.
+   - *Expected*: the address names `mode=prioritization` and `programId=<B>` (the remembered pick is brought back), then, after the switch, `programId=<B>` still; program B's chevron button is in the tree and program A's is not.
 
 ## Not covered here (and why)
 

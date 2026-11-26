@@ -21,6 +21,11 @@ export function hasRoadmapFilterParams(params: URLSearchParams): boolean {
   return NAMES.some((name) => params.has(name));
 }
 
+/** True when the URL names a filter only the Prioritization mode reads (everything but `programId`, which the overview reads too): an old link that did. */
+export function hasPrioritizationOnlyParams(params: URLSearchParams): boolean {
+  return NAMES.some((name) => name !== "programId" && params.has(name));
+}
+
 /** The program pick a URL names (the Roadmap's and the Programs page's alike): a repeated `programId`, malformed values dropped, de-duplicated, ascending, at most 100. */
 export function parseProgramPick(params: URLSearchParams): number[] {
   return [...new Set(params.getAll("programId").map(idOf).filter((id): id is number => id !== undefined))].sort((a, b) => a - b).slice(0, MAX_PICK);

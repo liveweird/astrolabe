@@ -6,7 +6,7 @@ import type { HomeMe, HomeView } from "../api/home";
 import { useAdmin } from "../auth";
 import { isBoolean, useStoredState } from "../hooks/useStoredState";
 import { peoplePath } from "../utils/peopleLinks";
-import { programsPath, roadmapFilteredPath } from "../utils/planLinks";
+import { roadmapFilteredPath, roadmapOverviewPath } from "../utils/planLinks";
 import { isStaleSource } from "../utils/staleness";
 import HomeNodesTable from "./HomeNodesTable";
 import HomeProjectsTable from "./HomeProjectsTable";
@@ -73,8 +73,8 @@ function MineTables({ me, ownOnly, onOwnOnlyChange }: { me: HomeMe; ownOnly: boo
           ) : (
             <Text size="sm">{t("home.mine.ownOnlyNoPrograms")}</Text>
           )}
-          <Anchor component={RouterLink} to={programsPath} size="sm" fw={500}>
-            {t("home.mine.openPrograms")}
+          <Anchor component={RouterLink} to={roadmapOverviewPath} size="sm" fw={500}>
+            {t("home.mine.openOverview")}
           </Anchor>
         </TableBlock>
       )}

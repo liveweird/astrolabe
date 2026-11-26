@@ -162,7 +162,7 @@ test("the Home page shows a person the projects, teams, programs and work stream
   await expect(programRow.getByRole("cell").nth(5)).toHaveText("2");
   await expect(programRow.getByText("1 warning", { exact: true })).toBeVisible();
   await expect(programRow.getByText("1 info", { exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open the programs", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open the roadmap overview", exact: true })).toBeVisible();
   await expect(page.getByText(/^Listed below: what you own, everything under a work stream or program you own/)).toBeVisible();
   expect(await axeViolations(page)).toEqual([]);
 

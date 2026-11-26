@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Alert, Badge, Group, Loader, Stack, Text, Title, VisuallyHidden } from "@mantine/core";
 import { IconFilterOff, IconListNumbers } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
@@ -84,9 +84,10 @@ function RoadmapFacts({ ranked, unranked, flags, jiraStale }: { ranked: number; 
  * pointer-only handle (across the divider = Rank at that slot / Unrank) or moved from its menu (the keyboard path), and every change is the
  * wholesale ranking PUT of `hooks/useRoadmapRanking.ts`. A project's target window is edited by the band (move, resize), a draw on a row
  * without one, or the row menu's dialog - wherever the project's own `can.editTargetWindow` is set - through `hooks/useTargetWindow.ts`; the two
- * write paths share one mutation key, so a change made while the other runs is refused out loud.
+ * write paths share one mutation key, so a change made while the other runs is refused out loud. This is the Prioritization mode of `/roadmap`
+ * (1.29); `modeSwitch` (from `RoadmapModes`) is the mode control, in the header's toolbar row.
  */
-export default function Roadmap() {
+export default function Roadmap({ modeSwitch }: { modeSwitch?: ReactNode }) {
   const { t } = useTranslation();
   // v0.9: the baseline pick (one for every timeline page) keys the view's query - the ranking's and the window write path's optimistic steps too; the
   // typed 400 "unknown baseline" clears it.
@@ -112,7 +113,7 @@ export default function Roadmap() {
 
   return (
     <Stack gap="md">
-      <PageHeader title={t("roadmap.title")} description={editable ? t("roadmap.introEdit") : t("roadmap.intro")} />
+      <PageHeader title={t("roadmap.title")} description={editable ? t("roadmap.introEdit") : t("roadmap.intro")} toolbar={modeSwitch} />
 
       {query.isError && !dropping && <ErrorAlert error={query.error} title={t("roadmap.loadFailed")} />}
       {pick !== null && query.isError && !dropping && view === undefined && <ShowWithoutBaseline onClick={() => setPick(null)} />}

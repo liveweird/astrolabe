@@ -186,7 +186,7 @@ to Fri 01-08) and linked through that connection as the setup. The shared `linki
    - *Expected*: on both, the "Links to Jira" group reads "1 milestone linked to Jira" and holds the dimmed text "Jira data may be out of date" (the connection has never synced); the
      project page's count badge text is noted.
    - *Then (1.17)*: the owner opens `/roadmap`: the group "Roadmap facts" holds the dimmed text "Jira data may be out of date" (exact), and an axe scan of the page with the line present finds nothing;
-     `/programs`: the group "Programs facts" holds it too.
+     `/roadmap?mode=overview`: the group "Programs facts" holds it too.
 2. The file's throwaway administrator, in a browser of their own, presses **Refresh now: <connection>** on the Deviations page for the project and waits for the run to read "Succeeded".
 3. The owner opens the team's page and the project page again (a reload).
    - *Expected*: neither group holds "Jira data may be out of date" any more, and the project page's count badge reads exactly what it read before the refresh.

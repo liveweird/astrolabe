@@ -91,12 +91,12 @@
 4. They choose **None** in the picker.
    - *Expected*: the picker reads None, no element has `data-critical` and the panel and its table are gone.
 
-## Scenario: the programs page shows the critical path to P: the folded program is outlined, opening it shows X, Y and P outlined with their arrows, the chain panel lists them, None clears everything
+## Scenario: the roadmap overview shows the critical path to P: the folded program is outlined, opening it shows X, Y and P outlined with their arrows, the chain panel lists them, None clears everything
 
-1.16. The same world as the roadmap scenario (X, Y and P in ONE program), read by the owner on `/programs` with the program pick set to the world's program. A critical ROLLED-UP arrow
+1.16. The same world as the roadmap scenario (X, Y and P in ONE program), read by the owner on `/roadmap?mode=overview` with the program pick set to the world's program. A critical ROLLED-UP arrow
 (a chain between two folded programs) is pinned in vitest only (`Programs.critical.test.tsx`): this world has one program, so no chain crosses two rows here.
 
-1. The owner signs in, sets the program pick to the world's program and opens **Programs**.
+1. The owner signs in, sets the program pick to the world's program and opens `/roadmap?mode=overview`.
    - *Expected*: the program's chevron button is collapsed; the "Critical path to…" picker reads **None**; no element has `data-critical`; there is no "Critical path to …" panel.
 2. They pick P in the picker (typing its name, choosing the option).
    - *Expected*: the picker reads P's name and the live region says "Showing the critical path to <P>"; the h3 "Critical path to <P>" appears.

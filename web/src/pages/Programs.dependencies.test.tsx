@@ -94,7 +94,7 @@ describe("Programs page: the dependency panel", () => {
     renderAt();
     await screen.findByRole("grid");
     expect(headingOutline()).toEqual([
-      [2, "Programs"],
+      [2, "Roadmap"],
       [3, "Timeline"],
       [3, "Dependencies"],
     ]);

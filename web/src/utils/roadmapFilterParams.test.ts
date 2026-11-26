@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  hasPrioritizationOnlyParams,
   hasRoadmapFilterParams,
   isRoadmapFilterEmpty,
   parseProgramPick,
@@ -126,5 +127,15 @@ describe("the program pick alone (the Programs page's)", () => {
   test("the Roadmap's and the pick's own spelling agree", () => {
     const state = { filters: NONE, pick: [12, 11] };
     expect(roadmapFilterParams(state).getAll("programId")).toEqual(withProgramPick(new URLSearchParams(), [12, 11]).getAll("programId"));
+  });
+});
+
+describe("hasPrioritizationOnlyParams", () => {
+  test("names the six filters of the Prioritization mode, not the program pick both modes read", () => {
+    for (const name of ["workStreamId", "teamId", "ownerPersonId", "flagged", "severity", "unranked"]) {
+      expect(hasPrioritizationOnlyParams(new URLSearchParams(`${name}=x`))).toBe(true);
+    }
+    expect(hasPrioritizationOnlyParams(new URLSearchParams("programId=3&mode=overview&dependencies=ok"))).toBe(false);
+    expect(hasPrioritizationOnlyParams(new URLSearchParams())).toBe(false);
   });
 });

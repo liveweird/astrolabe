@@ -22,7 +22,7 @@
 2. They open the Flags section (**Show the 1 flag**).
    - *Expected*: the table has exactly one flag row, a warning for the spec's project reading "1 milestone on <the spec's team> is scheduled in a sprint whose capacity differs from Flow"; beside the sentence a link named "Open team <the spec's team>". They follow it.
    - *Expected*: the address is `/teams/<team>`, the page's heading is the team's name and its header flag reads "Capacity differs from Flow: 2 open differences".
-3. They open `/programs?programId=<the spec's program>`.
+3. They open `/roadmap?mode=overview&programId=<the spec's program>` (the Roadmap's overview mode).
    - *Expected*: the work stream's row and the program's row (folded) each carry `data-flags="1,0"`; after they open the program, the project's row carries `data-flags="1,0"` too.
 
 ## Scenario: the team's manager acknowledges one sprint's difference on the team page: the line reads acknowledged, the Capacity vs Flow fact counts one open difference and one acknowledged, and the header flag and the weeks strip follow

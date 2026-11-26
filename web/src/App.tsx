@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { RedirectIfAuthed, RequireAdmin, RequireAuth, useAdmin } from "./auth";
 import BrandLogo from "./components/BrandLogo";
 import CommandPalette from "./components/CommandPalette";
+import LegacyRedirect from "./components/LegacyRedirect";
 import LoadingBlock from "./components/LoadingBlock";
 import TelemetryPanelCrash from "./components/TelemetryPanelCrash";
 import UpdateBanner from "./components/UpdateBanner";
@@ -14,6 +15,7 @@ import UserMenu from "./components/UserMenu";
 import VersionStamp from "./components/VersionStamp";
 import ErrorBoundary, { RouteErrorBoundary } from "./components/ErrorBoundary";
 import { activeNavPath, visibleSections, type NavLeaf } from "./utils/navigation";
+import { roadmapPath } from "./utils/planLinks";
 import { useFocusMainOnNavigation } from "./hooks/useFocusMainOnNavigation";
 import { usePrintLifecycle } from "./hooks/usePrintLifecycle";
 import { isBoolean, useStoredState } from "./hooks/useStoredState";
@@ -33,8 +35,7 @@ const PublicHolidays = lazy(() => import("./pages/PublicHolidays"));
 const PersonDetails = lazy(() => import("./pages/PersonDetails"));
 const Plan = lazy(() => import("./pages/Plan"));
 const ProjectView = lazy(() => import("./pages/ProjectView"));
-const Roadmap = lazy(() => import("./pages/Roadmap"));
-const Programs = lazy(() => import("./pages/Programs"));
+const RoadmapModes = lazy(() => import("./pages/RoadmapModes"));
 const Milestones = lazy(() => import("./pages/Milestones"));
 const Dependencies = lazy(() => import("./pages/Dependencies"));
 const TeamLoad = lazy(() => import("./pages/TeamLoad"));
@@ -258,8 +259,9 @@ export default function App() {
             {/* One page for both: `projects` (no project picked yet) and `projects/:id`. */}
             <Route path="projects" element={<ProjectView />} />
             <Route path="projects/:id" element={<ProjectView />} />
-            <Route path="roadmap" element={<Roadmap />} />
-            <Route path="programs" element={<Programs />} />
+            <Route path="roadmap" element={<RoadmapModes />} />
+            {/* 1.29: the Programs page is the Roadmap's overview mode; an old link or bookmark keeps its program pick. */}
+            <Route path="programs" element={<LegacyRedirect to={roadmapPath} params={{ mode: "overview" }} />} />
             <Route path="milestones" element={<Milestones />} />
             <Route path="dependencies" element={<Dependencies />} />
             <Route path="team-load" element={<TeamLoad />} />

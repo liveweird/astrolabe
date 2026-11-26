@@ -401,15 +401,15 @@ test("the roadmap shows the critical path to P: X and Y emphasised, the chain pa
   await expect(table).toHaveCount(0);
 });
 
-test("the programs page shows the critical path to P: the folded program is outlined, opening it shows X, Y and P outlined with their arrows, the chain panel lists them, None clears everything", async ({ page }) => {
+test("the roadmap overview shows the critical path to P: the folded program is outlined, opening it shows X, Y and P outlined with their arrows, the chain panel lists them, None clears everything", async ({ page }) => {
   const world = await seedWorld();
   const { x, y, p, program } = world;
 
   await login(page, world.owner.email, world.owner.password);
   // The program pick narrows the page to this world's program (a browser setting; the tree holds every other spec's rows too).
   await page.evaluate(([key, value]) => localStorage.setItem(key, value), [PICK_KEY, JSON.stringify([program.id])]);
-  await page.goto("/programs");
-  await expect(page.getByRole("heading", { level: 2, name: "Programs" })).toBeVisible();
+  await page.goto("/roadmap?mode=overview");
+  await expect(page.getByRole("heading", { level: 2, name: "Roadmap", exact: true })).toBeVisible();
   const tree = page.getByRole("grid", { name: "Programs timeline" });
   await expect(tree).toBeVisible();
   const picker = page.getByRole("combobox", { name: "Critical path to…" });

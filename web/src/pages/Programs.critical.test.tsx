@@ -169,7 +169,7 @@ describe("Programs page: the critical path to a picked project", () => {
     expect(document.querySelector("[data-critical]")).toBeNull();
     expect(screen.queryByRole("heading", { name: /Critical path to/ })).toBeNull();
     expect(headingOutline()).toEqual([
-      [2, "Programs"],
+      [2, "Roadmap"],
       [3, "Timeline"],
       [3, "Dependencies"],
     ]);

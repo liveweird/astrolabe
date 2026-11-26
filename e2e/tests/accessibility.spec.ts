@@ -534,16 +534,16 @@ test.describe("detail pages and overlays", () => {
     registerRoadmapScan("dark");
   });
 
-  // The Programs tree with the fixture program opened (the chevron buttons with aria-expanded, a program's summary bar and roll-up count, the
+  // The Roadmap overview (1.29: the former Programs page, `?mode=overview`) with the fixture program opened (the chevron buttons with aria-expanded, a program's summary bar and roll-up count, the
   // project rows with their bars, the drift flag icon, the row menus and the bundle arrow between the two fixture projects), light and dark.
   function registerProgramsScan(scheme: Scheme): void {
     const suffix = scheme === "dark" ? " in the dark scheme" : "";
-    test(`/programs with a program opened has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+    test(`/roadmap overview with a program opened has no WCAG A/AA violations${suffix}`, async ({ page }) => {
       await login(page);
       // The program pick (a browser setting) narrows the page to the fixture program: a stack that holds the sample plan has hundreds of nodes
       // and an unfolded grid over 80 rows virtualises.
       await page.evaluate(([key, value]) => localStorage.setItem(key, value), ["astrolabe.viewSettings.planning.programPick", JSON.stringify([fixtureProgramId])]);
-      await page.goto("/programs");
+      await page.goto("/roadmap?mode=overview");
       await expect(page.getByRole("grid", { name: "Programs timeline" })).toBeVisible();
       await page.getByRole("button", { name: `Program ${programName}`, exact: true }).click();
       await expect(page.getByRole("link", { name: `Open ${projectName}`, exact: true })).toBeVisible();
@@ -947,10 +947,10 @@ test.describe("a baseline on the plan", () => {
       await scan(page);
     });
 
-    test(`/programs with a baseline picked has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+    test(`/roadmap overview with a baseline picked has no WCAG A/AA violations${suffix}`, async ({ page }) => {
       await login(page);
       await pickBaselineAndProgram(page);
-      await page.goto("/programs");
+      await page.goto("/roadmap?mode=overview");
       await expect(page.getByRole("grid", { name: "Programs timeline" })).toBeVisible();
       await page.getByRole("button", { name: /^Program e2e-axe-bl-program/ }).click();
       await expect(page.getByRole("link", { name: `Open ${projectName}`, exact: true })).toBeVisible();

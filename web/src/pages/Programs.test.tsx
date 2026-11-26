@@ -114,7 +114,7 @@ describe("Programs page", () => {
     renderWithProviders(<Programs />);
     await waitForGrid();
     expect(headingOutline()).toEqual([
-      [2, "Programs"],
+      [2, "Roadmap"],
       [3, "Timeline"],
       [3, "Dependencies"],
     ]);
@@ -452,7 +452,7 @@ describe("Programs page: states", () => {
     renderWithProviders(<Programs />);
     expect(await screen.findByText("No work streams yet")).toBeInTheDocument();
     expect(screen.queryByRole("grid")).toBeNull();
-    expect(headingOutline()).toEqual([[2, "Programs"]]);
+    expect(headingOutline()).toEqual([[2, "Roadmap"]]);
   });
 
   test("a failed load shows the error alert", async () => {

@@ -11,7 +11,7 @@
 2. They read the table "Your projects".
    - *Expected*: exactly two rows, found by their project's name (never by position): the owner's own project (its name as a link "Open <name>", its program, the Owner cell reading the owner's person, "Unranked", 2 milestones, 1 not scheduled, "1 warning" and "1 info") and the second person's project (its program, the Owner cell reading the second person, "Unranked", 0 milestones).
 3. They read "Your teams" and "Your programs and work streams".
-   - *Expected*: exactly one team row (its link "Open team <name>", 2 milestones, 1 not scheduled); exactly two node rows, the work stream first and the program second, each with an Owner cell reading the owner's person, 2 projects, "1 warning" and "1 info" (the work stream with 1 program, the program naming its work stream); the "Open the programs" link; the sentence "Listed below: what you own, everything under a work stream or program you own, and the teams you manage." One axe scan of the page.
+   - *Expected*: exactly one team row (its link "Open team <name>", 2 milestones, 1 not scheduled); exactly two node rows, the work stream first and the program second, each with an Owner cell reading the owner's person, 2 projects, "1 warning" and "1 info" (the work stream with 1 program, the program naming its work stream); the "Open the roadmap overview" link; the sentence "Listed below: what you own, everything under a work stream or program you own, and the teams you manage." One axe scan of the page.
 4. They click the project's name, go back to Home, click the team's name.
    - *Expected*: the project page's heading (h2), then the team page's.
 

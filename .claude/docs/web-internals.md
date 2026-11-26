@@ -543,7 +543,7 @@ builder (`roadmapFilteredPath`, `unscheduledMilestonesPath`, `teamLoadWarningPat
   figure being `project.conflicts`' own words.
 - The Roadmap card's two flag badges each name their own destination (`home.roadmap.warningsAria` "{{figure}}: the projects with a warning on the roadmap", `home.roadmap.infosAria`
   likewise; the unranked line is named by its own text); the violated badge is unique and needs no extra name.
-- None contains the e2e's exact names ("Open the plan", "Open the roadmap", "Open the programs", "Open <project>", "Open team <name>").
+- None contains the e2e's exact names ("Open the plan", "Open the roadmap", "Open the roadmap overview", "Open <project>", "Open team <name>").
 
 ### The Deviations card
 
@@ -840,8 +840,8 @@ Files: `pages/Roadmap.tsx`;
 
 - `api/roadmap.ts`: `getRoadmapView`, `putRanking`, `isStaleRevision` (a 409 whose problem `type` is `urn:astrolabe:problem:stale-revision`). The view's `RoadmapProject` carries the
   server's `rankPosition`, `teamIds`, `span`, `drift`, `flags[]`, `can.editTargetWindow`; the view carries `teams[]` and the rolled-up `links[]`.
-- Hooks: `useRoadmapRanking.ts` (query + the one write path), `useRoadmapFilters.ts` (the filters and the pick, in the address and remembered), `useProgramPick.ts` (the programs
-  page's pick, in its address and remembered under the shared key), `useCriticalTarget.ts`, `useTargetWindow.ts`, `useRowMenuFocus.ts`, `useJiraBarsPick.ts`.
+- Hooks: `useRoadmapRanking.ts` (query + the one write path), `useRoadmapFilters.ts` (the filters and the pick, in the address and remembered), `useProgramPick.ts` (the overview's
+  pick, in its address and remembered under the shared key), `useCriticalTarget.ts`, `useTargetWindow.ts`, `useRowMenuFocus.ts`, `useJiraBarsPick.ts`.
 - `utils/roadmapOrder.ts` (pure: `moveBy`/`moveToEdge`/`moveToSlot` - the team page's too -, `moveAmongVisible`, `rankingAfterDrop`, `sameIds`, `appendId`, `removeId`, `applyRanking`);
   `utils/roadmapRows.ts` (pure: filters, the pick, the displayed rows and the divider, the flag totals and panel entries, the drift band, the arrows of the rolled-up links);
   `utils/roadmapFilterParams.ts`, `utils/roadmapCritical.ts`, `utils/planTrack.ts`.
@@ -877,7 +877,7 @@ under the title ("N ranked", "M unranked", an ORANGE "K warnings" badge, a gray 
 - A `SegmentedControl` above the open table (a labelled radiogroup: All / Warnings / Infos, each label with its count, default All) filters the LIST by severity: panel-local state,
   never stored or in the URL. The row icons and the disclosure's count stay total, and an empty slice says "No warnings/infos among the flags shown." instead of an empty table (the
   Programs page has no flag panel).
-- **The pending marker (1.26.0):** `FLOW_CAPACITY_PENDING` (a team flag, `roadmap.flag.flowCapacityPending`) is drawn neutral by `TeamFlags` (gray, hourglass, no `data-severity`); a project row's `flowPendingTeamIds` makes `FlagCountsCell` (`PlanProjectCells.tsx`, `flowPending`) add a gray hourglass (`data-flow-pending`) and the same words to its hidden sentence, never a count; the sentence names the pending teams (`utils/roadmapRows.ts` `pendingTeamNames` over the view's `teams`, `roadmap.flag.flowCapacityPendingTeams`) and falls back to the unnamed words for a team the view does not list.
+- **The pending marker (1.26.0):** `FLOW_CAPACITY_PENDING` (a team flag) is drawn neutral by `TeamFlags` (gray, hourglass, no `data-severity`); a project row's `flowPendingTeamIds` makes `FlagCountsCell` (`PlanProjectCells.tsx`) add a gray hourglass (`data-flow-pending`) and the same words to its hidden sentence, never a count; the sentence names the pending teams (`utils/roadmapRows.ts` `pendingTeamNames`, `roadmap.flag.flowCapacityPendingTeams`), unnamed for a team the view does not list.
   The team page's Capacity vs Flow row (`CapacityFact`) reads "Waiting for a complete Flow refresh" for an item with `sprintsComplete` false (never "In line"), and the Capacity from Flow section lists such a team with that note, a hint and a neutral `totals.pending` badge.
 - **The Flow capacity flag:** `flagSentence` phrases `FLOW_CAPACITY_MILESTONES` through `names.team` ("{{count}} milestones on {{team}} are scheduled in sprints whose capacity differs
   from Flow"; the plural forms of both languages are in `flagSentences.test.ts`).
@@ -920,7 +920,7 @@ Flow's rule (its `useReportFilter`, ported): the address bar always holds the fi
 | Back / forward | what that URL names | as navigated | untouched |
 
 The hook answers `{ filters, pick, setFilters, setPick }`; the remembered state is read once at mount; a foreign parameter in the address is kept. A change is never a push and no effect
-writes the memory on a link's arrival. The Programs page follows the same rule for the pick alone (`programId` in its address, the same key remembered: "Programs").
+writes the memory on a link's arrival. The overview mode follows the same rule for the pick alone (`programId`, the same key remembered: "Programs").
 
 ### The baseline overlay
 
@@ -1078,15 +1078,15 @@ path"; generic over the cached view: roadmap `["roadmap","view"]` with `applyRoa
 
 ### Tests
 
-The page's co-located tests (`Roadmap*.test.tsx` incl. `.flow`, `.jira`, `.baseline`, `.critical`, `.window`; `roadmapOrder|roadmapRows|roadmapCritical|targetWindowUpdate.test.ts`; `Roadmap.test.tsx` has "the filters in the address"), among them `hooks/useRoadmapFilters.test.tsx` (the table), `planTrack.test.ts` (who gets an editable band and a draw surface), `planForm.test.ts` (the dialog's rules), and the e2e `roadmap.spec.ts` (the real pointer drag inside the ranking and
-across the divider, focus retention after a menu move, the stale notice, the window gestures: its third scenario).
+The page's co-located tests (`Roadmap*.test.tsx` incl. `.flow`, `.jira`, `.baseline`, `.critical`, `.window`; `roadmapOrder|roadmapRows|roadmapCritical|targetWindowUpdate.test.ts`), `hooks/useRoadmapFilters.test.tsx` (the table), and the e2e `roadmap.spec.ts` (the real pointer drag inside the ranking and
+across the divider, focus after a menu move, the stale notice, the window gestures, the mode).
 
 `Roadmap.test.tsx` runs the whole flow against a small fetch-mock server (a PUT applies the order and bumps the revision); it wraps `DndContext` to hand the test the page's drag
 handlers (a row drop is fed with the row zone's live readers), since happy-dom has no layout for a real drag.
 
 ## Programs
 
-Files: `pages/Programs.tsx`;
+Files: `pages/Programs.tsx`, `pages/RoadmapModes.tsx`, `components/LegacyRedirect.tsx`;
 
 - `api/programs.ts`: `getProgramsView(baseline, criticalPath)`, `programsViewKey` = `["roadmap","programs",{baseline, criticalPath}]`, the view types.
 - `utils/programsTree.ts` (pure: `treeRows`, `defaultOpen`, `allOpen`, `toggled`, `programChoices`, `treeFacts`, `treeDates`, `arrowAnchors`); `components/ProgramsTimeline.tsx` (tree rows →
@@ -1096,14 +1096,19 @@ Files: `pages/Programs.tsx`;
 
 ### Route and data
 
-`/programs` (nav section Planning after Roadmap, `IconListTree`; palette "Programs" / PL "Programy") renders `GET /views/programs` under `["roadmap","programs"]` (under the
+`/roadmap?mode=overview` is the Roadmap's second mode (1.29; the old `/programs` redirects here by `LegacyRedirect`, query kept) and renders `GET /views/programs` under `["roadmap","programs"]` (under the
 `["roadmap"]` prefix the Plan page and the project view already refresh) as the plan **tree on the shared Timeline** (`components/ProgramsTimeline.tsx`): work stream → program →
 project, one row each, in the server's order (open streams first, projects ranked first).
 
-- Read for everyone; the one thing written here is a project's target window (band, draw, row menu - "The target window" under "Roadmap", the same shared row and write path). The
-  server's spans, flag counts, drift and link checks are only read.
+**The two modes** (`pages/RoadmapModes.tsx`, the `/roadmap` element; both bodies title themselves "Roadmap" and keep their own filters, memory and operations):
+- `?mode=prioritization|overview`. A valid one is shown as written, writes nothing. None: only a `replace` `<Navigate>` (hash, state kept) to the address plus the remembered mode (`roadmap.mode`,
+  Prioritization at first, and always when the address names a filter only it has); each body's hook rewrites the address on mount, so two writers would clobber.
+- The switch (`SegmentedControl`, radiogroup "Roadmap mode", in the header toolbar) writes the memory and pushes `mode` FIRST; filters and pick leave the address (each mode restores its memory; a
+  pick only a link named is not carried), `dependency*` and foreign parameters stay. The page re-focuses it (Back/forward: main).
+- Links: `roadmapPath` bare (the last mode), `roadmapFilteredPath` names `mode=prioritization`, `roadmapOverviewPath` is Home's "Open the roadmap overview" (tests: `RoadmapModes*`).
+- Read for everyone; the one thing written here is a project's target window (band, draw, row menu - "The target window" under "Roadmap", the same shared row and write path); the
+  server's spans, flag counts, drift and link checks are only read. The Timeline sits in the page's `TimelineDndContext`, as on the roadmap.
 - **Zoom:** Month / Quarter / Year under `timeline.planZoom` (the roadmap's key); the range grows over every span and window of the WHOLE plan (`hooks/usePlanScale.ts`).
-- The Timeline is wrapped in the page's `TimelineDndContext`, the window gestures' drag context, as on the roadmap.
 
 ### Rows
 
@@ -1116,12 +1121,11 @@ plan): the name (a tree indent of 16 px per level), Flags, Operations.
 - A **project row** is the roadmap's row - `projectTrack`: the target-window band, the span bar (with ", N conflicts"), the drift band - with the name as the link into the project (the
   owner dimmed) and a menu that holds the critical-path item ("Show…"/"Hide critical path", for everyone), "Dependencies" (the roadmap's `DependenciesItem`: the text path of the arrows, a
   link to the list narrowed to the project), "Open project" and, by the project's own `can.editTargetWindow`, the window items.
-- Row ids are `ws:<id>` / `pg:<id>` / the project id; bar ids the same (`ws:`/`pg:` keys, the project id), so the arrows anchor on the project ids as on the roadmap, or, for a project
-  whose row is folded away, on the bar of the folded row that stands for it ("Arrows").
-- **One project-row builder.** `projectTrack(project, t, conflicts)` is the only place a project's bars and drift band are made (`window:<id>` and `<id>` bars, `drift:<id>` band);
-  `planArrows` (over `arrowSpecsForLinks` and `rolledUpLinks`, in `utils/roadmapRows.ts`) is the only place the rolled-up links become arrows. `RoadmapTimeline` and `ProgramsTimeline`
-  both call them (the roadmap's `anchorOf` answers only a project's own id, so it never rolls up), so the target window's gestures (an editable `window:<id>` bar by the project's
-  `can.editTargetWindow`, the draw surface on a row without a window) land once; the menu's window items are `TargetWindowItems`.
+- Row and bar ids are `ws:<id>` / `pg:<id>` / the project id, so the arrows anchor on the project ids as on the roadmap, or, for a project whose row is folded away, on the bar of the folded
+  row that stands for it ("Arrows").
+- **One project-row builder.** `projectTrack(project, t, conflicts)` is the only place a project's bars and drift band are made; `planArrows` (over `arrowSpecsForLinks` and `rolledUpLinks`,
+  in `utils/roadmapRows.ts`) is the only place the rolled-up links become arrows. `RoadmapTimeline` and `ProgramsTimeline` both call them (the roadmap's `anchorOf` never rolls up), so the
+  window gestures (an editable `window:<id>` bar by `can.editTargetWindow`, the draw surface on a row without a window) land once; the menu's window items are `TargetWindowItems`.
 - **Roll-up in part.** `shownStreams` (inside `programsTree.ts`) keeps the server's span/counts for a stream shown whole and recomputes them (`unionSpan`, `sumFlags`) for one the pick
   shows in part. Nothing else on the page is computed.
 
@@ -1137,8 +1141,7 @@ happened in its polite status region ("X expanded, 3 programs", "X collapsed").
 - `toggle(key)` finds the row in the CURRENT rows to say what it did (`programs.announce.*` with a plural `count`).
 - **Focus.** While the rows stay on one render path the chevron button is the same DOM node before and after (rows are keyed by id), so it keeps the focus and the roving grid re-adopts
   it as the tab stop. A toggle that crosses the virtualisation threshold (80 rows) remounts every row (`timeline.md` "The programs page's use"), so `toggle` records the node key in a
-  ref and an effect, after the render, leaves the focus alone only when `[data-node-key=<key>]` is the active element and otherwise calls `timelineRef.focusRow(key)` (the roadmap's
-  `refocus` pattern). Pinned by `Programs.virtual.test.tsx`.
+  ref and an effect, after the render, calls `timelineRef.focusRow(key)` unless `[data-node-key=<key>]` is already the active element (`Programs.virtual.test.tsx`).
 
 ### The program pick
 
@@ -1147,11 +1150,10 @@ The roadmap's pick, in the address (`hooks/useProgramPick.ts`): the same rule as
 
 - An address naming `programId` (even a malformed one) is shown exactly as written (none valid = every program) and remembers nothing; only the user's own change writes the ONE key
   `planning.programPick` (shared with the Roadmap) and rewrites the address by `replace`.
-- Nothing links into the page (the address is there to be copied).
 - The same `ProgramPickField` (its labels `common.filter.*`) sits in a `FilterPanel` (stored `programs.filtersOpen`). The `MultiSelect`'s clear button is `aria-hidden` (Mantine), so tests
   and e2e find it by its label (`getByLabel`), not by role.
-- It is read through `pickAmong(programChoices(view), pick)`: `programChoices(view)` lists every program (empty ones too); the roadmap passes its own `programOptions(view)` (programs with
-  projects) to the same function. An id only one of the pages knows, or that the plan no longer has, is ignored there, not dropped from storage or the address.
+- It is read through `pickAmong(programChoices(view), pick)` (every program, empty ones too; the roadmap passes its own `programOptions(view)`, programs with projects). An id only one mode
+  knows, or that the plan no longer has, is ignored there, not dropped from storage or the address.
 - A picked program keeps its work stream's row; a stream with no picked program is hidden; a stream the pick shows in part is rolled up over the programs that remain ("Roll-up in
   part"). The facts line ("N work streams · M programs · K projects", an orange "K warnings" and a gray "J infos" badge) counts what is shown.
 
@@ -1159,8 +1161,8 @@ The roadmap's pick, in the address (`hooks/useProgramPick.ts`): the same rule as
 
 `planArrows` over `view.links` between the rows that STAND FOR the projects (`arrowAnchors(view, pick, open)`, `utils/programsTree.ts`): the project's own row, else its folded
 program's row, else its folded work stream's. Two project rows keep the roadmap's arrows; every other pair of rows gets ONE `rollup:<fromRow>-<toRow>` arrow, END to START, titled by
-`roadmap.rollupLabel` with the two rows' names; a folded node's bar says ", N conflicts" for the violated links ending on it. Nothing is opened for the user, and the figures are the
-server's, only summed over what is folded. The rules (the anchors, the count, red, critical, what draws nothing): `timeline.md` "The programs page's use".
+`roadmap.rollupLabel` with the two rows' names; a folded node's bar says ", N conflicts" for the violated links ending on it. Nothing is opened for the user; the figures are the
+server's, summed over what is folded. The rules (the anchors, the count, red, critical, what draws nothing): `timeline.md` "The programs page's use".
 
 ### The baseline overlay
 
@@ -1170,17 +1172,14 @@ The same picker, shadow bar (`projectTrack`) and totals line as the roadmap; the
 - The view lists its removed projects: each is appended as a dimmed "(removed)" row under its program when that program is shown and expanded (`treeRows`' `removedProject` kind,
   `ProgramsTimeline`'s `RemovedLabel`). They count as the program's children, so a program whose live projects are all deleted can still be expanded.
 - A work stream and a program row also get a shadow bar from their own `baseline.span`.
-- Tests: `Programs.baseline.test.tsx`.
 
 ### The Jira markers
 
 - The same "Jira dates" toggle (after the baseline picker, the one stored `timeline.jiraBars`, on by default, only when the view lists a Jira site) and the same project-row bar
   `jira:<id>` (`projectTrack`; a project row only - work stream and program rows are not bound); the roll-up counts in the Flags cell and the facts badges stay severity-driven.
-- The page has no flag panel. A project's Flow capacity flag counts in its row and in the roll-ups of its program and work stream like any flag; the sentence and the team link are the
+- No flag panel. A project's Flow capacity flag counts in its row and in the roll-ups of its program and work stream like any flag; the sentence and the team link are the
   Roadmap panel's ("Roadmap" "Flags").
-- **The currency line** is the roadmap's: the facts line (`ProgramsFacts`) ends with "Jira data may be out of date" while any site in `view.jiraSites` is behind (`isStaleSource`);
-  plan-wide, so neither the program pick nor a fold narrows it.
-- Tests: `Programs.jira.test.tsx`.
+- **The currency line** is the roadmap's: `ProgramsFacts` ends with "Jira data may be out of date" while any site in `view.jiraSites` is behind (`isStaleSource`); neither the pick nor a fold narrows it.
 
 ### The critical path to a picked project
 
@@ -1196,14 +1195,10 @@ is said once per pick).
   (`programs.barCriticalInside`) in its name; an expanded node is not emphasised (its children are); nothing is ever opened for the user.
 - The panel's `shown` is the project rows on the timeline; a chain project in a folded row or outside the program pick reads `programs.critical.notShown` "(folded or not picked)", and
   the intro's last sentence is `programs.critical.intro`. "Showing the critical path to X" / "Critical path hidden" go through the page's one status region.
-- Tests: `Programs.critical.test.tsx`.
 
 ### Tests
 
-The page's co-located tests (`Programs*.test.tsx` incl. `.virtual`, `.baseline`, `.jira`, `.critical`, `.window`; `utils/programsTree.test.ts`), the e2e `programs.spec.ts` and the axe scans in `accessibility.spec.ts`.
-
-`Programs.test.tsx` runs the page against a one-endpoint fetch mock (the default open set, the chevron by pointer and keyboard, the status sentences, Expand/Collapse all, the arrows
-following the fold, the pick and its shared key, Year zoom, empty and failed loads).
+The page's co-located tests (`Programs*.test.tsx`, `utils/programsTree.test.ts`), the e2e `roadmap-overview.spec.ts` and the axe scans in `accessibility.spec.ts`.
 
 ## Milestones
 
@@ -2518,7 +2513,7 @@ When a feature needs one of these, port the sibling's `web/` implementation and 
 - **View settings** (`astrolabe.viewSettings.<key>`, each a `useStoredState` with its own validator): `appShell.navCollapsed`, `home.mine.ownOnly`, `telemetry.panelOpen|range|sections`, the list
   pages' `…filter.*` and `…filtersOpen`, and the timeline and planning keys below.
 - **The Roadmap's six filter keys** (`roadmap.filter.workStream|team|owner|flagged|severity|unranked`) and `planning.programPick` are MEMORY, not state: the address holds the state and only the user's
-  own change writes them ("The URL holds the filters" under "Roadmap"); the Programs page reads and writes `planning.programPick` alone on the same terms.
+  own change writes them ("The URL holds the filters" under "Roadmap"); the overview mode reads and writes `planning.programPick` alone on the same terms; **`roadmap.mode`** is the mode last chosen with the switch (a link naming a mode never writes it).
 - **`projects.last`** (the project `/projects` opens), **`project.milestonesOpen`**, **`project.dependenciesOpen`**, **`roadmap.dependenciesOpen`**: `projects-view.md`.
 - **The Plan page's** `plan.collapsed` (folded node keys), `plan.pins`, `plan.pinnedCollapsed`, `plan.pinnedOpen` and `plan.filtersOpen` (`plan-tree.md`); its filters and focus are address-only.
 - **Timeline view settings** (`timeline.*`, shared by the pages that show them): `zoom` (project, team), `planZoom` (roadmap, programs), `criticalPath` (project and team, default false;

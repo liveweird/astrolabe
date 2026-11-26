@@ -1058,3 +1058,12 @@ table.table {
     border: 1px solid CanvasText;
   }
 }
+
+/* The Roadmap's mode switch (pages/RoadmapModes.tsx): the checked option is drawn by Mantine's indicator, a BACKGROUND, which forced-colors mode removes -
+   leaving nothing to tell the two options apart. An outline (it takes no space, so the control keeps its size) is a shape, not a colour alone. */
+@media (forced-colors: active) {
+  .modeIndicator {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}
