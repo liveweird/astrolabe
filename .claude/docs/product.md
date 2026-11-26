@@ -15,7 +15,7 @@ Scale assumed: about 15 teams, 5 work streams, 20 programs, 100 projects, 1,000 
 
 ## Roadmap
 
-Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.27.1.** Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-visible fix between two increments is a patch bump. One row a version (patches ride their minor's row); the scope only, the detail is in "Release history".
+Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.27.1** (1.28.0 built, not released). Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-visible fix between two increments is a patch bump. One row a version (patches ride their minor's row); the scope only, the detail is in "Release history".
 
 ### 0.1 to 0.9: the plan
 
@@ -67,6 +67,7 @@ Each increment gets its own plan (architect) before implementation; only v0.1.0 
 | **1.24.0 Technical release** | No feature: docs in Rules and sections with a guard, the spec's descriptions as contract, shared Jira and Flow pieces, two CI forks, a named e2e target; the item-level `acknowledgement` leaves `GET /views/deviations` |
 | **1.25.0 Reliability and navigation** | Complete Flow sprint snapshots (V31), atomic project edits, consistent API reads, grouped navigation and refreshed Home; 1.25.1 a new logo |
 | **1.26.0 Saved proposals, frozen links and capacity** | Cross-team runs saved and read by every signed-in user (V32); baselines freeze links and capacity (V33); paged `GET /work-streams` and `/programs`; docs under byte ceilings, fewer test sleeps; 1.26.1 dependency updates (`dependencies.md`) |
+| **1.28.0 The Plan page as one tree** (built, not released) | One tree table with folds, search and filters in the address, Show only this, pins on top, work streams and programs re-arranged and shared with the Programs page (V34) |
 | **1.27.0 Finding and linking work** | A dependency added from its list; Milestones by program, work stream and rank; the whole critical chain on the team page; the last untested timings measured; 1.27.1 dependency updates (`dependencies.md`) |
 
 ## Domain decisions taken with the user
@@ -280,6 +281,14 @@ What was ported later, and what was left in Flow on purpose:
 ## Release history
 
 Newest first. Each version: its scope, the user's answers, the defaults that still bind and what was not built; the commits, the plans (they live outside the repository) and the test runs are in git. "No migration" means the preceding schema still applies. Every release leaves "nothing is written to Jira or Flow" true.
+
+### v1.28.0 — the Plan page as one tree (built, not released)
+
+Built overnight on 2026-11-25 to 26 from the user's answers of 2026-11-25 (`plan-tree.md`); a minor bump, the API only gains members. Migration V34 (the two order tables).
+
+- The design and its defaults: `plan-tree.md` (the order, its PUTs and staleness) and `web-internals.md` "Plan" (folds, filters, focus, pins, re-arranging); pins and folds are per browser, the order is shared and also orders the Programs page.
+- Re-arranging is refused while a search, the owner filter or Show only this hides part of a list, so a change never sends a partial order; Hide closed alone does not block it.
+- Verified on a throwaway stack with the sample plan (light, dark, phone, print, forced colours, a drag with a scroll mid-way) and the full e2e suite.
 
 ### v1.27.0 — finding and linking work
 

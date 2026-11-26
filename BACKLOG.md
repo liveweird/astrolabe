@@ -1,6 +1,6 @@
 # Product backlog
 
-Updated 2026-11-25 (1.27.1 released). This file tracks **outstanding work only**. Implemented behaviour and release history belong elsewhere:
+Updated 2026-11-26 (1.27.1 released; 1.28.0 built on the local branch `v1.28`, not released). This file tracks **outstanding work only**. Implemented behaviour and release history belong elsewhere:
 - [README.md](README.md);
 - the [application changelog](web/src/changelog/entries.ts);
 - the topic guides under `.claude/docs/`.
@@ -21,6 +21,7 @@ The `backlog` mod (`liveweird/claude-mods`) summarises the tags on the status li
 
 Each increment gets its own plan (architect) before implementation. The domain sketch is `.claude/docs/planning-model.md`; the timeline approach is `.claude/docs/timeline.md`.
 
+- [new] **Release 1.28.0.** Built on the local branch `v1.28` (not pushed; the release commit bumps `APP_VERSION` and `info.version` and holds the changelog); left: merge, push, CI, deploy, tag and GitHub release. Migration V34. Waits for the user's word.
 - [new] **Ghost rows beyond the direct neighbours on the PROJECT page, if the Critical chain list proves insufficient.** Farther chain members are a list there (names, dates, hops, slack), not timeline rows; the team page draws the whole chain since 1.27.
 - [new] **Ghost rows for every cross-team link on the team page (1.27).** Only the critical chain's members get a dimmed row; a non-critical link to another team's milestone is drawn only when that milestone is on the chain.
 - [new] **A milestone that drives another project's end is not marked on its team's page (1.27).** The chain is measured toward the end of a project the team works on (1.7's reach), so work that is critical only for a project downstream shows no mark.

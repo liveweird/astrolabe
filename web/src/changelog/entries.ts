@@ -17,6 +17,28 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.28.0",
+    date: "2026-11-26",
+    en: `**The Plan page as one tree**
+
+- The Plan page is one table of work streams, their programs and their projects. Fold and unfold any row, or all of them at once; the page remembers what you folded.
+- Search by name and filter by owner or hide closed work streams; the matches stay in their place in the tree, with the rows above them shown as context. The filters are in the address, so a link keeps them.
+- "Show only this" in a row's menu narrows the page to one work stream or program, with a breadcrumb back to the whole plan.
+- Pin any row to keep it in a Pinned section at the top of the page, which stays in view while you scroll. Pins are remembered in this browser.
+- An administrator re-arranges the work streams, and a work stream's owner its programs: drag a row by its grip, or use Move up and Move down in its menu. The Programs page follows the same order. Projects keep the roadmap's rank. Closed work streams stay last.
+- API (\`/api/v1\`), additions only: \`PUT /work-stream-order\` and \`PUT /work-streams/{id}/program-order\`; the plan view's \`workStreamOrderRevision\`, each work stream's \`programOrderRevision\`, and the \`can.orderWorkStreams\` and \`can.orderPrograms\` flags.
+- Stored data: the order of the work streams and of each work stream's programs (migration V34). Until someone re-arranges them, they keep today's order by name.`,
+    pl: `**Strona planu jako jedno drzewo**
+
+- Strona „Plan” to jedna tabela strumieni pracy, ich programów i projektów. Możesz zwinąć i rozwinąć dowolny wiersz albo wszystkie naraz; strona pamięta, co zwinięte.
+- Szukaj po nazwie, filtruj według właściciela/ki lub ukryj zamknięte strumienie pracy; trafienia zostają na swoim miejscu w drzewie, a wiersze nad nimi widać jako kontekst. Filtry są w adresie, więc link je zachowuje.
+- „Pokaż tylko to” w menu wiersza zawęża stronę do jednego strumienia pracy lub programu, z nawigacją okruszkową z powrotem do całego planu.
+- Przypnij dowolny wiersz, by trzymać go w sekcji „Przypięte” na górze strony, widocznej podczas przewijania. Przypięcia są zapamiętywane w tej przeglądarce.
+- Administrator/ka zmienia kolejność strumieni pracy, a właściciel/ka strumienia — kolejność jego programów: przeciągnij wiersz za uchwyt albo użyj „Przesuń w górę” i „Przesuń w dół” w jego menu. Strona „Programy” pokazuje tę samą kolejność. Projekty zachowują ranking z mapy drogowej. Zamknięte strumienie pracy są zawsze na końcu.
+- API (\`/api/v1\`), tylko dodatki: \`PUT /work-stream-order\` i \`PUT /work-streams/{id}/program-order\`; \`workStreamOrderRevision\` w widoku planu, \`programOrderRevision\` każdego strumienia pracy oraz flagi \`can.orderWorkStreams\` i \`can.orderPrograms\`.
+- Zapisane dane: kolejność strumieni pracy i programów każdego strumienia (migracja V34). Dopóki nikt jej nie zmieni, zostaje dzisiejsza kolejność według nazwy.`,
+  },
+  {
     version: "1.27.1",
     date: "2026-11-25",
     en: `**Updated libraries and images**
