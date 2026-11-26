@@ -270,7 +270,8 @@ describe("the project page's Jira markers", () => {
       const group = await screen.findByRole("group", { name: "Links to Jira" });
       expect(within(group).getByText("1 milestone linked to Jira")).toBeInTheDocument();
       expect(within(group).getByRole("link", { name: "No deviations seen" })).toBeInTheDocument();
-      expect(within(screen.getByRole("row", { name: /Build/ })).getByRole("link", { name: /E2E-3/ })).toBeInTheDocument();
+      // Scoped to the timeline: the Milestones table (1.29) has a row of the same name.
+      expect(within(within(await timeline()).getByRole("row", { name: /Build/ })).getByRole("link", { name: /E2E-3/ })).toBeInTheDocument();
       expect(jiraBars()).toEqual([]);
       await user.click(screen.getByRole("button", { name: "Operations for Build" }));
       expect(await screen.findByRole("menuitem", { name: "Unlink from Jira: E2E-3 (Build)" })).toBeEnabled();
@@ -292,10 +293,10 @@ describe("the project page's Jira markers", () => {
   describe("the Jira dates", () => {
     test("on by default: one dashed shadow bar for the scheduled, linked row with both dates, named with the key, the real dates and the date deviation, riding in its row", async () => {
       renderPage();
-      await timeline();
+      const grid = await timeline();
       expect(toggle()).toHaveAttribute("aria-pressed", "true");
       expect(jiraBars()).toEqual(["Jira E2E-3: 2027-01-18 to 2027-01-19, Ends 3 working days later than Jira (plan 2044-03-07, Jira 2044-03-04), read-only"]);
-      const row = screen.getByRole("row", { name: /Build/ });
+      const row = within(grid).getByRole("row", { name: /Build/ });
       expect([...row.querySelectorAll("[data-tone]")].map((el) => el.getAttribute("data-tone"))).toEqual(["jira"]);
       expect(localStorage.getItem(BARS_KEY)).toBeNull();
     });

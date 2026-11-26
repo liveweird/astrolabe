@@ -1,6 +1,6 @@
 # Projects view
 
-Owns: the Projects nav leaf and its two routes, the project picker, the remembered project, the bare `/projects` and its empty states. Not here: the project page's body (timeline, dependencies, editors: `web-internals.md` "Project view", `timeline.md`), the plan view the picker reads (`planning-model.md` "The view documents"), the nav model and the palette (`web-internals.md` "Navigation"). Added in 1.29.
+Owns: the Projects nav leaf and its two routes, the project picker, the remembered project, the bare `/projects` and its empty states, and the project page's Milestones table. Not here: the project page's body (timeline, dependencies, editors: `web-internals.md` "Project view", `timeline.md`), the plan view the picker reads (`planning-model.md` "The view documents"), the nav model and the palette (`web-internals.md` "Navigation"). Added in 1.29.
 
 ## Rules
 
@@ -34,7 +34,37 @@ Owns: the Projects nav leaf and its two routes, the project picker, the remember
 - **No project picked** (the plan holds projects, nothing remembered or the remembered one is gone): h2 "Projects", one sentence, the picker, "No project picked".
 - **No projects yet** (the plan holds none): the same title and sentence, "No projects yet" with a hint and a link to the Plan; no picker (nothing to pick).
 
+## The Milestones table (`components/ProjectMilestonesTable.tsx`)
+
+The Milestones page's filters, kept for ONE project (the page itself goes in a later step). An h3 "Milestones" after the Unscheduled tray and before Dependencies,
+mounted only while the project has a milestone (an empty project has the page's own empty state).
+
+- **Rows** are the view's own `scheduled` then `unscheduled` (`projectMilestones`), nothing fetched or recomputed; a write that moves a milestone changes the table with the view.
+  - Columns: Milestone (plain text), Team (`TeamNameCell`: swatch and name, a link named by `teams.openAria`), Estimate, Start, End. A milestone without dates has ONE dimmed "Not scheduled" cell across Start and End.
+  - The name cell is a `td`, not a row header: the timeline's rowheaders stay the only ones on the page (e2e addresses them by role).
+- **Controls**, inline above the table (no drawer: three small controls; `data-print="hide"`):
+  - Schedule (All, Not scheduled, Scheduled; never clearable).
+  - Team (`TeamFilterSelect` over the project's OWN teams, `settled={false}` so it never invents a "Team 12"; a picked team the project no longer has is dropped, not left as an empty table).
+  - Name (`ClearableTextInput`, a case- and accent-insensitive substring of the milestone's name, `foldDiacritics`).
+  - "Clear the filters" shows while any narrows. A status line (`role="status"`) says "N milestones", or "Showing X of N milestones" while narrowed (the rows follow every keystroke, the announced count waits 300 ms for typing to pause, `FILTER_DEBOUNCE_MS`); nothing matching says so inside the table.
+- **Sort**: Milestone, Team or Start (`SortHeader`; default Start ascending).
+  - Text compares by an `Intl.Collator` (numeric, accents and case ignored); a milestone without dates is last in BOTH directions (as the server's start sort); ties fall back to the name, then the id.
+  - Pure logic and the filters: `utils/projectMilestones.ts`. The Milestones page's rank sort has no counterpart (one project has one rank).
+- **The address** holds the Schedule choice only: `?milestones=all|unscheduled|scheduled` (exact words; anything else is no choice).
+  - A Schedule change `replace`s the entry, keeps every other parameter and always writes the chosen word, "all" included. "Clear the filters" writes "all" only when the address already holds `milestones`, else leaves the address alone.
+  - The Schedule choice is in the address, so it survives Back and a reload; Team, Name and the sort are page state and reset when another project is picked (the page is keyed by the project).
+  - The link target for a project's "not scheduled" figures (Home, later) is `/projects/N?milestones=unscheduled`.
+- **Shown or hidden** (`TableDisclosure`, controlled with `open`/`onOpenChange`; `aria-expanded`/`aria-controls`, `data-print="hide"`): shown by default, remembered per browser under `project.milestonesOpen` (`astrolabe.viewSettings`, one flag for every project).
+  - A hidden table is not rendered, so it neither prints nor costs a row; the heading and the toggle stay.
+  - A valid `?milestones=` OPENS a table remembered as hidden WITHOUT writing the memory; hiding a table the address opened removes the parameter (and remembers "hidden"), or it would stay open.
+- **Accessibility and widths**: the table is named by `project.milestones.tableAria` (also the `ScrollRegion`'s name, the keyboard stop) under the h3.
+  - A sticky header inside a 420 px cap; dates and the estimate stay on one line.
+  - The three controls stack full width below `xs` and the table scrolls sideways (min 640 px).
+  - The team swatch is decorative beside the name (`TeamSwatch`); on a monochrome print the Team column tells teams apart.
+
 ## Tests
 
-`utils/projectPicker.test.ts` (grouping, order, the filter), `components/ProjectPicker.test.tsx` (the control: groups, owner/program/accent search, push, no clear), `hooks/useLastProject.test.tsx`, `pages/ProjectView.start.test.tsx` (the redirect, the cache hit, the waiting, the forget rules, a failed refetch and the offline states, the empty states, the heading outline), `ProjectView.test.tsx` (remember on load, forget on delete, the picker on the loaded and not-found pages); e2e:
-`projects.spec.ts` (the remembered project, the picker finding a project by its program) and the `/projects` axe scan.
+- Unit: `utils/projectPicker.test.ts` (grouping, order, the filter), `components/ProjectPicker.test.tsx` (the control: groups, owner/program/accent search, push, no clear), `hooks/useLastProject.test.tsx`.
+- Pages: `pages/ProjectView.start.test.tsx` (the redirect, the cache hit, the waiting, the forget rules, a failed refetch and the offline states, the empty states, the heading outline), `ProjectView.test.tsx` (remember on load, forget on delete, the picker on the loaded and not-found pages).
+- The Milestones table: `utils/projectMilestones.test.ts` (parse, filter, sort), `components/ProjectMilestonesTable.test.tsx` (controlled show/hide, the address, filters, sort), `pages/ProjectView.milestones.test.tsx` (its place in the page and the outline).
+- e2e: `projects.spec.ts` (the remembered project, the picker finding a project by its program, the Milestones table narrowed by Schedule and name and hidden), the `/projects` axe scan and the open table in the `/projects/:id` scan.

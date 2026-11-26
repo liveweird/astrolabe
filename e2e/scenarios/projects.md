@@ -1,11 +1,12 @@
-# Projects (the picker and the remembered project)
+# Projects (the picker, the remembered project and the Milestones table)
 
 - **Spec**: [tests/projects.spec.ts](../tests/projects.spec.ts)
 - **Actors**: the seed administrator, who also seeds through the API; nothing is written through the UI
-- **Owns** (exclusive server-side state): its throwaway people (a lead and two project owners), work stream, program and two projects
-  (unique `e2e-pp-*` names), seeded through the API and removed by the afterEach through the API (the projects first, then the program,
-  the work stream and the people). The page's remembered project is browser state (`astrolabe.viewSettings.projects.last`): every
-  test signs in through `login`, which clears the browser's storage first.
+- **Owns** (exclusive server-side state): its throwaway team, people (a lead and two project owners), work stream, program and two projects
+  (unique `e2e-pp-*` names), and two milestones of the first project (one scheduled through the API, one not), seeded through the API and
+  removed by the afterEach through the API (the projects first - their milestones go with them - then the program, the work stream, the
+  people and the team). The page's remembered project (`astrolabe.viewSettings.projects.last`) and the Milestones table's show/hide choice
+  (`astrolabe.viewSettings.project.milestonesOpen`) are browser state: every test signs in through `login`, which clears the browser's storage first.
 
 ## Scenario: a bare /projects opens the project viewed last in this browser and forgets one that was deleted
 
@@ -29,9 +30,25 @@
 5. They press the browser's Back button.
    - *Expected*: the first project's page is back (the pick was a push).
 
+## Scenario: the project page's Milestones table narrows by Schedule and name, and hides, remembered in this browser
+
+1. The administrator opens the first seeded project's page.
+   - *Expected*: an h3 "Milestones" and a table named "Milestones of this project" with its two milestones, the scheduled one first and the
+     other one saying "Not scheduled".
+2. They pick "Not scheduled" in the Schedule select.
+   - *Expected*: the address gains `milestones=unscheduled`, only the unscheduled milestone is listed and the page says "Showing 1 of 2 milestones".
+3. They type a name that matches no milestone, then press "Clear the filters".
+   - *Expected*: the table says "No milestone matches the filters"; after the clear both milestones are listed again.
+4. They press "Hide the milestones table" and reload the page.
+   - *Expected*: the table is gone, the address holds no `milestones` parameter, and after the reload the button reads "Show the milestones table" with no table (the choice is remembered).
+5. They open the project's address with `?milestones=scheduled`.
+   - *Expected*: the table is open again although it was hidden, listing the scheduled milestone alone.
+
 ## Not covered here (and why)
 
 - The grouping "Work stream › Program", the closed-stream mark, the accent folding and the picker's not being clearable: pinned by the
   unit tests (`projectPicker.test.ts`, `ProjectPicker.test.tsx`); the dropdown's axe scan is the closed control on `/projects`
   (`accessibility.spec.ts`).
+- The team filter, the sort headers, the accent-folded name match and the swatch beside the team's name: pinned by the unit tests
+  (`ProjectMilestonesTable.test.tsx`, `projectMilestones.test.ts`); the open table's axe scan is the `/projects/:id` scan (`accessibility.spec.ts`).
 - The empty "No projects yet" state: it needs a plan with no project, which the shared stack never has (`ProjectView.start.test.tsx`).

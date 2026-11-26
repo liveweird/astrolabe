@@ -129,7 +129,7 @@ One line per page in nav order: route — guard — the owning section of `.clau
 Everything is lazy under `RequireAuth` unless noted.
 
 - `/` — Overview, everyone — "Home" (links, the plan's figures, the open deviation counts and what you manage).
-- `/plan` — Planning, everyone (actions by the view's `can`; one tree table, folds and pins per browser, work streams and programs re-arranged by drag and menu) — \"Plan\" + `plan-tree.md`.
+- `/plan` — Planning, everyone (actions by the view's `can`; one tree table, folds and pins per browser, work streams and programs re-arranged by drag and menu) — "Plan" + `plan-tree.md`.
 - `/roadmap` — Planning, everyone (`can.editRank`, `can.editTargetWindow`; filters in the URL, remembered) — "Roadmap" + `timeline.md`.
 - `/projects`, `/projects/:id` — Planning, everyone (`can`; the picker, the remembered project) — "Project view" + `projects-view.md` + `timeline.md`.
 - `/programs` — Planning, everyone (the target window by `can`; the program pick in the URL, remembered) — "Programs" + `timeline.md`.

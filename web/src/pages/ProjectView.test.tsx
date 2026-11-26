@@ -216,6 +216,7 @@ describe("Project view page", () => {
       [2, "Invoices"],
       [3, "Timeline"],
       [3, "Unscheduled"],
+      [3, "Milestones"],
       [3, "Dependencies"],
       [3, "Idle gaps"],
     ]);
@@ -1495,6 +1496,7 @@ describe("Project view page: the critical path", () => {
       [2, "Invoices"],
       [3, "Timeline"],
       [3, "Unscheduled"],
+      [3, "Milestones"],
       [3, "Dependencies"],
       [3, "Critical chain"],
       [3, "Idle gaps"],

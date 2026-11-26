@@ -1,7 +1,9 @@
 // The Projects page (/projects, /projects/:id): a bare /projects opens the project this browser viewed last and forgets one that is gone, and
-// the picker above a project's title finds a project by its program's name (and its owner's) and opens the pick as a history entry. Owns: its
-// throwaway people, work stream, program and two projects (unique `e2e-pp-*` names), seeded through the API and deleted by the afterEach through
-// the API (projects first, then program, work stream, people). Read-only in the browser: nothing is written through the UI.
+// the picker above a project's title finds a project by its program's name (and its owner's) and opens the pick as a history entry, and the
+// project page's Milestones table narrows by Schedule (in the address) and name and hides, remembered in the browser. Owns: its throwaway team,
+// people, work stream, program, two projects and two milestones of the first (unique `e2e-pp-*` names), seeded through the API and deleted by the
+// afterEach through the API (projects first - their milestones go with them - then program, work stream, people, team). Read-only in the browser:
+// nothing is written through the UI.
 import type { APIRequestContext } from "@playwright/test";
 import { apiAsAdmin, deleteViaApi, expect, login, test, uniqueText } from "./helpers";
 
@@ -20,6 +22,7 @@ async function seed(api: APIRequestContext, path: string, data: object, tear: st
 }
 
 interface World {
+  team: number;
   program: string;
   alpha: { id: number; name: string; owner: string };
   beta: { id: number; name: string; owner: string };
@@ -28,6 +31,7 @@ interface World {
 /** One work stream and program (unique names) holding two projects of two different owners. */
 async function seedWorld(): Promise<World> {
   const { api } = await apiAsAdmin();
+  const team = await seed(api, "/api/v1/teams", { name: uniqueText("e2e-pp-team") }, "/api/v1/teams");
   const lead = await seed(api, "/api/v1/people", { name: uniqueText("e2e-pp-lead") }, "/api/v1/people");
   const alphaOwner = uniqueText("e2e-pp-alice");
   const betaOwner = uniqueText("e2e-pp-bruno");
@@ -41,7 +45,7 @@ async function seedWorld(): Promise<World> {
   const alphaId = await seed(api, `/api/v1/programs/${programId}/projects`, { name: alphaName, ownerPersonId: alphaOwnerId }, "/api/v1/projects");
   const betaId = await seed(api, `/api/v1/programs/${programId}/projects`, { name: betaName, ownerPersonId: betaOwnerId }, "/api/v1/projects");
   await api.dispose();
-  return { program, alpha: { id: alphaId, name: alphaName, owner: alphaOwner }, beta: { id: betaId, name: betaName, owner: betaOwner } };
+  return { team, program, alpha: { id: alphaId, name: alphaName, owner: alphaOwner }, beta: { id: betaId, name: betaName, owner: betaOwner } };
 }
 
 test("a bare /projects opens the project viewed last in this browser and forgets one that was deleted", async ({ page }) => {
@@ -99,4 +103,57 @@ test("the picker finds a project by its program's name or its owner's and a pick
   await page.goBack();
   await expect(page).toHaveURL(new RegExp(`/projects/${world.alpha.id}$`));
   await expect(page.getByRole("heading", { level: 2, name: world.alpha.name })).toBeVisible();
+});
+
+/** One scheduled and one unscheduled milestone of the first project's team (the schedule write carries the view's revision, as a client that just read it). */
+async function seedMilestones(world: World): Promise<{ built: string; todo: string }> {
+  const { api } = await apiAsAdmin();
+  const built = uniqueText("e2e-pp-built");
+  const todo = uniqueText("e2e-pp-todo");
+  const builtId = await seed(api, `/api/v1/projects/${world.alpha.id}/milestones`, { name: built, teamId: world.team, estimateMd: 3 }, "/api/v1/milestones");
+  await seed(api, `/api/v1/projects/${world.alpha.id}/milestones`, { name: todo, teamId: world.team, estimateMd: 2 }, "/api/v1/milestones");
+  const { revision } = (await (await api.get(`/api/v1/views/project/${world.alpha.id}`)).json()) as { revision: number };
+  const scheduled = await api.put(`/api/v1/milestones/${builtId}/schedule`, { data: { expectedRevision: revision, startDate: "2027-01-11", endDate: "2027-01-15" } });
+  expect(scheduled.status(), await scheduled.text()).toBe(200);
+  await api.dispose();
+  return { built, todo };
+}
+
+test("the project page's Milestones table narrows by Schedule and name, and hides, remembered in this browser", async ({ page }) => {
+  const world = await seedWorld();
+  const { built, todo } = await seedMilestones(world);
+  await login(page);
+  await page.goto(`/projects/${world.alpha.id}`);
+  const table = page.getByRole("table", { name: "Milestones of this project" });
+  await expect(page.getByRole("heading", { level: 3, name: "Milestones", exact: true })).toBeVisible();
+  // Shown by default, earliest start first and the unscheduled last.
+  await expect(table.getByRole("row")).toHaveCount(3);
+  await expect(table.getByRole("row").nth(1)).toContainText(built);
+  await expect(table.getByRole("row").nth(2)).toContainText(todo);
+  await expect(table.getByRole("row").nth(2)).toContainText("Not scheduled");
+
+  // The Schedule choice is kept in the address and narrows the rows.
+  await page.getByRole("combobox", { name: "Schedule" }).click();
+  await page.getByRole("option", { name: "Not scheduled", exact: true }).click();
+  await expect(page).toHaveURL(/[?&]milestones=unscheduled(&|$)/);
+  await expect(table.getByRole("row")).toHaveCount(2);
+  await expect(table.getByRole("row").nth(1)).toContainText(todo);
+  await expect(page.getByText("Showing 1 of 2 milestones")).toBeVisible();
+
+  // A name that matches nothing says so; clearing the filters brings both back.
+  await page.getByRole("textbox", { name: "Name", exact: true }).fill("no-such-milestone");
+  await expect(table.getByText("No milestone matches the filters")).toBeVisible();
+  await page.getByRole("button", { name: "Clear the filters" }).click();
+  await expect(table.getByRole("row")).toHaveCount(3);
+
+  // Hidden, the table is gone and a reload keeps it so; the address opens it again with its Schedule choice.
+  await page.getByRole("button", { name: "Hide the milestones table" }).click();
+  await expect(table).toHaveCount(0);
+  await expect(page).not.toHaveURL(/milestones=/);
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Show the milestones table" })).toBeVisible();
+  await expect(table).toHaveCount(0);
+  await page.goto(`/projects/${world.alpha.id}?milestones=scheduled`);
+  await expect(table.getByRole("row")).toHaveCount(2);
+  await expect(table.getByRole("row").nth(1)).toContainText(built);
 });

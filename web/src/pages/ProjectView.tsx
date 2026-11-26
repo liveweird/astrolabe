@@ -26,6 +26,7 @@ import JiraUnlinkModal from "../components/JiraUnlinkModal";
 import ProjectDependencies from "../components/ProjectDependencies";
 import ProjectEditors from "../components/ProjectEditors";
 import ProjectFacts from "../components/ProjectFacts";
+import ProjectMilestonesTable from "../components/ProjectMilestonesTable";
 import type { MilestoneActions } from "../components/MilestoneMenu";
 import ProjectTimeline, { ProjectTray } from "../components/ProjectTimeline";
 import type { TimelineHandle } from "../components/Timeline";
@@ -277,6 +278,8 @@ function ProjectPage({ id }: { id: number }) {
           </UnscheduledTraySection>
         </TimelineDndContext>
       )}
+      {/* 1.29: the milestones as a filterable table, after the tray (and with something to list: an empty project has the empty state above). */}
+      {milestoneCount > 0 && <ProjectMilestonesTable view={view} />}
       {/* After the tray, not between: the tray's pointer drop needs it close to the timeline (and in view with it). */}
       {dependencies}
       {/* Between the links and the idle gaps; only with the timeline (its toggle is the way out of it). */}
