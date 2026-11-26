@@ -98,6 +98,19 @@ export async function moveProgram(id: number, workStreamId: number): Promise<voi
   await voidRequest(`/api/v1/programs/${id}/move`, { method: "POST", body: JSON.stringify(body) });
 }
 
+/**
+ * Wholesale: the listed work streams take positions 1..n in order, every other one becomes unlisted (by name after them), `[]` resets (ADMIN).
+ * `expectedRevision` is the view's `workStreamOrderRevision`. Answers the new revision of that list; a stale one is a 409.
+ */
+export async function putWorkStreamOrder(body: Schemas["WorkStreamOrderUpdateRequest"]): Promise<Schemas["PlanOrderResponse"]> {
+  return jsonRequest<Schemas["PlanOrderResponse"]>("/api/v1/work-stream-order", { method: "PUT", body: JSON.stringify(body) });
+}
+
+/** The same for one work stream's programs (its owner or ADMIN); `expectedRevision` is that stream's `programOrderRevision`. */
+export async function putProgramOrder(workStreamId: number, body: Schemas["ProgramOrderUpdateRequest"]): Promise<Schemas["PlanOrderResponse"]> {
+  return jsonRequest<Schemas["PlanOrderResponse"]>(`/api/v1/work-streams/${workStreamId}/program-order`, { method: "PUT", body: JSON.stringify(body) });
+}
+
 export async function deleteProject(id: number): Promise<void> {
   await voidRequest(`/api/v1/projects/${id}`, { method: "DELETE" });
 }

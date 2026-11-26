@@ -82,6 +82,21 @@
     "announcePinned": "Przypięto: {{name}}",
     "announceUnpinned": "Odpięto: {{name}}"
   },
+  "order": {
+    "moveUp": "W górę",
+    "moveUpAria": "Przesuń w górę: {{name}}",
+    "moveDown": "W dół",
+    "moveDownAria": "Przesuń w dół: {{name}}",
+    "off": "Zmiana kolejności jest wyłączona, gdy działa wyszukiwanie, filtr właściciela lub „Pokaż tylko to”: wyczyść go, aby przesuwać strumienie pracy lub programy.",
+    "stale": "Plan zmienił się w międzyczasie, więc nowa kolejność nie została zapisana, a plan wczytano ponownie. Zrób zmianę jeszcze raz, jeśli nadal jej chcesz.",
+    "forbidden": "Kolejność strumieni pracy zmienia tylko administrator/ka, a kolejność programów strumienia – jego właściciel/ka lub administrator/ka",
+    "announceMoved": "{{name}} przesunięto na pozycję {{position}} z {{count}}",
+    "announcePickedUp": "Podniesiono: {{name}}, pozycja {{position}} z {{count}}",
+    "announceOver": "{{name}}: upuszczenie da pozycję {{position}} z {{count}}",
+    "announceUnchanged": "Upuszczono {{name}} w tym samym miejscu, pozycja {{position}} z {{count}}",
+    "announceOutside": "Upuszczono {{name}} poza listą, nic się nie zmieniło",
+    "announceCancelled": "Anulowano przesunięcie: {{name}}"
+  },
   "focus": {
     "showOnly": "Pokaż tylko to",
     "showOnlyAria": "Pokaż tylko to: {{name}}",

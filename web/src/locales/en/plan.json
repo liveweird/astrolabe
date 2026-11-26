@@ -70,6 +70,21 @@
     "announcePinned": "{{name}} pinned",
     "announceUnpinned": "{{name}} unpinned"
   },
+  "order": {
+    "moveUp": "Move up",
+    "moveUpAria": "Move up: {{name}}",
+    "moveDown": "Move down",
+    "moveDownAria": "Move down: {{name}}",
+    "off": "Reordering is off while a search, an owner filter or \"Show only this\" is on: clear it to move work streams or programs.",
+    "stale": "The plan changed in the meantime, so the new order was not saved and the plan was reloaded. Make the change again if you still want it.",
+    "forbidden": "Only an administrator can reorder work streams, and only a work stream's owner or an administrator its programs",
+    "announceMoved": "{{name}} moved to position {{position}} of {{count}}",
+    "announcePickedUp": "{{name}} picked up, position {{position}} of {{count}}",
+    "announceOver": "{{name}}: drop to take position {{position}} of {{count}}",
+    "announceUnchanged": "{{name}} dropped where it was, position {{position}} of {{count}}",
+    "announceOutside": "{{name}} dropped outside its list, nothing changed",
+    "announceCancelled": "Move of {{name}} cancelled"
+  },
   "focus": {
     "showOnly": "Show only this",
     "showOnlyAria": "Show only this: {{name}}",

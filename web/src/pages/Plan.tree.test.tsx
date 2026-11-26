@@ -5,7 +5,7 @@ import Plan from "./Plan";
 import type { PlanView } from "../api/plan";
 import { routeFetch } from "../test/http";
 import { linksView } from "../test/jiraLinks";
-import { findPlanTree, planOf } from "../test/planView";
+import { findPlanTree, planOf, planStatus } from "../test/planView";
 import { renderWithProviders } from "../test/render";
 
 const COLLAPSED_KEY = "astrolabe.viewSettings.plan.collapsed";
@@ -29,7 +29,7 @@ const keys = () =>
     .slice(1)
     .map((row) => row.getAttribute("data-key"));
 const stored = () => JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? "null") as unknown;
-const status = () => screen.getByRole("status");
+const status = planStatus;
 
 const PEOPLE = { items: [{ id: 4, name: "Ola Owner", email: "ola@example.com", userId: null, userEmail: null, createdAt: 1, updatedAt: 2 }], page: 1, pageSize: 50, total: 1 };
 

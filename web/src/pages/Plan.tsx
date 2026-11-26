@@ -12,6 +12,8 @@ import LoadingBlock from "../components/LoadingBlock";
 import PageHeader from "../components/PageHeader";
 import PlanBreadcrumb, { type Crumb } from "../components/PlanBreadcrumb";
 import PlanDialogs from "../components/PlanDialogs";
+import PlanDndContext from "../components/PlanDndContext";
+import PlanOrderNotices from "../components/PlanOrderNotices";
 import PlanPinned from "../components/PlanPinned";
 import PlanToolbar from "../components/PlanToolbar";
 import PlanTree from "../components/PlanTree";
@@ -19,17 +21,23 @@ import { usePlanDialogs } from "../hooks/usePlanDialogs";
 import { usePlanFilters } from "../hooks/usePlanFilters";
 import { usePlanFocusReturn } from "../hooks/usePlanFocusReturn";
 import { usePlanFolds } from "../hooks/usePlanFolds";
+import { usePlanOrder } from "../hooks/usePlanOrder";
+import { usePlanOrderFocus } from "../hooks/usePlanOrderFocus";
 import { usePlanPins } from "../hooks/usePlanPins";
 import { useStatusAnnouncer } from "../hooks/useStatusAnnouncer";
 import type { PlanViewActions } from "../utils/planActions";
 import { isPlainClick } from "../utils/planLinks";
+import { canOrderAnything, orderBlocked, placeIn } from "../utils/planOrder";
 import { focusTrail, foldableKeys, isFiltered, planRows, type NodeRow } from "../utils/planTree";
+
+/** The id of the note that says why reordering is off: the disabled Move items point at it. */
+const ORDER_NOTE_ID = "plan-order-off";
 
 /**
  * The Plan page (`/plan`): the whole hierarchy work stream → program → project as ONE tree table, readable by everyone. What each row offers
  * comes from the server's `can:{}` flags in the view (the same arithmetic as the guards), never from the session's roles. This file only
  * composes: the filters and the focus in the address (`usePlanFilters`), the folds (`usePlanFolds`), the pins (`usePlanPins`), the dialogs and their
- * actions (`usePlanDialogs`), the pinned section, the breadcrumb and the table.
+ * actions (`usePlanDialogs`), the order (`usePlanOrder`: the grips and the menu's Move items), the pinned section, the breadcrumb and the table.
  */
 export default function Plan() {
   const { t } = useTranslation();
@@ -43,6 +51,9 @@ export default function Plan() {
   const pins = usePlanPins(data, announce);
   const returnFocus = usePlanFocusReturn(titleRef, filters.address);
   const dialogs = usePlanDialogs(data, titleRef, folds.expand);
+  // Re-arranging work streams and programs: one write path, and the focus kept on the row's menu button after a Move up / Move down.
+  const order = usePlanOrder(data, announce);
+  const orderFocus = usePlanOrderFocus(order, titleRef);
   // The sticky pinned section covers the top of the page: the tree's rows keep clear of it when they take the focus (`scroll-margin-top`).
   const { ref: pinnedRef, height: pinnedHeight } = useElementSize<HTMLDivElement>();
 
@@ -53,7 +64,16 @@ export default function Plan() {
 
   const nodeFocus = (row: NodeRow) => ({ kind: row.kind, id: row.kind === "workStream" ? row.stream.id : row.program.id });
   const nameOf = (row: NodeRow) => (row.kind === "workStream" ? row.stream.name : row.program.name);
+  const blocked = orderBlocked(filter);
   const view: PlanViewActions = {
+    order: {
+      place: (row) => (data ? placeIn(data, nodeFocus(row)) : null),
+      blocked,
+      room: !blocked && data !== undefined && canOrderAnything(data),
+      noteId: ORDER_NOTE_ID,
+      move: (row, delta) => orderFocus.change(`tree:${row.key}`, () => order.move(nodeFocus(row), delta)),
+      menuClosed: (row) => orderFocus.menuClosed(`tree:${row.key}`),
+    },
     isPinned: (key) => pins.pinned.has(key),
     pin: pins.pin,
     unpin: pins.unpin,
@@ -97,6 +117,7 @@ export default function Plan() {
 
       {isError && <ErrorAlert error={error} title={t("plan.loadFailed")} />}
       {dialogs.closeError !== null && <FormErrorAlert>{dialogs.closeError}</FormErrorAlert>}
+      <PlanOrderNotices order={order} off={blocked && data !== undefined && canOrderAnything(data)} noteId={ORDER_NOTE_ID} />
 
       {isLoading && <LoadingBlock />}
       {data && data.workStreams.length === 0 && (
@@ -146,7 +167,9 @@ export default function Plan() {
               }
             />
           ) : (
-            <PlanTree rows={rows} actions={dialogs.actions} view={view} highlight={filter.q} onToggle={folds.toggle} />
+            <PlanDndContext view={data} rows={rows} onDrop={order.dropAt} announce={announce}>
+              <PlanTree rows={rows} actions={dialogs.actions} view={view} highlight={filter.q} busy={order.pending} onToggle={folds.toggle} />
+            </PlanDndContext>
           )}
         </>
       )}

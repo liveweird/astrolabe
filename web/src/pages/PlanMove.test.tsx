@@ -138,7 +138,7 @@ describe("Plan page: Move to…", () => {
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("button", { name: "Operations for Audit" }));
     expect(await screen.findByRole("menuitem", { name: "Edit Audit" })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: /^Move/ })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: /to another/ })).toBeNull();
     await user.keyboard("{Escape}");
   });
 
@@ -150,7 +150,7 @@ describe("Plan page: Move to…", () => {
     await findPlanTree();
     await user.click(screen.getByRole("button", { name: "Operations for Identity" }));
     expect(await screen.findByRole("menuitem", { name: "Edit Identity" })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: /^Move/ })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: /to another/ })).toBeNull();
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("button", { name: "Operations for Archive" }));
     expect((await screen.findAllByRole("menuitem")).map((el) => el.getAttribute("aria-label"))).toEqual(["Show only this: Archive", "Pin: Archive"]);
@@ -222,7 +222,7 @@ describe("Plan page: Move to…", () => {
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("button", { name: "Operations for Invoices" }));
     expect(await screen.findByRole("menuitem", { name: "Edit Invoices" })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: /^Move/ })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: /to another/ })).toBeNull();
     const menu = screen.getByRole("menuitem", { name: "Delete Invoices" }).parentElement as HTMLElement;
     expect(menu.querySelectorAll(".mantine-Menu-divider")).toHaveLength(2); // Pin | Edit | Delete
     await user.keyboard("{Escape}");
@@ -250,7 +250,7 @@ describe("Plan page: Move to…", () => {
     renderWithProviders(<Plan />);
     await user.click(await screen.findByRole("button", { name: "Operations for Billing" }));
     expect(await screen.findByRole("menuitem", { name: "Edit Billing" })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: /^Move/ })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: /to another/ })).toBeNull();
   });
 
   test("when the last target disappears under the open dialog it says why and Move is disabled", async () => {

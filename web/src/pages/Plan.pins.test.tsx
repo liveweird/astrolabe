@@ -5,7 +5,7 @@ import Plan from "./Plan";
 import { headingOutline } from "../test/headings";
 import { routeFetch } from "../test/http";
 import { linksView } from "../test/jiraLinks";
-import { findPlanTree, planOf } from "../test/planView";
+import { findPlanTree, planOf, planStatus } from "../test/planView";
 import { renderWithProviders } from "../test/render";
 
 const PINS_KEY = "astrolabe.viewSettings.plan.pins";
@@ -33,7 +33,7 @@ const treeKeys = () =>
     .getAllByRole("row")
     .slice(1)
     .map((row) => row.getAttribute("data-key"));
-const status = () => screen.getByRole("status");
+const status = planStatus;
 
 function show(route = "/plan", plan = PLAN) {
   vi.stubGlobal("fetch", routeFetch({ "GET /api/v1/views/plan": plan, "GET /api/v1/views/jira-links": linksView(), "GET /api/v1/people": { items: [], page: 1, pageSize: 20, total: 0 } }));

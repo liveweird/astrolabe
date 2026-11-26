@@ -87,3 +87,13 @@ export function planOf(streams: readonly StreamSpec[], over: Partial<PlanView> =
 
 /** Waits for the Plan page's table (its accessible name is the one `plan.tree.tableAria` says in English). */
 export const findPlanTree = () => screen.findByRole("table", { name: "Work streams, programs and projects" });
+
+/**
+ * The Plan page's own polite status region. dnd-kit mounts a second, assertive `role="status"` region of its own (silenced: the page is the one announcer),
+ * so a bare `getByRole("status")` finds two.
+ */
+export const planStatus = (): HTMLElement => {
+  const region = screen.getAllByRole("status").find((candidate) => candidate.getAttribute("aria-live") === "polite");
+  if (region === undefined) throw new Error("The Plan page's status region is not on the screen");
+  return region;
+};

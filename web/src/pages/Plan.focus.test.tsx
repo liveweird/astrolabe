@@ -5,7 +5,7 @@ import { useLocation } from "react-router-dom";
 import Plan from "./Plan";
 import { routeFetch } from "../test/http";
 import { linksView } from "../test/jiraLinks";
-import { findPlanTree, planOf } from "../test/planView";
+import { findPlanTree, planOf, planStatus } from "../test/planView";
 import { renderWithProviders } from "../test/render";
 
 const PLAN = planOf([
@@ -30,7 +30,7 @@ const keys = () =>
     .slice(1)
     .map((row) => row.getAttribute("data-key"));
 const address = () => screen.getByTestId("where").textContent;
-const status = () => screen.getByRole("status");
+const status = planStatus;
 const crumbs = () => within(screen.getByRole("navigation", { name: "Part of the plan shown" }));
 
 function show(route: string) {

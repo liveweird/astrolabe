@@ -32,8 +32,25 @@ export type PlanActions = {
   canMoveProgram: (program: PlanProgram) => boolean;
 };
 
+/** What a row may ask of the page about its place among its siblings: the grip and the menu's Move items. */
+type PlanOrderActions = {
+  /** The row's place among the rows it can be moved among, or `null`: it cannot be moved (no right, or nothing to move it among). */
+  place: (row: NodeRow) => { index: number; count: number } | null;
+  /** Reordering is off: a search, an owner or a focus shows only part of the plan. No grip; the Move items stay, disabled, and name `noteId`. */
+  blocked: boolean;
+  /** Some row of the table has a grip: the rows without one keep its room, so the names of the tree stay aligned. */
+  room: boolean;
+  /** The id of the page's note that says why reordering is off. */
+  noteId: string;
+  /** Move up (-1) or down (+1) from the row's menu: the focus stays on the menu button. */
+  move: (row: NodeRow, delta: -1 | 1) => void;
+  /** The row's menu has finished closing (the focus is put back on its button there). */
+  menuClosed: (row: NodeRow) => void;
+};
+
 /** What a row's view group may ask of the page (the focus and the pins), apart from the dialogs' `PlanActions`. */
 export type PlanViewActions = {
+  order: PlanOrderActions;
   /** Whether the node is a pinned root (the pin marker, the menu's Pin or Unpin). */
   isPinned: (key: string) => boolean;
   pin: (row: PlanTreeRow) => void;

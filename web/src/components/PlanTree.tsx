@@ -18,6 +18,7 @@ export default function PlanTree({
   actions,
   view,
   highlight,
+  busy,
   onToggle,
 }: {
   rows: readonly Row[];
@@ -25,13 +26,15 @@ export default function PlanTree({
   view: PlanViewActions;
   /** The name search's text, marked in the names. */
   highlight: string;
+  /** An order write is in flight (said as `aria-busy`: a change is refused until it is over). */
+  busy: boolean;
   onToggle: (row: NodeRow) => void;
 }) {
   const { t } = useTranslation();
   const label = t("plan.tree.tableAria");
   return (
     <ScrollRegion label={label} minWidth={800}>
-      <Table layout="fixed" aria-label={label} className={classes.planTreeTable}>
+      <Table layout="fixed" aria-label={label} aria-busy={busy} className={classes.planTreeTable}>
         <PlanTableHead />
         <Table.Tbody>
           {rows.map((row) => (

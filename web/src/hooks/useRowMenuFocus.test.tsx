@@ -224,3 +224,25 @@ describe("useRowMenuFocus", () => {
     });
   });
 });
+
+describe("useRowMenuFocus: string ids", () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+
+  test("a scope-qualified id (the Plan table's tree:pg:12) is found by its data-operations-for, and the armed second put waits for THAT menu", () => {
+    const own = document.createElement("button");
+    own.dataset.operationsFor = "tree:pg:12";
+    const copy = document.createElement("button");
+    copy.dataset.operationsFor = "pin:ws:1>pg:12";
+    const other = document.createElement("button");
+    document.body.append(own, copy, other);
+    const { result } = renderHook(() => useRowMenuFocus({ current: null }));
+    result.current.keep("tree:pg:12");
+    other.focus();
+    result.current.menuClosed("pin:ws:1>pg:12");
+    expect(document.activeElement).toBe(other);
+    result.current.menuClosed("tree:pg:12");
+    expect(document.activeElement).toBe(own);
+  });
+});

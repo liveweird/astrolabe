@@ -424,6 +424,49 @@ table.table {
   }
 }
 
+/* The grip a work stream or program row is dragged by (a pointer affordance: aria-hidden, no tab stop). touch-action and user-select are the GRIP's only,
+   so the page still scrolls and selects around it. */
+.planRowHandle {
+  display: inline-flex;
+  flex: none;
+  align-self: center;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  color: var(--mantine-color-dimmed);
+}
+
+/* The room of a grip on a row that has none (the same width and place), so the names of the tree line up. */
+.planRowHandleRoom {
+  flex: none;
+  width: 20px;
+}
+
+/* The row held by a drag stays where it is, at half strength; the overlay card and the drop line show the move. */
+.planTreeRow[data-dragging="true"] {
+  opacity: 0.5;
+}
+
+/* The drop line of a row drag: a 2px rule across the table at the gap the held row would land in. Fixed (it follows client coordinates, so no scroller clips it)
+   and under the app header. */
+.planRowDropLine {
+  position: fixed;
+  z-index: 5;
+  height: 2px;
+  background: var(--mantine-primary-color-filled);
+  pointer-events: none;
+}
+
+@media (forced-colors: active) {
+  .planRowDropLine {
+    background: Highlight;
+  }
+}
+
 .planTreeLeaf {
   padding-inline-start: 22px;
 }

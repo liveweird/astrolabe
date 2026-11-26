@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, type RefObject } from "react";
 import type { TimelineHandle } from "../components/Timeline";
+import type { BarId } from "../utils/timelineModel";
 
 /**
  * Where the keyboard focus goes after a project row's menu was used (the roadmap's rank moves, both plan pages' target-window items), so a
@@ -28,25 +29,25 @@ export function useRowMenuFocus(
    * Put the focus back on the row of `id` after the next render and again when the menu of `from` (default: the same row) has closed - only when
    * the change was `taken`. `from` differs when the used row leaves the list and the focus goes to a neighbour (Rank under "Unranked projects only").
    */
-  keep: (id: number, taken?: boolean, from?: number) => void;
+  keep: (id: BarId, taken?: boolean, from?: BarId) => void;
   /** Put the focus back on the row of `id` after the next render only: a dialog opened from the menu has closed (its menu finished closing long ago). */
-  restore: (id: number) => void;
+  restore: (id: BarId) => void;
   /** The row's menu has finished closing: refocus if a change asked for it. */
-  menuClosed: (id: number) => void;
+  menuClosed: (id: BarId) => void;
   /** A write for the change just kept went out (not a no-op): if it is rolled back, `returnToOrigin` goes to the row `from`. */
-  watchRollback: (from: number) => void;
+  watchRollback: (from: BarId) => void;
   /** The watched write was rolled back: put the focus on the row it came from, unless the user has moved it elsewhere. Once per write. */
   returnToOrigin: () => void;
   /** The watched write settled without a rollback: nothing is left to return to. */
   forgetOrigin: () => void;
 } {
-  const refocus = useRef<number | null>(null);
-  const afterExit = useRef<{ menu: number; target: number } | null>(null);
-  const origin = useRef<number | null>(null);
+  const refocus = useRef<BarId | null>(null);
+  const afterExit = useRef<{ menu: BarId; target: BarId } | null>(null);
+  const origin = useRef<BarId | null>(null);
   /** The element this hook last put the focus on (null: unknown, as when the virtual path focuses the row later). */
   const placed = useRef<Element | null>(null);
   const putFocusOn = useCallback(
-    (id: number) => {
+    (id: BarId) => {
       const button = document.querySelector<HTMLElement>(`[data-operations-for="${id}"]`);
       if (button !== null) {
         button.focus();

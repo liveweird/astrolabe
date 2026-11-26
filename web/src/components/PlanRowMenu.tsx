@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode } from "react";
 import { Menu } from "@mantine/core";
-import { IconArrowsExchange, IconFileImport, IconFocus2, IconLock, IconLockOpen, IconPencil, IconPin, IconPinnedOff, IconTrash } from "@tabler/icons-react";
+import { IconArrowDown, IconArrowUp, IconArrowsExchange, IconFileImport, IconFocus2, IconLock, IconLockOpen, IconPencil, IconPin, IconPinnedOff, IconTrash } from "@tabler/icons-react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
@@ -28,13 +28,18 @@ export default function PlanRowMenu({ row, scope, opsId, actions, view }: { row:
   const groups = (
     [
       ["view", viewGroup(row, scope, view, t, label)],
+      ["order", orderGroup(row, scope, view, t, label)],
       ["edit", editGroup(row, actions, t, label)],
       ["delete", deleteGroup(row, actions, t, label)],
     ] as const
   ).filter(([, items]) => items.length > 0);
   if (groups.length === 0) return null;
   return (
-    <RowActionsMenu label={label(t("common.table.operationsAria", { name }))} trigger={{ tabIndex: 0, "data-operations-for": opsId }}>
+    <RowActionsMenu
+      label={label(t("common.table.operationsAria", { name }))}
+      trigger={{ tabIndex: 0, "data-operations-for": opsId }}
+      onClosed={row.kind !== "project" && scope === "tree" ? () => view.order.menuClosed(row) : undefined}
+    >
       {groups.map(([id, items], index) => (
         <Fragment key={id}>
           {index > 0 && <Menu.Divider />}
@@ -70,6 +75,28 @@ function viewGroup(row: PlanTreeRow, scope: PlanScope, view: PlanViewActions, t:
     );
   }
   return items;
+}
+
+/**
+ * Move up and Move down (the keyboard and screen-reader path of the row drag): a work stream or program the caller may re-arrange, in the tree only. At either end
+ * of its siblings the move that cannot go anywhere is disabled; while a search, an owner or a focus shows only part of the plan both are, and name the page's note
+ * that says why (`aria-describedby`), so the reason is available where the item is.
+ */
+function orderGroup(row: PlanTreeRow, scope: PlanScope, view: PlanViewActions, t: TFunction, label: Label): ReactNode[] {
+  if (scope !== "tree" || row.kind === "project") return [];
+  const place = view.order.place(row);
+  if (place === null) return [];
+  const name = rowName(row);
+  const { blocked, noteId } = view.order;
+  const why = blocked ? noteId : undefined;
+  return [
+    <Menu.Item key="up" leftSection={<IconArrowUp size={14} />} disabled={blocked || place.index === 0} aria-describedby={why} onClick={() => view.order.move(row, -1)} aria-label={label(t("plan.order.moveUpAria", { name }))}>
+      {t("plan.order.moveUp")}
+    </Menu.Item>,
+    <Menu.Item key="down" leftSection={<IconArrowDown size={14} />} disabled={blocked || place.index === place.count - 1} aria-describedby={why} onClick={() => view.order.move(row, 1)} aria-label={label(t("plan.order.moveDownAria", { name }))}>
+      {t("plan.order.moveDown")}
+    </Menu.Item>,
+  ];
 }
 
 /** Edit, close or reopen (a work stream), "Move to…" and the Jira import: what changes the node or sends it elsewhere. */

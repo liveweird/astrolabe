@@ -5,7 +5,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import Plan from "./Plan";
 import { routeFetch } from "../test/http";
 import { linksView } from "../test/jiraLinks";
-import { findPlanTree, planOf } from "../test/planView";
+import { findPlanTree, planOf, planStatus } from "../test/planView";
 import { renderWithProviders } from "../test/render";
 
 const COLLAPSED_KEY = "astrolabe.viewSettings.plan.collapsed";
@@ -53,7 +53,7 @@ const keys = () =>
     .map((row) => row.getAttribute("data-key"));
 const row = (key: string) => document.querySelector(`tr[data-key="${key}"]`) as HTMLElement;
 const address = () => screen.getByTestId("where").textContent;
-const status = () => screen.getByRole("status");
+const status = planStatus;
 
 function show(route: string) {
   vi.stubGlobal("fetch", routeFetch({ "GET /api/v1/views/plan": PLAN, "GET /api/v1/views/jira-links": linksView() }));

@@ -10,6 +10,8 @@ import {
   getPlanView,
   listPrograms,
   listProjects,
+  putProgramOrder,
+  putWorkStreamOrder,
   setProjectTargetWindow,
   updateProgram,
   updateProject,
@@ -49,6 +51,18 @@ describe("plan API wrappers", () => {
     expect(lastCall()[0]).toBe("/api/v1/programs?page=1&pageSize=50&sort=name&name=Bil");
     await listPrograms({ page: 2, pageSize: 10 });
     expect(lastCall()[0]).toBe("/api/v1/programs?page=2&pageSize=10");
+  });
+
+  test("the two order writes PUT the whole list with the list's own revision and answer the new revision", async () => {
+    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(200, { revision: 9 })));
+    expect(await putWorkStreamOrder({ expectedRevision: 4, workStreamIds: [2, 1] })).toEqual({ revision: 9 });
+    expect(lastCall()[0]).toBe("/api/v1/work-stream-order");
+    expect(lastCall()[1].method).toBe("PUT");
+    expect(lastBody()).toEqual({ expectedRevision: 4, workStreamIds: [2, 1] });
+    await putProgramOrder(7, { expectedRevision: 0, programIds: [12, 10, 11] });
+    expect(lastCall()[0]).toBe("/api/v1/work-streams/7/program-order");
+    expect(lastCall()[1].method).toBe("PUT");
+    expect(lastBody()).toEqual({ expectedRevision: 0, programIds: [12, 10, 11] });
   });
 
   test("getPlanView GETs the view", async () => {

@@ -2,7 +2,7 @@
 
 - **Spec**: [tests/plan.spec.ts](../tests/plan.spec.ts)
 - **Actors**: the seed administrator (`admin@astrolabe.local`); in the second test one throwaway user (the
-  owner of one project, through their linked person)
+  owner of one project, through their linked person); in the order tests a work stream's owner and a reader
 - **Owns** (exclusive server-side state): its throwaway people (unique `e2e-plan-*` names), work streams,
   programs and projects (`e2e-plan-*`) and the user — all deleted by the end of the file (the plan nodes and
   people also by the afterEach, through the API, children first, when a step fails first)
@@ -82,7 +82,32 @@
 8. They press **Unpin: <the program> (pinned)** in the pinned section.
    - *Expected*: the section is gone and the focus is on the program's row menu button in the tree.
 
+## Scenario: a work stream owner re-orders its programs by a drag and from the row menu; the Programs page and an admin read the same order; a reader has no grip
+
+1. The admin creates two throwaway users, the owner of a work stream (through a linked person) and a reader with no person, and seeds, through the API, that stream with three programs (A, B, C by name) and a project under each (the Programs page's rows are read by their fold buttons, which only a program with projects has).
+2. The reader opens the Plan page.
+   - *Expected*: the programs are in name order (A, B, C) and no row of the table has a grip.
+3. The owner signs in and opens the Plan page.
+   - *Expected*: each program row has a grip; the work stream's row has none (ordering streams is the administrator's right) and the project's row has none (a project is never re-arranged).
+4. They press the grip of program A and drag it, with the pointer, onto the lower half of program C's block (its project's row, the last row under C).
+   - *Expected*: the page saves the stream's program order (a 200) and the programs are B, C, A (A's project travelled with it).
+5. With the keyboard they focus A's menu button, press Enter and use the arrow keys to **Move up: A** (the menu opens on **Show only this**; **Move down** is disabled on the last row), then Enter.
+   - *Expected*: the programs are B, A, C; the focus is back on A's menu button; the status region says "<A> moved to position 2 of 3".
+6. They open the Programs page, narrowed to the three programs.
+   - *Expected*: its program rows are B, A, C.
+7. The admin signs in and opens the Plan page.
+   - *Expected*: the same order, B, A, C. The admin deletes the two users (the plan nodes and people are removed through the API).
+
+## Scenario: an admin moves one of its own work streams above the other from the row menu; a closed work stream stays last
+
+1. The admin seeds, through the API, a person and three work streams: two open (named so that "first" sorts before "second") and one closed. They sign in and open the Plan page.
+   - *Expected*: the two open streams each have a grip; by name the first is above the second, and the closed stream is below both.
+2. They choose **Move up: <the second stream>** from its row menu until it is above the first (each step is one place among the open streams; other tests' streams may sit between them, and a step that meets another worker's change is answered with the stale notice and simply goes again).
+   - *Expected*: every step is a 200, the stale 409, or a 400 (another worker deleted its own stream meanwhile, so the full list names a stream that is gone; a delete bumps no order revision) and nothing else; the second stream ends above the first and the closed stream is still below both. After a reload the order is the same.
+
 ## Not covered here (and why)
+
+- **The stale and failure branches of a re-arrangement, the Move items' ends and gating, the off state under a filter, the announcements of a drag and a dropped row outside its list** — pinned by `Plan.order.test.tsx` and `planOrder.test.ts` (the pointer drag itself needs a layout, so only a browser proves it: the first order test); the second test meets the stale notice by chance, never by design.
 
 - **The move dialog's error branches (409/400/403/404), the no-target state and the keyboard path** — pinned by `PlanMove.test.tsx`; the journey drives
   the two happy-path moves and the unchanged ranking.

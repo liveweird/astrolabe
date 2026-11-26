@@ -574,7 +574,7 @@ builder (`roadmapFilteredPath`, `unscheduledMilestonesPath`, `teamLoadWarningPat
 
 ## Plan
 
-Files: `pages/Plan.tsx` (composition only), `components/PlanTree.tsx`, `PlanTreeRow.tsx`, `PlanRowMenu.tsx`, `PlanToolbar.tsx`, `PlanDialogs.tsx`; `hooks/usePlanDialogs.ts`, `usePlanFolds.ts`, `usePlanJiraImport.ts`; `utils/planTree.ts` (pure rows and folds), `planActions.ts` (the row-to-page callback contract), `planMove.ts`, `planForm.ts`; the editors `WorkStreamEditorModal.tsx`, `ProgramEditorModal.tsx`, `ProjectEditorModal.tsx` over
+Files: `pages/Plan.tsx` (composition only), `components/PlanTree.tsx`, `PlanTreeRow.tsx`, `PlanRowMenu.tsx`, `PlanToolbar.tsx`, `PlanDialogs.tsx`, `PlanDndContext.tsx`; `hooks/usePlanDialogs.ts`, `usePlanFolds.ts`, `usePlanJiraImport.ts`, `usePlanOrder.ts`; `utils/planTree.ts` (pure rows and folds), `planOrder.ts` (the order, `plan-tree.md`), `planActions.ts` (the row-to-page callback contract), `planMove.ts`, `planForm.ts`; the editors `WorkStreamEditorModal.tsx`, `ProgramEditorModal.tsx`, `ProjectEditorModal.tsx` over
 `PlanNodeFields.tsx`; `PlanMoveModal.tsx`; `PlanDateInput.tsx`, `AppDatesProvider.tsx`; `api/plan.ts`.
 
 ### Route and data
@@ -636,7 +636,7 @@ arithmetic is `utils/planMove.ts`: `projectMoveTargets` groups the eligible prog
 
 ### Tests
 
-The co-located `Plan*.test.tsx` (`Plan.rows`, `Plan.tree`), `AppDatesProvider.test.tsx` and the `planTree`/`planMove`/`planForm` `utils/` tests.
+The co-located `Plan*.test.tsx` (`Plan.rows`, `Plan.tree`, `Plan.order`), `AppDatesProvider.test.tsx` and the `planTree`/`planMove`/`planForm` `utils/` tests.
 
 ## Project view
 
@@ -1016,7 +1016,7 @@ comes back unchanged = no PUT); a slot up to it is a place in the ranking, so an
 
 ### Roadmap menu focus
 
-A browser blurs a focused element whose row is moved in the DOM, so after a taken menu change the page restores keyboard focus (`refocus` in `Roadmap.tsx`, then `hooks/useRowMenuFocus.ts`).
+A browser blurs a focused element whose row is moved in the DOM, so after a taken menu change the page restores keyboard focus (`refocus` in `Roadmap.tsx`, then `hooks/useRowMenuFocus.ts`). Its ids are `BarId`: the Plan page's order moves pass `tree:pg:12` (`plan-tree.md`).
 
 - The render that reorders is followed by `focus()` on the row's `data-operations-for` menu button, or by `focusRow(id)` when the virtual path has unmounted the row (Move to bottom,
   Rank on a 100-row plan).

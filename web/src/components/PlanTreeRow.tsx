@@ -3,12 +3,15 @@ import { ActionIcon, Anchor, Badge, Group, Table, Text, Tooltip, UnstyledButton,
 import { IconChevronDown, IconChevronRight, IconPin, IconPinnedOff, IconPlus } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
+import { usePlanDragKey } from "../hooks/usePlanDragKey";
 import type { PlanActions, PlanViewActions } from "../utils/planActions";
+import { nodeOf } from "../utils/planOrder";
 import { projectPath } from "../utils/planLinks";
 import { foldedMatchRange } from "../utils/text";
 import { scopedLabel, type PlanScope } from "../utils/planPins";
 import { rowName, type NodeRow, type PlanTreeRow } from "../utils/planTree";
 import classes from "../theme.module.css";
+import PlanRowHandle from "./PlanRowHandle";
 import PlanRowMenu from "./PlanRowMenu";
 
 /** The weight of a name by level: work stream 600, program 500, project 400. */
@@ -40,8 +43,14 @@ export default function PlanTreeRow({
 }) {
   const { t } = useTranslation();
   const label = (text: string) => scopedLabel(t, scope, text);
-  const node = row.kind === "workStream" ? row.stream : row.kind === "program" ? row.program : row.project;
+  const plain = row.kind === "workStream" ? row.stream : row.kind === "program" ? row.program : row.project;
   const pinnedRoot = scope === "pinned" && root === row.key;
+  const dragging = usePlanDragKey() === row.key && scope === "tree";
+  // The grip: a work stream or program the caller may re-arrange, among at least one other, while the table shows all of them. Never in the pinned section.
+  const node = nodeOf(row);
+  const place = scope === "tree" && !view.order.blocked && row.kind !== "project" ? view.order.place(row) : null;
+  // A row of the tree with no grip keeps its room whenever the table has grips, so the names line up.
+  const room = scope === "tree" && row.kind !== "project" && place === null && view.order.room;
   return (
     <Table.Tr
       className={classes.planTreeRow}
@@ -51,10 +60,13 @@ export default function PlanTreeRow({
       data-parent={row.parentKey ?? undefined}
       data-kind={row.kind}
       data-context={row.context ? "true" : undefined}
+      data-dragging={dragging ? "true" : undefined}
     >
       <Table.Th scope="row" className={classes.planTreeName}>
         <div className={classes.planTreeIndent} style={{ "--plan-depth": row.indent } as CSSProperties}>
           <div className={classes.planTreeHead}>
+            {place !== null && node !== null && <PlanRowHandle rowKey={row.key} node={node} label={rowName(row)} index={place.index} count={place.count} />}
+            {room && <span aria-hidden="true" data-print="hide" className={classes.planRowHandleRoom} />}
             <RowName row={row} label={label} highlight={highlight} onToggle={onToggle} />
             {row.kind !== "project" && (
               <Text span size="xs" c="dimmed">
@@ -71,15 +83,15 @@ export default function PlanTreeRow({
               </Text>
             )}
           </div>
-          {node.description && (
-            <Text size="xs" c="dimmed" truncate="end" title={node.description} className={classes.planTreeDescription}>
-              {node.description}
+          {plain.description && (
+            <Text size="xs" c="dimmed" truncate="end" title={plain.description} className={classes.planTreeDescription}>
+              {plain.description}
             </Text>
           )}
         </div>
       </Table.Th>
       <Table.Td>
-        <Text size="sm">{node.ownerName}</Text>
+        <Text size="sm">{plain.ownerName}</Text>
       </Table.Td>
       <Table.Td>
         <Dates row={row} />
