@@ -23,6 +23,8 @@ data class TeamCreateRequest(
     val description: String? = null,
     /** Optional manager — an ACTIVE person of the people directory (400 otherwise); omitted = no manager. */
     val managerPersonId: UInt? = null,
+    /** Optional palette key (V35); omitted = the least-used colour among the ACTIVE teams, counted in the create's transaction. */
+    val colour: TeamColour? = null,
 )
 
 @Serializable
@@ -31,6 +33,8 @@ data class TeamUpdateRequest(
     val description: String? = null,
     /** PUT is a full replace: omitted = unset. An ACTIVE person (400 otherwise). */
     val managerPersonId: UInt? = null,
+    /** Unlike the manager, NOT a full replace: omitted = the stored colour stays (a team always has one). */
+    val colour: TeamColour? = null,
 )
 
 @Serializable
@@ -41,6 +45,8 @@ data class TeamResponse(
     /** The manager as an ACTIVE person; null when unset OR when the assigned person was soft-deleted. */
     val managerPersonId: UInt?,
     val managerName: String?,
+    /** The team's palette key (V35); always set. */
+    val colour: TeamColour,
     val createdAt: Long,
     val updatedAt: Long,
 )
@@ -53,6 +59,7 @@ data class TeamListItem(
     val description: String?,
     val managerPersonId: UInt?,
     val managerName: String?,
+    val colour: TeamColour,
     val createdAt: Long,
     val updatedAt: Long,
 )
@@ -76,12 +83,14 @@ fun sanitizedTeamCreate(request: TeamCreateRequest): TeamCreateRequest = TeamCre
     name = sanitizeSingleLine(request.name, "Name"),
     description = sanitizedDescription(request.description),
     managerPersonId = request.managerPersonId,
+    colour = request.colour,
 )
 
 fun sanitizedTeamUpdate(request: TeamUpdateRequest): TeamUpdateRequest = TeamUpdateRequest(
     name = sanitizeSingleLine(request.name, "Name"),
     description = sanitizedDescription(request.description),
     managerPersonId = request.managerPersonId,
+    colour = request.colour,
 )
 
 /** The team rules — enforced by the route AND re-checked by the service. */

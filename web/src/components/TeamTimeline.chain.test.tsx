@@ -96,7 +96,7 @@ const OWN_LINK: ProjectDependency = {
 const viewOf = (over: Partial<TeamView> = {}): TeamView => ({
   jiraSites: [],
   revision: 10,
-  team: { id: 1, name: "Payments", description: null, managerPersonId: 12, managerName: "Cara New", createdAt: 1, updatedAt: 2, can: { schedule: true, editCapacity: true, editOrder: true }, flags: [] },
+  team: { id: 1, name: "Payments", description: null, managerPersonId: 12, managerName: "Cara New", colour: "INDIGO", createdAt: 1, updatedAt: 2, can: { schedule: true, editCapacity: true, editOrder: true }, flags: [] },
   order: { custom: false, revision: 4, milestoneIds: [] },
   capacity: { periods: [] },
   weeks: [],

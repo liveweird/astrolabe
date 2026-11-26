@@ -431,6 +431,15 @@ object TestTeams {
 
     data class RawTeam(val id: UInt, val name: String, val markedAsDeleted: Boolean)
 
+    /** The ACTIVE teams per colour (V35), read raw past the service: what `TeamColour.leastUsed` must be given to predict a create. */
+    fun activeColourCounts(): Map<ch.nokillswit.teams.TeamColour, Int> = PostgresTestSupport.connect().use { c ->
+        c.createStatement().use { st ->
+            st.executeQuery("SELECT colour, COUNT(*) FROM teams WHERE NOT marked_as_deleted GROUP BY colour").use { rs ->
+                buildMap { while (rs.next()) put(ch.nokillswit.teams.TeamColour.valueOf(rs.getString(1)), rs.getInt(2)) }
+            }
+        }
+    }
+
     suspend fun rawRows(): List<RawTeam> = suspendTransaction(sharedTestDatabase) {
         val t = ch.nokillswit.teams.TeamService.Teams
         t.selectAll().map { RawTeam(it[t.id].value, it[t.name], it[t.markedAsDeleted]) }.toList()

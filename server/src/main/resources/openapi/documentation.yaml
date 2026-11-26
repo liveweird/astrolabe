@@ -725,7 +725,8 @@ paths:
       description: >-
         Creates a team. ADMIN only; a non-admin's malformed body is still `403`. A case-insensitive name clash with an active team is
         `409`. The optional manager must be an active person (`400`); being manager grants no write on the team record itself, but lets
-        that person schedule the team's milestones and edit its capacity periods.
+        that person schedule the team's milestones and edit its capacity periods. An omitted `colour` becomes the palette's least-used
+        colour among the active teams (ties by palette order); an unknown one is `400`.
       requestBody:
         required: true
         content:
@@ -773,8 +774,9 @@ paths:
       operationId: updateTeam
       summary: Rename / re-describe a team, set its manager
       description: >-
-        Replaces a team: an omitted `managerPersonId` clears the manager. ADMIN only; a non-admin gets `403` whether or not the id
-        exists. A set manager must be an active person (`400`); a case-insensitive name clash with another active team is `409`.
+        Replaces a team: an omitted `managerPersonId` clears the manager, but an omitted `colour` keeps the stored one (a team always
+        has a colour). ADMIN only; a non-admin gets `403` whether or not the id exists, an unknown `colour` is `400` for an admin. A set
+        manager must be an active person (`400`); a case-insensitive name clash with another active team is `409`.
       requestBody:
         required: true
         content:
@@ -4379,6 +4381,13 @@ components:
     CapacitySource:
       type: string
       enum: [MANUAL, FLOW]
+    TeamColour:
+      type: string
+      description: >-
+        A team's colour: one key of the fixed palette of twelve, listed in assignment order (the least-used tie-break and the backfill
+        order of existing teams). Persisted by name, so a key is never renamed or removed; the web client draws each in a light and a dark
+        shade.
+      enum: [INDIGO, TEAL, LIME, RASPBERRY, GRAPE, PINK, VIOLET, COBALT, AZURE, LAVENDER, SAPPHIRE, GREEN]
     SyncTrigger:
       type: string
       enum: [MANUAL, SCHEDULED]
@@ -4805,6 +4814,10 @@ components:
           nullable: true
           description: >-
             The team's manager, a person of the people directory; must be active (`400` otherwise).
+        colour:
+          allOf: [{ $ref: '#/components/schemas/TeamColour' }]
+          nullable: true
+          description: 'Optional on create; null = omitted: the least-used colour among the active teams.'
     TeamUpdateRequest:
       type: object
       required: [name]
@@ -4818,9 +4831,13 @@ components:
           nullable: true
           description: >-
             The team's manager, a person of the people directory; must be active (`400` otherwise). Omitted on PUT (a full replace) = no manager.
+        colour:
+          allOf: [{ $ref: '#/components/schemas/TeamColour' }]
+          nullable: true
+          description: 'Optional on update; null = omitted: the stored colour is kept (not a full replace).'
     TeamResponse:
       type: object
-      required: [id, name, managerPersonId, managerName, createdAt, updatedAt]
+      required: [id, name, managerPersonId, managerName, colour, createdAt, updatedAt]
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
@@ -4832,11 +4849,12 @@ components:
           nullable: true
           description: The team's manager (a person); null when unset or when the assigned person was soft-deleted.
         managerName: { type: string, nullable: true, description: The manager's name; null with `managerPersonId`. }
+        colour: { $ref: '#/components/schemas/TeamColour' }
         createdAt: { type: integer, format: int64, description: Epoch millis }
         updatedAt: { type: integer, format: int64, description: Epoch millis }
     TeamListItem:
       type: object
-      required: [id, name, managerPersonId, managerName, createdAt, updatedAt]
+      required: [id, name, managerPersonId, managerName, colour, createdAt, updatedAt]
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
@@ -4848,6 +4866,7 @@ components:
           nullable: true
           description: The team's manager (a person); null when unset or when the assigned person was soft-deleted.
         managerName: { type: string, nullable: true, description: The manager's name; null with `managerPersonId`. }
+        colour: { $ref: '#/components/schemas/TeamColour' }
         createdAt: { type: integer, format: int64 }
         updatedAt: { type: integer, format: int64 }
     TeamPage:
@@ -6292,7 +6311,7 @@ components:
         workingDays: { type: integer, format: int32, minimum: 3, description: The number of idle working days from `start` to `end` (weekends and holidays not counted). }
     TeamViewTeam:
       type: object
-      required: [id, name, managerPersonId, managerName, createdAt, updatedAt, can, flags]
+      required: [id, name, managerPersonId, managerName, colour, createdAt, updatedAt, can, flags]
       description: The `TeamResponse` fields plus what the caller may do with the team's plan and the team-level flags.
       properties:
         id: { type: integer, format: int32, minimum: 0 }
@@ -6305,6 +6324,7 @@ components:
           nullable: true
           description: The team's manager (a person); null when unset or when the assigned person was soft-deleted.
         managerName: { type: string, nullable: true, description: The manager's name; null with `managerPersonId`. }
+        colour: { $ref: '#/components/schemas/TeamColour' }
         createdAt: { type: integer, format: int64, description: Epoch millis }
         updatedAt: { type: integer, format: int64, description: Epoch millis }
         can:

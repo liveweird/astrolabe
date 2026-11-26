@@ -45,6 +45,9 @@ class TeamService(private val database: R2dbcDatabase) {
         /** V10: the optional manager, a person (V6 held a user). May name a soft-deleted person; readers resolve it via ACTIVE people. */
         // The one foreign key from the team tables to People (no roster table), so the implicit Teams -> People join is unambiguous.
         val managerPersonId = reference("manager_person_id", PersonService.People).nullable()
+
+        /** V35: the palette key ([TeamColour]); NOT NULL with a DEFAULT of `INDIGO` kept for a build that does not know the column. */
+        val colour = enumerationByName<TeamColour>("colour", 16)
         val createdAt = long("created_at")
         val updatedAt = long("updated_at")
         override val markedAsDeleted = bool("marked_as_deleted").default(false)
@@ -65,6 +68,7 @@ class TeamService(private val database: R2dbcDatabase) {
                     description = row[Teams.description],
                     managerPersonId = managerId,
                     managerName = managerId?.let(managers::get),
+                    colour = row[Teams.colour],
                     createdAt = row[Teams.createdAt],
                     updatedAt = row[Teams.updatedAt],
                 )
@@ -106,6 +110,7 @@ class TeamService(private val database: R2dbcDatabase) {
             description = row[Teams.description],
             managerPersonId = managerId.takeIf { managerName != null },
             managerName = managerName,
+            colour = row[Teams.colour],
             createdAt = row[Teams.createdAt],
             updatedAt = row[Teams.updatedAt],
         )
@@ -126,10 +131,13 @@ class TeamService(private val database: R2dbcDatabase) {
         validateTeamCreate(request) // re-checked service-side so direct callers stay guarded
         requireActiveManager(request.managerPersonId)
         val stamp = nowMillis()
+        // No lock: two creates racing may share the least-used colour, and sharing is allowed.
+        val chosen = request.colour ?: leastUsedAmongActive()
         val id = Teams.insert {
             it[name] = request.name
             it[description] = request.description
             it[managerPersonId] = request.managerPersonId
+            it[colour] = chosen
             it[createdAt] = stamp
             it[updatedAt] = stamp
         }[Teams.id].value
@@ -137,8 +145,8 @@ class TeamService(private val database: R2dbcDatabase) {
     }
 
     /**
-     * Name/description/manager replace (full replace — an omitted manager clears it). `affected` 0 → 404;
-     * `managerFrom` is the stored manager before the write.
+     * Name/description/manager replace (full replace — an omitted manager clears it) and the colour, written ONLY when sent
+     * (a team always has one). `affected` 0 → 404; `managerFrom` is the stored manager before the write.
      */
     suspend fun update(id: UInt, request: TeamUpdateRequest): TeamUpdateOutcome = suspendTransaction(database) {
         validateTeamUpdate(request)
@@ -152,9 +160,20 @@ class TeamService(private val database: R2dbcDatabase) {
             it[name] = request.name
             it[description] = request.description
             it[managerPersonId] = request.managerPersonId
+            request.colour?.let { sent -> it[colour] = sent }
             it[updatedAt] = nowMillis()
         }
         TeamUpdateOutcome(affected, before[Teams.managerPersonId]?.value)
+    }
+
+    /** The palette's least-used colour among the ACTIVE teams (ties by palette order, [TeamColour.leastUsed]); one grouped read. */
+    private suspend fun leastUsedAmongActive(): TeamColour {
+        val used = Teams.colour.count()
+        val counts = Teams.select(Teams.colour, used).where { Teams.active() }.groupBy(Teams.colour)
+            .map { it[Teams.colour] to it[used].toInt() }
+            .toList()
+            .toMap()
+        return TeamColour.leastUsed(counts)
     }
 
     /**

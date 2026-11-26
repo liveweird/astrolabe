@@ -1,19 +1,24 @@
 package ch.nokillswit
 
 import ch.nokillswit.planning.MilestoneCreateRequest
+import ch.nokillswit.planning.TeamView
 import ch.nokillswit.plugins.ProblemDetail
+import ch.nokillswit.teams.TeamColour
 import ch.nokillswit.teams.TeamCreateRequest
 import ch.nokillswit.teams.TeamPageResponse
 import ch.nokillswit.teams.TeamResponse
 import ch.nokillswit.teams.TeamUpdateRequest
 import ch.nokillswit.users.UserRole
+import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.put
+import io.ktor.client.request.request
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
+import io.ktor.http.HttpMethod
 import io.ktor.http.contentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
@@ -438,5 +443,115 @@ class TeamTest {
             }
         }
         assertEquals(revision, TestPlan.revision(), "the rejected create rolled the revision bump back")
+    }
+
+    private suspend fun HttpClient.rawJson(method: String, url: String, body: String) = request(url) {
+        this.method = HttpMethod.parse(method)
+        contentType(ContentType.Application.Json)
+        setBody(body)
+    }
+
+    @Test
+    fun `a colour round-trips through create, read, list and the team view, and a PUT without it keeps it`() = testApplication {
+        usePostgresTestcontainer()
+        val admin = seededClient("teamcolour", UserRole.ADMIN)
+        val teamName = name("Coloured")
+        val created = admin.postJson("/api/v1/teams", TeamCreateRequest(name = teamName, colour = TeamColour.GRAPE))
+            .body<TeamResponse>()
+        assertEquals(TeamColour.GRAPE, created.colour)
+        assertEquals(created, admin.get("/api/v1/teams/${created.id}").body<TeamResponse>())
+        assertEquals(TeamColour.GRAPE, admin.get("/api/v1/teams?name=$teamName").body<TeamPageResponse>().items.single().colour)
+        assertEquals(TeamColour.GRAPE, admin.get("/api/v1/views/team/${created.id}").body<TeamView>().team.colour)
+
+        // A change reaches all four reads (the view's tag is a hash of its document: ViewValidatorInputsTest).
+        val renamed = name("Recoloured")
+        assertEquals(
+            HttpStatusCode.NoContent,
+            admin.putJson("/api/v1/teams/${created.id}", TeamUpdateRequest(name = renamed, colour = TeamColour.TEAL)).status,
+        )
+        assertEquals(TeamColour.TEAL, admin.get("/api/v1/teams/${created.id}").body<TeamResponse>().colour)
+        assertEquals(TeamColour.TEAL, admin.get("/api/v1/teams?name=$renamed").body<TeamPageResponse>().items.single().colour)
+        assertEquals(TeamColour.TEAL, admin.get("/api/v1/views/team/${created.id}").body<TeamView>().team.colour)
+
+        // Unlike the manager, the colour is NOT a full replace: omitted = kept.
+        val again = name("Renamed")
+        assertEquals(HttpStatusCode.NoContent, admin.putJson("/api/v1/teams/${created.id}", TeamUpdateRequest(name = again)).status)
+        val kept = admin.get("/api/v1/teams/${created.id}").body<TeamResponse>()
+        assertEquals(again, kept.name)
+        assertEquals(TeamColour.TEAL, kept.colour, "a PUT that omits the colour keeps the stored one")
+    }
+
+    @Test
+    fun `an omitted colour is the least-used one among the active teams and a deleted team no longer counts`() = testApplication {
+        usePostgresTestcontainer()
+        val admin = seededClient("teamcolourauto", UserRole.ADMIN)
+        // A fork runs its classes one after another on its own container, so nothing writes a team between the count and the create.
+        val before = TestTeams.activeColourCounts()
+        val first = admin.postJson("/api/v1/teams", TeamCreateRequest(name = name("auto"))).body<TeamResponse>()
+        assertEquals(TeamColour.leastUsed(before), first.colour, "the least-used colour of the active teams, ties by palette order")
+        assertEquals(first.colour, admin.get("/api/v1/teams/${first.id}").body<TeamResponse>().colour)
+        assertEquals((before[first.colour] ?: 0) + 1, TestTeams.activeColourCounts().getValue(first.colour), "the new team counts")
+
+        // Sharing is allowed: an explicit colour another team already holds is accepted.
+        val twin = admin.postJson("/api/v1/teams", TeamCreateRequest(name = name("twin"), colour = first.colour))
+        assertEquals(HttpStatusCode.Created, twin.status)
+        assertEquals(first.colour, twin.body<TeamResponse>().colour)
+
+        // Soft-deleting teams takes them out of the count: afterwards it is what it was, and the next create reads it.
+        assertEquals(HttpStatusCode.NoContent, admin.delete("/api/v1/teams/${twin.body<TeamResponse>().id}").status)
+        assertEquals(HttpStatusCode.NoContent, admin.delete("/api/v1/teams/${first.id}").status)
+        val after = TestTeams.activeColourCounts()
+        assertEquals(before, after, "a deleted team no longer counts")
+        val next = admin.postJson("/api/v1/teams", TeamCreateRequest(name = name("auto2"))).body<TeamResponse>()
+        assertEquals(TeamColour.leastUsed(after), next.colour)
+        admin.delete("/api/v1/teams/${next.id}")
+    }
+
+    @Test
+    fun `an unknown colour is 400 for an admin and a non-admin's stays 403`() = testApplication {
+        usePostgresTestcontainer()
+        val admin = seededClient("teamcolourbad", UserRole.ADMIN)
+        val user = seededClient("teamcolouruser")
+        val id = TestTeams.seed(name("colourbad"))
+        val body = { colour: String -> """{"name":"${name("x")}","colour":$colour}""" }
+        for (bad in listOf("\"MAUVE\"", "\"indigo\"", "\"\"", "7", "{}")) {
+            assertEquals(HttpStatusCode.BadRequest, admin.rawJson("POST", "/api/v1/teams", body(bad)).status, "create with colour $bad")
+            assertEquals(HttpStatusCode.BadRequest, admin.rawJson("PUT", "/api/v1/teams/$id", body(bad)).status, "update with colour $bad")
+            val userCreate = user.rawJson("POST", "/api/v1/teams", body(bad))
+            assertEquals(HttpStatusCode.Forbidden, userCreate.status, "a non-admin's create stays 403")
+            val userUpdate = user.rawJson("PUT", "/api/v1/teams/$id", body(bad))
+            assertEquals(HttpStatusCode.Forbidden, userUpdate.status, "a non-admin's update stays 403")
+        }
+        val unknownTeam = admin.rawJson("PUT", "/api/v1/teams/999999", body("\"MAUVE\""))
+        assertEquals(HttpStatusCode.BadRequest, unknownTeam.status, "400 before the 404")
+        // An explicit null is the same as omitted.
+        assertEquals(HttpStatusCode.Created, admin.rawJson("POST", "/api/v1/teams", body("null")).status)
+        assertEquals(HttpStatusCode.NoContent, admin.rawJson("PUT", "/api/v1/teams/$id", body("null")).status)
+    }
+
+    @Test
+    fun `the colour is audited on create and on update`() = testApplication {
+        usePostgresTestcontainer()
+        val admin = seededClient("teamcolouraudit", UserRole.ADMIN)
+        withAuditCapture { capture ->
+            val created = admin.postJson("/api/v1/teams", TeamCreateRequest(name = name("colouraudit"), colour = TeamColour.PINK))
+                .body<TeamResponse>()
+            val teamId = created.id.toLong()
+            val createdEvent = capture.awaitEvent { it.message == "team.created" && it.hasKeyValue("teamId", teamId) }
+            assertNotNull(createdEvent)
+            assertTrue(createdEvent.hasKeyValue("colour", "PINK"))
+
+            admin.putJson("/api/v1/teams/${created.id}", TeamUpdateRequest(name = name("colouraudit2"), colour = TeamColour.COBALT))
+            val updated = capture.awaitEvent { it.message == "team.updated" && it.hasKeyValue("teamId", teamId) }
+            assertNotNull(updated)
+            assertTrue(updated.hasKeyValue("colour", "COBALT"))
+
+            // A PUT that keeps the colour says so: the field is null, not the stored key.
+            admin.putJson("/api/v1/teams/${created.id}", TeamUpdateRequest(name = name("colouraudit3")))
+            val kept = capture.awaitEvent {
+                it.message == "team.updated" && it.hasKeyValue("teamId", teamId) && it.hasKeyValue("colour", null)
+            }
+            assertNotNull(kept)
+        }
     }
 }

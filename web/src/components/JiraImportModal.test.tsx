@@ -196,7 +196,7 @@ describe("JiraImportModal: honest rows", () => {
       }),
     );
   }
-  const teamOf = (id: number, name: string) => ({ id, name, description: null, managerPersonId: null, managerName: null, createdAt: 1, updatedAt: 2 });
+  const teamOf = (id: number, name: string) => ({ id, name, description: null, managerPersonId: null, managerName: null, colour: "INDIGO", createdAt: 1, updatedAt: 2 });
 
   test("a milestone row's Team select offers a team that is only on the second page of teams, and picking it sends its id", async () => {
     const user = userEvent.setup();

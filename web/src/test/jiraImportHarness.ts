@@ -19,8 +19,8 @@ const PEOPLE = {
 };
 const TEAMS = {
   items: [
-    { id: 5, name: "IMP Team", description: null, managerPersonId: null, managerName: null, createdAt: 1, updatedAt: 2 },
-    { id: 6, name: "Default Team", description: null, managerPersonId: null, managerName: null, createdAt: 1, updatedAt: 2 },
+    { id: 5, name: "IMP Team", description: null, managerPersonId: null, managerName: null, colour: "INDIGO", createdAt: 1, updatedAt: 2 },
+    { id: 6, name: "Default Team", description: null, managerPersonId: null, managerName: null, colour: "INDIGO", createdAt: 1, updatedAt: 2 },
   ],
   page: 1,
   pageSize: 100,

@@ -7,6 +7,7 @@ import ch.nokillswit.planning.PublicHolidayCreateRequest
 import ch.nokillswit.planning.PublicHolidayResponse
 import ch.nokillswit.teams.CapacityPeriodRequest
 import ch.nokillswit.teams.CapacityPeriodResponse
+import ch.nokillswit.teams.TeamColour
 import ch.nokillswit.teams.TeamUpdateRequest
 import ch.nokillswit.users.Permission
 import ch.nokillswit.users.UserPermissionsUpdateRequest
@@ -94,6 +95,22 @@ class ViewValidatorInputsTest {
             cuttable = setOf("/api/v1/views/team-load", "/api/v1/views/dependencies"),
         ) {
             w.admin.client.putJson("/api/v1/teams/$teamId", TeamUpdateRequest(renamed, null, manager.personId)).ok("rename the team")
+        }
+    }
+
+    @Test
+    fun `a team colour change moves the team view's tag`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("vicol", teams = true)
+        val teams = w.requireTeams()
+        val teamId = teams.teamId
+        val name = TestTeams.rawRows().single { it.id == teamId }.name
+        // The new key must differ from the stored one, so the document (and its tag) really changes.
+        val current = w.stranger.client.get("/api/v1/views/team/$teamId").bodyAsText()
+        val next = if (current.contains("\"colour\":\"AZURE\"")) TeamColour.COBALT else TeamColour.AZURE
+        w.stranger.client.followsWrite(mapOf("/api/v1/views/team/$teamId" to "\"colour\":\"${next.name}\"")) {
+            val recolour = TeamUpdateRequest(name, null, teams.manager.personId, next)
+            w.admin.client.putJson("/api/v1/teams/$teamId", recolour).ok("recolour the team")
         }
     }
 

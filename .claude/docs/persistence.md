@@ -5,7 +5,7 @@ Owns: the database stack (Flyway, Exposed + R2DBC, the pool), the migrations lis
 ## Rules
 
 - PostgreSQL is the only database. Runtime access is Exposed over R2DBC; the `org.postgresql:postgresql` JDBC driver is on the classpath solely for Flyway. Migrations are the single source of the schema: never call `SchemaUtils.create`; Exposed table objects are for queries only, never DDL.
-- **An applied migration's bytes are immutable, comments included.** Flyway validates stored checksums at startup, so any edit to an existing `V*.sql` makes every long-lived database refuse to boot (a failure no fresh-container CI run can see). `MigrationChecksumTest` pins every file's checksum; a new migration adds one manifest line; a red pin means REVERT the edit (clarifications go into this doc), never update the pinned value. V1 to V34 today.
+- **An applied migration's bytes are immutable, comments included.** Flyway validates stored checksums at startup, so any edit to an existing `V*.sql` makes every long-lived database refuse to boot (a failure no fresh-container CI run can see). `MigrationChecksumTest` pins every file's checksum; a new migration adds one manifest line; a red pin means REVERT the edit (clarifications go into this doc), never update the pinned value. V1 to V35 today.
 - Exposed table `object`s are nested in their service (`UserService.Users`). Each service lives next to its feature and is published into `Application.attributes` by `infra/db/Database.kt`, the one composition root. Route handlers never touch tables; services only.
 - Ids are `UIntIdTable`, unsigned end to end (the spec declares `minimum: 0`; `ErrorHandling.kt` 400s a negative path segment before it could wrap).
 - **The matrix is the permission.** A service may query or write another feature's table when the operation must run inside its own transaction (a join, an atomic snapshot, a soft delete that must also close a dependent row). A new cross-feature read or write adds its matrix cell and its protocol line in the same commit; the Migrations table, the soft-delete list and the matrix grow in the same commit as each migration.
@@ -66,10 +66,11 @@ One row a file. The files are the DDL; `MigrationChecksumTest` pins their bytes.
 | V28 | `jira_deviation_acknowledgements` | `jira/` |
 | V29 | `jira_observations.gone_probed_key` (no CHECK on purpose: "The Jira sync tables (V21)") | `jira/` |
 | V30 | drops V22's three `jira_bindings.ack_*` columns with their CHECKs and foreign key | `jira/` |
-| V31 | `flow_teams.sprints_complete` (existing rows conservatively false until a complete refresh) | `flow/` |
+| V31 | `flow_teams.sprints_complete` | `flow/` |
 | V32 | `saved_schedule_proposals` (the server's own cross-team run, kept; not plan state) | `planning/` |
 | V33 | `baseline_dependencies`, `baseline_capacity_periods` (trigger-frozen); `baselines.dependency_count`, `capacity_period_count` | `planning/` |
 | V34 | `work_stream_orders`, `program_orders`, `program_order_state`; `plan_state.work_stream_order_revision` | `planning/` |
+| V35 | `teams.colour` (a palette key, `team-colours.md`) | `teams/` |
 
 ## Connection pool
 

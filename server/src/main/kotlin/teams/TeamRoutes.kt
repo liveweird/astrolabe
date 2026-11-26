@@ -63,6 +63,7 @@ fun Application.configureTeamRoutes() {
                     "teamId" to id.toLong(),
                     "name" to request.name,
                     "managerPersonId" to request.managerPersonId?.toLong(),
+                    "colour" to created.colour.name,
                 )
                 call.response.header(HttpHeaders.Location, call.application.href(TeamsRoute.Id(id = id)))
                 call.respond(HttpStatusCode.Created, created)
@@ -83,6 +84,7 @@ fun Application.configureTeamRoutes() {
                     "byUserId" to caller.userId.toLong(),
                     "teamId" to route.id.toLong(),
                     "name" to request.name,
+                    "colour" to request.colour?.name, // null = the PUT kept the stored one
                 )
                 // A manager assignment is a privilege change, so it is its own trail line.
                 if (outcome.managerFrom != request.managerPersonId) {

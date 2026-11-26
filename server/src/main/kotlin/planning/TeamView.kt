@@ -3,6 +3,7 @@
 package ch.nokillswit.planning
 
 import ch.nokillswit.teams.CapacityPeriodResponse
+import ch.nokillswit.teams.TeamColour
 import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
@@ -54,6 +55,7 @@ data class TeamViewTeam(
     val description: String?,
     val managerPersonId: UInt?,
     val managerName: String?,
+    val colour: TeamColour,
     val createdAt: Long,
     val updatedAt: Long,
     val can: TeamViewCan,

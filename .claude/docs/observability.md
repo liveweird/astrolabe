@@ -113,8 +113,8 @@ The catalog of every audit event, by area. What binds a new one is "Rules".
 
 ### Teams and capacity
 
-- `team.created` (byUserId/teamId/name/managerPersonId, nullable) / `team.updated`
-  (byUserId/teamId/name) / `team.manager_changed` (byUserId/teamId/managerFrom/managerTo, nullable PERSON ids as STORED —
+- `team.created` (byUserId/teamId/name/managerPersonId, nullable; colour, the palette key as stored) / `team.updated`
+  (byUserId/teamId/name; colour, the key SENT, null when the PUT kept the stored one) / `team.manager_changed` (byUserId/teamId/managerFrom/managerTo, nullable PERSON ids as STORED —
   only when a PUT actually changes the manager; a manager assignment grants the team-scoped planning rights, so it is its own
   trail line, the `user.roles_changed` precedent) / `team.deleted` (byUserId/teamId/capacityPeriodCount — the ACTIVE capacity periods the delete cascaded, 0 for none) — every team mutation; a rejected save
   emits nothing.

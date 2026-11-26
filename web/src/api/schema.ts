@@ -375,7 +375,7 @@ export interface paths {
         put?: never;
         /**
          * Create a team
-         * @description Creates a team. ADMIN only; a non-admin's malformed body is still `403`. A case-insensitive name clash with an active team is `409`. The optional manager must be an active person (`400`); being manager grants no write on the team record itself, but lets that person schedule the team's milestones and edit its capacity periods.
+         * @description Creates a team. ADMIN only; a non-admin's malformed body is still `403`. A case-insensitive name clash with an active team is `409`. The optional manager must be an active person (`400`); being manager grants no write on the team record itself, but lets that person schedule the team's milestones and edit its capacity periods. An omitted `colour` becomes the palette's least-used colour among the active teams (ties by palette order); an unknown one is `400`.
          */
         post: operations["createTeam"];
         delete?: never;
@@ -400,7 +400,7 @@ export interface paths {
         get: operations["getTeam"];
         /**
          * Rename / re-describe a team, set its manager
-         * @description Replaces a team: an omitted `managerPersonId` clears the manager. ADMIN only; a non-admin gets `403` whether or not the id exists. A set manager must be an active person (`400`); a case-insensitive name clash with another active team is `409`.
+         * @description Replaces a team: an omitted `managerPersonId` clears the manager, but an omitted `colour` keeps the stored one (a team always has a colour). ADMIN only; a non-admin gets `403` whether or not the id exists, an unknown `colour` is `400` for an admin. A set manager must be an active person (`400`); a case-insensitive name clash with another active team is `409`.
          */
         put: operations["updateTeam"];
         post?: never;
@@ -2287,6 +2287,11 @@ export interface components {
         TelemetryRange: "24h" | "7d" | "90d";
         /** @enum {string} */
         CapacitySource: "MANUAL" | "FLOW";
+        /**
+         * @description A team's colour: one key of the fixed palette of twelve, listed in assignment order (the least-used tie-break and the backfill order of existing teams). Persisted by name, so a key is never renamed or removed; the web client draws each in a light and a dark shade.
+         * @enum {string}
+         */
+        TeamColour: "INDIGO" | "TEAL" | "LIME" | "RASPBERRY" | "GRAPE" | "PINK" | "VIOLET" | "COBALT" | "AZURE" | "LAVENDER" | "SAPPHIRE" | "GREEN";
         /** @enum {string} */
         SyncTrigger: "MANUAL" | "SCHEDULED";
         /** @enum {string} */
@@ -2560,6 +2565,8 @@ export interface components {
              * @description The team's manager, a person of the people directory; must be active (`400` otherwise).
              */
             managerPersonId?: number | null;
+            /** @description Optional on create; null = omitted: the least-used colour among the active teams. */
+            colour?: components["schemas"]["TeamColour"] | null;
         };
         TeamUpdateRequest: {
             name: string;
@@ -2569,6 +2576,8 @@ export interface components {
              * @description The team's manager, a person of the people directory; must be active (`400` otherwise). Omitted on PUT (a full replace) = no manager.
              */
             managerPersonId?: number | null;
+            /** @description Optional on update; null = omitted: the stored colour is kept (not a full replace). */
+            colour?: components["schemas"]["TeamColour"] | null;
         };
         TeamResponse: {
             /** Format: int32 */
@@ -2582,6 +2591,7 @@ export interface components {
             managerPersonId: number | null;
             /** @description The manager's name; null with `managerPersonId`. */
             managerName: string | null;
+            colour: components["schemas"]["TeamColour"];
             /**
              * Format: int64
              * @description Epoch millis
@@ -2605,6 +2615,7 @@ export interface components {
             managerPersonId: number | null;
             /** @description The manager's name; null with `managerPersonId`. */
             managerName: string | null;
+            colour: components["schemas"]["TeamColour"];
             /** Format: int64 */
             createdAt: number;
             /** Format: int64 */
@@ -4079,6 +4090,7 @@ export interface components {
             managerPersonId: number | null;
             /** @description The manager's name; null with `managerPersonId`. */
             managerName: string | null;
+            colour: components["schemas"]["TeamColour"];
             /**
              * Format: int64
              * @description Epoch millis

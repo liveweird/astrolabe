@@ -9,8 +9,8 @@ import { renderWithProviders } from "../test/render";
 
 const TEAMS = {
   items: [
-    { id: 3, name: "Backend", description: null, managerPersonId: null, managerName: null, createdAt: 1, updatedAt: 2 },
-    { id: 4, name: "Design", description: null, managerPersonId: null, managerName: null, createdAt: 1, updatedAt: 2 },
+    { id: 3, name: "Backend", description: null, managerPersonId: null, managerName: null, colour: "INDIGO", createdAt: 1, updatedAt: 2 },
+    { id: 4, name: "Design", description: null, managerPersonId: null, managerName: null, colour: "INDIGO", createdAt: 1, updatedAt: 2 },
   ],
   page: 1,
   pageSize: 50,

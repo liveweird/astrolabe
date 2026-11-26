@@ -77,6 +77,7 @@ class TeamViewService(
                 description = team[teams.description],
                 managerPersonId = managerId.takeIf { managerName != null },
                 managerName = managerName,
+                colour = team[teams.colour],
                 createdAt = team[teams.createdAt],
                 updatedAt = team[teams.updatedAt],
                 can = TeamViewCan(

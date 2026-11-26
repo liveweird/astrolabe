@@ -128,6 +128,7 @@ const viewOf = (over: Partial<TeamView> = {}): TeamView => ({
     description: "Money movers",
     managerPersonId: 12,
     managerName: "Cara New",
+    colour: "INDIGO",
     createdAt: 1,
     updatedAt: 2,
     can: { schedule: true, editCapacity: true, editOrder: true },

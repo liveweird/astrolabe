@@ -16,8 +16,8 @@ type FetchMock = ReturnType<typeof vi.fn>;
 
 const PAGE = {
   items: [
-    { id: 1, name: "Payments", description: "Money movers", managerPersonId: 7, managerName: "Mia Manager", createdAt: 1, updatedAt: 2 },
-    { id: 2, name: "Identity", description: null, managerPersonId: null, managerName: null, createdAt: 1, updatedAt: 2 },
+    { id: 1, name: "Payments", description: "Money movers", managerPersonId: 7, managerName: "Mia Manager", colour: "INDIGO", createdAt: 1, updatedAt: 2 },
+    { id: 2, name: "Identity", description: null, managerPersonId: null, managerName: null, colour: "INDIGO", createdAt: 1, updatedAt: 2 },
   ],
   page: 1,
   pageSize: 20,
@@ -29,6 +29,7 @@ const DETAIL = {
   description: "Money movers",
   managerPersonId: 7,
   managerName: "Mia Manager",
+  colour: "INDIGO",
   createdAt: 1,
   updatedAt: 2,
 };
