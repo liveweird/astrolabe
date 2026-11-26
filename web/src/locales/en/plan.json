@@ -56,6 +56,28 @@
     "clear": "Clear filters",
     "cleared": "Filters cleared"
   },
+  "pin": {
+    "title": "Pinned",
+    "count_one": "{{count}} pin",
+    "count_other": "{{count}} pins",
+    "tableAria": "Pinned rows of the plan",
+    "action": "Pin",
+    "actionAria": "Pin: {{name}}",
+    "unpin": "Unpin",
+    "unpinAria": "Unpin: {{name}}",
+    "nameOf": "{{name}} (pinned)",
+    "marker": "Pinned",
+    "announcePinned": "{{name}} pinned",
+    "announceUnpinned": "{{name}} unpinned"
+  },
+  "focus": {
+    "showOnly": "Show only this",
+    "showOnlyAria": "Show only this: {{name}}",
+    "breadcrumbAria": "Part of the plan shown",
+    "all": "All work streams",
+    "announce": "Showing only {{name}}",
+    "announceAll": "Showing the whole plan"
+  },
   "print": {
     "filtered": "Filtered view: not every row of the plan is shown."
   },

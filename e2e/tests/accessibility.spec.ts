@@ -45,6 +45,18 @@ import {
 // No waivers: the theme's text/dimmed/ink tokens are AA-tested in web/src/theme.test.ts, so
 // the color-contrast rule runs for real here . Fix a
 // finding at the token level — never by patching single elements.
+/**
+ * Waits for a program's row on the Plan page, pins it from its row menu and waits for the pinned section (the menu is closed again by then): the scan then covers the
+ * pinned section too - the same rows once more, every name wrapped "(pinned)", its own scroll region.
+ */
+async function pinProgram(page: Page, name: string): Promise<void> {
+  await expect(page.locator(`tr[data-scope="tree"][data-kind="program"]`).filter({ hasText: name })).toBeVisible();
+  await page.getByRole("button", { name: `Operations for ${name}`, exact: true }).click();
+  await page.getByRole("menuitem", { name: `Pin: ${name}` }).click();
+  await expect(page.getByRole("region", { name: "Pinned rows of the plan" })).toBeVisible();
+  await expect(page.getByRole("menuitem")).toHaveCount(0);
+}
+
 async function scan(page: Page, include?: string): Promise<void> {
   // Keep the assert readable on failure: one line per violation with the offending nodes.
   expect(await axeViolations(page, include)).toEqual([]);
@@ -375,7 +387,7 @@ test.describe("detail pages and overlays", () => {
     test(`/plan with a work stream, a program and a project has no WCAG A/AA violations${suffix}`, async ({ page }) => {
       await login(page);
       await page.goto("/plan");
-      await expect(page.locator(`tr[data-kind="program"]`).filter({ hasText: programName })).toBeVisible();
+      await pinProgram(page, programName);
       await expectScheme(page, scheme);
       await scan(page);
     });

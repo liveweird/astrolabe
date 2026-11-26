@@ -372,7 +372,7 @@ test("a program's owner imports the projects and milestones under their linked p
   await expect(dialog).toHaveCount(0);
 
   // The Plan page lists both projects under the program; the API agrees, and no program was created.
-  const projectRows = page.locator(`tr[data-kind="project"][data-parent="pg:${world.programId}"]`);
+  const projectRows = page.locator(`tr[data-scope="tree"][data-kind="project"][data-parent="pg:${world.programId}"]`);
   await expect(projectRows.getByRole("link", { name: "Open IMC Initiative North" })).toBeVisible();
   await expect(projectRows.getByRole("link", { name: "Open IMC Initiative South" })).toBeVisible();
   const planned = await projectsOf(world.programId);
@@ -680,7 +680,7 @@ test("a renamed item is offered as a link to the unlinked plan project, and link
   await expect(dialog).toHaveCount(0);
 
   // The Plan page lists the plan's own project and the new South one, and no duplicate "IMC Initiative North".
-  const projectRows = page.locator(`tr[data-kind="project"][data-parent="pg:${world.programId}"]`);
+  const projectRows = page.locator(`tr[data-scope="tree"][data-kind="project"][data-parent="pg:${world.programId}"]`);
   await expect(projectRows.getByRole("link", { name: `Open ${PLAIN_PROJECT}`, exact: true })).toBeVisible();
   await expect(projectRows.getByRole("link", { name: "Open IMC Initiative South", exact: true })).toBeVisible();
   await expect(projectRows.getByRole("link", { name: "Open IMC Initiative North", exact: true })).toHaveCount(0);

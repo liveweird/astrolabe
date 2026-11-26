@@ -66,6 +66,30 @@
     "clear": "Wyczyść filtry",
     "cleared": "Wyczyszczono filtry"
   },
+  "pin": {
+    "title": "Przypięte",
+    "count_one": "{{count}} przypięcie",
+    "count_few": "{{count}} przypięcia",
+    "count_many": "{{count}} przypięć",
+    "count_other": "{{count}} przypięcia",
+    "tableAria": "Przypięte wiersze planu",
+    "action": "Przypnij",
+    "actionAria": "Przypnij: {{name}}",
+    "unpin": "Odepnij",
+    "unpinAria": "Odepnij: {{name}}",
+    "nameOf": "{{name}} (przypięte)",
+    "marker": "Przypięte",
+    "announcePinned": "Przypięto: {{name}}",
+    "announceUnpinned": "Odpięto: {{name}}"
+  },
+  "focus": {
+    "showOnly": "Pokaż tylko to",
+    "showOnlyAria": "Pokaż tylko to: {{name}}",
+    "breadcrumbAria": "Pokazana część planu",
+    "all": "Wszystkie strumienie pracy",
+    "announce": "Pokazano tylko: {{name}}",
+    "announceAll": "Pokazano cały plan"
+  },
   "print": {
     "filtered": "Widok przefiltrowany: nie wszystkie wiersze planu są pokazane."
   },

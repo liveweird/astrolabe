@@ -371,6 +371,59 @@ table.table {
   text-underline-offset: 2px;
 }
 
+/* The pinned section: sticks under the app header (below 48em it is static, so a phone keeps its screen), its own scroll inside, the canvas behind it so
+   rows never show through, a hairline under it. When stuck, a shadow (a named scroll-state container query: progressive enhancement, no box-model change,
+   nothing to fall back to where it is unsupported). Its header row is for assistive technology only. */
+.planPinned {
+  position: sticky;
+  top: var(--app-shell-header-offset, 0px);
+  z-index: 5;
+  container-type: scroll-state;
+  container-name: plan-pinned;
+  background-color: var(--astrolabe-canvas);
+  border-bottom: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+}
+
+.planPinnedInner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mantine-spacing-xs);
+  padding-block: var(--mantine-spacing-xs);
+}
+
+@container plan-pinned scroll-state(stuck: top) {
+  .planPinnedInner {
+    box-shadow: 0 6px 8px -6px rgb(0 0 0 / 0.3);
+  }
+}
+
+@media (max-width: 48em) {
+  .planPinned {
+    position: static;
+  }
+}
+
+.planTreeHeadHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* A TREE row that takes the focus scrolls clear of the sticky pinned section (its height is measured by the page) and of the app header. A pinned
+   row scrolls inside its own capped region, where such a margin would clamp it out of view, so it gets none. */
+.planTreeRow[data-scope="tree"] {
+  scroll-margin-top: calc(var(--app-shell-header-offset, 0px) + var(--plan-pinned-height, 0px) + 1rem);
+}
+
+@media (max-width: 48em) {
+  .planTreeRow[data-scope="tree"] {
+    scroll-margin-top: calc(var(--app-shell-header-offset, 0px) + 1rem);
+  }
+}
+
 .planTreeLeaf {
   padding-inline-start: 22px;
 }

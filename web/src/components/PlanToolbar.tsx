@@ -30,7 +30,7 @@ export default function PlanToolbar({
         activeFilterCount={filters.activeCount}
         storageKey="plan"
         aside={
-          <Box w={{ base: "100%", xs: 300 }}>
+          <Box w={{ base: "100%", xs: 360 }}>
             <ClearableTextInput hideLabel inputRef={filters.searchRef} maxLength={MAX_QUERY} label={t("plan.filter.search")} placeholder={t("plan.filter.search")} clearLabel={t("plan.filter.clearSearch")} value={filters.typed} onChange={filters.setQuery} />
           </Box>
         }

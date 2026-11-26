@@ -20,3 +20,10 @@ export function roadmapFilteredPath(state: RoadmapFilterLink): string {
   const query = roadmapFilterParams(state).toString();
   return query === "" ? roadmapPath : `${roadmapPath}?${query}`;
 }
+
+/**
+ * Whether a click on a link is the ordinary one the router follows in this tab: the primary button with no modifier. A ctrl / cmd / shift / alt
+ * or middle click opens the link elsewhere and leaves this page's address as it is, so nothing may be said or moved for it.
+ */
+export const isPlainClick = (event: { button: number; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; altKey: boolean }): boolean =>
+  event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey;

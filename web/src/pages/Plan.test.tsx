@@ -124,6 +124,14 @@ async function pickOwner(user: ReturnType<typeof userEvent.setup>, modal: HTMLEl
   await user.click(await screen.findByRole("option", { name: option }));
 }
 
+/** What a row's menu holds (by the items' accessible names), opened and closed again. */
+async function menuNames(user: ReturnType<typeof userEvent.setup>, name: string): Promise<(string | null)[]> {
+  await user.click(await screen.findByRole("button", { name: `Operations for ${name}` }));
+  const names = (await screen.findAllByRole("menuitem")).map((el) => el.getAttribute("aria-label"));
+  await user.keyboard("{Escape}");
+  return names;
+}
+
 async function openMenu(user: ReturnType<typeof userEvent.setup>, name: string, item: string) {
   await user.click(await screen.findByRole("button", { name: `Operations for ${name}` }));
   await user.click(await screen.findByRole("menuitem", { name: item }));
@@ -134,6 +142,11 @@ describe("Plan page", () => {
 
   beforeEach(() => {
     view = VIEW;
+    // The links read is module state other describes set: this one starts with no Jira link, whatever ran before it (shuffled order).
+    links = [];
+    linkConnections = [LINK_CONNECTION];
+    linksStatus = 200;
+    connections = [DEV_CONNECTION];
     mockFetch = vi.fn();
     vi.stubGlobal("fetch", mockFetch);
     localStorage.setItem("astrolabe.auth.token", "fake-token");
@@ -167,15 +180,13 @@ describe("Plan page", () => {
     expect(screen.queryByRole("button", { name: /new work stream/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /new program/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /new project/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Operations for Platform" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Operations for Billing" })).not.toBeInTheDocument();
+    // Everyone may focus and pin, so every row has a menu; the stream and the program hold nothing else, the projects only what their flags allow.
+    expect(await menuNames(user, "Platform")).toEqual(["Show only this: Platform", "Pin: Platform"]);
+    expect(await menuNames(user, "Billing")).toEqual(["Show only this: Billing", "Pin: Billing"]);
     // Taxes: edit only; Audit: window only (still an Edit entry); Invoices: nothing.
-    await user.click(screen.getByRole("button", { name: "Operations for Taxes" }));
-    expect(await screen.findByRole("menuitem", { name: "Edit Taxes" })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: /^Delete/ })).not.toBeInTheDocument();
-    await user.keyboard("{Escape}");
-    expect(screen.getByRole("button", { name: "Operations for Audit" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Operations for Invoices" })).not.toBeInTheDocument();
+    expect(await menuNames(user, "Taxes")).toEqual(["Pin: Taxes", "Edit Taxes"]);
+    expect(await menuNames(user, "Audit")).toEqual(["Pin: Audit", "Edit Audit"]);
+    expect(await menuNames(user, "Invoices")).toEqual(["Pin: Invoices"]);
   });
 
   test("the empty plan offers the first work stream to a creator and a hint to everyone else", async () => {
@@ -575,11 +586,11 @@ describe("Plan page: Import from Jira", () => {
     expect(screen.getByRole("button", { name: "Preview" })).toBeDisabled();
   });
 
-  test("a stream without can.edit has no menu and so no entry", async () => {
+  test("a stream without can.edit has only the view items in its menu, and so no entry", async () => {
     view = { revision: 1, workStreamOrderRevision: 0, can: { createWorkStream: false, orderWorkStreams: false }, workStreams: [stream({ id: 1, name: "Platform", can: { edit: false, delete: false, createProgram: false, orderPrograms: false } })] };
     renderWithProviders(<Plan />);
     await findPlanTree();
-    expect(screen.queryByRole("button", { name: "Operations for Platform" })).not.toBeInTheDocument();
+    expect(await menuNames(userEvent.setup(), "Platform")).toEqual(["Show only this: Platform", "Pin: Platform"]);
     expect(deviationCalls(mockFetch)).toEqual([]);
     expect(linkCalls(mockFetch)).toEqual([]);
   });
@@ -766,7 +777,7 @@ describe("Plan page: Import from a linked project (1.15)", () => {
     renderWithProviders(<Plan />);
     await user.click(await screen.findByRole("button", { name: "Operations for Taxes" }));
     const items = await screen.findAllByRole("menuitem");
-    expect(items.map((el) => el.getAttribute("aria-label"))).toEqual(["Edit Taxes", "Move Taxes to another program", ENTRY]);
+    expect(items.map((el) => el.getAttribute("aria-label"))).toEqual(["Pin: Taxes", "Edit Taxes", "Move Taxes to another program", ENTRY]);
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("button", { name: "Operations for Audit" }));
     await screen.findByRole("menuitem", { name: "Edit Audit" });
@@ -812,7 +823,8 @@ describe("Plan page: Import from a linked project (1.15)", () => {
     renderWithProviders(<Plan />);
     await user.click(await screen.findByRole("button", { name: "Operations for Taxes" }));
     expect(await screen.findByRole("menuitem", { name: ENTRY })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Operations for Billing" })).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(await menuNames(user, "Billing")).toEqual(["Show only this: Billing", "Pin: Billing"]);
   });
 
   test("a view without a program or project to use a link asks nothing", async () => {

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import type { PlanView } from "../api/plan";
 import { foldableKeys, isSearching, NO_FILTER, toggledCollapsed, withFolds, type NodeRow, type PlanFilter } from "../utils/planTree";
@@ -7,6 +8,13 @@ import { useStoredState } from "./useStoredState";
 const isStringArray = (value: unknown): value is string[] => Array.isArray(value) && value.every((item) => typeof item === "string");
 
 const EMPTY: ReadonlySet<string> = new Set();
+
+/** What a fold or an unfold of a node says: "X collapsed" / "X expanded, 3 programs" (the page's polite status region reads it). */
+export function foldSentence(t: TFunction, row: NodeRow): string {
+  const name = row.kind === "workStream" ? row.stream.name : row.program.name;
+  if (row.expanded) return t("plan.announce.collapsed", { name });
+  return row.kind === "workStream" ? t("plan.announce.expandedStream", { name, count: row.childCount }) : t("plan.announce.expandedProgram", { name, count: row.childCount });
+}
 
 /**
  * The Plan page's folds, remembered per browser (`astrolabe.viewSettings.plan.collapsed`): the keys of the FOLDED nodes, so a first visit
@@ -40,13 +48,7 @@ export function usePlanFolds(view: PlanView | undefined, announce: (text: string
       if (view === undefined) return;
       if (searching) setFolded(toggledSet(folded, row.key));
       else setStored(toggledCollapsed(view, storedSet, row.key));
-      announce(
-        row.expanded
-          ? t("plan.announce.collapsed", { name: row.kind === "workStream" ? row.stream.name : row.program.name })
-          : row.kind === "workStream"
-            ? t("plan.announce.expandedStream", { name: row.stream.name, count: row.childCount })
-            : t("plan.announce.expandedProgram", { name: row.program.name, count: row.childCount }),
-      );
+      announce(foldSentence(t, row));
     },
     // Both act on the SHOWN nodes only: a fold of a node the filter hides (a closed stream under Hide closed) is kept as it was.
     expandAll: () => {

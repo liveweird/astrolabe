@@ -1,4 +1,6 @@
+import type { MouseEvent } from "react";
 import type { PlanProgram, PlanProject, PlanWorkStream } from "../api/plan";
+import type { NodeRow, PlanTreeRow } from "./planTree";
 
 /** What a plan row can ask the page to do — the page owns the editors, the delete confirmation and the mutations. */
 export type PlanActions = {
@@ -28,4 +30,19 @@ export type PlanActions = {
   /** Whether the row offers "Move to…": its own `can.move` AND at least one eligible target (never an action the server would refuse). */
   canMoveProject: (project: PlanProject) => boolean;
   canMoveProgram: (program: PlanProgram) => boolean;
+};
+
+/** What a row's view group may ask of the page (the focus and the pins), apart from the dialogs' `PlanActions`. */
+export type PlanViewActions = {
+  /** Whether the node is a pinned root (the pin marker, the menu's Pin or Unpin). */
+  isPinned: (key: string) => boolean;
+  pin: (row: PlanTreeRow) => void;
+  /** Unpin from the row menu (the focus stays on the menu button). */
+  unpin: (key: string, name: string) => void;
+  /** Unpin with the pinned section's own button, which leaves the page: the page moves the focus on. */
+  releasePin: (key: string, name: string) => void;
+  /** Where "Show only this" goes for a work stream or program row: the address with the focus set and the filters kept. */
+  focusHref: (row: NodeRow) => string;
+  /** "Show only this" was chosen (an ordinary click, not one that opens the link elsewhere): the page says so. */
+  focused: (row: NodeRow, event: MouseEvent) => void;
 };

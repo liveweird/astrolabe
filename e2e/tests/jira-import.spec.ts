@@ -487,7 +487,7 @@ test("an owner imports from the Plan page's work-stream menu", async ({ page }) 
   await expect(dialog).toHaveCount(0);
 
   // The plan page shows what was imported under the owner's stream.
-  await expect(page.locator(`tr[data-kind="program"][data-parent="ws:${world.streamId}"]`).filter({ hasText: PROGRAM_NAME })).toBeVisible();
+  await expect(page.locator(`tr[data-scope="tree"][data-kind="program"][data-parent="ws:${world.streamId}"]`).filter({ hasText: PROGRAM_NAME })).toBeVisible();
   expect((await planOf(world)).programs).toEqual([PROGRAM_NAME]);
 });
 

@@ -200,7 +200,7 @@ describe("Plan page: filters in the address", () => {
     await findPlanTree();
     await user.click(screen.getByRole("button", { name: "Filters" }));
     await user.click(screen.getByRole("switch", { name: "Hide closed work streams" }));
-    expect(address()).toBe("?workStreamId=1&hideClosed=true");
+    expect(address()).toBe("?hideClosed=true&workStreamId=1");
     expect(keys()).toEqual(["ws:1", "pg:10", "pg:11", "pj:102"]);
     expect(screen.queryByRole("link", { name: "Open Old ledger" })).not.toBeInTheDocument();
   });

@@ -142,7 +142,7 @@ describe("Plan page: Move to…", () => {
     await user.keyboard("{Escape}");
   });
 
-  test("a program without the move flag has no Move to…, and no kebab when nothing else is allowed", async () => {
+  test("a program without the move flag has no Move to…, and only the view items when nothing else is allowed", async () => {
     view.workStreams[0].programs[1].can = { edit: true, delete: false, createProject: true, move: false };
     view.workStreams[1].programs[0].can = { edit: false, delete: false, createProject: false, move: false };
     const user = userEvent.setup();
@@ -151,7 +151,9 @@ describe("Plan page: Move to…", () => {
     await user.click(screen.getByRole("button", { name: "Operations for Identity" }));
     expect(await screen.findByRole("menuitem", { name: "Edit Identity" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: /^Move/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Operations for Archive" })).toBeNull();
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Operations for Archive" }));
+    expect((await screen.findAllByRole("menuitem")).map((el) => el.getAttribute("aria-label"))).toEqual(["Show only this: Archive", "Pin: Archive"]);
   });
 
   test("a project moves to another program: targets grouped by stream (own program and no-create programs left out), closed streams labelled", async () => {
@@ -208,23 +210,25 @@ describe("Plan page: Move to…", () => {
     expect(moves()).toHaveLength(0);
   });
 
-  test("Move to… is hidden where no target is eligible: no menu item, and no kebab when it would be the only action", async () => {
+  test("Move to… is hidden where no target is eligible: no menu item, and only the view items when it would be the only action", async () => {
     // every program refuses new projects, and Locked/Legacy are the only other streams: Invoices has no program to go to
     for (const ws of view.workStreams) for (const pr of ws.programs) pr.can.createProject = false;
     const user = userEvent.setup();
     renderWithProviders(<Plan />);
     await findPlanTree();
-    // Taxes (move only) loses its kebab; Invoices keeps Edit and Delete but no Move, and no divider is left dangling
-    expect(screen.queryByRole("button", { name: "Operations for Taxes" })).toBeNull();
+    // Taxes (move only) is left with the view items; Invoices keeps Edit and Delete but no Move, and no divider is left dangling
+    await user.click(screen.getByRole("button", { name: "Operations for Taxes" }));
+    expect((await screen.findAllByRole("menuitem")).map((el) => el.getAttribute("aria-label"))).toEqual(["Pin: Taxes"]);
+    await user.keyboard("{Escape}");
     await user.click(screen.getByRole("button", { name: "Operations for Invoices" }));
     expect(await screen.findByRole("menuitem", { name: "Edit Invoices" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: /^Move/ })).toBeNull();
     const menu = screen.getByRole("menuitem", { name: "Delete Invoices" }).parentElement as HTMLElement;
-    expect(menu.querySelectorAll(".mantine-Menu-divider")).toHaveLength(1); // Edit | Delete
+    expect(menu.querySelectorAll(".mantine-Menu-divider")).toHaveLength(2); // Pin | Edit | Delete
     await user.keyboard("{Escape}");
   });
 
-  test("a delete-only row has no divider, and a move-and-delete row has one", async () => {
+  test("the groups of a menu are set apart by one divider each: view | delete, and view | move | delete", async () => {
     view.workStreams[0].programs[0].projects = [
       project(100, "OnlyDelete", 10, { edit: false, editTargetWindow: false, move: false }),
       project(101, "MoveAndDelete", 10, { edit: false, editTargetWindow: false }),
@@ -233,11 +237,11 @@ describe("Plan page: Move to…", () => {
     renderWithProviders(<Plan />);
     await user.click(await screen.findByRole("button", { name: "Operations for OnlyDelete" }));
     const only = (await screen.findByRole("menuitem", { name: "Delete OnlyDelete" })).parentElement as HTMLElement;
-    expect(only.querySelectorAll(".mantine-Menu-divider")).toHaveLength(0);
+    expect(only.querySelectorAll(".mantine-Menu-divider")).toHaveLength(1); // Pin | Delete
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("button", { name: "Operations for MoveAndDelete" }));
     const both = (await screen.findByRole("menuitem", { name: "Delete MoveAndDelete" })).parentElement as HTMLElement;
-    expect(both.querySelectorAll(".mantine-Menu-divider")).toHaveLength(1);
+    expect(both.querySelectorAll(".mantine-Menu-divider")).toHaveLength(2); // Pin | Move | Delete
   });
 
   test("a program with no other work stream to go to has no Move to…", async () => {

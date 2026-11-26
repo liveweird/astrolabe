@@ -39,7 +39,19 @@ async function createAndGetId(page: Page, dialog: Locator, path: RegExp): Promis
 
 /** A row of the Plan table by level and name (the row header holds the name; `data-parent` names the row's parent by kind and id, `ws:<id>` / `pg:<id>`). */
 function treeRow(page: Page, kind: "workStream" | "program" | "project", name: string): Locator {
-  return page.locator(`tr[data-kind="${kind}"]`).filter({ hasText: name });
+  return page.locator(`tr[data-scope="tree"][data-kind="${kind}"]`).filter({ hasText: name });
+}
+
+/** The visible names of the items of a row's menu (it is opened and closed again). */
+async function menuItems(page: Page, name: string): Promise<string[]> {
+  const trigger = page.getByRole("button", { name: `Operations for ${name}`, exact: true });
+  await trigger.click();
+  const items = page.getByRole("menuitem");
+  await expect(items.first()).toBeVisible();
+  const names = (await items.allTextContents()).map((text) => text.trim());
+  await page.keyboard.press("Escape");
+  await expect(items).toHaveCount(0);
+  return names;
 }
 
 async function confirmDelete(page: Page, path: RegExp): Promise<void> {
@@ -114,14 +126,14 @@ test("admin builds a work stream, a program and a project, assigns owners, and d
   const searchBox = page.getByRole("textbox", { name: "Search work streams, programs and projects" });
   await searchBox.fill(projectName);
   await expect(page).toHaveURL(new RegExp(`[?&]q=${projectName}`));
-  await expect(page.locator('tr[data-kind="workStream"]')).toHaveCount(1);
+  await expect(page.locator('tr[data-scope="tree"][data-kind="workStream"]')).toHaveCount(1);
   await expect(treeRow(page, "workStream", streamName)).toHaveAttribute("data-context", "true");
   await expect(treeRow(page, "program", programName)).toHaveAttribute("data-context", "true");
   await expect(treeRow(page, "project", projectName)).not.toHaveAttribute("data-context", "true");
   await expect(treeRow(page, "project", projectName).locator("mark")).toHaveText(projectName);
   await page.reload();
   await expect(searchBox).toHaveValue(projectName);
-  await expect(page.locator('tr[data-kind="workStream"]')).toHaveCount(1);
+  await expect(page.locator('tr[data-scope="tree"][data-kind="workStream"]')).toHaveCount(1);
   await page.getByRole("button", { name: "Clear the search" }).click();
   await expect(page).not.toHaveURL(/[?&]q=/);
   await expect(treeRow(page, "workStream", streamName)).not.toHaveAttribute("data-context", "true");
@@ -187,10 +199,11 @@ test("a project owner edits their project but is offered no target window and no
   await expect(page.getByRole("button", { name: "New work stream" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: `New program in ${streamName}` })).toHaveCount(0);
   await expect(page.getByRole("button", { name: `New project in ${programName}` })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: `Operations for ${streamName}` })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: `Operations for ${programName}` })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: `Operations for ${foreignProject}` })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: `Operations for ${ownProject}` })).toBeVisible();
+  // Everyone may focus and pin, so every row has a menu; the stream, the program and the lead's project offer nothing else.
+  expect(await menuItems(page, streamName)).toEqual(["Show only this", "Pin"]);
+  expect(await menuItems(page, programName)).toEqual(["Show only this", "Pin"]);
+  expect(await menuItems(page, foreignProject)).toEqual(["Pin"]);
+  expect(await menuItems(page, ownProject)).toEqual(["Pin", "Edit", "Delete"]);
   await expect(page.getByRole("button", { name: `Work stream ${streamName}`, exact: true })).toHaveAttribute("aria-expanded", "true");
 
   // Edit: the fields are theirs, the target window is not.
@@ -305,4 +318,73 @@ test("a work stream owner moves a project to another program and a program to an
   await signOut(page);
   await login(page);
   await deleteUserRow(page, account.name);
+});
+
+// Pins live in the browser (apart from the tree's folds), the focus in the address: a pinned program stays on the page while a search narrows the tree,
+// the pins and their folds survive a reload, "Show only this" narrows the table to a node and the breadcrumb leads back.
+test("a pinned program stays in reach while a search runs, pins and folds survive a reload, and Show only this leads back by the breadcrumb", async ({ page }) => {
+  const { api } = await apiAsAdmin();
+  const lead = uniqueText("e2e-plan-lead");
+  const leadId = await seed(api, "/api/v1/people", { name: lead }, "/api/v1/people");
+  const streamName = uniqueText("e2e-plan-stream");
+  const pinned = uniqueText("e2e-plan-pinned");
+  const other = uniqueText("e2e-plan-other");
+  const pinnedProject = uniqueText("e2e-plan-pinned-project");
+  const otherProject = uniqueText("e2e-plan-other-project");
+  const streamId = await seed(api, "/api/v1/work-streams", { name: streamName, ownerPersonId: leadId, startDate: "2026-01-05" }, "/api/v1/work-streams");
+  const pinnedId = await seed(api, `/api/v1/work-streams/${streamId}/programs`, { name: pinned, ownerPersonId: leadId }, "/api/v1/programs");
+  const otherId = await seed(api, `/api/v1/work-streams/${streamId}/programs`, { name: other, ownerPersonId: leadId }, "/api/v1/programs");
+  await seed(api, `/api/v1/programs/${pinnedId}/projects`, { name: pinnedProject, ownerPersonId: leadId }, "/api/v1/projects");
+  await seed(api, `/api/v1/programs/${otherId}/projects`, { name: otherProject, ownerPersonId: leadId }, "/api/v1/projects");
+  await api.dispose();
+
+  await login(page);
+  await page.goto("/plan");
+  const pinnedRegion = page.getByRole("region", { name: "Pinned rows of the plan" });
+  const pinnedRow = (kind: "program" | "project", name: string) => pinnedRegion.locator(`tr[data-kind="${kind}"]`).filter({ hasText: name });
+
+  // Pin the program from its row menu: the pinned section shows it with its project, the tree row carries the marker, and the focus stays on the menu button.
+  await rowOperation(page, pinned, `Pin: ${pinned}`);
+  await expect(pinnedRow("program", pinned)).toBeVisible();
+  await expect(pinnedRow("project", pinnedProject)).toBeVisible();
+  await expect(treeRow(page, "program", pinned).getByText("Pinned", { exact: true })).toBeAttached();
+  await expect(page.getByRole("button", { name: `Operations for ${pinned}`, exact: true })).toBeFocused();
+
+  // A fold inside the pinned section is its own: the tree keeps the project.
+  await page.getByRole("button", { name: `Program ${pinned} (pinned)`, exact: true }).click();
+  await expect(pinnedRow("project", pinnedProject)).toHaveCount(0);
+  await expect(treeRow(page, "project", pinnedProject)).toBeVisible();
+
+  // A search that matches only the other program narrows the tree; the pin stays, in view, whatever the search.
+  const searchBox = page.getByRole("textbox", { name: "Search work streams, programs and projects" });
+  await searchBox.fill(otherProject);
+  await expect(page).toHaveURL(new RegExp(`[?&]q=${otherProject}`));
+  await expect(treeRow(page, "project", otherProject)).toBeVisible();
+  await expect(treeRow(page, "program", pinned)).toHaveCount(0);
+  await expect(pinnedRow("program", pinned)).toBeInViewport();
+
+  // Pins, the pinned fold and the search survive a reload.
+  await page.reload();
+  await expect(searchBox).toHaveValue(otherProject);
+  await expect(pinnedRow("program", pinned)).toBeVisible();
+  await expect(pinnedRow("project", pinnedProject)).toHaveCount(0);
+  await page.getByRole("button", { name: "Clear the search" }).click();
+  await expect(page).not.toHaveURL(/[?&]q=/);
+
+  // Show only this: the address names the program, the table is that program and its project, the breadcrumb leads back.
+  await rowOperation(page, other, `Show only this: ${other}`);
+  await expect(page).toHaveURL(new RegExp(`[?&]programId=${otherId}(&|$)`));
+  await expect(page.locator('tr[data-scope="tree"]')).toHaveCount(2);
+  await expect(treeRow(page, "program", other)).toBeVisible();
+  const crumbs = page.getByRole("navigation", { name: "Part of the plan shown" });
+  await expect(crumbs.getByRole("link", { name: streamName })).toBeVisible();
+  await expect(pinnedRow("program", pinned)).toBeVisible();
+  await crumbs.getByRole("link", { name: "All work streams" }).click();
+  await expect(page).not.toHaveURL(/programId=/);
+  await expect(treeRow(page, "program", pinned)).toBeVisible();
+
+  // Unpin with the section's own button: the section goes, and the focus lands on the node's row menu in the tree.
+  await page.getByRole("button", { name: `Unpin: ${pinned} (pinned)`, exact: true }).click();
+  await expect(pinnedRegion).toHaveCount(0);
+  await expect(page.getByRole("button", { name: `Operations for ${pinned}`, exact: true })).toBeFocused();
 });

@@ -38,7 +38,7 @@
    window — one owned by the user's person, one by the lead. The admin signs out.
 2. The user signs in and opens the Plan page.
    - *Expected*: the stream (its disclosure button says it is expanded), the program and both projects are visible; there is no **New work stream**, no **New program in …**, no
-     **New project in …**, no row menu on the stream, the program or the lead's project; the user's own project has a row menu.
+     **New project in …**, the row menus of the stream, the program and the lead's project hold only the view items (**Show only this**, **Pin**; a project only **Pin**); the user's own project's menu adds **Edit** and **Delete** (a node's owner manages it).
 3. They open their project's row menu and choose Edit.
    - *Expected*: the name is editable; **Target start** and **Target end** are disabled, with the note that only an administrator, an owner
      above the project or a roadmap editor can change the target window.
@@ -64,10 +64,29 @@
 6. *Expected*: through the API, the two ranked projects are still in the same relative order (a move leaves the global ranking alone).
 7. The admin signs back in and deletes the user (the plan nodes, the team and the people are removed through the API).
 
+## Scenario: a pinned program stays in reach while a search runs, pins and folds survive a reload, and Show only this leads back by the breadcrumb
+
+1. The admin seeds, through the API, a person, a work stream and two programs under it, each with one project. They sign in and open the Plan page.
+2. They open the first program's row menu and choose **Pin: <the program>**.
+   - *Expected*: a "Pinned" section appears above the table with that program and its project; the program's tree row carries the pin marker; the focus is on the row's menu button.
+3. They fold the program in the pinned section.
+   - *Expected*: its project row leaves the pinned section; the tree still lists the project (the two folds are separate).
+4. They type the other program's project name into the search box.
+   - *Expected*: after a pause the address holds `q=<the name>`; the tree shows that project; the pinned program is no longer in the tree but is still in the pinned section, in the viewport.
+5. They reload the page.
+   - *Expected*: the search box holds the text, the pin is still there and its fold is still folded. Clearing the search removes `q` from the address.
+6. They open the other program's menu and choose **Show only this: <the program>**.
+   - *Expected*: the address holds `programId=<its id>`; the table is that program and its project only; the breadcrumb shows "All work streams" and a link to the work stream; the pinned section is unchanged.
+7. They follow "All work streams".
+   - *Expected*: `programId` leaves the address and the tree shows the plan again.
+8. They press **Unpin: <the program> (pinned)** in the pinned section.
+   - *Expected*: the section is gone and the focus is on the program's row menu button in the tree.
+
 ## Not covered here (and why)
 
 - **The move dialog's error branches (409/400/403/404), the no-target state and the keyboard path** — pinned by `PlanMove.test.tsx`; the journey drives
   the two happy-path moves and the unchanged ranking.
+- **The order of pins, the fold of the whole section, a pin of a deleted node and the focus moving to a neighbouring pin** — pinned by `Plan.pins.test.tsx`, `Plan.focus.test.tsx` and `planPins.test.ts`.
 - **Validation, name clashes, the roadmap editor's window-only modal and the close/reopen actions** — pinned by
   `Plan.test.tsx`, `planForm.test.ts` and the server's `PlanStructureTest`; the journeys drive the happy paths and the
   role-dependent visibility only.

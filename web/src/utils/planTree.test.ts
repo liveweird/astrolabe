@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { planOf } from "../test/planView";
-import { foldableKeys, isFiltered, isSearching, matchCount, NO_FILTER, ownerOptions, planRows, programKey, projectKey, rowName, streamKey, toggledCollapsed, type PlanFilter } from "./planTree";
+import { firstKnownFocus, focusTrail, foldableKeys, isFiltered, isSearching, knownFocus, matchCount, NO_FILTER, ownerOptions, planRows, programKey, projectKey, rowName, streamKey, toggledCollapsed, type PlanFilter } from "./planTree";
 
 const PLAN = planOf([
   {
@@ -185,5 +185,86 @@ describe("planRows with a filter", () => {
       { id: 5, name: "Piotr Project" },
       { id: 8, name: "Tania Tax" },
     ].sort((a, b) => a.name.localeCompare(b.name)));
+  });
+});
+
+describe("planRows with a focus", () => {
+  const FOCUSED = planOf([
+    {
+      id: 1,
+      name: "Platform",
+      programs: [
+        { id: 10, name: "Billing", projects: [{ id: 100, name: "Invoices" }, { id: 101, name: "Taxes" }] },
+        { id: 11, name: "Identity", projects: [{ id: 102, name: "Login" }] },
+      ],
+    },
+    { id: 2, name: "Legacy", endDate: "2025-12-31", programs: [{ id: 12, name: "Archive", projects: [{ id: 103, name: "Old taxes" }] }] },
+  ]);
+  const shape = (filter: Partial<PlanFilter>, collapsed: string[] = []) =>
+    planRows(FOCUSED, new Set(collapsed), { ...NO_FILTER, ...filter }).map((row) => `${row.key}/${row.indent}${row.context ? " (context)" : ""}${row.locked ? " (locked)" : ""}`);
+
+  test("a work stream focus shows that stream and everything under it, and nothing else", () => {
+    expect(shape({ focus: { kind: "workStream", id: 1 } })).toEqual(["ws:1/0 (locked)", "pg:10/1", "pj:100/2", "pj:101/2", "pg:11/1", "pj:102/2"]);
+  });
+
+  test("a program focus starts the table at the program: no work stream row, indents from the program", () => {
+    const rows = planRows(FOCUSED, new Set(), { ...NO_FILTER, focus: { kind: "program", id: 10 } });
+    expect(rows.map((row) => [row.key, row.parentKey, row.indent, row.locked])).toEqual([
+      ["pg:10", null, 0, true],
+      ["pj:100", "pg:10", 1, false],
+      ["pj:101", "pg:10", 1, false],
+    ]);
+  });
+
+  test("the focus root is always open, whatever the folds say; what is under it folds as usual", () => {
+    expect(shape({ focus: { kind: "workStream", id: 1 } }, ["ws:1", "pg:10"])).toEqual(["ws:1/0 (locked)", "pg:10/1", "pg:11/1", "pj:102/2"]);
+    expect(shape({ focus: { kind: "program", id: 10 } }, ["pg:10"])).toEqual(["pg:10/0 (locked)", "pj:100/1", "pj:101/1"]);
+  });
+
+  test("a search inside a focus is bounded to its subtree, and a program focus ignores its stream's own match", () => {
+    expect(shape({ focus: { kind: "workStream", id: 1 }, q: "tax" })).toEqual(["ws:1/0 (context) (locked)", "pg:10/1 (context)", "pj:101/2"]);
+    expect(shape({ focus: { kind: "program", id: 10 }, q: "platform" })).toEqual([]);
+    expect(shape({ focus: { kind: "program", id: 10 }, q: "tax" })).toEqual(["pg:10/0 (context) (locked)", "pj:101/1"]);
+  });
+
+  test("hide closed drops closed streams, but never the one that holds the focus", () => {
+    expect(shape({ hideClosed: true })).toEqual(["ws:1/0", "pg:10/1", "pj:100/2", "pj:101/2", "pg:11/1", "pj:102/2"]);
+    expect(shape({ hideClosed: true, focus: { kind: "workStream", id: 2 } })).toEqual(["ws:2/0 (locked)", "pg:12/1", "pj:103/2"]);
+    expect(shape({ hideClosed: true, focus: { kind: "program", id: 12 } })).toEqual(["pg:12/0 (locked)", "pj:103/1"]);
+  });
+
+  test("a focus is a filter for the print line but not a search for the folds", () => {
+    expect(isFiltered({ ...NO_FILTER, focus: { kind: "program", id: 10 } })).toBe(true);
+    expect(isSearching({ ...NO_FILTER, focus: { kind: "program", id: 10 } })).toBe(false);
+  });
+
+  test("counts of matches and foldable keys follow the focus", () => {
+    expect(matchCount(FOCUSED, { ...NO_FILTER, q: "tax", focus: { kind: "workStream", id: 1 } })).toBe(1);
+    expect(matchCount(FOCUSED, { ...NO_FILTER, q: "tax" })).toBe(2);
+    // The focus root is always open: it never folds, so Collapse all has nothing to write for it.
+    expect(foldableKeys(FOCUSED, { ...NO_FILTER, focus: { kind: "program", id: 10 } })).toEqual([]);
+    expect(foldableKeys(FOCUSED, { ...NO_FILTER, focus: { kind: "workStream", id: 1 } })).toEqual(["pg:10", "pg:11"]);
+  });
+
+  test("firstKnownFocus skips a named node the plan lost and falls back to the next one", () => {
+    const program = { kind: "program", id: 99 } as const;
+    const stream = { kind: "workStream", id: 1 } as const;
+    expect(firstKnownFocus(FOCUSED, [program, stream])).toEqual(stream);
+    expect(firstKnownFocus(FOCUSED, [program])).toBeNull();
+    expect(firstKnownFocus(FOCUSED, [])).toBeNull();
+  });
+
+  test("knownFocus keeps a focus the plan holds and drops one it does not", () => {
+    expect(knownFocus(FOCUSED, { kind: "program", id: 10 })).toEqual({ kind: "program", id: 10 });
+    expect(knownFocus(FOCUSED, { kind: "program", id: 99 })).toBeNull();
+    expect(knownFocus(FOCUSED, { kind: "workStream", id: 10 })).toBeNull();
+    expect(knownFocus(FOCUSED, null)).toBeNull();
+  });
+
+  test("focusTrail is the way down: the stream, then the program", () => {
+    expect(focusTrail(FOCUSED, { kind: "workStream", id: 1 }).map((step) => step.key)).toEqual(["ws:1"]);
+    expect(focusTrail(FOCUSED, { kind: "program", id: 12 }).map((step) => [step.key, step.name])).toEqual([["ws:2", "Legacy"], ["pg:12", "Archive"]]);
+    expect(focusTrail(FOCUSED, { kind: "program", id: 99 })).toEqual([]);
+    expect(focusTrail(FOCUSED, null)).toEqual([]);
   });
 });
