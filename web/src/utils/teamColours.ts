@@ -53,6 +53,15 @@ export function teamColourVar(colour: TeamColour): string {
 }
 
 /**
+ * The tint a timeline bar takes from its team, to spread into the bar (`TimelineBarData.tint`): the key's CSS colour, or nothing (today's neutral bar)
+ * for a team the lookup lacks (deleted, or the teams read not answered yet) or no team at all.
+ */
+export function teamTint(colours: ReadonlyMap<number, TeamColour>, teamId: number | null): { tint?: string } {
+  const colour = teamId === null ? undefined : colours.get(teamId);
+  return colour === undefined ? {} : { tint: teamColourVar(colour) };
+}
+
+/**
  * The colour a NEW team starts with: the key the fewest of `used` hold, a tie going to the earlier palette key, an unused key counting 0 (the
  * server's `TeamColour.leastUsed`, the same rule, so the editor shows what an omitted colour would get).
  */

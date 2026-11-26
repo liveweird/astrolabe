@@ -500,8 +500,8 @@ table.table {
 
 /* ---- The Timeline (components/Timeline*.tsx; .claude/docs/timeline.md) ----------------------------------------------------
    A div grid: a sticky header (two rows, three with the v0.5 load strip; its height is `--timeline-head`, set on the grid by Timeline.tsx
-   from `headerHeight()`, and the scroll margins below follow it) over rows of [sticky left cells | a track as wide as the date range]. Bars are data, so
-   they are NEUTRAL gray (the cyan brand marks only focus and the bar being dragged); the weekend hatch is ONE periodic gradient
+   from `headerHeight()`, and the scroll margins below follow it) over rows of [sticky left cells | a track as wide as the date range]. Bars are data: neutral
+   gray, or a milestone bar's team tint (TimelineBarData.tint); the cyan brand marks only focus and the bar being dragged; the weekend hatch is ONE periodic gradient
    per row track (inline `background-image` from timelineScale.ts); the window band is a quiet dashed-edged tint, drift is orange.
    Stacking: bands and the today line < row tracks < the overlay (v0.4 arrows) < the sticky left cells < the sticky header. */
 .timelineGrid {

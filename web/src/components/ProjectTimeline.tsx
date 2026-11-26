@@ -2,6 +2,7 @@ import type { ReactNode, Ref } from "react";
 import { useTranslation } from "react-i18next";
 import type { ProjectView } from "../api/milestones";
 import { useHolidays } from "../hooks/useHolidays";
+import { useTeamColours } from "../hooks/useTeamColours";
 import { jiraTrayNote } from "../utils/flagSentences";
 import { jiraTrayBars, siteUrls, type JiraWindow } from "../utils/jiraBars";
 import { arrowSpecs, conflictsByBar, ghostEndpoints, summaryRowNeeded, upstreamIndex } from "../utils/projectDependencies";
@@ -61,6 +62,7 @@ export default function ProjectTimeline({
 }) {
   const { t } = useTranslation();
   const { holidays, failed: holidaysFailed } = useHolidays();
+  const colours = useTeamColours();
   const conflicts = conflictsByBar(view);
   // The Flags column exists while some scheduled milestone is linked to Jira or carries a flag (the view says so: no stored answer, no second request).
   const flagsColumn = view.scheduled.some((milestone) => milestone.jira !== null || milestone.flags.length > 0);
@@ -77,10 +79,10 @@ export default function ProjectTimeline({
   const appended = { criticalPath, flagsColumn, trayBars: jiraTrayBars(view.unscheduled, jira, t), scheduleOnJira: actions.scheduleOnJira };
   const rows = [
     ...(summaryRowNeeded(view) ? [summaryRow(view, t, conflicts, criticalPath, flagsColumn)] : []),
-    ...milestoneRows(view, t, { actions, jira, conflicts, criticalPath, flagsColumn }),
+    ...milestoneRows(view, t, { actions, jira, conflicts, criticalPath, flagsColumn, colours }),
     ...baselineRows(view, t, appended),
     ...jiraRows(view, t, appended),
-    ...ghostEndpoints(view).map((endpoint) => ghostRow(endpoint, t, upstream, flagsColumn)),
+    ...ghostEndpoints(view).map((endpoint) => ghostRow(endpoint, t, upstream, flagsColumn, colours)),
   ];
   const arrows = arrowSpecs(view, criticalPath);
   return (

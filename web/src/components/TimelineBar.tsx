@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { useTranslation } from "react-i18next";
@@ -79,6 +80,16 @@ const toneClass = (bar: TimelineBarData) => {
   return tone === undefined ? "" : TONE_CLASS[tone];
 };
 
+/**
+ * The frame's inline style: the geometry, and a bar's `tint` as the bar colour token every tone reads (`--timeline-bar`: the fill, the ghost's faint
+ * fill and dashed outline). The held bar's accent, the critical outline and the focus ring read other tokens, so they stay.
+ */
+const frameStyle = (bar: TimelineBarData, geometry: { left: number; width: number }, extra?: CSSProperties): CSSProperties => ({
+  ...geometry,
+  ...(bar.tint === undefined ? {} : ({ "--timeline-bar": bar.tint } as CSSProperties)),
+  ...extra,
+});
+
 /** The critical-path emphasis: a leading-space class so a bar without it keeps its exact class string. */
 const emphasisClass = (bar: TimelineBarData) => (bar.emphasis === "critical" ? ` ${classes.timelineBarCritical}` : "");
 const emphasisAttr = (bar: TimelineBarData) => (bar.emphasis === "critical" ? "true" : undefined);
@@ -87,7 +98,7 @@ function ReadOnlyBar({ bar, geometry, roving }: BarProps) {
   const { t } = useTranslation();
   const tone = toneClass(bar);
   return (
-    <div className={frameClass(bar)} style={geometry}>
+    <div className={frameClass(bar)} style={frameStyle(bar, geometry)} data-tint={bar.tint}>
       <div
         role="img"
         aria-label={t("timeline.bar.readOnly", { label: bar.describe })}
@@ -124,7 +135,7 @@ function EditableBar({ bar, geometry, handleWidth, roving }: BarProps & { handle
   const dragging = bodyDragging || startDragging || endDragging;
 
   return (
-    <div className={frameClass(bar)} style={{ ...geometry, transform: CSS.Translate.toString(transform) }}>
+    <div className={frameClass(bar)} style={frameStyle(bar, geometry, { transform: CSS.Translate.toString(transform) })} data-tint={bar.tint}>
       <div
         ref={bodyRef}
         aria-label={bar.describe}

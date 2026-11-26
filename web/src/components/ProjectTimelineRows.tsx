@@ -12,6 +12,7 @@ import { projectPath } from "../utils/planLinks";
 import { withPinned } from "../utils/pinText";
 import { ghostRowId } from "../utils/dependencyArrows";
 import { projectRowId, summaryCritical, upstreamOf } from "../utils/projectDependencies";
+import { teamTint, type TeamColour } from "../utils/teamColours";
 import type { BarId, RovingTarget, TimelineBandData, TimelineBarData, TimelineRowData } from "../utils/timelineModel";
 import { AppendedRowName, BaselineRowName } from "./BaselineParts";
 import JiraRowMenu from "./JiraRowMenu";
@@ -19,6 +20,7 @@ import { MilestoneFlags } from "./MilestoneFlags";
 import MilestoneMenu, { type MilestoneActions } from "./MilestoneMenu";
 import NameCell from "./MilestoneNameCell";
 import SlackCell from "./SlackCell";
+import TeamNameCell from "./TeamNameCell";
 
 /*
  * The view -> `TimelineRowData` adapter of the project timeline: the pure builders `ProjectTimeline` composes (the summary row, a milestone row, the
@@ -117,12 +119,20 @@ export function summaryRow(view: ProjectView, t: TFunction, conflicts: ReadonlyM
  * its name is the way to that project's page (a function cell, so the link is the row's one stop). With the critical-path toggle on
  * (`upstream` is then the server's lookup by kind + id) it shows the neighbour's slack and is emphasised when that entity is critical.
  */
-export function ghostRow(endpoint: DependencyEndpoint, t: TFunction, upstream: ReadonlyMap<string, UpstreamEntity> | null, flagsColumn: boolean): TimelineRowData {
+export function ghostRow(
+  endpoint: DependencyEndpoint,
+  t: TFunction,
+  upstream: ReadonlyMap<string, UpstreamEntity> | null,
+  flagsColumn: boolean,
+  colours: ReadonlyMap<number, TeamColour>,
+): TimelineRowData {
   const id = ghostRowId(endpoint);
   const start = endpoint.startDate ?? "";
   const end = endpoint.endDate ?? "";
   const text = endpoint.kind === "MILESTONE" ? t("project.ghostName", { project: endpoint.projectName, name: endpoint.name }) : endpoint.name;
   const entry = upstream === null ? undefined : upstreamOf(upstream, endpoint);
+  // A milestone end names its team (a whole-project end has none): its colour tints the ghost bar and marks the Team cell (1.29).
+  const colour = endpoint.teamId === null ? undefined : colours.get(endpoint.teamId);
   return {
     id,
     cells: withOptional(
@@ -133,7 +143,7 @@ export function ghostRow(endpoint: DependencyEndpoint, t: TFunction, upstream: R
           </Anchor>
         ),
         // dimmed like the name: a ghost row is another project's, read-only
-        endpoint.teamName === null ? "" : <Text key="team" component="span" size="sm" c="dimmed">{endpoint.teamName}</Text>,
+        endpoint.teamName === null ? "" : <TeamNameCell key="team" name={endpoint.teamName} colour={colour} dimmed />,
         "",
         null,
       ],
@@ -153,6 +163,7 @@ export function ghostRow(endpoint: DependencyEndpoint, t: TFunction, upstream: R
         ),
         editable: false,
         tone: "ghost",
+        ...teamTint(colours, endpoint.teamId),
       },
     ],
   };
@@ -168,7 +179,7 @@ type RowOptions = { criticalPath: boolean; flagsColumn: boolean };
 export function milestoneRows(
   view: ProjectView,
   t: TFunction,
-  { actions, jira, conflicts, criticalPath, flagsColumn }: RowOptions & { actions: MilestoneActions; jira: JiraWindow | null; conflicts: ReadonlyMap<BarId, number> },
+  { actions, jira, conflicts, criticalPath, flagsColumn, colours }: RowOptions & { actions: MilestoneActions; jira: JiraWindow | null; conflicts: ReadonlyMap<BarId, number>; colours: ReadonlyMap<number, TeamColour> },
 ): TimelineRowData[] {
   const canLink = view.project.can.createDependency;
   const sites = siteUrls(view.jiraSites);
@@ -181,7 +192,7 @@ export function milestoneRows(
     cells: withOptional(
       [
         <NameCell key="name" milestone={milestone} mark={fresh?.has(milestone.id) === true ? t("timeline.baseline.newMark") : undefined} />,
-        milestone.teamName,
+        <TeamNameCell key="team" name={milestone.teamName} colour={colours.get(milestone.teamId)} />,
         estimateText(t, milestone),
         // A function cell holds its own focusable; with no menu the cell stays a static stop, so the tab stop never lands on a missing element.
         hasMenu(milestone, canLink) ? (stop: RovingTarget) => <MilestoneMenu milestone={milestone} actions={actions} canLink={canLink} trigger={stop} /> : null,
@@ -217,6 +228,7 @@ export function milestoneRows(
                 ),
               ),
               editable: milestone.can.schedule,
+              ...teamTint(colours, milestone.teamId),
             },
           ]
         : []),

@@ -166,7 +166,7 @@ Everything is lazy under `RequireAuth` unless noted.
   (`utils/planTrack.ts` `projectTrack`/`planArrows`, `PlanProjectCells.tsx`, `usePlanScale`) and the target-window path, which are never forked.
 - **The Timeline** (`components/Timeline*.tsx`, `timeline.md`) draws and proposes; the page decides: `editable` comes from `can`, a drop is only
   `onSchedule(id, start, end)`/`onReorder` on the page's `TimelineDndContext`. Every pointer gesture has a keyboard path announced in the UI language; bars are
-  neutral gray, drift orange, the brand cyan only focus and the held bar; decorative layers are `aria-hidden` with their facts in the page's text; tests read
+  neutral gray (a milestone bar may take a team's `tint`), drift orange, the brand cyan only focus and the held bar; decorative layers are `aria-hidden` with their facts in the page's text; tests read
   `data-*`, never colour; pointer drags are not unit-tested (the e2e does them).
 - **Integration pages** (Jira, Flow): the token is write-only (never pre-filled, logged, shown or echoed; a blank field is omitted from the PUT); the identity
   (site / base URL) is read-only on edit; a PUT is a full replace, so `pollIntervalMinutes` (a number or an explicit `null`) is never omitted; delete goes

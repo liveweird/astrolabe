@@ -196,3 +196,52 @@ test("a regular user sees the read-only teams list", async ({ page }) => {
   ]);
   await deleteUserRow(page, user.name);
 });
+
+test("an admin gives a team a colour and its milestone bar on the project page carries it", async ({ page }) => {
+  await login(page);
+  const { api } = await apiAsAdmin();
+  // The plan is seeded through the API (the journey under test is the colour's): a person, a team that starts INDIGO, a work stream, a program,
+  // a project and one milestone of the team, scheduled. Registered in creation order, torn down in reverse (the milestone before the project).
+  const seed = async (path: string, data: object, tear: string): Promise<number> => {
+    const created = await api.post(path, { data });
+    expect(created.status(), await created.text()).toBe(201);
+    const id = ((await created.json()) as { id: number }).id;
+    teardown.push(`${tear}/${id}`);
+    return id;
+  };
+  const person = await seed("/api/v1/people", { name: uniqueText("e2e-tc-person") }, "/api/v1/people");
+  const teamName = uniqueText("e2e-tc-team");
+  const teamId = await seed("/api/v1/teams", { name: teamName, colour: "INDIGO" }, "/api/v1/teams");
+  const stream = await seed("/api/v1/work-streams", { name: uniqueText("e2e-tc-stream"), ownerPersonId: person, startDate: "2026-01-05" }, "/api/v1/work-streams");
+  const program = await seed(`/api/v1/work-streams/${stream}/programs`, { name: uniqueText("e2e-tc-program"), ownerPersonId: person }, "/api/v1/programs");
+  const projectId = await seed(`/api/v1/programs/${program}/projects`, { name: uniqueText("e2e-tc-project"), ownerPersonId: person }, "/api/v1/projects");
+  const milestoneName = uniqueText("e2e-tc-milestone");
+  const milestoneId = await seed(`/api/v1/projects/${projectId}/milestones`, { name: milestoneName, teamId, estimateMd: 5 }, "/api/v1/milestones");
+  const { revision } = (await (await api.get(`/api/v1/views/project/${projectId}`)).json()) as { revision: number };
+  const scheduled = await api.put(`/api/v1/milestones/${milestoneId}/schedule`, { data: { expectedRevision: revision, startDate: "2027-01-11", endDate: "2027-01-15" } });
+  expect(scheduled.status(), await scheduled.text()).toBe(200);
+  await api.dispose();
+
+  // The bar and the Team cell's swatch read the team's colour; a test reads the attributes, never the colour itself.
+  const bar = () => page.getByRole("row").filter({ hasText: milestoneName }).locator("[data-tint]");
+  const swatch = () => page.getByRole("row").filter({ hasText: milestoneName }).locator("[data-team-colour]");
+  await page.goto(`/projects/${projectId}`);
+  await expect(bar()).toHaveAttribute("data-tint", "var(--astrolabe-team-indigo)");
+  await expect(swatch()).toHaveAttribute("data-team-colour", "INDIGO");
+
+  // The admin picks another colour in the team's editor.
+  await page.goto(`/teams/${teamId}`);
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  const editor = page.getByRole("dialog");
+  await editor.getByText("Raspberry", { exact: true }).click();
+  await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "PUT" && /\/api\/v1\/teams\/\d+$/.test(r.url()) && r.ok()),
+    editor.getByRole("button", { name: "Save", exact: true }).click(),
+  ]);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  // The project page now draws the milestone's bar, and the Team cell's swatch, in the new colour.
+  await page.goto(`/projects/${projectId}`);
+  await expect(bar()).toHaveAttribute("data-tint", "var(--astrolabe-team-raspberry)");
+  await expect(swatch()).toHaveAttribute("data-team-colour", "RASPBERRY");
+});

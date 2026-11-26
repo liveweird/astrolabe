@@ -2172,3 +2172,35 @@ describe("the critical-path highlight (v0.7)", () => {
     expect(container.querySelector("marker#timeline-arrowhead-critical")).toBeNull();
   });
 });
+
+describe("the tint (team colours, 1.29)", () => {
+  const TINT = "var(--astrolabe-team-indigo)";
+  const frameOf = (name: string) => barBody(name).parentElement as HTMLElement;
+
+  test("an editable bar's frame carries data-tint and sets the bar colour token; an untinted bar has neither", () => {
+    renderWithProviders(<Harness rows={[row(1, "Discovery", [{ ...DISCOVERY, tint: TINT }]), row(2, "Build", [{ ...BUILD, editable: true }])]} />);
+    const tinted = frameOf("Discovery, Team A, 2026-09-16 to 2026-09-18");
+    expect(tinted).toHaveAttribute("data-tint", TINT);
+    expect(tinted.style.getPropertyValue("--timeline-bar")).toBe(TINT);
+    const plain = frameOf("Build, Team A, 2026-09-21 to 2026-09-25");
+    expect(plain).not.toHaveAttribute("data-tint");
+    expect(plain.style.getPropertyValue("--timeline-bar")).toBe("");
+  });
+
+  test("a read-only ghost follows with no class of its own, and a tint changes neither its tone, its name nor its critical outline", () => {
+    const ghost: TimelineBarData = { ...BUILD, tone: "ghost", emphasis: "critical", tint: TINT };
+    renderWithProviders(<Harness rows={[row(2, "Build", [ghost])]} />);
+    const image = screen.getByRole("img", { name: "Build, Team A, 2026-09-21 to 2026-09-25, read-only" });
+    expect(image).toHaveAttribute("data-tone", "ghost");
+    expect(image).toHaveAttribute("data-critical", "true");
+    expect(image.parentElement).toHaveAttribute("data-tint", TINT);
+    expect((image.parentElement as HTMLElement).style.getPropertyValue("--timeline-bar")).toBe(TINT);
+  });
+
+  test("a tinted bar keeps its geometry and its handles", () => {
+    renderWithProviders(<Harness rows={[row(1, "Discovery", [{ ...DISCOVERY, tint: TINT }])]} />);
+    expect(barBody("Discovery, Team A, 2026-09-16 to 2026-09-18").parentElement).toHaveAttribute("data-tint", TINT);
+    expect(geometryOf(barBody("Discovery, Team A, 2026-09-16 to 2026-09-18"))).toEqual({ left: "56px", width: "84px" });
+    expect(screen.getByRole("button", { name: "Resize start of Discovery" })).toBeInTheDocument();
+  });
+});

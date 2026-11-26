@@ -8,6 +8,7 @@ import { baselineUnscheduledIds, jiraScheduleDates, jiraTrayRowId, jiraTrayRows 
 import { projectPath } from "../utils/planLinks";
 import { ghostRowId } from "../utils/dependencyArrows";
 import { orderedMembers } from "../utils/teamChain";
+import { teamTint, type TeamColour } from "../utils/teamColours";
 import { teamPath } from "../utils/teamLinks";
 import type { RovingTarget, TimelineBarData, TimelineRowData } from "../utils/timelineModel";
 import { AppendedRowName, BaselineRowName } from "./BaselineParts";
@@ -113,11 +114,12 @@ export function jiraTrayAppendedRows(appended: readonly BaselineRow[], ctx: Appe
  * The critical chain's ghost rows (1.27): another team's milestone, or a whole project a chain link names, that lies on the chain through this team's
  * work - read-only (no menu, no handle, no estimate), dimmed, one gray bar that says it is on the chain, "0 critical path" in the Slack column. The way on is the
  * member's team (a link after its name; "Project X" has none) and its project; ids are the project page's ghost ids (`ghostRowId`). `projectNames` names the
- * team's projects for the bar's "on the critical chain of".
+ * team's projects for the bar's "on the critical chain of"; a milestone member's bar takes its own team's colour from `colours` (1.29; a project member, or a team the
+ * lookup lacks, stays neutral gray; the team's name is in the same row).
  */
 export function chainGhostRows(
   chain: TeamCriticalChain,
-  { t, withOptional, projectNames }: Pick<AppendedContext, "t" | "withOptional"> & { projectNames: ReadonlyMap<number, string> },
+  { t, withOptional, projectNames, colours }: Pick<AppendedContext, "t" | "withOptional"> & { projectNames: ReadonlyMap<number, string>; colours: ReadonlyMap<number, TeamColour> },
 ): TimelineRowData[] {
   const slack = <SlackCell key="slack" slackDays={0} critical />;
   const nameCell = (member: TeamChainMember): TimelineRowData["cells"][number] => {
@@ -167,7 +169,7 @@ export function chainGhostRows(
         null,
         slack,
       ),
-      bars: [{ id, start: member.startDate, end: member.endDate, label: member.name, describe, editable: false, tone: "ghost", emphasis: "critical" }],
+      bars: [{ id, start: member.startDate, end: member.endDate, label: member.name, describe, editable: false, tone: "ghost", emphasis: "critical", ...teamTint(colours, member.teamId) }],
     };
   });
 }

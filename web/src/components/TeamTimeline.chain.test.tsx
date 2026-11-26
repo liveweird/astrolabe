@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { QueryClient } from "@tanstack/react-query";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import TeamTimeline, { type TeamActions } from "./TeamTimeline";
 import TimelineDndContext from "./TimelineDndContext";
 import type { DependencyEndpoint, ProjectDependency } from "../api/dependencies";
 import type { TeamChainLink, TeamChainMember, TeamCriticalChain, TeamMilestone, TeamView } from "../api/teams";
 import { withoutGeneratedIds } from "../test/generatedIds";
-import { jsonResponse } from "../test/http";
+import { jsonResponse, routeFetch } from "../test/http";
 import { renderWithProviders } from "../test/render";
 import { makeScale, toEpochDay } from "../utils/timelineScale";
 
@@ -111,12 +112,13 @@ const viewOf = (over: Partial<TeamView> = {}): TeamView => ({
 
 const ACTIONS: TeamActions = { editSchedule: vi.fn(), unschedule: vi.fn(), pin: vi.fn(), schedule: vi.fn(), scheduleOnJira: vi.fn(), move: vi.fn(), moveTo: vi.fn() };
 
-function renderTimeline(view: TeamView, criticalPath: boolean) {
+function renderTimeline(view: TeamView, criticalPath: boolean, queryClient?: QueryClient) {
   const scale = makeScale("week", { from: toEpochDay("2042-01-05"), to: toEpochDay("2042-02-22") });
   return renderWithProviders(
     <TimelineDndContext scale={scale} onSchedule={vi.fn(() => true)} onReorder={vi.fn(() => true)}>
       <TeamTimeline view={view} scale={scale} onZoomChange={vi.fn()} today="2042-01-06" busy={false} actions={ACTIONS} label="Team milestone timeline" criticalPath={criticalPath} />
     </TimelineDndContext>,
+    { queryClient },
   );
 }
 
@@ -200,5 +202,46 @@ describe("TeamTimeline with the critical chain", () => {
   test("the team's own milestone bars are untouched by the chain: still editable, still critical by their own figure", () => {
     renderTimeline(viewOf(), true);
     expect(screen.getByRole("button", { name: /^tp-a, Invoices, 2042-02-02 to 2042-02-06, 4 man-days, on the critical path$/ })).toHaveAttribute("data-critical", "true");
+  });
+});
+
+describe("TeamTimeline team colours (1.29)", () => {
+  const TEAMS = {
+    items: [{ id: 9, name: "Platform", description: null, managerPersonId: null, managerName: null, colour: "GRAPE", createdAt: 1, updatedAt: 2 }],
+    page: 1,
+    pageSize: 100,
+    total: 1,
+  };
+  const NO_HOLIDAYS = { "GET /api/v1/public-holidays": { items: [] } };
+  const tintOf = (name: string) => rowOf(name).querySelector("[data-tint]")?.getAttribute("data-tint") ?? null;
+
+  test("the team's own bars take the page's team colour from the view itself, with no teams read at all, and the chain's ghost rows stay neutral until it answers", () => {
+    renderTimeline(viewOf(), true);
+    expect(tintOf("tp-a")).toBe("var(--astrolabe-team-indigo)");
+    expect(tintOf("tp-b")).toBe("var(--astrolabe-team-indigo)");
+    expect(tintOf("tg-near")).toBeNull();
+  });
+
+  test("a ghost row's bar takes its own team's colour from the teams read; a whole-project member has no team and stays neutral", async () => {
+    vi.stubGlobal("fetch", routeFetch({ "GET /api/v1/teams": TEAMS, ...NO_HOLIDAYS }));
+    renderTimeline(viewOf(), true);
+    await waitFor(() => expect(tintOf("tg-near")).toBe("var(--astrolabe-team-grape)"));
+    expect(tintOf("tg-up")).toBe("var(--astrolabe-team-grape)");
+    expect(tintOf("Project Gamma")).toBeNull();
+    // the team's own bars keep the view's colour, whatever the read says; the ghost keeps its tone and its critical outline
+    expect(tintOf("tp-a")).toBe("var(--astrolabe-team-indigo)");
+    const near = within(rowOf("tg-near")).getByRole("img", { name: /^tg-near/ });
+    expect(near).toHaveAttribute("data-tone", "ghost");
+    expect(near).toHaveAttribute("data-critical", "true");
+  });
+
+  test("a chain member of a team the read lacks stays neutral", async () => {
+    vi.stubGlobal("fetch", routeFetch({ "GET /api/v1/teams": { ...TEAMS, items: [{ ...TEAMS.items[0], id: 10 }] }, ...NO_HOLIDAYS }));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderTimeline(viewOf(), true, queryClient);
+    // the answer is in the query cache (the lookup has rebuilt from it) and still names no team of the chain
+    await waitFor(() => expect(queryClient.getQueryData(["teams", "options"])).toBeDefined());
+    await act(async () => {});
+    expect(tintOf("tg-near")).toBeNull();
   });
 });

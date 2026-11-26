@@ -60,6 +60,12 @@ export interface TimelineBarData {
    * and `data-critical="true"` (monochrome, no new hue). Absent = nothing is drawn or rendered extra.
    */
   emphasis?: "critical";
+  /**
+   * A CSS colour the bar is filled with in place of the neutral gray (1.29, team colours: the page passes a team's `var(--astrolabe-team-…)` for a milestone
+   * bar; the component knows nothing of teams). The bar's frame sets `--timeline-bar` to it and carries it as `data-tint` (what tests read), so an ordinary
+   * bar and a ghost follow with no class of their own. The held bar stays the accent, the critical outline and the focus ring are unchanged. Absent = neutral.
+   */
+  tint?: string;
 }
 
 export interface TimelineBandData {

@@ -5,11 +5,13 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import type { TeamMilestone, TeamView } from "../api/teams";
 import { useHolidays } from "../hooks/useHolidays";
+import { useTeamColours } from "../hooks/useTeamColours";
 import { barList, baselineBars, newSince, removedRows } from "../utils/baselineOverlay";
 import { arrowSpecsFor, conflictsByBarFor, ghostRowId, markCriticalArrows } from "../utils/dependencyArrows";
 import { idleBands } from "../utils/idleGaps";
 import { projectPath } from "../utils/planLinks";
 import { withPinned } from "../utils/pinText";
+import { teamColourVar } from "../utils/teamColours";
 import { proposalBars, proposalRows, type TeamProposalView } from "../utils/scheduleProposal";
 import { chainArrowSpecs, chainProjectNames } from "../utils/teamChain";
 import type { BarId, RovingTarget, TimelineBarData, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
@@ -156,6 +158,9 @@ export default function TeamTimeline({
 }) {
   const { t } = useTranslation();
   const { holidays, failed: holidaysFailed } = useHolidays();
+  const colours = useTeamColours();
+  // The page's own team is the view's (always read, always coloured); the chain's other teams come from the cached teams read (1.29).
+  const ownTint = teamColourVar(view.team.colour);
   const previewing = proposal !== undefined;
   // The Flags column exists while some scheduled milestone is linked to Jira or carries a flag (the view says so: no stored answer, no second request).
   const flagsColumn = view.scheduled.some((milestone) => milestone.jira !== null || milestone.flags.length > 0);
@@ -235,6 +240,7 @@ export default function TeamTimeline({
               ),
               ...(criticalPath && milestone.critical ? { emphasis: "critical" as const } : {}),
               editable: view.team.can.schedule && !previewing,
+              tint: ownTint,
             },
           ]
         : []),
@@ -253,7 +259,7 @@ export default function TeamTimeline({
     scheduleOnJira: view.team.can.schedule && !previewing ? actions.scheduleOnJira : null,
   };
   // The chain's ghost rows come right after the team's own, before the baseline's and the tray's appended rows.
-  if (chain !== undefined) rows.push(...chainGhostRows(chain, { t, withOptional, projectNames: chainProjectNames(view) }));
+  if (chain !== undefined) rows.push(...chainGhostRows(chain, { t, withOptional, projectNames: chainProjectNames(view), colours }));
   rows.push(...baselineAppendedRows(appended, appendedCtx), ...jiraTrayAppendedRows(appended, appendedCtx));
   // A preview appends the tray milestones the proposal schedules: only the proposal bar (they have no current one).
   for (const milestone of proposalRows(view, proposal?.moves ?? [])) {

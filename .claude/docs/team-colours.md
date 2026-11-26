@@ -1,6 +1,6 @@
 # Team colours
 
-Owns: a team's colour: the palette, how a colour is assigned and stored, who edits it, the wire shape and where the SPA draws it. Not here: the registry's guards and the audit catalogue (`authorization.md`, `observability.md`), the table list (`persistence.md`), the Timeline component (`timeline.md`). Added in 1.29; the server half (V35, the teams API) and the web half (the palette, the swatch, the editor, where it shows) are below; the Timeline's `tint` is added with the step that builds it.
+Owns: a team's colour: the palette, how a colour is assigned and stored, who edits it, the wire shape and where the SPA draws it. Not here: the registry's guards and the audit catalogue (`authorization.md`, `observability.md`), the table list (`persistence.md`), the Timeline component (`timeline.md`). Added in 1.29; the server half (V35, the teams API) and the web half (the palette, the swatch, the editor, where it shows) are below; the Timeline's `tint` and where the timelines show it are below.
 
 ## Rules
 
@@ -43,3 +43,12 @@ Owns: a team's colour: the palette, how a colour is assigned and stored, who edi
   A new team preselects `leastUsedColour` of the read teams (the server's rule) once the read has settled, and sends it; before that nothing is preselected and the body omits `colour`, so the server picks. A POST carries `colour`; a PUT only when the user changed it (the prefill is a cached read, so an untouched colour must not overwrite another admin's recolour).
 - **Where it shows (C2).** A swatch before the name on the Teams registry, the team page title, Team load's teams table and Home "Your teams" (not Team load's weeks table, deliberately).
   A swatch whose colour is not read yet keeps its box, hidden, so the name does not shift.
+
+## Web: the timelines (C3)
+
+- **The `tint`.** `TimelineBarData.tint?: string`, a CSS colour (`timeline.md` "Bar tones"): the Timeline still knows nothing of teams. A page spreads `teamTint(colours, teamId)` (`utils/teamColours.ts`: `{ tint: "var(--astrolabe-team-<key>)" }`, or `{}` for an unknown or null team, so the bar stays neutral). The bar's frame sets `--timeline-bar` inline and `data-tint`; tests read `data-tint`, never the colour.
+  The held bar stays cyan; the critical outline and the focus ring are unchanged.
+- **The project page** (`ProjectTimelineRows.tsx`, colours from `useTeamColours`): milestone bars, ghost ends with a team, and the Team cell of both (`TeamNameCell`: swatch and name, the key, so no legend). A whole-project end has no team and stays neutral, as do the summary row, the target window, the baseline and Jira bars.
+- **The team page** (`TeamTimeline.tsx`): the team's own milestone bars take `view.team.colour` (the document names it, so no read is awaited); the critical chain's ghost rows take their own team's colour from the cached teams read (`chainGhostRows`; a whole-project member, a deleted team or an unanswered read stays neutral, the team's name a link in the same row). Proposal, baseline and Jira bars and the load strip stay neutral.
+- **Stays neutral** (1.29): project, program and work-stream bars, the window, proposal, baseline and Jira tones, the load strip, the roadmap and programs rows. The Milestones table and swatches in proposals, deviations and the baseline comparison are not part of C3.
+- **Tests.** `Timeline.test.tsx` ("the tint"), `ProjectTimeline.colours.test.tsx`, `TeamTimeline.chain.test.tsx` ("team colours"), `teamColours.test.ts` (`teamTint`); e2e `teams.spec.ts` (an admin recolours a team and the project page's bar and swatch follow).

@@ -7,7 +7,7 @@ import { deltaE2000 } from "../test/colorDifference";
 import { contrast } from "../test/contrast";
 import { theme } from "../theme";
 import { cssVariablesResolver, DARK_TOKENS, LIGHT_TOKENS } from "../themeVariables";
-import { leastUsedColour, teamColourHex, teamColourVar, teamColourVariables, TEAM_COLOURS, TEAM_COLOUR_KEYS, type TeamColour } from "./teamColours";
+import { leastUsedColour, teamColourHex, teamColourVar, teamColourVariables, teamTint, TEAM_COLOURS, TEAM_COLOUR_KEYS, type TeamColour } from "./teamColours";
 
 const COLORS = { ...DEFAULT_THEME.colors, ...theme.colors } as Record<string, MantineColorsTuple>;
 const SCHEMES = ["light", "dark"] as const;
@@ -94,5 +94,16 @@ describe("leastUsedColour (the server's rule)", () => {
     expect(leastUsedColour(all)).toBe("INDIGO");
     expect(leastUsedColour([...all, "INDIGO", "GREEN"])).toBe("TEAL");
     expect(leastUsedColour(all.filter((colour) => colour !== "COBALT").concat("INDIGO"))).toBe("COBALT");
+  });
+});
+
+describe("teamTint", () => {
+  const colours = new Map<number, TeamColour>([[3, "TEAL"]]);
+
+  test("a known team tints with its key's variable; a missing team, a null id and an empty lookup add nothing (the neutral bar)", () => {
+    expect(teamTint(colours, 3)).toEqual({ tint: "var(--astrolabe-team-teal)" });
+    expect(teamTint(colours, 4)).toEqual({});
+    expect(teamTint(colours, null)).toEqual({});
+    expect(teamTint(new Map(), 3)).toEqual({});
   });
 });

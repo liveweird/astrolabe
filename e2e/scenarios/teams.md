@@ -2,9 +2,11 @@
 
 - **Spec**: [tests/teams.spec.ts](../tests/teams.spec.ts)
 - **Actors**: the seed administrator (`admin@astrolabe.local`); one throwaway person (seeded through
-  the API) in the first test, one throwaway team (seeded through the API) in the second and one throwaway user in the third
+  the API) in the first test, one throwaway team (seeded through the API) in the second, two in the third, one throwaway user in the fourth
+  and, in the last, a throwaway person, team, work stream, program, project and scheduled milestone (all seeded through the API)
 - **Owns** (exclusive server-side state): its throwaway teams (unique `e2e-team-*` /
-  `e2e-ro-team-*` / `e2e-esc-team-*` names), person (`e2e-person-*`) and user — all deleted by the end of the file
+  `e2e-ro-team-*` / `e2e-esc-team-*` / `e2e-tc-team-*` names), people (`e2e-person-*` / `e2e-tc-person-*`), user and the last test's
+  plan nodes (`e2e-tc-*`) — all deleted by the end of the file
 
 ## Scenario: admin creates a team, renames it, assigns its manager, and deletes it
 
@@ -50,6 +52,16 @@
 3. They open the team.
    - *Expected*: the team page renders with its name as the heading and without the **Edit** button.
 4. The admin signs back in and deletes the team and the user.
+
+## Scenario: an admin gives a team a colour and its milestone bar on the project page carries it
+
+1. The admin signs in and seeds, through the API, a team whose colour is Indigo and a project with one scheduled milestone of that team.
+2. They open the project's page.
+   - *Expected*: the milestone's bar carries `data-tint` for Indigo and its Team cell's swatch reads `INDIGO` (the test reads the attributes, never the colour).
+3. They open the team's page, click **Edit**, pick **Raspberry** in the colour group, and Save.
+   - *Expected*: the editor closes.
+4. They open the project's page again.
+   - *Expected*: the same milestone's bar carries `data-tint` for Raspberry and the Team cell's swatch reads `RASPBERRY`; the rows are removed afterwards through the API.
 
 ## Not covered here (and why)
 
