@@ -68,7 +68,7 @@ export default function PlanDependenciesContent({
           <EmptyState icon={IconLink} label={data.truncated ? t("dependencyList.noMatchShown", { count: data.dependencies.length }) : t("dependencyList.noMatch")} />
           {narrowingCount(filter) > 0 && (
             <Button variant="default" size="compact-sm" onClick={onClear}>
-              {t("milestoneList.clear")}
+              {t("dependencyList.clear")}
             </Button>
           )}
         </Stack>

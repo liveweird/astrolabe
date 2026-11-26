@@ -32,6 +32,7 @@
   "empty": "The plan has no dependencies yet",
   "noMatch": "No dependency matches the filters",
   "noMatchShown": "None of the first {{count}} dependencies matches the filters",
+  "clear": "Clear the filters",
   "truncated": "The list shows its first {{count}} dependencies.",
   "loadFailed": "Could not read the dependencies"
 }

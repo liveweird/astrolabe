@@ -246,7 +246,7 @@ describe("Home", () => {
       const roadmap = within(await screen.findByRole("group", { name: "The roadmap in figures" }));
       const plan = within(screen.getByRole("group", { name: "The plan in figures" }));
       const notScheduled = await plan.findByRole("link", { name: "100 not scheduled yet" });
-      expect(notScheduled).toHaveAttribute("href", "/milestones?scheduled=false");
+      expect(notScheduled).toHaveAttribute("href", "/team-load");
       const unranked = await roadmap.findByRole("link", { name: "20 unranked" });
       expect(unranked).toHaveAttribute("href", "/roadmap?mode=prioritization&unranked=true");
       expect(unranked).toHaveTextContent("20 unranked");

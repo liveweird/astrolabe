@@ -36,7 +36,7 @@ Owns: the Projects nav leaf and its two routes, the project picker, the remember
 
 ## The Milestones table (`components/ProjectMilestonesTable.tsx`)
 
-The Milestones page's filters, kept for ONE project (the page itself goes in a later step). An h3 "Milestones" after the Unscheduled tray and before Dependencies,
+The retired Milestones page's filters, kept for ONE project (the page is gone: `/milestones` redirects, see "Where the old links go"). An h3 "Milestones" after the Unscheduled tray and before Dependencies,
 mounted only while the project has a milestone (an empty project has the page's own empty state).
 
 - **Rows** are the view's own `scheduled` then `unscheduled` (`projectMilestones`), nothing fetched or recomputed; a write that moves a milestone changes the table with the view.
@@ -49,11 +49,12 @@ mounted only while the project has a milestone (an empty project has the page's 
   - "Clear the filters" shows while any narrows. A status line (`role="status"`) says "N milestones", or "Showing X of N milestones" while narrowed (the rows follow every keystroke, the announced count waits 300 ms for typing to pause, `FILTER_DEBOUNCE_MS`); nothing matching says so inside the table.
 - **Sort**: Milestone, Team or Start (`SortHeader`; default Start ascending).
   - Text compares by an `Intl.Collator` (numeric, accents and case ignored); a milestone without dates is last in BOTH directions (as the server's start sort); ties fall back to the name, then the id.
-  - Pure logic and the filters: `utils/projectMilestones.ts`. The Milestones page's rank sort has no counterpart (one project has one rank).
+  - Pure logic and the filters: `utils/projectMilestones.ts`. The old page's rank sort has no counterpart (one project has one rank).
 - **The address** holds the Schedule choice only: `?milestones=all|unscheduled|scheduled` (exact words; anything else is no choice).
   - A Schedule change `replace`s the entry, keeps every other parameter and always writes the chosen word, "all" included. "Clear the filters" writes "all" only when the address already holds `milestones`, else leaves the address alone.
   - The Schedule choice is in the address, so it survives Back and a reload; Team, Name and the sort are page state and reset when another project is picked (the page is keyed by the project).
-  - The link target for a project's "not scheduled" figures (Home, later) is `/projects/N?milestones=unscheduled`.
+  - The link target for a project's "not scheduled" figures (Home) is `/projects/N?milestones=unscheduled` (`projectUnscheduledPath`).
+- **Where the old links go.** `/milestones` redirects (`LegacyMilestonesRedirect`, `legacyMilestonesTarget` in `utils/legacyLinks.ts`, the old query dropped): a `projectId` to `/projects/N` with `milestones=unscheduled|scheduled` from `scheduled=false|true`; only a `teamId` to `/teams/N` (its Unscheduled tray); else `/projects`. Team load's and Home's team "not scheduled" figures lead to the team's page, Home's plan figure to `/team-load`.
 - **Shown or hidden** (`TableDisclosure`, controlled with `open`/`onOpenChange`; `aria-expanded`/`aria-controls`, `data-print="hide"`): shown by default, remembered per browser under `project.milestonesOpen` (`astrolabe.viewSettings`, one flag for every project).
   - A hidden table is not rendered, so it neither prints nor costs a row; the heading and the toggle stay.
   - A valid `?milestones=` OPENS a table remembered as hidden WITHOUT writing the memory; hiding a table the address opened removes the parameter (and remembers "hidden"), or it would stay open.

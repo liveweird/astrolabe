@@ -3,8 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import type { HomeMe } from "../api/home";
 import { violatedDependenciesPath } from "../utils/dependencyListLinks";
-import { unscheduledMilestonesPath } from "../utils/milestoneLinks";
-import { projectPath } from "../utils/planLinks";
+import { projectPath, projectUnscheduledPath } from "../utils/planLinks";
 import BadgeLink from "./BadgeLink";
 import HomeFlagBadges from "./HomeFlagBadges";
 import ScrollRegion from "./ScrollRegion";
@@ -48,7 +47,7 @@ export default function HomeProjectsTable({ projects }: { projects: HomeMe["proj
                 {project.unscheduledMilestones > 0 ? (
                   <Anchor
                     component={RouterLink}
-                    to={unscheduledMilestonesPath({ projectId: project.id })}
+                    to={projectUnscheduledPath(project.id)}
                     size="sm"
                     aria-label={t("home.mine.notScheduledAria", { count: project.unscheduledMilestones, name: project.name })}
                   >

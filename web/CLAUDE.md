@@ -131,8 +131,7 @@ Everything is lazy under `RequireAuth` unless noted.
 - `/` — Overview, everyone — "Home" (links, the plan's figures, the open deviation counts and what you manage).
 - `/plan` — Planning, everyone (actions by the view's `can`; one tree table, folds and pins per browser, work streams and programs re-arranged by drag and menu) — "Plan" + `plan-tree.md`.
 - `/roadmap` — Planning, everyone, ONE page in two modes (`?mode=prioritization|overview`, the last one remembered; `/programs` redirects): Prioritization (`can.editRank`, `can.editTargetWindow`; filters in the URL, remembered) and the overview tree (the target window by `can`; the program pick in the URL, remembered); both with the dependency panel — "Roadmap", "Programs" + `timeline.md` + `projects-view.md`.
-- `/projects`, `/projects/:id` — Planning, everyone (`can`; the picker, the remembered project) — "Project view" + `projects-view.md` + `timeline.md`.
-- `/milestones` — Planning, everyone (read-only; filters in the URL) — "Milestones".
+- `/projects`, `/projects/:id` — Planning, everyone (`can`; the picker, the remembered project, the Milestones table; `/milestones` redirects) — "Project view" + `projects-view.md` + `timeline.md`.
 - `/dependencies` — Planning, everyone (add, edit and delete by `can`; filters in the URL) — "Dependencies".
 - `/baselines`, `/baselines/:id` — Planning, everyone (`can.manage` writes) — "Baselines".
 - `/teams` — Teams and capacity, everyone reads, ADMIN writes — "Teams and the team page"; `/teams/:id` — everyone (`team.can`) — "Teams and the team page" + `timeline.md`.

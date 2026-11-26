@@ -23,7 +23,6 @@ section of the page you touch before changing it, and put a new page's mechanics
 - [Project view](#project-view)
 - [Roadmap](#roadmap)
 - [Programs](#programs)
-- [Milestones](#milestones)
 - [Dependencies](#dependencies)
 - [Team load](#team-load)
 - [Baselines](#baselines)
@@ -520,17 +519,17 @@ linked person may manage through the owner chain (what they own and everything u
 
 A figure that leads somewhere is itself the link: a real `RouterLink` (`components/BadgeLink.tsx`, a light `Badge` as a link, the `DeviationCount` idiom; a text line is an `Anchor`),
 shown only when positive (zero is no claim and no link). What it says is still the document's own figure - a link changes where it leads, never what it says. Every URL comes from a
-builder (`roadmapFilteredPath`, `unscheduledMilestonesPath`, `teamLoadWarningPath`); none is assembled by hand.
+builder (`roadmapFilteredPath`, `projectUnscheduledPath`, `teamLoadWarningPath`); none is assembled by hand.
 
 | Figure on Home | Leads to | Why the two agree |
 |---|---|---|
-| Plan: "N not scheduled yet" | `/milestones?scheduled=false` | the list's `total` and `plan.unscheduledMilestones` count one set |
+| Plan: "N not scheduled yet" | `/team-load` | the rows count each team's `unscheduledMilestones`, whose sum is `plan.unscheduledMilestones` |
 | Roadmap: "N unranked" (a link when positive, text at zero) | `/roadmap?unranked=true` | `plan.unrankedProjects` and the Roadmap's "N unranked" count the same rows; a link is shown as written, so no remembered filter or pick narrows it; "N ranked" stays text (no "ranked only" filter) |
 | Roadmap: "N warnings" / "N infos" (each opens its own severity) | `/roadmap?severity=WARNING` / `?severity=INFO` | every warning sits on a project that has one, so the facts line's warnings figure under the filter is Home's; the infos figure there counts the infos of those rows (fewer than Home's, as every filter narrows a count) |
 | Roadmap: "N teams with an overloaded week" / "over the WIP limit" | `/team-load?warning=overloaded` / `wip` | the page's rows and Home's count fold the same `teamWeeks` |
 | Roadmap: "N violated dependencies" | `/dependencies?status=violated` (`violatedDependenciesPath()`) | `totals.violated` of the dependencies view and `plan.conflicts` are one server function over one kernel's output |
 | Yours, a project's / a team's red "N conflicts" | `/dependencies?status=violated&projectId=N` / `&teamId=N` | the violated links with an end in the project / a milestone end in the team: the subsets Home counts; the page's filter keeps the same rows |
-| Yours, a project's / a team's "Not scheduled" | `/milestones?scheduled=false&projectId=N` / `&teamId=N` | the project's / team's subset of the same set |
+| Yours, a project's "Not scheduled" / a team's (Team load's too) | `/projects/N?milestones=unscheduled` / `/teams/N` | the project page's Milestones table narrowed to its unscheduled rows / the team page's Unscheduled tray: the same subset |
 | Yours, "Open the projects you own yourself on the roadmap" (under the projects table, only while a listed project is `direct`) | `/roadmap?ownerPersonId=<me.personId>` | the Roadmap's Owner filter; direct ownership on both sides (the table may list more: the projects under a work stream or program the person owns) |
 | Yours, a work stream's / a program's name | `/roadmap?workStreamId=N` / `?programId=N` | the Work stream filter / the program pick with one program; a node with no project is plain text (its id is no filter option on the Roadmap, so the link would open it unfiltered) |
 | Yours, a project's and a team's name; a team's Jira badge | their pages; the Deviations page | the existing links, not figure-links |
@@ -1200,39 +1199,6 @@ is said once per pick).
 
 The page's co-located tests (`Programs*.test.tsx`, `utils/programsTree.test.ts`), the e2e `roadmap-overview.spec.ts` and the axe scans in `accessibility.spec.ts`.
 
-## Milestones
-
-Files: `pages/Milestones.tsx`; `api/milestones.ts` (`listMilestones`); `utils/milestoneFilters.ts` (pure: `parseMilestoneFilter`, `milestoneFilterParams`, `narrowingCount`, the Schedule choice, `cascadePatch`, `milestoneSortParam`);
-`utils/milestoneLinks.ts` (`milestonesPath`, `unscheduledMilestonesPath({teamId?, projectId?})`, the builder Home's "not scheduled" figures use); `components/MilestonesFilters.tsx`;
-`components/TeamFilterSelect.tsx`, `components/PlanFilterSelect.tsx` (`level`, optional `within`; its project level also on Dependencies), `components/ProjectScopeChip.tsx` (also on Dependencies); `hooks/useTeamOptions.ts`; `utils/planNames.ts`.
-
-### Route and data
-
-`/milestones` (nav: Planning, `IconTimelineEvent`, **everyone**, read-only) lists every milestone of the plan from the paged `GET /milestones`. The rows are the ones the dependency pickers
-search, so a milestone under a deleted project or program is absent. It is the list-page template ("Shared list-page and dialog mechanics": `FilterPanel`, `SortHeader`,
-`RegistryListTable`) with the filters in the URL instead of `useStoredState` (the Deviations idiom, no remembered filter).
-
-- Query: key `["plan","milestones","list", page, pageSize, sortParam, scheduled, teamId, workStreamId, programId, projectId, name]` (under `["plan"]`, so a schedule or plan write refreshes it; the pickers' own
-  search is not a query), `placeholderData: keepPreviousData`. Sortable Rank / Milestone / Project / Team, initial sort project name; the Rank header sends `rankPosition,projectName,startDate,name`, descending `-rankPosition,…` (`milestoneSortParam`: only the first key flips, so unranked projects come last both ways, by name); sort and page size are
-  remembered per browser (`usePagedSort`, key `milestones`).
-- Rows: the project's rank ("–", hidden "Not ranked", if none), milestone name (text: a milestone has no page), project (link, `plan.openProjectAria`), team (link, `teams.openAria`), estimate in man-days, start, end; a milestone without dates
-  shows one dimmed "Not scheduled" across the two date cells. Under the title: "N milestones" (the server's `total`); the empty states carry a "Clear the filters" button.
-
-### Filters
-
-- In the URL: `scheduled` (the exact words `true`/`false`; `false` is the unscheduled list), `teamId`, `workStreamId`, `programId`, `projectId` (positive integers, `idOf`) and `name`. A malformed value is dropped, a
-  change `replace`s the entry, so a link, a reload and Back restore the view.
-- Controls: the Schedule select (All / Not scheduled / Scheduled, never clearable), the team select (EVERY team: `useTeamOptions`, key `["teams","options"]`, shared with the Deviations
-  panel), the Work stream, Program and Project selects (the plan view's nodes, no chips for the first two; each offers what lies under the picks above it, and a work stream or program pick drops an earlier pick outside it, `cascadePatch`; an id the plan lacks is never dropped) and the name search (`ClearableTextInput`).
-- A `projectId` is also a removable chip beside the toggle (`ProjectScopeChip`: "Project: Invoices", named from `GET /views/plan` under `["plan","view"]` through `utils/planNames.ts`, the
-  Deviations page's strings), so the scope shows with the panel closed; the select and the chip are two views of one parameter.
-- The name input keeps the text as typed and writes it trimmed to the URL at once; the REQUEST waits 300 ms (the debounced value is in the query key), and a URL change from elsewhere
-  (Back, a link, "Clear the filters") that disagrees with the typed text replaces it during render.
-
-### Tests
-
-The page's co-located tests (`Milestones.test.tsx`, the `milestoneFilters|milestoneLinks` `utils/` tests; fixtures `test/milestones.ts`).
-
 ## Dependencies
 
 Files: `pages/Dependencies.tsx` (1.29: a thin host of `hooks/usePlanDependencies.ts` and `components/PlanDependenciesContent.tsx`, which the Roadmap's and Programs'
@@ -1242,7 +1208,7 @@ Files: `pages/Dependencies.tsx` (1.29: a thin host of `hooks/usePlanDependencies
 
 ### Route and data
 
-`/dependencies` (nav: Planning after Milestones, `IconLink`, **everyone**) lists every dependency of the plan from the ONE unpaged `GET /views/dependencies`
+`/dependencies` (nav: Planning after Projects, `IconLink`, **everyone**) lists every dependency of the plan from the ONE unpaged `GET /views/dependencies`
 (`getDependencyListView`, key `DEPENDENCY_LIST_KEY = ["plan","dependencies"]`, under `["plan"]` so every plan write refreshes it; at most 1,000 rows with `truncated`); the page also reads the plan view (`getPlanView`, revalidated). Each row carries
 the caller's own `can{edit, delete}`, the project view's flags, and nothing else differs between callers.
 
@@ -1276,7 +1242,7 @@ The header's "Add dependency" shows only while the plan view (`planViewKey`) is 
 
 ### Filters
 
-Three filters are in the URL like the Milestones page's (a change `replace`s the entry; nothing is remembered): `status` = `violated` | `ok` | `unscheduled` (absent, `all` or unknown =
+Three filters are in the URL like the Deviations page's (a change `replace`s the entry; nothing is remembered): `status` = `violated` | `ok` | `unscheduled` (absent, `all` or unknown =
 every dependency), `teamId`, `projectId` (positive integers, `idOf`).
 
 - They are applied in the browser over the rows that arrived, AND-combined, so a change makes no second read: a team keeps a row when either end is a milestone of it (a project end has no
@@ -1313,7 +1279,7 @@ caller, no `can`). The figures are the team page's own and are shown as they arr
 
 - The facts line (`role="group"`, "N teams" and the two orange badges in Home's own strings `home.roadmap.overloadedTeams|wipTeams`, each only when positive) reads the document's `totals`
   over EVERY team, so a filter or the 200-row cap never changes it.
-- Columns: Team (the link to the team page, `teams.openAria`), Manager (dimmed "No manager" when none), Milestones, Not scheduled (a link to `unscheduledMilestonesPath({teamId})` named by
+- Columns: Team (the link to the team page, `teams.openAria`), Manager (dimmed "No manager" when none), Milestones, Not scheduled (a link to the team's page named by
   its row, `teamLoad.notScheduledAria`, only when positive; a plain 0 otherwise), Overloaded and WIP (the team page's two orange badges, only when positive) and Capacity (a gray "N weeks
   without capacity" badge, only when positive: a team with scheduled work and no capacity period can never be overloaded, and the page says so instead of looking fine). No row or page ever
   says "fits"; no chart; every figure is worded.
@@ -1322,7 +1288,7 @@ caller, no `can`). The figures are the team page's own and are shown as they arr
 
 ### Filters
 
-Both are in the URL like the Milestones page's (a change `replace`s the entry; no remembered filter) and applied in the browser over the rows, so changing one makes no second read.
+Both are in the URL like the Deviations page's (a change `replace`s the entry; no remembered filter) and applied in the browser over the rows, so changing one makes no second read.
 
 - `warning` = `overloaded` | `wip` | `any` (absent or unknown = every team). `any` means an overloaded week or a week over the WIP limit; weeks without capacity are a fact, not a warning.
 - `past` (`?past=true`, the exact word; anything else reads as off) is the "Include past weeks" `Switch` after the Show select (`teamLoad.filter.past`; the filter badge counts it). Each

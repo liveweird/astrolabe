@@ -5,7 +5,6 @@ import type { HomeMe } from "../api/home";
 import { useTeamColours } from "../hooks/useTeamColours";
 import { violatedDependenciesPath } from "../utils/dependencyListLinks";
 import { deviationsForTeamPath } from "../utils/deviationLinks";
-import { unscheduledMilestonesPath } from "../utils/milestoneLinks";
 import { teamPath } from "../utils/teamLinks";
 import BadgeLink from "./BadgeLink";
 import { DeviationCount } from "./JiraChips";
@@ -53,7 +52,7 @@ export default function HomeTeamsTable({ teams }: { teams: HomeMe["teams"] }) {
                 {team.unscheduledMilestones > 0 ? (
                   <Anchor
                     component={RouterLink}
-                    to={unscheduledMilestonesPath({ teamId: team.id })}
+                    to={teamPath(team.id)}
                     size="sm"
                     aria-label={t("home.mine.notScheduledAria", { count: team.unscheduledMilestones, name: team.name })}
                   >

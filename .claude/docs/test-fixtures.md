@@ -251,12 +251,10 @@ Files: `e2e/tests/home.spec.ts`; prefix `e2e-home-*`.
 - A third test on the same world asserts the owner's "not scheduled" links and the "own yourself" roadmap link by exact counts (each list is narrowed by the owner's own ids).
 - A second person without a login (`e2e-home-other-*`) owns a second, milestone-less project (`e2e-home-other-project-*`) in the owner's program: "Your projects" then has two rows (found by name, never by position), and a fourth test turns "Only what I own myself" on and off (the `astrolabe.viewSettings.home.mine.ownOnly` key lives in the test's own browser context).
 
-### The e2e Milestones and Team load worlds
+### The e2e Team load and roadmap worlds
 
-Files: `e2e/tests/milestones.spec.ts` (prefix `e2e-ms-*`), `e2e/tests/team-load.spec.ts` (prefix `e2e-load-*`), `e2e/tests/roadmap.spec.ts`, `e2e/tests/roadmap-overview.spec.ts`. Seeded per test and removed in the afterEach (the project first).
+Files: `e2e/tests/team-load.spec.ts` (prefix `e2e-load-*`), `e2e/tests/roadmap.spec.ts`, `e2e/tests/roadmap-overview.spec.ts`. Seeded per test and removed in the afterEach (the project first).
 
-- `milestones.spec.ts` (May 2027): one team, one project, three milestones of that team; the page is plan-wide, so every count is taken after the Team filter names the spec's team (a later test picks the world's project in the Project select).
-- `milestones.spec.ts`' two 1.27 tests seed a second world each (prefix `e2e-msrank-*`: two work streams, three programs, projects `-proj-a` to `-e` of one unscheduled milestone, created d, e, c, b, a) and open the page narrowed by `?workStreamId=` or `?programId=`; only the rank test appends b then a to the GLOBAL ranking (`updateRankingViaApi`), asserted by order, never by position.
 - `team-load.spec.ts` (April 2027): one team with 1 man-day a week and one 10 man-day milestone, so its one week is overloaded whatever a holiday does. The page is opened narrowed to `?warning=overloaded` (it shows at most 200 teams) and the plan-wide team counts are asserted present, never as values. The second test reads the same world's row in the "Weeks with a warning" table and the team page; both open `?past=true`, because the page lists the weeks from the server's current week on and a fixed April 2027 week would vanish by default once it is behind the run.
 - A third test seeds a second, run-dated world of the same shape (capacity from the Monday four weeks before the run's UTC week; overloaded weeks three weeks before and after): the later week is listed by default, "Include past weeks" brings back the earlier one.
 - `roadmap.spec.ts` seeds a program with a flagged project and a plain one (a second test checks Home's unranked figure and `?severity=WARNING`); `roadmap-overview.spec.ts` uses `seedPlan` with a stored pick of the other program.

@@ -26,7 +26,7 @@ generated from a list, so a single scenario section stands in for each list.
    data row or the empty-state row - or, on Home, both figure groups filled; a form or static page waits for the heading and the loader only).
    - *Expected*: an axe scan (same tags) reports zero violations.
 
-The list covers the Home page, the Projects page (1.29: the bare page, its picker closed; the empty state of a plan with projects or without), the Milestones page, the Dependencies page (1.20: its table or the empty sentence) and the Team load page (1.19: whatever the shared stack holds, no fixture of their own), the Schedule proposals page (1.8: the team picker; the administrator is offered every team, and no run is requested here), the Teams list, the People list, the Users list and its create form, the
+The list covers the Home page, the Projects page (1.29: the bare page, its picker closed; the empty state of a plan with projects or without), the Dependencies page (1.20: its table or the empty sentence) and the Team load page (1.19: whatever the shared stack holds, no fixture of their own), the Schedule proposals page (1.8: the team picker; the administrator is offered every team, and no run is requested here), the Teams list, the People list, the Users list and its create form, the
 ADMIN feature-flags screen, Change password, the Changelog and the Public holidays page (the current year's table or its empty state;
 the page with a full table is scanned by `public-holidays.spec.ts`) — see
 `tests/accessibility.spec.ts`'s `AUTHED_PAGES` list for the current set.

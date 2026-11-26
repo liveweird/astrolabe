@@ -12,6 +12,7 @@ const renderAt = (route: string) =>
   renderWithProviders(
     <Routes>
       <Route path="/old" element={<LegacyRedirect to="/new" params={{ mode: "overview" }} />} />
+      <Route path="/dropped" element={<LegacyRedirect to="/new" params={{ a: "1" }} carry={false} />} />
       <Route path="/plain" element={<LegacyRedirect to="/new" />} />
       <Route path="/new" element={<Landed />} />
     </Routes>,
@@ -32,5 +33,10 @@ describe("LegacyRedirect", () => {
   test("without parameters or a query it is a plain redirect", async () => {
     renderAt("/plain");
     expect((await screen.findByTestId("landed")).textContent).toBe("/new");
+  });
+
+  test("without carry the old query is dropped, the given parameters and the hash stay", async () => {
+    renderAt("/dropped?scheduled=false&a=2#top");
+    expect((await screen.findByTestId("landed")).textContent).toBe("/new?a=1#top");
   });
 });

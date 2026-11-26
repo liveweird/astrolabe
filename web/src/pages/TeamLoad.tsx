@@ -13,7 +13,6 @@ import ScrollRegion from "../components/ScrollRegion";
 import TeamLoadWeeks from "../components/TeamLoadWeeks";
 import TeamSwatch from "../components/TeamSwatch";
 import { useTeamColours } from "../hooks/useTeamColours";
-import { unscheduledMilestonesPath } from "../utils/milestoneLinks";
 import { earlierWeekCount, matchesWarning, parseTeamLoadFilter, teamLoadFilterParams } from "../utils/teamLoadFilters";
 import { teamPath } from "../utils/teamLinks";
 import type { TeamColour } from "../utils/teamColours";
@@ -66,7 +65,7 @@ function TeamLoadTableRow({ row, colour }: { row: TeamLoadRow; colour: TeamColou
         {row.unscheduledMilestones > 0 ? (
           <Anchor
             component={RouterLink}
-            to={unscheduledMilestonesPath({ teamId: row.id })}
+            to={teamPath(row.id)}
             size="sm"
             aria-label={t("teamLoad.notScheduledAria", { count: row.unscheduledMilestones, name: row.name })}
           >

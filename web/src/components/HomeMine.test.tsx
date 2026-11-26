@@ -313,13 +313,13 @@ describe("HomeMine: Yours", () => {
   });
 
   describe("the figures and names that lead somewhere", () => {
-    test("a project's and a team's positive 'Not scheduled' open the filtered Milestones list, named with their row; a zero is plain text", () => {
+    test("a project's and a team's positive 'Not scheduled' open the project's Milestones table and the team's page, named with their row; a zero is plain text", () => {
       const first = renderMine(viewWith(homeMe({ projects: [PROJECT], teams: [TEAM] })));
       const project = screen.getByRole("link", { name: "2 not scheduled: Ledger" });
-      expect(project).toHaveAttribute("href", "/milestones?scheduled=false&projectId=7");
+      expect(project).toHaveAttribute("href", "/projects/7?milestones=unscheduled");
       expect(project).toHaveTextContent("2");
       const team = screen.getByRole("link", { name: "7 not scheduled: Payments" });
-      expect(team).toHaveAttribute("href", "/milestones?scheduled=false&teamId=4");
+      expect(team).toHaveAttribute("href", "/teams/4");
       expect(team).toHaveTextContent("7");
       first.unmount();
       renderMine(viewWith(homeMe({ projects: [{ ...PROJECT, unscheduledMilestones: 0 }], teams: [{ ...TEAM, unscheduledMilestones: 0 }] })));
@@ -437,7 +437,7 @@ describe("HomeMine: Yours", () => {
     expect(screen.getByText("Twój login jest powiązany z osobą Alex Example.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Otwórz przegląd roadmapy" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Otwórz na roadmapie projekty, których jesteś osobiście właścicielem/ką" })).toHaveAttribute("href", "/roadmap?mode=prioritization&ownerPersonId=12");
-    expect(screen.getByRole("link", { name: "Niezaplanowane (2): Ledger" })).toHaveAttribute("href", "/milestones?scheduled=false&projectId=7");
+    expect(screen.getByRole("link", { name: "Niezaplanowane (2): Ledger" })).toHaveAttribute("href", "/projects/7?milestones=unscheduled");
     expect(screen.getByRole("link", { name: "Otwórz Platform na roadmapie" })).toHaveAttribute("href", "/roadmap?mode=prioritization&workStreamId=1");
     expect(within(screen.getByRole("table", { name: "Twoje zespoły" })).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([
       "Zespół",

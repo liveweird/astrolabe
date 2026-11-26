@@ -23,11 +23,11 @@
 ## Scenario: a figure under Yours opens the list it counts, and the owner's projects open on the roadmap filtered to them
 
 1. The owner signs in and clicks the owner's own project row's "1 not scheduled" link (its accessible name carries the project's name).
-   - *Expected*: the Milestones page (h2) with the chip "Project: <name>", the Schedule select reading "Not scheduled" and exactly one row, the unscheduled milestone.
+   - *Expected*: the project's page (h2 its name) at `?milestones=unscheduled`, its Milestones table with the Schedule select reading "Not scheduled" and exactly one row, the unscheduled milestone.
 2. Back on Home they click "Open the projects you own yourself on the roadmap".
    - *Expected*: the Roadmap (h2) whose timeline holds exactly one project, the owner's own project (its "Open <name>" link; the second person's project is not there), and the Owner filter reads the owner's person.
 3. Back on Home they click the team row's "1 not scheduled" link.
-   - *Expected*: the Milestones page with exactly one row, the unscheduled milestone, on the owner's team (its "Open team <name>" link).
+   - *Expected*: the team's page (`/teams/<id>`), its Unscheduled tray holding the unscheduled milestone.
 
 ## Scenario: the Home page can narrow Yours to what the person owns themselves, and remembers the choice in this browser
 

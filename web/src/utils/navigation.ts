@@ -6,7 +6,6 @@ import { deviationsPath } from "./deviationLinks";
 import { publicHolidaysPath } from "./calendarLinks";
 import { flowConnectionsPath } from "./flowLinks";
 import { jiraConnectionsPath } from "./jiraLinks";
-import { milestonesPath } from "./milestoneLinks";
 import { peoplePath } from "./peopleLinks";
 import { planPath, projectsPath, roadmapPath } from "./planLinks";
 import { scheduleProposalsPath } from "./scheduleProposalLinks";
@@ -56,7 +55,6 @@ const NAV_SECTIONS: ReadonlyArray<NavSection> = [
       { to: planPath, label: "appShell.nav.plan", icon: IconSitemap },
       { to: roadmapPath, label: "appShell.nav.roadmap", icon: IconListNumbers, keywords: ["programs", "programy", "overview", "prioritization", "rank"] },
       { to: projectsPath, label: "appShell.nav.projects", icon: IconTimelineEvent, keywords: ["project", "milestones", "kamienie milowe"] },
-      { to: milestonesPath, label: "appShell.nav.milestones", icon: IconTimelineEvent },
       { to: dependenciesPath, label: "appShell.nav.dependencies", icon: IconLink },
       { to: baselinesPath, label: "appShell.nav.baselines", icon: IconCamera },
     ],

@@ -166,7 +166,6 @@ const AUTHED_PAGES: { path: string; heading: string; settled?: Settled }[] = [
       await expect(page.getByText(/^(No project picked|No projects yet)$/)).toBeVisible();
     },
   },
-  { path: "/milestones", heading: "Milestones", settled: tableRow("Milestones") },
   {
     path: "/dependencies",
     heading: "Dependencies",

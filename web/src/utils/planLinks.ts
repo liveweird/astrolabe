@@ -22,6 +22,9 @@ export const projectsPath = "/projects";
 /** The ONE place a project's page is spelled out — the project view (its milestones on the timeline). */
 export const projectPath = (id: number) => `${projectsPath}/${id}`;
 
+/** A project's page with its Milestones table narrowed to the milestones without dates (Home's "not scheduled" figure of a project). */
+export const projectUnscheduledPath = (id: number) => `${projectPath(id)}?milestones=unscheduled`;
+
 /**
  * The ONE place a filtered Roadmap URL is spelled out: the Prioritization mode, written first, then the filters and the program pick a link names (an
  * unnamed one is off). Such a link is shown as written and does not change what the browser remembers.

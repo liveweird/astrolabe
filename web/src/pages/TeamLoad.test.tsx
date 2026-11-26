@@ -160,11 +160,11 @@ describe("Team load page", () => {
     expect(screen.getByRole("link", { name: "Open team Backend" })).toHaveAttribute("href", "/teams/3");
   });
 
-  test("'Not scheduled' links to the team's unscheduled milestones only when positive, named by its row", async () => {
+  test("'Not scheduled' links to the team's page (its Unscheduled tray) only when positive, named by its row", async () => {
     renderPage();
     await screen.findByRole("table", { name: "Load of every team" });
-    expect(screen.getByRole("link", { name: "4 not scheduled: team Backend" })).toHaveAttribute("href", "/milestones?scheduled=false&teamId=3");
-    expect(screen.getByRole("link", { name: "1 not scheduled: team Mobile" })).toHaveAttribute("href", "/milestones?scheduled=false&teamId=6");
+    expect(screen.getByRole("link", { name: "4 not scheduled: team Backend" })).toHaveAttribute("href", "/teams/3");
+    expect(screen.getByRole("link", { name: "1 not scheduled: team Mobile" })).toHaveAttribute("href", "/teams/6");
     const frontendRow = screen.getByRole("link", { name: "Open team Frontend" }).closest("tr")!;
     expect(within(frontendRow).getByText("0")).toBeInTheDocument();
     expect(within(frontendRow).queryByRole("link", { name: /not scheduled/ })).toBeNull();

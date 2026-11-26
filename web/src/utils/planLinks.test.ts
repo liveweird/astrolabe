@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { planPath, projectPath, roadmapFilteredPath, roadmapModePath, roadmapOverviewPath, roadmapPath } from "./planLinks";
+import { planPath, projectPath, projectUnscheduledPath, roadmapFilteredPath, roadmapModePath, roadmapOverviewPath, roadmapPath } from "./planLinks";
 
 describe("planLinks", () => {
   test("the plan page lives at /plan", () => {
@@ -18,6 +18,7 @@ describe("planLinks", () => {
 
   test("a project's page lives at /projects/:id", () => {
     expect(projectPath(42)).toBe("/projects/42");
+    expect(projectUnscheduledPath(42)).toBe("/projects/42?milestones=unscheduled");
   });
 });
 

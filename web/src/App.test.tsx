@@ -89,7 +89,7 @@ describe("App shell", () => {
       expect(within(planning).getByRole("link", { name: "Projects" })).toHaveAttribute("href", "/projects");
       // One Roadmap (1.29): the Programs page is its overview mode, so there is no separate leaf.
       expect(within(planning).queryByRole("link", { name: "Programs" })).not.toBeInTheDocument();
-      expect(within(planning).getByRole("link", { name: "Milestones" })).toHaveAttribute("href", "/milestones");
+      expect(within(planning).queryByRole("link", { name: "Milestones" })).not.toBeInTheDocument();
       expect(within(planning).getByRole("link", { name: "Dependencies" })).toHaveAttribute("href", "/dependencies");
       expect(within(planning).getByRole("link", { name: "Baselines" })).toHaveAttribute("href", "/baselines");
       const teams = screen.getByRole("group", { name: "Teams and capacity" });

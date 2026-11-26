@@ -14,10 +14,9 @@ import PageHeader from "../components/PageHeader";
 import { useOpenDeviationCounts, type OpenCounts } from "../hooks/useOpenDeviationCounts";
 import { violatedDependenciesPath } from "../utils/dependencyListLinks";
 import { deviationsPath } from "../utils/deviationLinks";
-import { unscheduledMilestonesPath } from "../utils/milestoneLinks";
 import { planPath, roadmapFilteredPath, roadmapPath } from "../utils/planLinks";
 import { isStaleSource } from "../utils/staleness";
-import { teamLoadWarningPath } from "../utils/teamLoadLinks";
+import { teamLoadPath, teamLoadWarningPath } from "../utils/teamLoadLinks";
 import classes from "../theme.module.css";
 
 /** The room a card's figure group keeps while the read has not answered (px, about the lines it will hold), so the card's link stays where it is. */
@@ -80,7 +79,7 @@ function OpenLine({ label, counts, stale }: { label: string; counts: OpenCounts 
 
 /**
  * The Plan card's figures (what there is, nothing filtered, as the Programs page's facts line) - empty, but as tall, until the read answers. The
- * "not scheduled yet" line is a link to the Milestones page's unscheduled list when positive: that list's total and this figure count one set.
+ * "not scheduled yet" line is a link to Team load when positive: its rows count each team's unscheduled milestones, the parts of this figure.
  */
 function PlanFigures({ plan }: { plan: HomePlan | undefined }) {
   const { t } = useTranslation();
@@ -93,7 +92,7 @@ function PlanFigures({ plan }: { plan: HomePlan | undefined }) {
           <Text className={classes.homeMetric}>{t("programs.facts.projects", { count: plan.projects })}</Text>
           <Text className={classes.homeMetric}>{t("teams.view.milestones", { count: plan.milestones })}</Text>
           {plan.unscheduledMilestones > 0 ? (
-            <Anchor component={RouterLink} to={unscheduledMilestonesPath()} size="sm" className={classes.homePlanAction}>
+            <Anchor component={RouterLink} to={teamLoadPath} size="sm" className={classes.homePlanAction}>
               {t("home.plan.notScheduled", { count: plan.unscheduledMilestones })}
             </Anchor>
           ) : (

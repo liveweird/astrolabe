@@ -6,7 +6,7 @@ describe("visibleSections", () => {
     const sections = visibleSections(false);
     expect(sections.map((s) => s.label)).toEqual(["appShell.section.overview", "appShell.section.planning", "appShell.section.teams", "appShell.section.integrations"]);
     const paths = sections.flatMap((s) => s.items.map((l) => l.to));
-    expect(paths).toEqual(["/", "/plan", "/roadmap", "/projects", "/milestones", "/dependencies", "/baselines", "/teams", "/team-load", "/schedule-proposals", "/people", "/public-holidays", "/deviations"]);
+    expect(paths).toEqual(["/", "/plan", "/roadmap", "/projects", "/dependencies", "/baselines", "/teams", "/team-load", "/schedule-proposals", "/people", "/public-holidays", "/deviations"]);
   });
 
   test("an admin session gets account controls under Administration and connection settings under Integrations", () => {
@@ -41,7 +41,7 @@ describe("visibleSections", () => {
   test("Planning groups plan views and lists for every role", () => {
     for (const admin of [false, true]) {
       const planning = visibleSections(admin).find((s) => s.label === "appShell.section.planning");
-      expect(planning?.items.map((l) => l.to)).toEqual(["/plan", "/roadmap", "/projects", "/milestones", "/dependencies", "/baselines"]);
+      expect(planning?.items.map((l) => l.to)).toEqual(["/plan", "/roadmap", "/projects", "/dependencies", "/baselines"]);
     }
   });
 
@@ -71,7 +71,7 @@ describe("activeNavPath", () => {
     expect(activeNavPath("/roadmap", leaves)).toBe("/roadmap");
     // The old address redirects (LegacyRedirect); no leaf answers for it.
     expect(activeNavPath("/programs", leaves)).toBeNull();
-    expect(activeNavPath("/milestones", leaves)).toBe("/milestones");
+    expect(activeNavPath("/milestones", leaves)).toBeNull();
   });
 
   test("a leaf stays highlighted on every route it lists in activeFor, and still links to its own", () => {
