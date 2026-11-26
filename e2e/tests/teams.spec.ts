@@ -249,4 +249,14 @@ test("an admin gives a team a colour and its milestone bar on the project page c
   await expect(bar()).toHaveAttribute("data-tint", "var(--astrolabe-team-raspberry)");
   await expect(swatch()).toHaveAttribute("data-team-colour", "RASPBERRY");
   await expect(tableSwatch()).toHaveAttribute("data-team-colour", "RASPBERRY");
+
+  // Under forced colours (1.30) the browser would paint a filled bar's background Canvas, so the body opts out of the forcing and takes a 1 px border.
+  // Structure only, never a colour: the system palette is the user's, and the tint (the team's colour) is the information the bar keeps.
+  await page.emulateMedia({ forcedColors: "active" });
+  const body = bar().locator(":scope > div").first();
+  await expect(body).toHaveCSS("forced-color-adjust", "none");
+  await expect(body).toHaveCSS("border-top-width", "1px");
+  await expect(body).toHaveCSS("border-top-style", "solid");
+  await page.emulateMedia({ forcedColors: "none" });
+  await expect(body).toHaveCSS("border-top-width", "0px");
 });

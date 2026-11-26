@@ -193,6 +193,33 @@ describe("theme colour tokens (WCAG AA)", () => {
     expect(themeCss).toMatch(/\.timelineBarGhost\s*\{[^}]*border:\s*1px dashed var\(--timeline-bar\)/);
   });
 
+  it("a focused filled or ghost bar body rings in two tones; the cells' and handles' ring stays the plain accent (1.30)", () => {
+    // The gap's numbers are pinned in teamColours.test.ts; here the wiring: the body's ring reads `--timeline-ring`, and ONLY an untoned or ghost body
+    // takes the inset gap (a hollow tone is a ring on the row already; the outline paints over the gap's outer 2 px).
+    expect(themeCss).toMatch(/\.timelineBarBody:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--timeline-ring\);[^}]*outline-offset:\s*-2px/);
+    expect(themeCss).toMatch(
+      /\.timelineBarBody:focus-visible:not\(\[data-tone\]\),\s*\.timelineBarBody:focus-visible\[data-tone="ghost"\]\s*\{[^}]*box-shadow:\s*inset 0 0 0 4px var\(--timeline-ring-gap\)/,
+    );
+    expect(themeCss).toMatch(/\.timelineCell:focus-visible,\s*\.timelineHandle:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--astrolabe-accent-ink\)/);
+  });
+
+  it("under forced colours a filled bar body opts out of the forcing with a CanvasText border, the tokens go to system colours, the held and baseline bars are drawn (1.30)", () => {
+    // Other forced-colors blocks exist (plan drop line, swatch, mode switch): the timeline's is the one holding the bar body.
+    const found = [...themeCss.matchAll(/@media \(forced-colors: active\)\s*\{([\s\S]*?)\n\}\n/g)].find((match) => match[1].includes(".timelineBarBody"));
+    expect(found, "the timeline's forced-colors block").toBeDefined();
+    const block = found?.[1] ?? "";
+    // The tokens a filled body reads; the tinted frame's inline `--timeline-bar` still beats the grid's, so a team tint keeps its colour.
+    expect(block).toMatch(/\.timelineGrid\s*\{[^}]*--timeline-bar:\s*CanvasText;[^}]*--timeline-critical:\s*CanvasText;[^}]*--timeline-ring:\s*Highlight;[^}]*--timeline-ring-gap:\s*Canvas;/);
+    expect(block).toMatch(/\.timelineBarBody:not\(\[data-tone\]\)\s*\{[^}]*forced-color-adjust:\s*none;[^}]*border:\s*1px solid CanvasText;/);
+    expect(block).toMatch(/\.timelineBarBody\.timelineBarDragging:not\(\[data-tone\]\)\s*\{[^}]*background:\s*Highlight;/);
+    expect(block).toMatch(/\.timelineBarBaseline\s*\{[^}]*forced-color-adjust:\s*none;[^}]*background:\s*CanvasText;/);
+    // The block sits AFTER every rule it overrides (same specificity, later wins): the grid's tokens, the dragging fill and the baseline fill.
+    const at = found?.index ?? -1;
+    for (const earlier of [".timelineGrid {", ".timelineBarDragging {", ".timelineBarBaseline {", ".timelineBarBody:focus-visible {"]) {
+      expect(themeCss.indexOf(earlier), `${earlier} precedes the forced-colors block`).toBeLessThan(at);
+    }
+  });
+
   it("theme.module.css applies the hover tint token to every table", () => {
     // `table.table` (not `.table`) outranks Mantine's :where() scheme defaults whatever the stylesheet order.
     expect(themeCss).toMatch(/table\.table\s*\{[^}]*--table-hover-color:\s*var\(--astrolabe-table-hover\)/);

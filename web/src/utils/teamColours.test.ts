@@ -21,6 +21,9 @@ const SURFACES = {
 
 const hex = (colour: TeamColour, scheme: (typeof SCHEMES)[number]) => teamColourHex(TEAM_COLOURS[colour][scheme], COLORS);
 
+// A CSS module imported with `?raw` is a class-name proxy, so the stylesheet is read from disk (vitest runs from web/).
+const themeCss = readFileSync(resolve(process.cwd(), "src/theme.module.css"), "utf8");
+
 describe("the team palette", () => {
   test("is the generated enum: the same twelve keys, in the same (assignment) order", () => {
     // `components["schemas"]["TeamColour"]` is a type, so the order is read off the generated file's text (the spec's enum, `gen:api`).
@@ -56,6 +59,36 @@ describe("the team palette", () => {
     expect(hex("INDIGO", "light")).toBe("#5c7cfa");
     expect(hex("GREEN", "dark")).toBe("#b2f2bb");
     expect(hex("RASPBERRY", "light")).toBe("#a61e4d");
+  });
+});
+
+describe("the focus ring of a bar (1.30)", () => {
+  // The ring is the accent ink, the gap inside it the body colour: read from the stylesheet, so a re-pointed token fails here.
+  const ring = { light: LIGHT_TOKENS.accentInk, dark: DARK_TOKENS.accentInk };
+  const NEUTRAL = { light: COLORS.gray[6], dark: COLORS.dark[2] }; // `--timeline-bar`: light-dark(gray-6, dark-2)
+  const FILLS = [
+    ...TEAM_COLOUR_KEYS.map((colour) => ({ name: colour, ink: (scheme: (typeof SCHEMES)[number]) => hex(colour, scheme) })),
+    { name: "the neutral bar", ink: (scheme: (typeof SCHEMES)[number]) => NEUTRAL[scheme] },
+  ];
+
+  test("the stylesheet wires the ring to the accent ink and the gap to the body colour, and the neutral bar to gray-6 / dark-2", () => {
+    expect(themeCss).toMatch(/--timeline-ring:\s*var\(--astrolabe-accent-ink\);/);
+    expect(themeCss).toMatch(/--timeline-ring-gap:\s*var\(--mantine-color-body\);/);
+    expect(themeCss).toMatch(/--timeline-bar:\s*light-dark\(var\(--mantine-color-gray-6\), var\(--mantine-color-dark-2\)\);/);
+  });
+
+  test.each(FILLS.flatMap((fill) => SCHEMES.map((scheme) => [fill, scheme] as const)))("%j: the gap clears 3:1 against the fill and the ring 3:1 against the gap", (fill, scheme) => {
+    const gap = SURFACES[scheme].row; // `--mantine-color-body`: white / dark-7, the row's own surface
+    expect(contrast(gap, fill.ink(scheme)), `${fill.name} ${scheme}: gap vs fill`).toBeGreaterThanOrEqual(NON_TEXT);
+    expect(contrast(ring[scheme], gap), `${fill.name} ${scheme}: ring vs gap`).toBeGreaterThanOrEqual(NON_TEXT);
+  });
+
+  test("the ring against a fill alone stays under 3:1, which is why the gap exists", () => {
+    for (const fill of FILLS) {
+      for (const scheme of SCHEMES) {
+        expect(contrast(ring[scheme], fill.ink(scheme)), `${fill.name} ${scheme}: ring vs fill`).toBeLessThan(NON_TEXT);
+      }
+    }
   });
 });
 

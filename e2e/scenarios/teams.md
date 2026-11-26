@@ -61,7 +61,9 @@
 3. They open the team's page, click **Edit**, pick **Raspberry** in the colour group, and Save.
    - *Expected*: the editor closes.
 4. They open the project's page again.
-   - *Expected*: the same milestone's bar carries `data-tint` for Raspberry and the Team cell's swatch, and the Milestones table's, read `RASPBERRY`; the rows are removed afterwards through the API.
+   - *Expected*: the same milestone's bar carries `data-tint` for Raspberry and the Team cell's swatch, and the Milestones table's, read `RASPBERRY`.
+5. The browser is switched to forced colours (an emulated media feature), then back.
+   - *Expected*: while forced, that bar's body opts out of the forcing (`forced-color-adjust: none`) and has a 1 px solid border (structure only, never a colour); after the switch back it has no border. The rows are removed afterwards through the API.
 
 ## Not covered here (and why)
 
