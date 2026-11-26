@@ -15,7 +15,7 @@ Scale assumed: about 15 teams, 5 work streams, 20 programs, 100 projects, 1,000 
 
 ## Roadmap
 
-Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.29.0**. Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-visible fix between two increments is a patch bump. One row a version (patches ride their minor's row); the scope only, the detail is in "Release history".
+Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.29.0** (1.30.0 built, not released). Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-visible fix between two increments is a patch bump. One row a version (patches ride their minor's row); the scope only, the detail is in "Release history".
 
 ### 0.1 to 0.9: the plan
 
@@ -69,6 +69,7 @@ Each increment gets its own plan (architect) before implementation; only v0.1.0 
 | **1.26.0 Saved proposals, frozen links and capacity** | Cross-team runs saved and read by every signed-in user (V32); baselines freeze links and capacity (V33); paged `GET /work-streams` and `/programs`; docs under byte ceilings, fewer test sleeps; 1.26.1 dependency updates (`dependencies.md`) |
 | **1.27.0 Finding and linking work** | A dependency added from its list; Milestones by program, work stream and rank; the whole critical chain on the team page; the last untested timings measured; 1.27.1 dependency updates (`dependencies.md`) |
 | **1.28.0 The Plan page as one tree** | One tree table with folds, search and filters in the address, Show only this, pins on top, work streams and programs re-arranged and shared with the Programs page (V34) |
+| **1.30.0 The 1.29 follow-ups** | Header sizes, the focus ring, forced colours, the Roadmap's dependency panel outside the timeline, milestones in the picker, Team load's total; `GET /milestones` trimmed |
 | **1.29.0 One Roadmap, Projects, team colours** | Roadmap and Programs in two modes on one page, a Projects view (picker, Milestones table), dependency lists beside the timelines, team colours (V35); the Milestones and Dependencies pages folded in |
 
 ## Domain decisions taken with the user
@@ -284,20 +285,27 @@ What was ported later, and what was left in Flow on purpose:
 
 Newest first. Each version: its scope, the user's answers, the defaults that still bind and what was not built; the commits, the plans (they live outside the repository) and the test runs are in git. "No migration" means the preceding schema still applies. Every release leaves "nothing is written to Jira or Flow" true.
 
+### v1.30.0 — the 1.29 follow-ups
+
+The seven `[next]` items of 2026-11-26; a minor bump. No migration.
+
+- **The user's answers:** `GET /milestones` loses every unused filter, sort and row member, not deprecated first (an exception to API-VER-002); sortable headers at the theme's 12 px; a milestone hit is a dimmed line under its project.
+- **Defaults taken:** under forced colours a tinted bar keeps its colour, like the swatch; the panel's arrival focus waits for the view; the picker asks from two characters, the first 100 hits.
+
 ### v1.29.0 — one Roadmap, a Projects view, team colours
 
 Built overnight on 2026-11-26 from the user's answers of 2026-11-25; a minor bump, the API only gains `colour` on teams. Migration V35. Designs: `team-colours.md`, `projects-view.md`, `web-internals.md` "Programs" (the modes).
 
 - **The user's answers:** a fixed, contrast-checked palette of twelve (a new team gets the least used; sharing allowed, with a hint); the Milestones filters kept as a table on Projects; the dependency list hideable beside the Gantts, add, edit and delete as before; the Roadmap opens in the mode last used here (Prioritization at first) and names it in the address.
 - **Defaults taken:** the dependency panel on the Roadmap in both modes, every dependency, as Home's count does; only milestone bars take a team colour; ADMIN edits it, a PUT without one keeps it; `/projects` reopens the last project viewed; Milestones table: Schedule in the address, team and name page state; `/programs`, `/milestones`, `/dependencies` redirect; every endpoint stays.
-- A mode switch drops the Prioritization-only filters and the program pick (a link-only pick is not carried across); the row menu's "Dependencies" narrows the panel to that project alone; the cross-project milestone list is gone (`GET /milestones` stays for the pickers).
+- A mode switch drops the Prioritization-only filters and the program pick (a link-only pick is not carried across); the row menu's "Dependencies" narrows the panel to that project alone; the cross-project milestone list is gone (`GET /milestones` trimmed in 1.30).
 
 ### v1.28.0 — the Plan page as one tree
 
-Built overnight on 2026-11-25 to 26 from the user's answers of 2026-11-25 (`plan-tree.md`); a minor bump, the API only gains members. Migration V34 (the two order tables).
+Built overnight on 2026-11-26 from the user's answers (`plan-tree.md`); a minor bump, the API only gains members. Migration V34 (the two order tables).
 
-- The design and its defaults: `plan-tree.md` (the order, its PUTs and staleness) and `web-internals.md` "Plan" (folds, filters, focus, pins, re-arranging); pins and folds are per browser, the order is shared and also orders the Programs page.
-- Re-arranging is refused while a search, the owner filter or Show only this hides part of a list (`plan-tree.md` "Reordering on the page").
+- The design and its defaults: `plan-tree.md` (the order, its PUTs) and `web-internals.md` "Plan"; pins and folds are per browser, the order is shared (also on the Programs page).
+- Re-arranging is refused while a search, the owner filter or Show only this hides part of a list.
 - Verified on a throwaway stack with the sample plan (light, dark, phone, print, forced colours) and the full e2e suite.
 
 ### v1.27.0 — finding and linking work
@@ -504,17 +512,17 @@ the Jira blocks of the timeline views are slimmer.
 
 ### v1.14.0 — what shipped
 
-The import from a linked node (the user's request of 2026-11-12, after a first import of one program: importing that program's projects should be possible), released on the user's word 2026-11-13, a minor bump. No migration. An import can start from a linked program (the Plan page's program menu) or a linked project (a button on its page) and reads only what Jira lists under that item, with the same preview, apply, filter and guards.
+The import from a linked node (the user's request of 2026-11-12), released 2026-11-13, a minor bump. No migration. An import can start from a linked program or project and reads only what Jira lists under it, with the same preview, apply, filter and guards.
 
-**The answers:** Q1 projects AND their milestones, all ticked as today; Q2 the linked node's owner chain or ADMIN may start it; Q3 the Plan page's program menu plus a button on a linked project's page; Q4 the real-site check of `parent = <program key>` in Jira's issue search (ledger A18) is NOT done: the user released without it, on the stub caveat; Q5 the filter as today ("Leave out done items" on, 365 days).
+**The answers:** Q1 projects AND their milestones, all ticked as today; Q2 the linked node's owner chain or ADMIN may start it; Q3 the Plan page's program menu plus a button on a linked project's page; Q4 the real-site check of `parent = <key>` (ledger A18) NOT done, released on the stub caveat; Q5 the filter as today ("Leave out done items" on, 365 days).
 
 **Defaults taken** (`jira-sync.md`):
 - An optional `root {level, nodeId}` on the existing import endpoints (no new endpoint); the children are read by numeric id; the root takes no preview row; a rooted import lands under the root and never creates a program; defaults must stay under the root.
-- An unreadable root, or one outside this connection, answers `409` `urn:astrolabe:problem:jira-root-unusable`; each rooted preview writes a `jira.import_previewed` audit line; a gone program link says so up front.
+- An unreadable or foreign root answers `409` `jira-root-unusable`; each rooted preview is audited (`jira.import_previewed`); a gone program link says so up front.
 
 **Also in 1.14:**
-- *Coverage summary:* `GET /integrations/jira/connections/{id}/coverage` and the connection page's table count, per mapped plan level, the issues in scope, linked, open and unlinked. A SEPARATE route, ADMIN only; open = not in the Done status category; linked = the Deviations view's D1 rule; counts only, never a key or name; a mapping saved after the last run began answers `MAPPING_CHANGED`; the counts are labelled "as of the last successful synchronisation".
-- *A project's target window from Jira* (reverses the 1.2 decision C): "Copy Jira's dates" gives a project the import CREATES its window from the dates its level is mapped to; both dates or neither (otherwise the info `TARGET_NOT_COPIED`, the row never refused); a bound or existing project, a program and a milestone are never touched.
+- *Coverage summary:* the connection page's table counts, per mapped level, the issues in scope, linked, open and unlinked (`GET …/coverage`, ADMIN, counts only; `jira-sync.md`).
+- *A project's target window from Jira* (reverses 1.2 decision C): "Copy Jira's dates" gives a project the import CREATES the window of its level's mapped dates, both or neither (else the info `TARGET_NOT_COPIED`); nothing else is touched.
 - *The overnight extras the user picked on 2026-11-12:* a per-row owner in the import (`overrides.ownerPersonId`); the deviation `CHILDREN_OPEN` (INFO, milestones only: the plan's end is before today and some of the bound epic's children are open; acknowledgeable, reopens when the counts change; may fire beside `PROGRESS_MISMATCH`, about a different fact); the `useDialogFocus` fix (no pull back once the user moved to another row).
 
 ### v1.13.4 — what shipped

@@ -17,6 +17,30 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.30.0",
+    date: "2026-11-26",
+    en: `**Follow-ups to 1.29**
+
+- Sortable column headers are now the same size as the other headers, in every table.
+- A focused timeline bar has a two-tone ring (a gap in the page's colour inside the accent ring), so the focus stays visible on every team colour, in light and dark.
+- With the system's forced (high-contrast) colours on, filled timeline bars are drawn again, with a border; a team's bar keeps its colour.
+- The Roadmap's Dependencies panel no longer sits inside the timeline: it stays available when the Roadmap's own data fails to load, and a link to it opens with the panel in view.
+- The project picker on Projects also finds a project by the name of one of its milestones, shown as a dimmed "Milestone: …" line under the project. It says when only the first 100 milestones were checked or the search failed.
+- Team load shows the plan-wide number of milestones not scheduled yet, the same figure as Home's.
+- API (\`/api/v1\`): \`totals.unscheduledMilestones\` on \`GET /views/team-load\`. **Removed** from \`GET /milestones\`: the filters \`workStreamId\`, \`programId\`, \`scheduled\` and \`teamId\`, the sort keys \`rankPosition\`, \`projectName\`, \`teamName\` and \`startDate\`, and the row member \`rankPosition\` (no screen has used them since 1.29). A removed filter is ignored, so it no longer narrows the list; a removed sort key answers \`400\`.
+- No stored data changes.`,
+    pl: `**Uzupełnienia do 1.29**
+
+- Nagłówki kolumn z sortowaniem mają teraz ten sam rozmiar co pozostałe nagłówki, w każdej tabeli.
+- Pasek osi czasu z fokusem ma dwukolorową obwódkę (odstęp w kolorze strony wewnątrz obwódki w kolorze akcentu), więc fokus jest widoczny na każdym kolorze zespołu, w trybie jasnym i ciemnym.
+- Przy włączonych wymuszonych kolorach systemu (wysoki kontrast) wypełnione paski osi czasu znów są rysowane, z obramowaniem; pasek zespołu zachowuje jego kolor.
+- Panel „Zależności” na Roadmapie nie jest już częścią osi czasu: pozostaje dostępny, gdy nie udaje się wczytać danych samej Roadmapy, a link do niego otwiera stronę z panelem w widoku.
+- Wybór projektu na stronie „Projekty” znajduje projekt także po nazwie jednego z jego kamieni milowych, pokazanej jako przyciemniony wiersz „Kamień milowy: …” pod projektem. Informuje, gdy sprawdzamy tylko pierwsze 100 kamieni milowych albo gdy wyszukiwanie się nie powiodło.
+- „Obciążenie zespołów” pokazuje liczbę kamieni milowych całego planu, które nie mają jeszcze terminu, tę samą co strona główna.
+- API (\`/api/v1\`): \`totals.unscheduledMilestones\` w \`GET /views/team-load\`. **Usunięte** z \`GET /milestones\`: filtry \`workStreamId\`, \`programId\`, \`scheduled\` i \`teamId\`, klucze sortowania \`rankPosition\`, \`projectName\`, \`teamName\` i \`startDate\` oraz pole \`rankPosition\` w wierszu (żaden ekran nie używa ich od 1.29). Usunięty filtr jest ignorowany, więc nie zawęża już listy; usunięty klucz sortowania daje \`400\`.
+- Bez zmian w zapisanych danych.`,
+  },
+  {
     version: "1.29.0",
     date: "2026-11-26",
     en: `**One Roadmap, a Projects view and team colours**
