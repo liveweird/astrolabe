@@ -17,6 +17,30 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.29.0",
+    date: "2026-11-26",
+    en: `**One Roadmap, a Projects view and team colours**
+
+- Roadmap and Programs are now one page, Roadmap, with two modes: Prioritization (the projects by rank, the old Roadmap) and Roadmap overview (work streams, programs and projects as a tree, the old Programs). The page opens in the mode you used last in this browser, and the mode is in the address, so a link names it. The old Programs address opens the overview.
+- A new Projects item in the navigation opens the project page with a picker on top. It finds a project by its own name or by its program's, its work stream's or its owner's, ignoring accents, and it reopens the last project you viewed in this browser.
+- Every team has a colour from a fixed palette of twelve, chosen in the team editor (a new team starts with the least-used colour; teams may share one). A milestone's bar takes its team's colour on the project page and the team page, and a colour swatch stands before the team's name on Teams, Team load, Home and the team page. The team is always named in the same row, so colour is never the only cue.
+- The project page has a Milestones table: the project's milestones with their team, estimate and dates, filtered by schedule, team and name and sorted by name, team or start. It can be hidden; the choice is remembered in this browser.
+- Dependencies sit beside the timelines. On the project page the Dependencies section can be hidden and shown. The Roadmap, in both modes, has a Dependencies panel under its timeline, hidden by default: every dependency of the plan with the same filters, and adding, editing and deleting under the same permissions. Both choices are remembered in this browser.
+- The Milestones page and the Dependencies page are gone, with their navigation items. Their content lives in the project page's Milestones table, the team page, Team load and the Roadmap's dependency panel; Home's figures and the old links open these, so no bookmark breaks. The plan-wide milestone list and its name search went with the Milestones page.
+- API (\`/api/v1\`), additions only: a \`colour\` member (one of twelve keys) on teams, in the create and update requests (optional; an update without it keeps the colour), the team responses and the team view.
+- Stored data: each team's colour (migration V35). Existing teams got distinct colours, active ones first.`,
+    pl: `**Jedna roadmapa, widok Projekty i kolory zespołów**
+
+- Roadmapa i Programy to teraz jedna strona, Roadmapa, z dwoma trybami: Priorytetyzacja (projekty według rankingu, dawna Roadmapa) i Przegląd roadmapy (strumienie pracy, programy i projekty jako drzewo, dawne Programy). Strona otwiera się w trybie ostatnio używanym w tej przeglądarce, a tryb jest w adresie, więc link go wskazuje. Stary adres Programów otwiera przegląd.
+- Nowa pozycja „Projekty” w nawigacji otwiera stronę projektu z wyborem projektu na górze. Znajduje projekt po jego nazwie albo po nazwie jego programu, strumienia pracy lub właściciela/ki, pomijając znaki diakrytyczne, i ponownie otwiera ostatnio oglądany projekt w tej przeglądarce.
+- Każdy zespół ma kolor z ustalonej palety dwunastu, wybierany w edytorze zespołu (nowy zespół dostaje domyślnie najrzadziej używany kolor; zespoły mogą mieć ten sam). Pasek kamienia milowego ma kolor swojego zespołu na stronie projektu i na stronie zespołu, a przed nazwą zespołu na stronach „Zespoły”, „Obciążenie zespołów”, „Strona główna” i na stronie zespołu stoi próbka koloru. Zespół jest zawsze nazwany w tym samym wierszu, więc kolor nigdy nie jest jedyną wskazówką.
+- Strona projektu ma tabelę „Kamienie milowe”: kamienie milowe projektu z zespołem, estymatą i datami, filtrowane według harmonogramu, zespołu i nazwy oraz sortowane według nazwy, zespołu lub początku. Można ją ukryć; wybór jest zapamiętywany w tej przeglądarce.
+- Zależności są obok osi czasu. Na stronie projektu sekcję „Zależności” można ukryć i pokazać. Roadmapa w obu trybach ma pod osią czasu panel „Zależności”, domyślnie ukryty: wszystkie zależności planu z tymi samymi filtrami oraz dodawaniem, edycją i usuwaniem na tych samych uprawnieniach. Oba wybory są zapamiętywane w tej przeglądarce.
+- Strony „Kamienie milowe” i „Zależności” zniknęły razem z pozycjami w nawigacji. Ich zawartość jest w tabeli kamieni milowych na stronie projektu, na stronie zespołu, w „Obciążeniu zespołów” i w panelu zależności Roadmapy; liczby na stronie głównej i stare linki otwierają te miejsca, więc żadna zakładka nie przestaje działać. Lista kamieni milowych całego planu i jej wyszukiwanie po nazwie zniknęły razem ze stroną „Kamienie milowe”.
+- API (\`/api/v1\`), tylko dodatki: pole \`colour\` (jeden z dwunastu kluczy) w zespołach: w żądaniach utworzenia i aktualizacji (opcjonalne; aktualizacja bez niego zachowuje kolor), w odpowiedziach o zespołach i w widoku zespołu.
+- Zapisane dane: kolor każdego zespołu (migracja V35). Istniejące zespoły dostały różne kolory, aktywne w pierwszej kolejności.`,
+  },
+  {
     version: "1.28.0",
     date: "2026-11-26",
     en: `**The Plan page as one tree**
