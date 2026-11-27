@@ -347,6 +347,10 @@ describe("a saved run against the current pick and address", () => {
   });
 });
 
+// A notice is said twice: the visible note, and the page's polite status region one tick later (useLiveText). Matching the note alone keeps these
+// assertions from racing that tick, which made "Dismiss clears the note" fail in a shuffled CI run.
+const NOTE_ONLY = { ignore: 'script, style, [role="status"]' };
+
 describe("a saved proposal that does not open", () => {
   test("an overview with no work streams still says a gone proposal does not exist and drops the parameter", async () => {
     planView = viewOf({ workStreams: [] });
@@ -374,7 +378,7 @@ describe("a saved proposal that does not open", () => {
       </>,
       { route: "/roadmap?mode=overview&proposal=5" },
     );
-    expect(await screen.findByText("“Q1 plan” was saved in an earlier version of Astrolabe and can no longer be opened.")).toBeInTheDocument();
+    expect(await screen.findByText("“Q1 plan” was saved in an earlier version of Astrolabe and can no longer be opened.", NOTE_ONLY)).toBeInTheDocument();
     await waitFor(() => expect(where()).toBe("?mode=overview"));
     expect(screen.queryByRole("heading", { name: /^Saved proposal:/ })).toBeNull();
     expect(proposalBars()).toBe(0);
@@ -389,7 +393,7 @@ describe("a saved proposal that does not open", () => {
       </>,
       { route: "/roadmap?mode=overview&proposal=5" },
     );
-    expect(await screen.findByText("This saved proposal does not exist — it may have been deleted.")).toBeInTheDocument();
+    expect(await screen.findByText("This saved proposal does not exist — it may have been deleted.", NOTE_ONLY)).toBeInTheDocument();
     await waitFor(() => expect(where()).toBe("?mode=overview"));
     expect(screen.queryByRole("heading", { name: /^Saved proposal:/ })).toBeNull();
   });
@@ -402,7 +406,7 @@ describe("a saved proposal that does not open", () => {
       </>,
       { route: "/roadmap?mode=overview&proposal=abc" },
     );
-    expect(await screen.findByText("This saved proposal does not exist — it may have been deleted.")).toBeInTheDocument();
+    expect(await screen.findByText("This saved proposal does not exist — it may have been deleted.", NOTE_ONLY)).toBeInTheDocument();
     await waitFor(() => expect(where()).toBe("?mode=overview"));
     expect(recordReads()).toBe(0);
   });
@@ -417,10 +421,10 @@ describe("a saved proposal that does not open", () => {
       </>,
       { route: "/roadmap?mode=overview&proposal=5" },
     );
-    const note = await screen.findByText("Load failed (500)");
+    const note = await screen.findByText("Load failed (500)", NOTE_ONLY);
     expect(note).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Dismiss this notice" }));
-    expect(screen.queryByText("Load failed (500)")).toBeNull();
+    expect(screen.queryByText("Load failed (500)", NOTE_ONLY)).toBeNull();
   });
 });
 
