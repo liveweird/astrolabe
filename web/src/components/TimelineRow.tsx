@@ -1,5 +1,5 @@
 import { rovingProps, type GridPos } from "../hooks/useRovingGrid";
-import { COLUMNS_PER_BAR, type TimelineBandData, type TimelineColumn, type TimelineRowData } from "../utils/timelineModel";
+import { COLUMNS_PER_BAR, NO_HIDDEN_COLUMNS, type TimelineBandData, type TimelineColumn, type TimelineRowData } from "../utils/timelineModel";
 import { toEpochDay, type TimelineScale } from "../utils/timelineScale";
 import TimelineBar from "./TimelineBar";
 import TimelineDrawSurface from "./TimelineDrawSurface";
@@ -27,6 +27,8 @@ interface RowProps {
   index: number;
   scale: TimelineScale;
   columns: readonly TimelineColumn[];
+  /** The ids of the columns not drawn: a hole, never a re-index (`data-grid-pos` and the bars' columns keep their numbers). */
+  hidden?: ReadonlySet<string>;
   leftWidth: number;
   /** The grid's current tab stop. */
   active: GridPos;
@@ -41,7 +43,7 @@ interface RowProps {
  * the bars or the page's `track`). Both render paths mount this same row; the virtual one only positions it. A left cell given as
  * a function receives the roving stop to spread on its own focusable (a link, a menu button); a static one is the stop itself.
  */
-export default function TimelineRow({ row, index, scale, columns, leftWidth, active, hatch, top }: RowProps) {
+export default function TimelineRow({ row, index, scale, columns, hidden = NO_HIDDEN_COLUMNS, leftWidth, active, hatch, top }: RowProps) {
   const r = index + 1;
   const roving = (c: number) => rovingProps(r, c, active.r === r && active.c === c);
   return (
@@ -53,6 +55,7 @@ export default function TimelineRow({ row, index, scale, columns, leftWidth, act
     >
       <div role="presentation" className={classes.timelineLeft} style={{ width: leftWidth }}>
         {columns.map((column, c) => {
+          if (hidden.has(column.id)) return null;
           const cell = row.cells[c];
           const style = { width: column.width };
           const role = c === 0 ? "rowheader" : "gridcell";

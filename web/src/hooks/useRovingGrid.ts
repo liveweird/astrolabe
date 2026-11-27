@@ -103,7 +103,8 @@ function navigate(table: HTMLElement, from: HTMLElement, key: string, ctrl: bool
 
 /**
  * `bounds` is the grid's current extent; `isValid` says whether a position still exists after a re-render (a drill can remove
- * the header cell the tab stop sat on) and `fallback` is where the tab stop goes when it does not. Attach `ref`, `onKeyDown`
+ * the header cell the tab stop sat on) and `fallback` is where the tab stop goes when it does not (a function receives the stale position, to
+ * stay on its row). Attach `ref`, `onKeyDown`
  * and `onFocus` to the table and mark every navigable element with `rovingProps(r, c, active)` against `active`.
  */
 export function useRovingGrid<E extends HTMLElement = HTMLTableElement>({
@@ -113,11 +114,11 @@ export function useRovingGrid<E extends HTMLElement = HTMLTableElement>({
 }: {
   bounds: GridBounds;
   isValid: (pos: GridPos) => boolean;
-  fallback: GridPos;
+  fallback: GridPos | ((stale: GridPos) => GridPos);
 }) {
   const ref = useRef<E>(null);
   const [last, setLast] = useState<GridPos>({ r: 1, c: 0 });
-  const active: GridPos = isValid(last) ? last : fallback;
+  const active: GridPos = isValid(last) ? last : typeof fallback === "function" ? fallback(last) : fallback;
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     const from = (event.target as HTMLElement).closest<HTMLElement>("[data-grid-pos]");

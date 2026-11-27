@@ -12,6 +12,7 @@ import {
   headerHeight,
   lastColumn,
   MIN_BODY_ROWS,
+  NO_HIDDEN_COLUMNS,
   OVERSCAN_ROWS,
   ROW_HEIGHT,
   type TimelineBandData,
@@ -65,6 +66,8 @@ export interface TimelineProps {
   /** Today as `YYYY-MM-DD` (injected so tests and the zone choice stay the page's). */
   today: string;
   columns: readonly TimelineColumn[];
+  /** The ids of the columns to leave out (`useTimelineColumns`): the pane narrows, the cells and the header's captions go, nothing is re-indexed ("Hidden columns"). */
+  hiddenColumns?: ReadonlySet<string>;
   rows: readonly TimelineRowData[];
   /** Bands spanning every row (the project's target window). */
   bands?: readonly TimelineBandData[];
@@ -117,6 +120,7 @@ export default function Timeline({
   onZoomChange,
   today,
   columns,
+  hiddenColumns = NO_HIDDEN_COLUMNS,
   rows,
   bands = [],
   overlay,
@@ -132,7 +136,7 @@ export default function Timeline({
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const { active: dragging } = useDndContext();
-  const leftWidth = columns.reduce((sum, column) => sum + column.width, 0);
+  const leftWidth = columns.reduce((sum, column) => (hiddenColumns.has(column.id) ? sum : sum + column.width), 0);
   // The sticky header's height: the ONE number the drop zone, the virtualiser, the reveal and the CSS scroll margins all follow.
   const head = headerHeight(strip !== undefined);
   const { zoneRef, rowZoneRef } = useTimelineDropZones({ scrollRef, head, leftWidth, rowCount: rows.length });
@@ -157,9 +161,10 @@ export default function Timeline({
   const lastCol = lastColumn(rows, columns.length);
   const grid = useRovingGrid<HTMLDivElement>({
     bounds: { rMin: 1, rMax: rows.length, cMax: lastCol },
-    // A position is a stop only if its row is mounted and has that column (a read-only row has no handles).
-    isValid: ({ r, c }) => r - 1 >= first && r - 1 <= last && hasColumn(rows[r - 1], columns.length, c),
-    fallback: { r: first + 1, c: 0 },
+    // A position is a stop only if its row is mounted, has that column (a read-only row has no handles) and the column is drawn.
+    isValid: ({ r, c }) => r - 1 >= first && r - 1 <= last && hasColumn(rows[r - 1], columns.length, c) && !(c < columns.length && hiddenColumns.has(columns[c].id)),
+    // The stop that lost its column moves to its own row's header; a row that is not mounted any more falls to the first mounted one.
+    fallback: ({ r }) => ({ r: r - 1 >= first && r - 1 <= last ? r : first + 1, c: 0 }),
   });
 
   const pendingFocus = useTimelinePendingFocus(scrollRef, grid.ref);
@@ -266,7 +271,7 @@ export default function Timeline({
             grid.onFocus(event);
           }}
         >
-          <TimelineHeader scale={scale} columns={columns} leftWidth={leftWidth} today={today} strip={strip} holidays={holidayByDay} scrollRef={scrollRef} />
+          <TimelineHeader scale={scale} columns={columns} hidden={hiddenColumns} leftWidth={leftWidth} today={today} strip={strip} holidays={holidayByDay} scrollRef={scrollRef} />
           <div role="rowgroup" style={{ position: "relative", height: bodyHeight }}>
             {bands.map((band) => (
               <div key={band.id} style={{ position: "absolute", top: 0, bottom: 0, ...trackLeft }}>
@@ -283,6 +288,7 @@ export default function Timeline({
                 index={index}
                 scale={scale}
                 columns={columns}
+                hidden={hiddenColumns}
                 leftWidth={leftWidth}
                 active={grid.active}
                 hatch={hatch}

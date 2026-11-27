@@ -10,11 +10,11 @@ const ROWS = 3;
 const COLS = 3;
 const CORNER_ROW = -1;
 
-function Grid({ blocked = false }: { blocked?: boolean }) {
+function Grid({ blocked = false, fallback = { r: 1, c: 0 } }: { blocked?: boolean; fallback?: GridPos | ((stale: GridPos) => GridPos) }) {
   const { ref, active, onKeyDown, onFocus, tabStop } = useRovingGrid({
     bounds: { rMin: CORNER_ROW, rMax: ROWS, cMax: COLS },
     isValid: (pos: GridPos) => !blocked && (pos.r >= 1 ? pos.r <= ROWS : pos.r >= CORNER_ROW) && pos.c <= COLS,
-    fallback: { r: 1, c: 0 },
+    fallback,
   });
   const at = (r: number, c: number) => active.r === r && active.c === c;
   return (
@@ -180,6 +180,21 @@ describe("useRovingGrid", () => {
     rerender(<Grid blocked />);
     expect(cell("r2c2")).toHaveAttribute("tabindex", "-1");
     expect(cell("r1c0")).toHaveAttribute("tabindex", "0");
+  });
+
+  test("a fallback function receives the stale position, so the tab stop can stay on its row", () => {
+    const stale: GridPos[] = [];
+    const fallback = (pos: GridPos) => {
+      stale.push(pos);
+      return { r: pos.r, c: 0 };
+    };
+    const { rerender } = render(<Grid fallback={fallback} />);
+    expect(stale).toEqual([]);
+    focus("r3c2");
+    rerender(<Grid blocked fallback={fallback} />);
+    expect(stale.at(-1)).toEqual({ r: 3, c: 2 });
+    expect(cell("r3c0")).toHaveAttribute("tabindex", "0");
+    expect(document.querySelectorAll('[data-grid-pos][tabindex="0"]')).toHaveLength(1);
   });
 });
 

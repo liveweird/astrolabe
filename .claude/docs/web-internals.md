@@ -384,8 +384,7 @@ Files: `components/EntityLink.tsx`, `OpenEntityItem.tsx`, `utils/entityLinks.ts`
 
 ## Timeline mechanics (`components/Timeline*.tsx`)
 
-The binding reference is `timeline.md` (coordinate model, data contract, arrows, load strip, drag/resize/keyboard contract, row drag, draw gesture,
-accessibility model, virtualisation, holidays, idle bands, critical path, proposal preview, baseline overlay, Jira markers, measured figures). The rules a page
+The binding reference is `timeline.md`. The rules a page
 follows: `web/CLAUDE.md` "Per-feature rules". What the pages see of the component, with the `timeline.md` section that owns each mechanism:
 
 - **Boundary.** `Timeline` takes rows, bars and bands as `TimelineRowData[]` (`utils/timelineModel.ts`); the page builds the `scale` (`makeScale(zoom, range)`,
@@ -393,6 +392,7 @@ follows: `web/CLAUDE.md` "Per-feature rules". What the pages see of the componen
   page's `TimelineDndContext`: the page's write path owns the optimistic update, the revision and the rollback.
   - Dates are ISO strings at the boundary; layout is `utils/timelineScale.ts` (28/8/3/1 px per day), drag arithmetic `utils/timelineDrag.ts`, both pure.
   - It is a `role="grid"` with ONE roving tab stop (`useRovingGrid`; a left cell holding its own focusable is a function cell that spreads the stop on it), rows virtualised (TanStack Virtual) above `virtualizeFrom` (80).
+  - `hiddenColumns` (the ids `useTimelineColumns` hides) leaves `hideable` left columns out without renumbering anything ("Hidden columns").
   - Keyboard: Space/Enter picks up a bar or handle, ←/→ a day, Shift a week, Space drops, Escape cancels (`timeline.announce.*`); the page ships the explicit buttons (Edit schedule…, the tray's Schedule).
   - Pointer drags run in the e2e only (`Timeline.test.tsx` feeds the wrapped `DndContext` its events).
   - Reference: "Coordinate model", "Data contract", "Drag, resize and keyboard", "Accessibility model", "Virtualisation".
@@ -425,8 +425,7 @@ follows: `web/CLAUDE.md` "Per-feature rules". What the pages see of the componen
 5. The track drop zone's droppable `data` carries `visibleBounds()` (the scroller's live rectangle minus the sticky parts) and `zoneLeft()` (its element's live left edge). `outcomeOf` combines them with the
    pointer `TimelineDndContext` tracks itself during a tray drag, so a tray item released over
    the tray or the left columns is not scheduled and a scrolled grid gives the right day (`delta` is wrong for it, `timeline.md`).
-6. A pending "focus the row once it mounts" wish is cleared by another key, a focus elsewhere or a manual scroll.
-7. Tests stub the scroller size with `HTMLElement.prototype.clientWidth/clientHeight` (happy-dom lays nothing out; the virtualiser reads them), restore the descriptors in a file-level `afterEach` and
+6. Tests stub the scroller size with `HTMLElement.prototype.clientWidth/clientHeight` (happy-dom lays nothing out; the virtualiser reads them), restore the descriptors in a file-level `afterEach` and
    wait with `waitFor`, never a real sleep (`isolate: false`); the keyboard-sensor test fakes only `setTimeout` (dnd-kit's zero-delay listener attach).
 8. **Arrows.** `TimelineArrows` renders a fragment (`<defs>` with two `<marker>`s of FIXED ids, then one `<path>` per kept arrow) inside the Timeline's own `aria-hidden` svg. The marker colours are CSS classes
    (`timelineArrowHead*`): a marker's content inherits from its ancestors, not from the path that references it, and the tokens `--timeline-arrow`/`--timeline-violation` live on `.timelineGrid`.
@@ -2452,6 +2451,6 @@ When a feature needs one of these, port the sibling's `web/` implementation and 
 - **`projects.last`** (the project `/projects` opens), **`project.milestonesOpen`**, **`project.dependenciesOpen`**, **`roadmap.dependenciesOpen`**: `projects-view.md`.
 - **The Plan page's** `plan.collapsed` (folded node keys), `plan.pins`, `plan.pinnedCollapsed`, `plan.pinnedOpen` and `plan.filtersOpen` (`plan-tree.md`); its filters and focus are address-only.
 - **Timeline view settings** (`timeline.*`, shared by the pages that show them): `zoom` (project, team), `planZoom` (roadmap, programs), `criticalPath` (project and team, default false;
-  `hooks/useCriticalPathPick.ts`), `baseline` (all four, an id or none; `hooks/useBaselinePick.ts`), and **`jiraBars`** (all four pages; a boolean, **default true**: the "Jira dates" toggle of the
+  `hooks/useCriticalPathPick.ts`), `columns.<page>` (`project|team|roadmap|programs`; `{collapsed, hidden[]}`, `hooks/useTimelineColumns.ts`; a first visit shows all and writes nothing), `baseline` (all four, an id or none; `hooks/useBaselinePick.ts`), and **`jiraBars`** (all four pages; a boolean, **default true**: the "Jira dates" toggle of the
   Jira shadow bar, `hooks/useJiraBarsPick.ts`; a stored non-boolean reads as the default).
 - The Polish user-facing noun for Users is "Użytkownicy/czki" (EN "Users").

@@ -118,7 +118,12 @@ export interface TimelineColumn {
   /** The column header text. */
   header: string;
   width: number;
+  /** The page lets the viewer hide this column (`useTimelineColumns`); never the first (the row header) nor the operations. */
+  hideable?: boolean;
 }
+
+/** The columns a Timeline draws when its page hides none: one shared empty set, so an absent `hiddenColumns` prop is one stable value. */
+export const NO_HIDDEN_COLUMNS: ReadonlySet<string> = new Set();
 
 /**
  * Opts a row in to the DRAW gesture: a pointer drag across the row's empty stretch proposes a span through the page's

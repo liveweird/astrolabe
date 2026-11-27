@@ -17,7 +17,7 @@ Files: all flat under `web/src/`.
 
 - The component draws and proposes; it never writes and never decides. The page adapts its view document to rows (`TimelineRowData[]`), reads the `can:{…}` flags for `editable` and answers a proposed change with its own write path (optimistic update, the server's verdict, rollback; `hooks/useRoadmapRanking.ts` is the template).
 - The server alone decides who may schedule (`PUT /milestones/{id}/schedule`, team manager or ADMIN), and every date and working-day figure; the client only draws and phrases them. No holiday, dependency or load figure is computed on the client; the one client rule is the schedule dialog's "at least one working day" pre-check (`hasWorkingDay`).
-- Dates cross the component boundary as ISO `YYYY-MM-DD` strings and are epoch days inside. A bar spans from the LEFT edge of its first day to the RIGHT edge of its last.
+- Dates cross the component boundary as ISO `YYYY-MM-DD` strings (epoch days inside); a bar spans from the LEFT edge of its first day to the RIGHT edge of its last.
 - The page owns the range and keeps it stable across edits: computed from the first load and only ever grown. A date the page does not own (Jira's) never stretches it unbounded: it joins only inside the Jira window.
 - A page offers its own zoom list (`MILESTONE_ZOOMS`, `PLAN_ZOOMS`) and validates its stored zoom against it.
 - The overlay's geometry is computed from data, never measured: rows are 36 px and `rowTop(i) = i × 36`, mounted or not.
@@ -33,10 +33,9 @@ Files: all flat under `web/src/`.
 - A read-only tone (`ghost`, `summary`, `proposal`, `baseline`, `jira`) is ignored by an editable bar; `window` is honoured on both.
 - An optimistic step keeps the server-derived figures untouched (`span`, `drift`, `idleGaps`, `slackDays`, `critical`, `criticalPath`, the dependency checks, `weeks`, the `baseline` block); the refetch brings the new ones.
 - With no pick or toggle on, an overlay leaves the DOM exactly as it was (pinned by the pages' tests).
-- Rows virtualise only above `virtualizeFrom` (80), positioned with `top`, never `transform`. The track keeps its full coordinate width; only header cells on tracks wider than `HEADER_WINDOW_THRESHOLD_PX` (12,000 px) are windowed to the visible dates plus overscan.
-- Deliberate departures from the bootstrap sketch: a div grid, not a `<table>` (virtual rows are absolutely positioned); `top`, not `translateY`; the tray's and the row's drag handles are pointer-only (the Schedule button and the row menu's Move items are the keyboard paths).
+- Rows virtualise only above `virtualizeFrom` (80), positioned with `top`, never `transform`; the track keeps its full coordinate width ("Virtualisation").
 - One timeline per page: `TIMELINE_DROP_ID`, `TIMELINE_ROW_DROP_ID`, the `DndContext` id and the arrow marker ids are fixed.
-- Measured figures are one-off and NON-BINDING; re-measure rather than quote.
+- A hidden column is a hole, never a re-index ("Hidden columns").
 
 ## Coordinate model
 
@@ -55,15 +54,14 @@ of its first day to the RIGHT edge of its last: `left = xOf(start)`, `width = (e
 Labels are language-neutral (`formatDate.ts` rule). Groups and cells each PARTITION the range and are clipped to it (a week or month crossing the range edge is a shorter cell, never dropped); a cell may straddle two groups (a week across a month boundary).
 An ordinary track renders that whole partition exactly as before. A track wider than 12,000 px renders `headerWindow(...)`: the visible track dates plus at least 800 px (or one visible track width) on each side. Cells still use `scale.xOf` against the FULL range, so bars, labels, today and drop arithmetic keep one coordinate system. `TimelineHeader` alone observes horizontal scroll and resize on this wide path; rows and the parent Timeline do not re-render for a header scroll.
 `defaultRange(dates, today, zoom)` is the range a page opens with: min/max of the dates ∪ today, padded and snapped as above. **A date the page does not own never stretches it unbounded:** the Jira dates are external input (the server accepts any date from 1900 to 2999, so a mistyped 2206 would otherwise give every user a track of hundreds of thousands of pixels, and the grow-only range could not be undone by the toggle), so they join the range only inside the Jira window (`jiraWindow`, "The Jira markers").
-**The page owns the range and keeps it stable across edits** (compute it from the first load, only ever grow it):
-a range recomputed from every drag would shift every bar under the pointer. `scrollLeftToCenter` backs the toolbar's "Scroll to today" (target icon; a `title` says why it is disabled).
+`scrollLeftToCenter` backs the toolbar's "Scroll to today" (target icon; a `title` says why it is disabled).
 `hooks/useLocalToday.ts` owns the browser-local day used by every timeline: one timeout rolls it over at the next LOCAL midnight, and focus / return to a visible tab catches up after browser timer throttling. Project and team Schedule buttons read `localIsoDate()` again at the click, so a page cannot submit yesterday even before the rollover render commits; `usePlanScale` uses it for Roadmap and Programs.
 
 ## Data contract
 
 Files: `utils/timelineModel.ts`.
 
-- `TimelineColumn{id, header, width}` — the sticky left columns (the first is the row header: the name). `leftWidth` = their sum.
+- `TimelineColumn{id, header, width, hideable?}` — the sticky left columns (the first is the row header: the name). `leftWidth` = the sum of the drawn ones ("Hidden columns").
 - `TimelineRowData{id, cells, bars, bands?, track?, current?}` — `cells[i]` belongs to `columns[i]`: static content (the cell itself is the roving stop) or a **function `(stop) => node`** that spreads `stop` (`data-grid-pos`, `tabIndex`) on its own focusable (a link, the row
   menu button) so one cell never holds two tab stops. `bars` are the row's bars (usually one). `bands` are confined to this row's track. `track` REPLACES the bar rendering of the row's track (positioned with the scale); the row's hatch and bands still draw. A track-only row (no `bars`) exposes no roving columns beyond its left cells, so focusable content inside a `track` brings its own focus handling.
   **No page uses `track`** (the load strip is a header band); the slot stays for a per-row decoration.
@@ -73,7 +71,14 @@ Files: `utils/timelineModel.ts`.
 - `TimelineRowData.current?` (1.31) marks the page's arrival row: its header gets `aria-current="true"` and `.timelineCellCurrent` (3 px accent `border-inline-start`, `Highlight` in forced colours, where a shadow would vanish); no stop. Tray twin: `TrayItem.current` (`aria-current`, `.rowCurrent`, `tabIndex` -1, `data-tray-item`).
 - `TimelineBandData{id, start, end, label, tone: "window" | "drift" | "idle"}` — decorative (`aria-hidden`, `title` = label, `data-band-tone` = the tone); the facts live in the page's text. Passed as the `bands` prop it spans every row (the project's target window, the idle gaps); in a row it spans that row.
   `window` is a quiet gray tint with dashed edges, `drift` is orange (red is never used: nothing blocks), `idle` is a diagonal gray hatch with no edges (see "Idle bands").
-- `Timeline` props: `label`, `scale`, `onZoomChange`, `today` (ISO, injected), `columns`, `rows`, `bands?`, `overlay?`, `strip?`, `holidays?` ("Public holidays"), `toolbar?` (the page's own controls after Today), `virtualizeFrom?` (80), `maxHeight?` (640), `busy?` (`aria-busy` on the grid while a save is in flight), `zooms?` (default `MILESTONE_ZOOMS`), `ref?: Ref<TimelineHandle>` (`focusRow`; a plain prop in React 19, no `forwardRef`).
+- `Timeline` props: `label`, `scale`, `onZoomChange`, `today` (ISO, injected), `columns`, `hiddenColumns?` ("Hidden columns"), `rows`, `bands?`, `overlay?`, `strip?`, `holidays?` ("Public holidays"), `toolbar?` (the page's own controls after Today), `virtualizeFrom?` (80), `maxHeight?` (640), `busy?` (`aria-busy` on the grid while a save is in flight), `zooms?` (default `MILESTONE_ZOOMS`), `ref?: Ref<TimelineHandle>` (`focusRow`; a plain prop in React 19, no `forwardRef`).
+
+## Hidden columns
+
+A page marks its extra left columns `hideable` (never the name or Operations), calls `useTimelineColumns(page, columns)` (`hooks/`, with `utils/timelineColumns.ts`) and hands the view to `Timeline` (`hiddenColumns`) and
+`components/TimelineColumnsControl.tsx` (the `toolbar` slot). A hidden column is a hole: `leftWidth` sums the DRAWN widths (every pane consumer follows it), `TimelineHeader` and `TimelineRow` skip the id, and `columns`, `data-grid-pos`, the bars' columns (`columns.length + 3b`), the row builders and the arrows stay as they were; a tab stop on a hidden column moves to its row's header.
+- **Control:** group "Columns": a disclosure button (`aria-expanded`, "Hide columns"/"Show columns") and a chevron "Choose columns" opening a `Menu.CheckboxGroup` of the drawn columns (stays open; Tab leaves); nothing offered, nothing drawn.
+- **Choice:** `{collapsed, hidden[]}` in `timeline.columns.<page>` (`project|team|roadmap|programs`), written only when the viewer acts. Collapsing keeps the pick; a pick showing nothing expands to everything; a tick while collapsed shows that column alone; a column the page does not offer now keeps its choice.
 
 ## Overlay geometry
 
@@ -132,7 +137,6 @@ The row is part of the sticky header (z 4), so it stays under the dates while th
 
 **The header height rule.** The header is `headerHeight(hasStrip) = HEADER_HEIGHT (56) + (hasStrip ? STRIP_HEIGHT : 0)`, computed ONCE in `Timeline.tsx`; every consumer follows it: the drop zone's `visibleBounds().top`, the virtualiser's `scrollMargin` and `scrollPaddingStart`, `revealFocused`'s `clearTop`, and the two `scroll-margin-top` literals (`.timelineCell`, `.timelineBarBody`), which use `var(--timeline-head)`, set on the grid's inline style beside `--timeline-left`. With no strip the variable is `56px` and nothing else changes (pinned by `Timeline.test.tsx`).
 The geometry's origin (the top of the first body row) is unchanged, so arrows need nothing.
-Any future sticky header part adds to `headerHeight()`; a literal is a bug.
 
 **The cells** (`components/TimelineLoadStrip.tsx`, geometry in the pure `utils/timelineLoad.ts` `stripCells(weeks, scale)`): input is a LOCAL `LoadWeek` type mirroring the server's week row `{weekStart, load, capacity, overloaded, overloadMd, maxWip, wipExceeded}` (the page maps its API type onto it).
 One cell per ISO week at `scale.xOf(weekStart)`, seven days wide, clipped to the range like the header's cells (a week wholly outside is dropped; a cut week is a narrow cell of 3-28 px, so the cell is `overflow: hidden` and a cell under 40 px prints no figure — the `title` keeps it); `data-week`, `data-overloaded`, `data-wip-exceeded` and a `title` (the full sentence, `timeline.strip.*`).
@@ -263,18 +267,18 @@ An UNMOUNTED row (the virtual path): `pendingFocus = {r, c: 0}` + `virtualizer.s
 
 **One roving tab stop** (`hooks/useRovingGrid.ts`, generic over the grid element): ↑/↓ rows, ←/→ cells, Home/End row ends, Ctrl+Home/End grid ends. Columns of a row: the left cells `0…L−1`, then per bar `L + 3b` = the bar, `+1` its start handle, `+2` its end handle (editable only).
 Rows have different widths, so a VERTICAL move lands on the target row's nearest lower column when the exact one is absent (a read-only row has no handle cells) and Ctrl+End goes to the last cell that exists on the last row. `isValid` treats an unmounted row or an absent column as invalid, so the
-tab stop falls back to the first mounted row. Cells carry `scroll-margin` (`var(--timeline-head)`, sticky columns) so a focused cell scrolls clear of the sticky parts when the browser decides to scroll — but not when the item is only PARTLY covered (it does not count sticky elements as covering), so the grid also reveals the focused item itself (`revealFocused` on the grid's `focus` event, only for `:focus-visible` — a mouse press must not move the grid under the pointer: it measures the target against the part of the scroller that is really shown, inside its border
+tab stop falls back to its own row's header (an unmounted row: the first mounted one); so does a stop on a hidden column ("Hidden columns").
+Cells carry `scroll-margin` (`var(--timeline-head)`, sticky columns) so a focused cell scrolls clear of the sticky parts when the browser decides to scroll — but not when the item is only PARTLY covered (it does not count sticky elements as covering), so the grid also reveals the focused item itself (`revealFocused` on the grid's `focus` event, only for `:focus-visible` — a mouse press must not move the grid under the pointer: it measures the target against the part of the scroller that is really shown, inside its border
 so a classic scrollbar is excluded, and scrolls the difference, never further than the item's own START edge reaching the sticky parts, so a bar wider than the visible track shows its start; left cells only vertically). (`utils/timelineReveal.ts` has the 1,000-row finding.)
 
-**VoiceOver reading order of a keyboard bar move (Space, then an arrow, then Space): not yet recorded.** It needs a person with VoiceOver on the compose stack; the order the announcements arrive in (the grab, the move, the drop; dnd-kit's live region is the one announcer for drags) is to be recorded here as a dated note. The automated parts (axe over the grid, the open row menus and the baseline overlays, both themes) are in `e2e/tests/accessibility.spec.ts`; the roving grid at 100+ rows was probed ("Measured figures").
+**VoiceOver reading order of a keyboard bar move (Space, then an arrow, then Space): not yet recorded.** It needs a person with VoiceOver on the compose stack; the order of the announcements (grab, move, drop) is to be recorded here as a dated note. The automated parts (axe over the grid, the open row menus and the baseline overlays, both themes) are in `e2e/tests/accessibility.spec.ts`; the roving grid at 100+ rows was probed ("Measured figures").
 
 ## Virtualisation
 
 The body is at least `MIN_BODY_ROWS` (3) rows tall even with fewer rows, so an empty or nearly empty timeline still has an area to drop an Unscheduled item on (the drop zone is as tall as the body). Rows are virtualised with `@tanstack/react-virtual` (`useVirtualizer`; fixed 36 px rows, `overscan` 8, the `ScrollRegion` as the scroller, `scrollMargin` = the header's height, `headerHeight()`: 56 px, 92 with a strip) **only when `rows.length > virtualizeFrom`** (default 80). Both paths mount the same `TimelineRow`; the virtual one gives
 each row `position: absolute; top: index × 36` inside a body of `rows × 36` px (`top`, not `transform`: a transform makes a stacking context per row and the sticky left cells could not rise above the today line and overlay). The project view (10–50 rows) never virtualises; the team view (up to ~270 rows)
 and the roadmap (~100 rows) and fully expanded programs tree (~125) do. **↑/↓ and Ctrl+Home/End at an unmounted row** are taken by the Timeline: it `scrollToIndex`es,
-remembers the wanted cell and focuses it (or the nearest cell to its left) in a layout effect as soon as the row mounts; that wish is dropped by any other key, a focus
-elsewhere, or a scroll by hand (wheel, touch, pointer, a key on the scroller), so it cannot steal focus later. `scrollToIndex` lands the row below the sticky header
+remembers the wanted cell and focuses it (or the nearest to its left) once the row mounts; any other key, a focus elsewhere or a hand scroll drops the wish. `scrollToIndex` lands the row below the sticky header
 (`scrollPaddingStart`). Horizontal tracks are NOT virtualised: bands, bars, hatch and drop coordinates keep the full scale. The header's date/group cells alone are
 windowed above 12,000 px; the sticky left captions remain mounted, and the decorative date rows follow the scroller with overscan. The 2040–2999 regression in
 `Timeline.test.tsx` pins a bounded cell count and reveals `2999-Q4` after a distant scroll.
@@ -419,7 +423,7 @@ A document contract; nothing is drawn from the server's side.
 
 `TimelineBarData.tone: "jira"` (`data-tone="jira"`).
 - A 5 px dashed OUTLINE along the TOP of the 36 px row (`top: 1px`; the wrapper class `timelineBarFrameJira`, the baseline shadow's mirror image), hollow, a 1 px dashed border in the dimmed arrow ink `--timeline-arrow` (`var(--mantine-color-dimmed)`, which Mantine resolves per scheme), square corners.
-- Read-only (`role="img"`, one roving stop, no handles, `timelineBarInert` so the draw surface stays reachable); an editable bar ignores the tone like every read-only tone.
+- Read-only and pointer-transparent, like the baseline's shadow bar.
 - It differs from `baseline` (solid, bottom), `proposal` (2 px dashed, full height) and `summary` (solid outline, full height) by position and fill, and coexists with the baseline and the proposal bar in one row (up to four bars: window, span, baseline or proposal, jira).
 - Its name is `timeline.bar.jira` "Jira {{key}}: {{start}} to {{end}}" (PL "od … do …") plus, when the row has open DATE deviations (`START_DIFFERS`, `END_DIFFERS`, `TARGET_DIFFERS`), their `utils/deviations.ts` sentences after a comma; the component appends ", read-only". The focused 5 px bar shows the grid's 2 px accent ring like the baseline's.
 
@@ -506,9 +510,9 @@ Deferred: nothing timeline-specific; `hooks/usePrintLifecycle.ts` and `print.css
 
 ## Tests
 
-`utils/timelineScale.test.ts`, `utils/timelineDrag.test.ts`, `utils/timelineLoad.test.ts` and `components/TimelineLoadStrip.test.tsx` (the strip's cells, figures and marks per zoom; `Timeline.test.tsx` "the load strip" pins the header-height consumers with and without a strip), `utils/timelineArrows.test.ts` (pure, table-driven: every route shape per type, the backtrack above and below, the mounted-rows filter, missing rows/bars; the Timeline suite adds the tones and the arrows through the overlay, plain and virtual, and the committed-dates rule);
-`hooks/useRovingGrid.test.tsx` (vertical fallback, ragged rows); `components/Timeline.test.tsx` (bars at their computed `left`/`width`, read-only rows, bands, the overlay geometry, the `track` slot, roving navigation,
-the `zooms` prop and the Year header, the window tone, the draw gesture and `focusRow` (plain and virtual path), every drop outcome through the wrapped `DndContext` — happy-dom has no layout, so the handlers are fed events —, the announcements, the keyboard sensor end to end, the virtual window with `virtualizeFrom = 5` and a stubbed viewport (`clientHeight`), scroll-then-focus, the tray). The real pointer drag, the resize handles, the tray
+`utils/timelineScale.test.ts`, `utils/timelineDrag.test.ts`, `utils/timelineLoad.test.ts`, `components/TimelineLoadStrip.test.tsx` (`Timeline.test.tsx` pins the header-height consumers) and `utils/timelineArrows.test.ts` (pure, table-driven: every route shape, the backtrack, the mounted-rows filter; the Timeline suite adds the tones and arrows, plain and virtual).
+`hooks/useRovingGrid.test.tsx` (vertical fallback, ragged rows, the fallback function); `utils/timelineColumns.test.ts`, `hooks/useTimelineColumns.test.tsx`, `components/TimelineColumnsControl.test.tsx` and `components/Timeline.columns.test.tsx` ("Hidden columns": the real hook, no dnd mock);
+`components/Timeline.test.tsx` (bar geometry, read-only rows, bands, overlay, the `track` slot, roving navigation, the `zooms` prop, the window tone, the draw gesture, `focusRow`, every drop outcome through the wrapped `DndContext` — happy-dom has no layout, so the handlers are fed events —, announcements, the keyboard sensor, the virtual window with `virtualizeFrom = 5` and a stubbed viewport, the tray). The real pointer drag, the resize handles, the tray
 drop under a scrolled grid and the keyboard sensor under a real layout are `e2e/tests/project-view.spec.ts` — those scenarios own them (and they found the autoscroll zone above).
 
 ## Measured figures
@@ -516,13 +520,13 @@ drop under a scrolled grid and the keyboard sensor under a real layout are `e2e/
 One-off and NON-BINDING: this machine (an Apple-silicon laptop) unless a row says CI; re-measure rather than quote. A row holds the LATEST value of its metric and the version it was taken at; older runs are in Git.
 
 Method, so a run can be repeated:
-- **Browser:** headless Chromium 1440 x 900, the compose stack's production bundle, the sample plan (`sample-data/plan/`, loader in its `README.md`), signed in as the seed ADMIN (the team page as the team's manager), three fresh page loads, throwaway Playwright scripts (not committed).
+- **Browser:** headless Chromium 1440 x 900, the compose stack's production bundle, the sample plan (`sample-data/plan/`, loader in its `README.md`), signed in as the seed ADMIN (the team page as the team's manager), three fresh page loads, throwaway Playwright scripts.
   - Page ready = navigation start until the first bar is in the DOM; scroll = 600 frames of 108 px bouncing between the ends, the interval from `requestAnimationFrame` (60 Hz cap = 16.7 ms), scripting, task and layout time per frame from CDP `Performance.getMetrics`; DOM nodes = `document.querySelectorAll('*').length`.
   - The zoom is the `localStorage` key `astrolabe.viewSettings.timeline.zoom`; window focus = dispatching `visibilitychange` on the settled page and counting the `/api/` responses for 2.5 s.
 - **A list page:** the view request's resource-timing `responseEnd` to the second animation frame after the last body row is in the DOM (a `MutationObserver` from `addInitScript`); long tasks from a `longtask` `PerformanceObserver` from navigation on; one warm-up load, then five timed loads, the median.
   - The 1.23 dependencies figure: one project with 46 milestones of one team and 1,000 Finish-to-Start links `i → j` over the pairs `i < j`, read by the administrator and by a second login that owns nothing.
 - **The sample plan** is loaded with `node scripts/sample-plan/load.mjs --base-url <throwaway stack> --logins --reset --polish-holidays`, never against a stack that holds real data.
-- **Server:** `curl -s -o /dev/null -w '%{time_total} %{size_download}'` over loopback with a bearer token, 2 warm-ups then 40 timed calls, p50 / p95 (transfer included, `Accept-Encoding: identity`; a second series with `--compressed` for the gzip size). Concurrency: `seq 20 | xargs -P20 curl`, 5 rounds. The app's log carries no per-request timing.
+- **Server:** `curl -s -o /dev/null -w '%{time_total} %{size_download}'` over loopback with a bearer token, 2 warm-ups then 40 timed calls, p50 / p95 (transfer included, `Accept-Encoding: identity`; a second series with `--compressed` for the gzip size). Concurrency: `seq 20 | xargs -P20 curl`, 5 rounds.
 - **In-process:** `testApplication` against the Postgres container (`HomeViewSizeTest`, `JiraFlagsScaleTest`, `CrossTeamProposalSizeTest`, `TeamScheduleBatchHoldTimeTest`, the `*ScaleTest` kernels), one warm-up then five timed reads, the median; each prints `scale-figure` lines. Statements are counted below Exposed.
 
 ### The component, arrows and the project page
@@ -598,5 +602,5 @@ Method, so a run can be repeated:
 | Kernels at the cap (`LoadKernelsScaleTest`, `ScheduleKernelsScaleTest`): `weeklyLoad` 520 weeks x 300 items; `propose` 300 milestones | 10-12 ms; 70-79 ms | | median 2,000 ms; 5,000 ms | 1.0.0 |
 | The Jira fold in the roadmap service, 1,100 bindings; the team service, 301 | +50 ms (about 45 µs a binding); +16 ms | | HTTP tripwire 1,000 ms | 1.4 |
 
-What the numbers say: the plan pages are in the team page's class (ready in about 320 ms, a scroll frame at the 60 Hz cap) because rows virtualise and the track is short (2,466 px at Quarter against 14,308 px for the team page), so nothing calls for time-axis virtualisation (`BACKLOG.md`). A held autoscroll's duration is the pointer's cost, not a latency. The per-request fixed cost of about 16-20 ms on this machine dominates every small figure. A gate is revised only with its measurement in the same commit.
-The 1.27 rows are three runs of each class alone on a busy machine (load 12-17): upper bounds.
+What the numbers say: the plan pages are in the team page's class because rows virtualise and the track is short, so nothing calls for time-axis virtualisation (`BACKLOG.md`); the fixed 16-20 ms per request dominates every small figure. A gate is revised only with its measurement in the same commit.
+The 1.27 rows are upper bounds (three runs of each class alone on a busy machine, load 12-17).

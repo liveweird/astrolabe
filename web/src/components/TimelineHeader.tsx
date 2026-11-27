@@ -1,6 +1,6 @@
 import { useEffect, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
-import { HEADER_ROW_HEIGHT, STRIP_HEIGHT, type TimelineColumn, type TimelineStripData } from "../utils/timelineModel";
+import { HEADER_ROW_HEIGHT, NO_HIDDEN_COLUMNS, STRIP_HEIGHT, type TimelineColumn, type TimelineStripData } from "../utils/timelineModel";
 import { HEADER_WINDOW_THRESHOLD_PX, headerRows, headerWindow, toEpochDay, type HeaderCell, type TimelineScale } from "../utils/timelineScale";
 import classes from "../theme.module.css";
 
@@ -29,6 +29,7 @@ function HeaderCells({ cells, scale }: { cells: readonly HeaderCell[]; scale: Ti
 export default function TimelineHeader({
   scale,
   columns,
+  hidden = NO_HIDDEN_COLUMNS,
   leftWidth,
   today,
   strip,
@@ -37,6 +38,8 @@ export default function TimelineHeader({
 }: {
   scale: TimelineScale;
   columns: readonly TimelineColumn[];
+  /** The ids of the columns not drawn (`leftWidth` already leaves them out). */
+  hidden?: ReadonlySet<string>;
   leftWidth: number;
   today: string;
   strip?: TimelineStripData;
@@ -90,16 +93,18 @@ export default function TimelineHeader({
       </div>
       <div role="row" aria-rowindex={1} className={classes.timelineHeadRow}>
         <div role="presentation" className={classes.timelineLeft} style={{ width: leftWidth }}>
-          {columns.map((column) => (
-            <div
-              key={column.id}
-              role="columnheader"
-              className={`${classes.timelineCell} ${classes.timelineHeadCaption}`}
-              style={{ width: column.width }}
-            >
-              {column.header}
-            </div>
-          ))}
+          {columns.map((column) =>
+            hidden.has(column.id) ? null : (
+              <div
+                key={column.id}
+                role="columnheader"
+                className={`${classes.timelineCell} ${classes.timelineHeadCaption}`}
+                style={{ width: column.width }}
+              >
+                {column.header}
+              </div>
+            ),
+          )}
         </div>
         <div className={classes.timelineTrack} style={trackStyle} aria-hidden="true">
           <HeaderCells cells={cells} scale={scale} />

@@ -14,6 +14,12 @@
   "holidaysInView": "Widoczne święta państwowe: {{list}}",
   "holidaysInViewMany": "Widoczne święta państwowe: {{count}}; najbliższe: {{list}}",
   "holidaysUnavailable": "Nie udało się wczytać świąt państwowych; dni wolne nie są zaznaczone.",
+  "columns": {
+    "aria": "Kolumny",
+    "hide": "Ukryj kolumny",
+    "show": "Pokaż kolumny",
+    "choose": "Wybierz kolumny"
+  },
   "criticalToggle": "Ścieżka krytyczna",
   "pinned": "terminy przypięte",
   "jiraToggle": "Daty z Jiry",
