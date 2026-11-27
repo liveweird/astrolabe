@@ -37,7 +37,7 @@ async function schedule(api: APIRequestContext, projectId: number, teamId: numbe
   expect(response.status(), await response.text()).toBe(200);
 }
 
-type Plan = { stream: string; streamId: number; a: string; b: string; aId: number; bId: number; late: string; early: string; other: string };
+type Plan = { owner: string; stream: string; streamId: number; a: string; b: string; aId: number; bId: number; late: string; early: string; other: string };
 
 /**
  * One work stream with two programs. Program A: `late` (target 2026-03-02 to 03-31, milestones 03-02 to 03-06 and 04-06 to 04-10: its span
@@ -47,7 +47,8 @@ type Plan = { stream: string; streamId: number; a: string; b: string; aId: numbe
 async function seedPlan(): Promise<Plan> {
   const { api } = await apiAsAdmin();
   try {
-    const personId = await seed(api, "/api/v1/people", { name: uniqueText("e2e-pg-owner") }, "/api/v1/people");
+    const owner = uniqueText("e2e-pg-owner");
+    const personId = await seed(api, "/api/v1/people", { name: owner }, "/api/v1/people");
     const teamId = await seed(api, "/api/v1/teams", { name: uniqueText("e2e-pg-team") }, "/api/v1/teams");
     const stream = uniqueText("e2e-pg-stream");
     const a = uniqueText("e2e-pg-program-a");
@@ -66,7 +67,7 @@ async function seedPlan(): Promise<Plan> {
     await schedule(api, earlyId, teamId, uniqueText("e2e-pg-m3"), "2026-02-02", "2026-02-06");
     await schedule(api, otherId, teamId, uniqueText("e2e-pg-m4"), "2026-05-04", "2026-05-08");
     await seed(api, `/api/v1/projects/${otherId}/dependencies`, { predecessor: { kind: "PROJECT", id: lateId }, successor: { kind: "PROJECT", id: otherId }, type: "FS", lagDays: 0 }, null);
-    return { stream, streamId, a, b, aId, bId, late, early, other };
+    return { owner, stream, streamId, a, b, aId, bId, late, early, other };
   } finally {
     await api.dispose();
   }
@@ -245,7 +246,7 @@ test("in the Roadmap overview a user without any right reads the tree with read-
   await expect(projectRow(page, plan.late)).toBeVisible();
   await expect(nodeRow(page, `Program ${plan.a}`).getByRole("img", { name: `${plan.a}, program span 2026-02-02 to 2026-04-10, read-only` })).toHaveCount(1);
 
-  // Read-only: no row handle, no bar that could be picked up (the project's own span and its window are images), three items in the row menu (open the project, its dependencies, show its critical path).
+  // Read-only: no row handle, no bar that could be picked up (the project's own span and its window are images), four items in the row menu (open the project, its dependencies, show its critical path, and since 1.31 the owner's page, the pointer's link made reachable by keyboard).
   await expect(page.locator("[data-row-handle]")).toHaveCount(0);
   await expect(projectRow(page, plan.late).getByRole("img", { name: `${plan.late}, target window 2026-03-02 to 2026-03-31, read-only` })).toHaveCount(1);
   await expect(grid(page).getByRole("button", { name: new RegExp(`^${plan.late}, `) })).toHaveCount(0);
@@ -253,7 +254,8 @@ test("in the Roadmap overview a user without any right reads the tree with read-
   await expect(page.getByRole("menuitem", { name: `Open project ${plan.late}`, exact: true })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: `Show critical path to this project: ${plan.late}`, exact: true })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: `Dependencies of ${plan.late}`, exact: true })).toBeVisible();
-  await expect(page.getByRole("menuitem")).toHaveCount(3);
+  await expect(page.getByRole("menuitem", { name: `Open person ${plan.owner}`, exact: true })).toBeVisible();
+  await expect(page.getByRole("menuitem")).toHaveCount(4);
   await page.keyboard.press("Escape");
 
   await signOut(page);
@@ -319,8 +321,12 @@ test("a Roadmap overview link that names a work stream narrows the tree to it, s
   // A work stream the plan does not have: the whole plan shows, with a notice that can be dismissed.
   await page.goto("/roadmap?mode=overview&workStreamId=2147483000");
   await expect(grid(page)).toBeVisible();
-  await expect(page.getByText("That work stream is not in the plan any more", { exact: false })).toBeVisible();
+  // The sentence is said twice on purpose: the visible notice (a `note`) and the page's one polite status region (the announcement); the visible one is asserted, the other with the dismissal.
+  const notice = page.getByRole("note").filter({ hasText: "That work stream is not in the plan any more" });
+  await expect(notice).toBeVisible();
+  await expect(status(page, "That work stream is not in the plan any more")).toHaveCount(1);
   await expect(page).not.toHaveURL(/workStreamId=/);
   await page.getByRole("button", { name: "Dismiss this notice" }).click();
-  await expect(page.getByText("That work stream is not in the plan any more", { exact: false })).toHaveCount(0);
+  await expect(notice).toHaveCount(0);
+  await expect(status(page, "That work stream is not in the plan any more")).toHaveCount(0);
 });

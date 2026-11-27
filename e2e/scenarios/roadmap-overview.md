@@ -61,7 +61,7 @@
    - *Expected*: there is no row handle; `late`'s target window is an image named "<late>, target window 2026-03-02 to 2026-03-31, read-only"
      and no bar of the page is a button.
 3. They open **Operations for <late>**.
-   - *Expected*: the menu offers exactly three items, in this order: **Show critical path to this project: <late>** (1.16), **Dependencies of <late>** (1.20) and **Open project <late>**.
+   - *Expected*: the menu offers exactly four items, in this order: **Show critical path to this project: <late>** (1.16), **Dependencies of <late>** (1.20), **Open project <late>** and, since 1.31, **Open person <owner>** (the owner's name in the row is the pointer's link; the menu is the keyboard's way to it).
 4. The user signs out; the admin signs back in and deletes the user.
 
 ## Scenario: a Roadmap overview link that names a program shows it without changing what the browser remembers, and the old Programs address leads there
@@ -78,7 +78,7 @@
 2. They press **Show every work stream**.
    - *Expected*: the "Work stream: …" line is gone and the address names neither `workStreamId` nor `programId`; the remembered pick (program B) does not come back: both programs' chevron buttons show.
 3. They open `/roadmap?mode=overview&workStreamId=2147483000` (a work stream the plan does not have), then dismiss the notice.
-   - *Expected*: the whole plan shows; a notice says "That work stream is not in the plan any more…"; the parameter leaves the address; Dismiss removes the notice.
+   - *Expected*: the whole plan shows; a notice says "That work stream is not in the plan any more…" (the page's status region says it too); the parameter leaves the address; Dismiss removes the notice (and the announcement).
 
 ## Not covered here (and why)
 

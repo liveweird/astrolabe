@@ -81,7 +81,7 @@ overlap only warns), and a new `m3` (2 MD) is scheduled 2043-01-19..01-21.
 3. They choose B in **Compare against** (the option reads "<B> (plan revision N)").
    - *Expected*: the URL becomes `/baselines/<A>?against=<B>`; the facts group names the sides ("Then: <A>", "Now: <B>"); the table is "Changes between the
      two baselines".
-   - *Expected*: the project row reads "start 5 working days later, end 3 working days later" and the rank sentence "Unranked → rank N" (the position is shared
+   - *Expected*: no name in the table is a link (both sides are frozen); the project row reads "start 5 working days later, end 3 working days later" and the rank sentence "Unranked → rank N" (the position is shared
      state and never asserted); `m1` reads 2043-01-05 – 2043-01-09 then 2043-01-12 – 2043-01-16, +5, +5, "Later"; `m3` reads no "then" dates, B's dates
      2043-01-19 – 2043-01-21 (not the 01-26 ones) and "New"; `m2`, unchanged between the two, has no row.
    - *Expected*: neither **Show on timeline** nor **Show on the roadmap** is offered (the overlay is one baseline against the live plan).

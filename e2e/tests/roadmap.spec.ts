@@ -116,6 +116,9 @@ async function change(page: Page, act: () => Promise<void>): Promise<void> {
  * half the slot after it.
  */
 async function dragRow(page: Page, from: string, onto: string, fraction: number): Promise<void> {
+  // A row menu from the step before is still fading out for ~150 ms and, since 1.31 (its "Open program <name>" item is its widest), reaches over the row handle: a press there lands on
+  // the dropdown, not the handle, and no drag starts. Drag only once no menu is left.
+  await expect(page.getByRole("menu")).toHaveCount(0);
   await rowOf(page, from).scrollIntoViewIfNeeded();
   const handle = await rowOf(page, from).locator("[data-row-handle]").boundingBox();
   const target = await rowOf(page, onto).boundingBox();

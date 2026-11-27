@@ -336,10 +336,12 @@ test("the administrator compares two baselines: the second re-plan is invisible,
   await expect(facts).toContainText(`Now: ${nameB}`);
   const between = page.getByRole("table", { name: "Changes between the two baselines" });
   await expect(between).toBeVisible();
-  const projectRow = between.getByRole("row").filter({ has: page.getByRole("link", { name: `Open project ${world.project}` }) });
-  await expect(projectRow).toHaveCount(1);
-  await expect(projectRow).toContainText("start 5 working days later, end 3 working days later");
-  await expect(projectRow).toContainText(/Unranked → rank \d+/);
+  // Between two baselines both sides are frozen (a project may be gone since), so the project's name is text, never a link (1.31); its row header is the one cell of the table that holds the name as a header.
+  const projectHeader = between.getByRole("rowheader").filter({ hasText: world.project });
+  await expect(projectHeader).toHaveCount(1);
+  await expect(between.getByRole("link")).toHaveCount(0);
+  await expect(projectHeader).toContainText("start 5 working days later, end 3 working days later");
+  await expect(projectHeader).toContainText(/Unranked → rank \d+/);
   const moved = between.getByRole("row").filter({ hasText: world.m1.name }).getByRole("cell");
   await expect(moved.nth(2)).toHaveText(dates("2043-01-05", "2043-01-09"));
   await expect(moved.nth(3)).toHaveText(dates("2043-01-12", "2043-01-16"));
