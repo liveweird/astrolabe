@@ -14,6 +14,10 @@ import { renderWithProviders } from "../test/render";
 
 const PICK_KEY = "astrolabe.viewSettings.planning.programPick";
 
+// A sentence of the narrowing is said twice: the visible line and, one tick later (`useLiveText`), the page's polite status region. Matching the visible line alone keeps an
+// assertion from racing that tick (a "gone" check would find the region's copy before the tick that clears it).
+const VISIBLE_ONLY = { ignore: 'script, style, [role="status"]' };
+
 const project = (id: number, name: string, programId: number, programName: string, workStreamId: number, workStreamName: string): RoadmapProject => ({
   jira: null,
   id,
@@ -123,18 +127,18 @@ describe("the overview narrowed to a work stream", () => {
     const user = userEvent.setup();
     renderAt("/roadmap?mode=overview&workStreamId=2");
     await grid();
-    expect(screen.getAllByText("No projects in this work stream yet.")[0]).toBeInTheDocument();
+    expect(screen.getByText("No projects in this work stream yet.", VISIBLE_ONLY)).toBeInTheDocument();
     await waitFor(() => expect(liveText()).toContain("No projects in this work stream yet."));
     expect(rowLabels()).toEqual(["Work stream Archive", "Legacy Leo Legacy"]);
     await user.click(screen.getByRole("button", { name: "Show every work stream" }));
-    await waitFor(() => expect(screen.queryByText("No projects in this work stream yet.")).toBeNull());
+    await waitFor(() => expect(screen.queryByText("No projects in this work stream yet.", VISIBLE_ONLY)).toBeNull());
     expect(rowLabels()).toContain("Work stream Platform");
   });
 
   test("a work stream with nothing at all (no program) says the same", async () => {
     renderAt("/roadmap?mode=overview&workStreamId=3");
     await grid();
-    expect(screen.getAllByText("No projects in this work stream yet.")[0]).toBeInTheDocument();
+    expect(screen.getByText("No projects in this work stream yet.", VISIBLE_ONLY)).toBeInTheDocument();
     expect(rowLabels()).toEqual(["Fresh Fay Fresh"]);
   });
 
@@ -142,16 +146,16 @@ describe("the overview narrowed to a work stream", () => {
     const user = userEvent.setup();
     renderAt("/roadmap?mode=overview&programId=12");
     await grid();
-    expect(screen.getAllByText("No projects in the picked program yet.")[0]).toBeInTheDocument();
+    expect(screen.getByText("No projects in the picked program yet.", VISIBLE_ONLY)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Show every program" }));
     await waitFor(() => expect(where()).toBe("/roadmap?mode=overview"));
-    expect(screen.queryByText("No projects in the picked program yet.")).toBeNull();
+    expect(screen.queryByText("No projects in the picked program yet.", VISIBLE_ONLY)).toBeNull();
   });
 
   test("a program pick with projects shows no empty line, and the plan's own empty states are not this one", async () => {
     renderAt("/roadmap?mode=overview&programId=10");
     await grid();
-    expect(screen.queryByText(/No projects in the picked/)).toBeNull();
+    expect(screen.queryByText(/No projects in the picked/, VISIBLE_ONLY)).toBeNull();
     expect(rowLabels()).toEqual(["Work stream Platform", "Program Billing"]);
   });
 
@@ -183,7 +187,7 @@ describe("the overview narrowed to a work stream", () => {
     );
     await grid();
     await waitFor(() => expect(queryClient.getQueryState(programsViewKey(null, null))?.status).toBe("error"));
-    expect(screen.queryByText(/That work stream is not in the plan any more/)).toBeNull();
+    expect(screen.queryByText(/That work stream is not in the plan any more/, VISIBLE_ONLY)).toBeNull();
     expect(where()).toBe("/roadmap?mode=overview&workStreamId=99");
   });
 
