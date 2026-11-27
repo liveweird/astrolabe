@@ -9,7 +9,7 @@ import { planView } from "../test/planView";
 import { renderWithProviders } from "../test/render";
 
 // The project page's names as links (1.31): the header sentence's program, work stream and owner; the Team cells of the timeline (each its row's roving stop) and of the
-// Milestones table; the Dependencies table's ends. Its own subject (the project's whole-project end) and its own milestones' rows stay plain.
+// Unscheduled tray; the Dependencies table's ends. Its own subject (the project's whole-project end) and its own milestones' rows stay plain.
 
 const milestone = (id: number, name: string, teamId: number, teamName: string, over: Partial<ProjectMilestone> = {}): ProjectMilestone => ({
   jira: null,
@@ -151,13 +151,6 @@ describe("the project page's names as links", () => {
     renderPage();
     const tray = await screen.findByRole("table", { name: "Unscheduled milestones" });
     expect(within(within(tray).getByRole("row", { name: /Rollout/ })).getByRole("link", { name: "Open team Mobile" })).toHaveAttribute("href", "/teams/8");
-  });
-
-  test("the Milestones table links its Team cells too", async () => {
-    renderPage();
-    const table = await screen.findByRole("table", { name: "Milestones of this project" });
-    expect(within(table).getByRole("link", { name: "Open team Backend" })).toHaveAttribute("href", "/teams/3");
-    expect(within(table).queryByRole("link", { name: /Open milestone/ })).toBeNull();
   });
 
   test("the Dependencies table links a milestone end (and another project's name after it) and a whole-project end, but not this project as a whole", async () => {

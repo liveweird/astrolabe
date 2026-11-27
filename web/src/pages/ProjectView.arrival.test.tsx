@@ -10,8 +10,9 @@ import { jsonResponse, routeFetch } from "../test/http";
 import { planView } from "../test/planView";
 import { renderWithProviders } from "../test/render";
 
-// A milestone's address on the project page (1.31): `?milestone=M` marks and focuses its timeline row (or its tray row) and its row of the Milestones
-// table, then leaves the address; a milestone the project does not have is a notice, not an error page. The hook's own cases: hooks/useMilestoneArrival.test.tsx.
+// A milestone's address on the project page (1.31): `?milestone=M` marks and focuses its timeline row (or its tray row), then leaves
+// the address; a milestone the project does not have is a notice, not an error page. The hook's own cases: hooks/useMilestoneArrival.test.tsx.
+// And the not-scheduled address (`?milestones=unscheduled`): the Unscheduled heading takes the focus once. The hook's own cases: hooks/useUnscheduledArrival.test.tsx.
 
 const milestone = (id: number, name: string, over: Partial<ProjectMilestone> = {}): ProjectMilestone => ({
   jira: null,
@@ -104,29 +105,25 @@ const renderPage = (route: string) =>
     { route },
   );
 const where = () => screen.getByTestId("where").textContent;
-const tableRowOf = (name: string) => within(screen.getByRole("table", { name: "Milestones of this project" })).getByRole("row", { name: new RegExp(`^${name}`) });
 
 describe("a milestone's address on the project page", () => {
-  test("a scheduled milestone: its timeline row header is marked and focused, its Milestones table row is marked, the parameter leaves the address", async () => {
+  test("a scheduled milestone: its timeline row header is marked and focused, the parameter leaves the address", async () => {
     renderPage("/projects/7?milestone=2");
     const header = await screen.findByRole("rowheader", { name: /^Build/ });
     await waitFor(() => expect(header).toHaveFocus());
     expect(header).toHaveAttribute("aria-current", "true");
     expect(screen.getByRole("rowheader", { name: /^Discovery/ })).not.toHaveAttribute("aria-current");
-    expect(tableRowOf("Build")).toHaveAttribute("aria-current", "true");
-    expect(tableRowOf("Discovery")).not.toHaveAttribute("aria-current");
     await waitFor(() => expect(where()).toBe("/projects/7"));
   });
 
   test("an unscheduled milestone: its tray row is marked and focused, no timeline row is marked", async () => {
-    renderPage("/projects/7?milestone=3&milestones=all");
+    renderPage("/projects/7?milestone=3&other=keep");
     const tray = await screen.findByRole("table", { name: "Unscheduled milestones" });
     const row = within(tray).getByRole("row", { name: /Rollout/ });
     await waitFor(() => expect(row).toHaveFocus());
     expect(row).toHaveAttribute("aria-current", "true");
-    expect(tableRowOf("Rollout")).toHaveAttribute("aria-current", "true");
     expect(within(screen.getByRole("grid")).queryAllByRole("rowheader").filter((cell) => cell.hasAttribute("aria-current"))).toHaveLength(0);
-    await waitFor(() => expect(where()).toBe("/projects/7?milestones=all"));
+    await waitFor(() => expect(where()).toBe("/projects/7?other=keep"));
   });
 
   test("a milestone the project does not have: a dismissible notice, the page works, nothing is marked, the parameter leaves the address", async () => {
@@ -183,5 +180,67 @@ describe("a milestone's address on the project page", () => {
     expect(screen.getByRole("rowheader", { name: /^Build/ })).toHaveAttribute("aria-current", "true");
     expect(screen.getByRole("rowheader", { name: /^Build/ })).not.toHaveFocus();
     expect(month).toHaveFocus();
+  });
+});
+
+describe("the not-scheduled address on the project page (?milestones=unscheduled)", () => {
+  test("the Unscheduled heading takes the focus once the view is here, and the parameter leaves the address (the others kept)", async () => {
+    renderPage("/projects/7?milestones=unscheduled&other=keep");
+    const heading = await screen.findByRole("heading", { level: 3, name: "Unscheduled" });
+    await waitFor(() => expect(heading).toHaveFocus());
+    await waitFor(() => expect(where()).toBe("/projects/7?other=keep"));
+    // the tray stays beneath it, and nothing is marked as a milestone's address would
+    expect(within(screen.getByRole("table", { name: "Unscheduled milestones" })).getByRole("row", { name: /Rollout/ })).not.toHaveAttribute("aria-current");
+  });
+
+  test("a project with every milestone scheduled: the heading is focused all the same, above the 'Every milestone is scheduled' line", async () => {
+    project = viewOf(project.scheduled, []);
+    renderPage("/projects/7?milestones=unscheduled");
+    const heading = await screen.findByRole("heading", { level: 3, name: "Unscheduled" });
+    await waitFor(() => expect(heading).toHaveFocus());
+    expect(screen.getByText("Every milestone is scheduled.")).toBeInTheDocument();
+    await waitFor(() => expect(where()).toBe("/projects/7"));
+  });
+
+  test("a project with no milestone has no section: nothing takes the focus, the parameter is dropped", async () => {
+    project = viewOf([], []);
+    renderPage("/projects/7?milestones=unscheduled");
+    expect(await screen.findByText("No milestones yet")).toBeInTheDocument();
+    await waitFor(() => expect(where()).toBe("/projects/7"));
+    expect(document.body).toHaveFocus();
+  });
+
+  test.each(["scheduled", "all", "bogus"])("the retired word %s is ignored and dropped: no focus", async (word) => {
+    renderPage(`/projects/7?milestones=${word}`);
+    const heading = await screen.findByRole("heading", { level: 3, name: "Unscheduled" });
+    await waitFor(() => expect(where()).toBe("/projects/7"));
+    expect(heading).not.toHaveFocus();
+  });
+
+  test("a failed read says nothing: no page, no focus, the address stays as it came", async () => {
+    vi.stubGlobal(
+      "fetch",
+      routeFetch({
+        "GET /api/v1/views/project/7": () => jsonResponse(500, { title: "Server error", status: 500 }),
+        "GET /api/v1/public-holidays": { items: [] },
+        "GET /api/v1/teams": { items: [], page: 1, pageSize: 100, total: 0 },
+        "GET /api/v1/views/plan": planView(),
+        "GET /api/v1/baselines": { items: [], can: { manage: false } },
+        "GET /api/v1/schedule-proposals/teams": { items: [], truncated: false },
+      }),
+    );
+    renderPage("/projects/7?milestones=unscheduled");
+    expect(await screen.findByText(/could not|failed|error/i)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 3, name: "Unscheduled" })).toBeNull();
+    expect(where()).toBe("/projects/7?milestones=unscheduled");
+  });
+
+  test("a milestone's address wins: its tray row takes the focus, not the heading, and both parameters leave", async () => {
+    renderPage("/projects/7?milestone=3&milestones=unscheduled");
+    const tray = await screen.findByRole("table", { name: "Unscheduled milestones" });
+    const row = within(tray).getByRole("row", { name: /Rollout/ });
+    await waitFor(() => expect(row).toHaveFocus());
+    await waitFor(() => expect(where()).toBe("/projects/7"));
+    expect(screen.getByRole("heading", { level: 3, name: "Unscheduled" })).not.toHaveFocus();
   });
 });

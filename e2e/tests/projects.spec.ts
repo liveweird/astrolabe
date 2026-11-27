@@ -1,7 +1,6 @@
 // The Projects page (/projects, /projects/:id): a bare /projects opens the project this browser viewed last and forgets one that is gone, and
-// the picker above a project's title finds a project by its program's name (and its owner's, or one of its milestones' names) and opens the pick as a history entry, and the
-// project page's Milestones table narrows by Schedule (in the address) and name and hides, remembered in the browser. Owns: its throwaway team,
-// people, work stream, program, two projects and two milestones of the first (unique `e2e-pp-*` names), seeded through the API and deleted by the
+// the picker above a project's title finds a project by its program's name (and its owner's, or one of its milestones' names) and opens the pick as a history entry. Owns: its throwaway team,
+// people, work stream, program, two projects and one milestone of the first (unique `e2e-pp-*` names), seeded through the API and deleted by the
 // afterEach through the API (projects first - their milestones go with them - then program, work stream, people, team). Read-only in the browser:
 // nothing is written through the UI.
 import type { APIRequestContext } from "@playwright/test";
@@ -107,7 +106,7 @@ test("the picker finds a project by its program's name or its owner's and a pick
 
 test("the picker finds a project by the name of one of its milestones and shows it under the project's own name", async ({ page }) => {
   const world = await seedWorld();
-  const { built } = await seedMilestones(world);
+  const built = await seedMilestone(world);
   await login(page);
   await page.goto(`/projects/${world.beta.id}`);
   await expect(page.getByRole("heading", { level: 2, name: world.beta.name })).toBeVisible();
@@ -124,59 +123,14 @@ test("the picker finds a project by the name of one of its milestones and shows 
   await expect(page.getByRole("heading", { level: 2, name: world.alpha.name })).toBeVisible();
 });
 
-/** One scheduled and one unscheduled milestone of the first project's team (the schedule write carries the view's revision, as a client that just read it). */
-async function seedMilestones(world: World): Promise<{ built: string; todo: string }> {
+/** One scheduled milestone of the first project's team (the schedule write carries the view's revision, as a client that just read it). */
+async function seedMilestone(world: World): Promise<string> {
   const { api } = await apiAsAdmin();
   const built = uniqueText("e2e-pp-built");
-  const todo = uniqueText("e2e-pp-todo");
   const builtId = await seed(api, `/api/v1/projects/${world.alpha.id}/milestones`, { name: built, teamId: world.team, estimateMd: 3 }, "/api/v1/milestones");
-  await seed(api, `/api/v1/projects/${world.alpha.id}/milestones`, { name: todo, teamId: world.team, estimateMd: 2 }, "/api/v1/milestones");
   const { revision } = (await (await api.get(`/api/v1/views/project/${world.alpha.id}`)).json()) as { revision: number };
   const scheduled = await api.put(`/api/v1/milestones/${builtId}/schedule`, { data: { expectedRevision: revision, startDate: "2027-01-11", endDate: "2027-01-15" } });
   expect(scheduled.status(), await scheduled.text()).toBe(200);
   await api.dispose();
-  return { built, todo };
+  return built;
 }
-
-test("the project page's Milestones table narrows by Schedule and name, and hides, remembered in this browser", async ({ page }) => {
-  const world = await seedWorld();
-  const { built, todo } = await seedMilestones(world);
-  await login(page);
-  await page.goto(`/projects/${world.alpha.id}`);
-  const table = page.getByRole("table", { name: "Milestones of this project" });
-  await expect(page.getByRole("heading", { level: 3, name: "Milestones", exact: true })).toBeVisible();
-  // Shown by default, earliest start first and the unscheduled last.
-  await expect(table.getByRole("row")).toHaveCount(3);
-  await expect(table.getByRole("row").nth(1)).toContainText(built);
-  await expect(table.getByRole("row").nth(2)).toContainText(todo);
-  await expect(table.getByRole("row").nth(2)).toContainText("Not scheduled");
-  // A sortable header reads at the size of a plain one (the theme's 12 px), not at the button's own 16 px.
-  const fontSizeOf = (name: string) => table.getByRole("columnheader", { name, exact: true }).evaluate((el) => getComputedStyle(el.querySelector("button") ?? el).fontSize);
-  expect(await fontSizeOf("Milestone")).toBe(await fontSizeOf("Estimate (man-days)"));
-  expect(await fontSizeOf("Start")).toBe(await fontSizeOf("End"));
-
-  // The Schedule choice is kept in the address and narrows the rows.
-  await page.getByRole("combobox", { name: "Schedule" }).click();
-  await page.getByRole("option", { name: "Not scheduled", exact: true }).click();
-  await expect(page).toHaveURL(/[?&]milestones=unscheduled(&|$)/);
-  await expect(table.getByRole("row")).toHaveCount(2);
-  await expect(table.getByRole("row").nth(1)).toContainText(todo);
-  await expect(page.getByText("Showing 1 of 2 milestones")).toBeVisible();
-
-  // A name that matches nothing says so; clearing the filters brings both back.
-  await page.getByRole("textbox", { name: "Name", exact: true }).fill("no-such-milestone");
-  await expect(table.getByText("No milestone matches the filters")).toBeVisible();
-  await page.getByRole("button", { name: "Clear the filters" }).click();
-  await expect(table.getByRole("row")).toHaveCount(3);
-
-  // Hidden, the table is gone and a reload keeps it so; the address opens it again with its Schedule choice.
-  await page.getByRole("button", { name: "Hide the milestones table" }).click();
-  await expect(table).toHaveCount(0);
-  await expect(page).not.toHaveURL(/milestones=/);
-  await page.reload();
-  await expect(page.getByRole("button", { name: "Show the milestones table" })).toBeVisible();
-  await expect(table).toHaveCount(0);
-  await page.goto(`/projects/${world.alpha.id}?milestones=scheduled`);
-  await expect(table.getByRole("row")).toHaveCount(2);
-  await expect(table.getByRole("row").nth(1)).toContainText(built);
-});

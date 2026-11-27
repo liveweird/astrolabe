@@ -47,32 +47,6 @@
   "noMilestones": "No milestones yet",
   "noMilestonesHint": "Add the first milestone to plan this project.",
   "noMilestonesHintReadOnly": "The project's owner adds milestones.",
-  "milestones": {
-    "title": "Milestones",
-    "tableAria": "Milestones of this project",
-    "show": "Show the milestones table",
-    "hide": "Hide the milestones table",
-    "filter": {
-      "schedule": "Schedule"
-    },
-    "schedule": {
-      "all": "All",
-      "unscheduled": "Not scheduled",
-      "scheduled": "Scheduled"
-    },
-    "count_one": "{{count}} milestone",
-    "count_other": "{{count}} milestones",
-    "shownOf_one": "Showing {{shown}} of {{count}} milestone",
-    "shownOf_other": "Showing {{shown}} of {{count}} milestones",
-    "column": {
-      "estimate": "Estimate (man-days)",
-      "start": "Start",
-      "end": "End"
-    },
-    "notScheduled": "Not scheduled",
-    "noMatch": "No milestone matches the filters",
-    "clear": "Clear the filters"
-  },
   "column": {
     "milestone": "Milestone",
     "team": "Team",

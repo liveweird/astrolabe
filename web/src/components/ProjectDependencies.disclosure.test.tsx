@@ -102,13 +102,13 @@ describe("ProjectDependencies: show or hide (1.29)", () => {
   test("?dependencies=all opens a section remembered as hidden, without writing the memory, and moves the focus to the heading; hiding it takes the parameter away", async () => {
     const user = userEvent.setup();
     localStorage.setItem(KEY, "false");
-    render(viewOf(HELD_AND_VIOLATED), "/projects/7?dependencies=all&milestones=all");
+    render(viewOf(HELD_AND_VIOLATED), "/projects/7?dependencies=all&other=keep");
     expect(screen.getByRole("table", { name: TABLE })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 3, name: "Dependencies" })).toHaveFocus();
     expect(localStorage.getItem(KEY)).toBe("false");
     await user.click(toggle());
     expect(screen.queryByRole("table", { name: TABLE })).toBeNull();
-    expect(screen.getByTestId("search")).toHaveTextContent("?milestones=all");
+    expect(screen.getByTestId("search")).toHaveTextContent("?other=keep");
     expect(localStorage.getItem(KEY)).toBe("false");
   });
 

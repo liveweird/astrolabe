@@ -2,10 +2,10 @@ import { describe, expect, test } from "vitest";
 import { legacyDependenciesTarget, legacyMilestonesTarget, legacySavedProposalTarget } from "./legacyLinks";
 
 describe("legacyMilestonesTarget", () => {
-  test("a project goes to its page, the Schedule filter carried as the table's word", () => {
+  test("a project goes to its page; scheduled=false leads on to its Unscheduled section, anything else of the Schedule filter is dropped", () => {
     expect(legacyMilestonesTarget("?projectId=7")).toEqual({ to: "/projects/7" });
     expect(legacyMilestonesTarget("?scheduled=false&projectId=7")).toEqual({ to: "/projects/7", params: { milestones: "unscheduled" } });
-    expect(legacyMilestonesTarget("?scheduled=true&projectId=7")).toEqual({ to: "/projects/7", params: { milestones: "scheduled" } });
+    expect(legacyMilestonesTarget("?scheduled=true&projectId=7")).toEqual({ to: "/projects/7" });
     expect(legacyMilestonesTarget("?scheduled=other&projectId=7")).toEqual({ to: "/projects/7" });
   });
 

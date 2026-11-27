@@ -190,7 +190,7 @@ describe("asking for the proposal", () => {
     expect(bodies("POST", RUN_URL)).toEqual([{ asOf: localIsoDate(), teamIds: [1, 2] }]);
     expect(proposeButton()).toBeDisabled();
     expect(liveText()).toContain("Proposed schedule ready");
-    expect(headingOutline().filter(([level]) => level === 3).map(([, name]) => name)).toEqual(["Timeline", "Unscheduled", "Schedule proposal", "Alpha", "Beta", "Milestones", "Dependencies", "Idle gaps"]);
+    expect(headingOutline().filter(([level]) => level === 3).map(([, name]) => name)).toEqual(["Timeline", "Unscheduled", "Schedule proposal", "Alpha", "Beta", "Dependencies", "Idle gaps"]);
   });
 
   test("Propose waits for the rights read, and the line says so", async () => {

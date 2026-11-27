@@ -27,15 +27,15 @@ function setup(route: string, initial: { view: ProjectView | undefined; settled?
 }
 
 describe("useMilestoneArrival", () => {
-  test("a scheduled milestone is marked and its timeline row focused once, and the parameter leaves the address (replace, the others kept)", () => {
-    const { result, focusRow, scrollToDay } = setup("/projects/7?milestone=2&milestones=all", { view: view([1, 2], [3]) });
+  test("a scheduled milestone is marked and its timeline row focused once, and the parameter leaves the address (replace, the others kept; the retired `milestones` word goes with it)", () => {
+    const { result, focusRow, scrollToDay } = setup("/projects/7?milestone=2&milestones=unscheduled&other=keep", { view: view([1, 2], [3]) });
     expect(result.current.arrival.marked).toBe(2);
     expect(result.current.arrival.gone).toBe(false);
     expect(focusRow).toHaveBeenCalledExactlyOnceWith(2);
     // the track follows to the bar's start, after the focus
     expect(scrollToDay).toHaveBeenCalledExactlyOnceWith("2027-01-12");
     expect(focusRow.mock.invocationCallOrder[0]).toBeLessThan(scrollToDay.mock.invocationCallOrder[0]);
-    expect(result.current.location.search).toBe("?milestones=all");
+    expect(result.current.location.search).toBe("?other=keep");
   });
 
   test("nothing happens before the view is here: the address stays and nothing is marked", () => {

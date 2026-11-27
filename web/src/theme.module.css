@@ -596,8 +596,7 @@ table.table {
   scroll-margin-top: var(--timeline-head);
 }
 
-/* The row a page marks as the one it was opened at (`TimelineRowData.current`, 1.31) and a table row marked the same way (`.rowCurrent`: the tray, the
-   Milestones table): a leading accent stripe, a BORDER (not a shadow) so forced colours keep it, and a faint tint. The focus ring stays the cell's own. */
+/* The row a page marks as the one it was opened at (`TimelineRowData.current`, 1.31) and a table row marked the same way (`.rowCurrent`: the tray): a leading accent stripe, a BORDER (not a shadow) so forced colours keep it, and a faint tint. The focus ring stays the cell's own. */
 .timelineCellCurrent,
 .rowCurrent > td:first-child {
   border-inline-start: 3px solid var(--astrolabe-accent-ink);

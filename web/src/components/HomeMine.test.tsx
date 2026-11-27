@@ -329,7 +329,7 @@ describe("HomeMine: Yours", () => {
   });
 
   describe("the figures and names that lead somewhere", () => {
-    test("a project's and a team's positive 'Not scheduled' open the project's Milestones table and the team's page, named with their row; a zero is plain text", () => {
+    test("a project's and a team's positive 'Not scheduled' open the project's Unscheduled section and the team's page, named with their row; a zero is plain text", () => {
       const first = renderMine(viewWith(homeMe({ projects: [PROJECT], teams: [TEAM] })));
       const project = screen.getByRole("link", { name: "2 not scheduled: Ledger" });
       expect(project).toHaveAttribute("href", "/projects/7?milestones=unscheduled");

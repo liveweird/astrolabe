@@ -400,7 +400,7 @@ test.describe("detail pages and overlays", () => {
   });
 
   // The project view: the shared timeline grid (bars with handles, the window band, the orange drift badge, the weekend hatch), the
-  // dependencies (a red arrow, a ghost row, the red conflicts badge, the Dependencies table with a violated row), the tray and the Milestones table, light and dark.
+  // dependencies (a red arrow, a ghost row, the red conflicts badge, the Dependencies table with a violated row), and the tray, light and dark.
   function registerProjectViewScan(scheme: Scheme): void {
     const suffix = scheme === "dark" ? " in the dark scheme" : "";
     test(`/projects/:id with a scheduled milestone, the drift and the tray has no WCAG A/AA violations${suffix}`, async ({ page }) => {

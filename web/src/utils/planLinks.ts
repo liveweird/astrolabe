@@ -25,8 +25,12 @@ export const projectPath = (id: number) => `${projectsPath}/${id}`;
 /** A milestone's address (1.31): its project's page with `?milestone=<id>`; the page marks and focuses the milestone's row, then drops the parameter (`useMilestoneArrival`). */
 export const milestonePath = (projectId: number, id: number) => `${projectPath(projectId)}?milestone=${id}`;
 
-/** A project's page with its Milestones table narrowed to the milestones without dates (Home's "not scheduled" figure of a project). */
-export const projectUnscheduledPath = (id: number) => `${projectPath(id)}?milestones=unscheduled`;
+/** The query word of the Unscheduled arrival (`?milestones=unscheduled`), shared by the link builder and the two arrival hooks. */
+export const UNSCHEDULED_PARAM = "milestones";
+export const UNSCHEDULED_VALUE = "unscheduled";
+
+/** A project's page, arriving at its Unscheduled section (`useUnscheduledArrival`: Home's "not scheduled" figure of a project; the retired `/milestones` page's `scheduled=false`). */
+export const projectUnscheduledPath = (id: number) => `${projectPath(id)}?${UNSCHEDULED_PARAM}=${UNSCHEDULED_VALUE}`;
 
 /** A program's address (1.31): the Roadmap overview narrowed to it, written through the same `programId` pick the overview reads (`/roadmap?mode=overview&programId=3`). */
 export const programPath = (id: number) => `${roadmapOverviewPath}&${roadmapFilterParams({ pick: [id] })}`;

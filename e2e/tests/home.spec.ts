@@ -195,22 +195,25 @@ test("the Home page shows the plan in figures on its cards and tells a login wit
   await expect(page.getByRole("link", { name: "Open the People page", exact: true })).toHaveCount(0);
 });
 
-// A figure under "Yours" is a link to what it counts (1.19, 1.29): the project's "1 not scheduled" opens the project page with its Milestones table narrowed to
-// "Not scheduled", the team's opens the team's page (its Unscheduled tray), and "Open the projects you own yourself on the roadmap" opens the Roadmap filtered to the projects the owner owns themselves (not the second
+// A figure under "Yours" is a link to what it counts (1.19, 1.29): the project's "1 not scheduled" opens the project page with its Unscheduled section focused
+// (the page drops `?milestones=unscheduled` once it has arrived), the team's opens the team's page (its Unscheduled tray), and "Open the projects you own yourself on the roadmap" opens the Roadmap filtered to the projects the owner owns themselves (not the second
 // person's project below their program). Every list is narrowed by an id of the throwaway owner's own, so the rows are counted exactly; the plan-wide
 // figures of the cards are not touched here.
 test("a figure under Yours opens the list it counts, and the owner's projects open on the roadmap filtered to them", async ({ page }) => {
   await login(page, world.owner.email, world.owner.password);
   const teams = table(page, "Your teams");
 
-  // The project's count opens the project page with its Milestones table narrowed to "Not scheduled": one body row, the unscheduled milestone.
-  await projectRowOf(page, world.project).getByRole("link", { name: `1 not scheduled: ${world.project}`, exact: true }).click();
-  await expect(page).toHaveURL(/\/projects\/\d+\?milestones=unscheduled$/);
+  // The project's count opens the project page at its Unscheduled section: the h3 has the focus, the tray holds the unscheduled milestone, and the arrival drops the
+  // parameter from the address (so Back and a reload do not take the focus again).
+  const notScheduled = projectRowOf(page, world.project).getByRole("link", { name: `1 not scheduled: ${world.project}`, exact: true });
+  await expect(notScheduled).toHaveAttribute("href", /\/projects\/\d+\?milestones=unscheduled$/);
+  await notScheduled.click();
   await expect(page.getByRole("heading", { level: 2, name: world.project, exact: true })).toBeVisible();
-  await expect(page.getByRole("combobox", { name: "Schedule", exact: true })).toHaveValue("Not scheduled");
-  const milestones = page.getByRole("table", { name: "Milestones of this project", exact: true }).locator("tbody tr");
-  await expect(milestones).toHaveCount(1);
-  await expect(milestones.first()).toContainText(world.unscheduled);
+  const unscheduledHeading = page.getByRole("heading", { level: 3, name: "Unscheduled", exact: true });
+  await expect(unscheduledHeading).toBeFocused();
+  await expect(unscheduledHeading).toBeInViewport();
+  await expect(page).toHaveURL(/\/projects\/\d+$/);
+  await expect(page.getByRole("table", { name: "Unscheduled milestones", exact: true })).toContainText(world.unscheduled);
 
   // Back on Home: the projects the owner owns themselves on the roadmap - one project row (the second person's project is not among them), and the Owner
   // filter shows the person.

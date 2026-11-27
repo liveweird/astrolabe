@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import type { ProjectView } from "../api/milestones";
 import type { TimelineHandle } from "../components/Timeline";
 import { idOf } from "../utils/deviationFilters";
+import { UNSCHEDULED_PARAM } from "../utils/planLinks";
 
 /** The address's own word for a milestone (`milestonePath`: `/projects/P?milestone=M`). */
 const PARAM = "milestone";
@@ -23,7 +24,7 @@ function focusTrayRow(id: number): void {
 
 /**
  * A milestone's ADDRESS on the project page (1.31, `?milestone=M`; `milestonePath`). Once the page's view has loaded, the milestone it names is MARKED
- * (the timeline row, or the tray row of an unscheduled one, and its row of the Milestones table: the page reads `marked`) and takes the focus - the
+ * (the timeline row, or the tray row of an unscheduled one; the page reads `marked`) and takes the focus - the
  * timeline's own `focusRow` (mounted or virtualised, then `scrollToDay` to the bar's start) or the tray row - and the parameter is then DROPPED with a `replace`: Back does not return to the
  * address that stole the focus, and a reload leaves it where the user put it. The mark stays for the page's life (a milestone that leaves the view
  * loses it). Another milestone's address on the same page marks that one instead.
@@ -66,6 +67,8 @@ export function useMilestoneArrival(
       (previous) => {
         const next = new URLSearchParams(previous);
         next.delete(PARAM);
+        // The retired Milestones table's parameter: ignored, and dropped here too (`useUnscheduledArrival` stands aside while this address is on it).
+        next.delete(UNSCHEDULED_PARAM);
         return next;
       },
       { replace: true },

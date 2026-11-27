@@ -12,7 +12,7 @@ import EntityLink from "./EntityLink";
 /**
  * "Your projects": every project the person may manage through the owner chain (what they own and everything under a work stream or program they own),
  * each row naming its owner. The Roadmap row's flags and rank with the project page's milestone figures and conflicts badge, as the server derives them.
- * A positive "Not scheduled" count is the link to the project page's Milestones table narrowed to unscheduled for this project (the same set), named with its row.
+ * A positive "Not scheduled" count is the link to the project page's Unscheduled section (`?milestones=unscheduled`: its heading takes the focus, `useUnscheduledArrival`), named with its row.
  */
 export default function HomeProjectsTable({ projects }: { projects: HomeMe["projects"] }) {
   const { t } = useTranslation();

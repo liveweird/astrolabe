@@ -20,7 +20,7 @@ const landing = async (route: string) => {
 };
 
 describe("LegacyMilestonesRedirect", () => {
-  test("a project's old address opens its Milestones table with the Schedule word, and nothing else of the old query is kept", async () => {
+  test("a project's old address (not scheduled) leads to its Unscheduled section, and nothing else of the old query is kept", async () => {
     expect(await landing("/milestones?scheduled=false&projectId=7&name=x")).toBe("/projects/7?milestones=unscheduled");
   });
 

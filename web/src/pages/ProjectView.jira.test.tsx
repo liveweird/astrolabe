@@ -270,7 +270,7 @@ describe("the project page's Jira markers", () => {
       const group = await screen.findByRole("group", { name: "Links to Jira" });
       expect(within(group).getByText("1 milestone linked to Jira")).toBeInTheDocument();
       expect(within(group).getByRole("link", { name: "No deviations seen" })).toBeInTheDocument();
-      // Scoped to the timeline: the Milestones table (1.29) has a row of the same name.
+      // Scoped to the timeline (the tray and the dependency list name milestones too).
       expect(within(within(await timeline()).getByRole("row", { name: /Build/ })).getByRole("link", { name: /E2E-3/ })).toBeInTheDocument();
       expect(jiraBars()).toEqual([]);
       await user.click(screen.getByRole("button", { name: "Operations for Build" }));

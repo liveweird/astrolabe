@@ -7,7 +7,7 @@ import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
  * (`aria-expanded`/`aria-controls`) instead of pushing the page down; the body is not rendered
  * while closed — so a closed table does not print either, and the toggle is on-screen only (`data-print="hide"`).
  * The children are the table itself — scroll and sticky header included; the caller names both button states.
- * Uncontrolled and closed by default; with `open` and `onOpenChange` the caller owns the state (a remembered choice: the project page's Milestones table).
+ * Uncontrolled and closed by default; with `open` and `onOpenChange` the caller owns the state (a remembered choice: the project page's Dependencies list).
  */
 export default function TableDisclosure({
   children,

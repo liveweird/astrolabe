@@ -55,36 +55,6 @@
   "noMilestones": "Nie ma jeszcze kamieni milowych",
   "noMilestonesHint": "Dodaj pierwszy kamień milowy, aby zaplanować ten projekt.",
   "noMilestonesHintReadOnly": "Kamienie milowe dodaje właściciel/ka projektu.",
-  "milestones": {
-    "title": "Kamienie milowe",
-    "tableAria": "Kamienie milowe tego projektu",
-    "show": "Pokaż tabelę kamieni milowych",
-    "hide": "Ukryj tabelę kamieni milowych",
-    "filter": {
-      "schedule": "Harmonogram"
-    },
-    "schedule": {
-      "all": "Wszystkie",
-      "unscheduled": "Niezaplanowane",
-      "scheduled": "Zaplanowane"
-    },
-    "count_one": "{{count}} kamień milowy",
-    "count_few": "{{count}} kamienie milowe",
-    "count_many": "{{count}} kamieni milowych",
-    "count_other": "{{count}} kamienia milowego",
-    "shownOf_one": "Widoczne: {{shown}} z {{count}} kamienia milowego",
-    "shownOf_few": "Widoczne: {{shown}} z {{count}} kamieni milowych",
-    "shownOf_many": "Widoczne: {{shown}} z {{count}} kamieni milowych",
-    "shownOf_other": "Widoczne: {{shown}} z {{count}} kamienia milowego",
-    "column": {
-      "estimate": "Szacunek (osobodni)",
-      "start": "Początek",
-      "end": "Koniec"
-    },
-    "notScheduled": "Niezaplanowany",
-    "noMatch": "Żaden kamień milowy nie pasuje do filtrów",
-    "clear": "Wyczyść filtry"
-  },
   "column": {
     "milestone": "Kamień milowy",
     "team": "Zespół",

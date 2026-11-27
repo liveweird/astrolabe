@@ -224,15 +224,13 @@ test("an admin gives a team a colour and its milestone bar on the project page c
   await api.dispose();
 
   // The bar and the Team cell's swatch read the team's colour; a test reads the attributes, never the colour itself.
-  // The timeline's own row, and the same milestone's row in the Milestones table below it (1.29), both carry the swatch.
+  // The timeline's own row carries the bar's tint and the Team cell's swatch.
   const timelineRow = () => page.getByRole("grid", { name: "Milestone timeline" }).getByRole("row").filter({ hasText: milestoneName });
   const bar = () => timelineRow().locator("[data-tint]");
   const swatch = () => timelineRow().locator("[data-team-colour]");
-  const tableSwatch = () => page.getByRole("table", { name: "Milestones of this project" }).getByRole("row").filter({ hasText: milestoneName }).locator("[data-team-colour]");
   await page.goto(`/projects/${projectId}`);
   await expect(bar()).toHaveAttribute("data-tint", "var(--astrolabe-team-indigo)");
   await expect(swatch()).toHaveAttribute("data-team-colour", "INDIGO");
-  await expect(tableSwatch()).toHaveAttribute("data-team-colour", "INDIGO");
 
   // The admin picks another colour in the team's editor.
   await page.goto(`/teams/${teamId}`);
@@ -249,7 +247,6 @@ test("an admin gives a team a colour and its milestone bar on the project page c
   await page.goto(`/projects/${projectId}`);
   await expect(bar()).toHaveAttribute("data-tint", "var(--astrolabe-team-raspberry)");
   await expect(swatch()).toHaveAttribute("data-team-colour", "RASPBERRY");
-  await expect(tableSwatch()).toHaveAttribute("data-team-colour", "RASPBERRY");
 
   // Under forced colours (1.30) the browser would paint a filled bar's background Canvas, so the body opts out of the forcing and takes a 1 px border.
   // Structure only, never a colour: the system palette is the user's, and the tint (the team's colour) is the information the bar keeps.

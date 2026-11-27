@@ -369,7 +369,7 @@ The rules: `web/CLAUDE.md` "Registries" and "Forms". The small ADMIN-curated reg
 Files: `components/EntityLink.tsx`, `OpenEntityItem.tsx`, `utils/entityLinks.ts`, `entityLinkGuard.test.ts`; the rule: `web/CLAUDE.md`.
 
 - **`EntityRef`** is `{kind: workStream|program|project|team|person|user, id}` or `{kind: "milestone", id, projectId}`; `entityPath(ref)` uses the area's own helper: a milestone `/projects/P?milestone=M`
-  (`milestonePath`; marked and focused there: projects-view.md "The Milestones table"), a login its ADMIN edit page, a program the overview narrowed by pick (`programPath`: `?mode=overview&programId=N`), a work stream by `workStreamId` (`workStreamPath`; "Programs").
+  (`milestonePath`; marked and focused there: projects-view.md "The page's address words"), a login its ADMIN edit page, a program the overview narrowed by pick (`programPath`: `?mode=overview&programId=N`), a work stream by `workStreamId` (`workStreamPath`; "Programs").
 - **`<EntityLink entity name>`**: a `RouterLink` `Anchor` in the theme's look, visible text the name (or `children`, a team's swatch), accessible name `common.entity.open.<kind>` (a key per kind, EN/PL; "Open project {{name}}";
   `aria-label` replaces it and must start with the visible text, `to` the destination). A null `entity` or `current` is plain text, same typography; a `user` links for an ADMIN only. A figure leading to an entity's page spells `to={entityPath(...)}`; the guard fails `to={projectPath(...)}` and siblings outside `EntityLink` and the three menu-item files.
 - **Where NOT to link** (plain text): (1) the page's own subject (h2, the narrowed node's header, the last breadcrumb step, a milestone's marked row); (2) a label of another control (select
@@ -521,7 +521,7 @@ builder (`roadmapFilteredPath`, `projectUnscheduledPath`, `teamsWarningPath`); n
 | Roadmap: "N teams with an overloaded week" / "over the WIP limit" | `/teams?warning=overloaded` / `wip` | the page's rows and Home's count fold the same `teamWeeks` |
 | Roadmap: "N violated dependencies" | `/roadmap?dependencies=violated` (`violatedDependenciesPath()`; no mode: the panel is the same in both) | `totals.violated` of the dependencies view and `plan.conflicts` are one server function over one kernel's output |
 | Yours, a project's / a team's red "N conflicts" | `/roadmap?dependencies=violated&dependencyProjectId=N` / `&dependencyTeamId=N` | the violated links with an end in the project / a milestone end in the team: the subsets Home counts; the page's filter keeps the same rows |
-| Yours, a project's "Not scheduled" / a team's (the Teams table's too) | `/projects/N?milestones=unscheduled` / `/teams/N` | the project page's Milestones table narrowed to its unscheduled rows / the team page's Unscheduled tray: the same subset |
+| Yours, a project's "Not scheduled" / a team's (the Teams table's too) | `/projects/N?milestones=unscheduled` / `/teams/N` | the project page's Unscheduled section, focused on arrival (`?milestones=unscheduled`, dropped by `replace`) / the team page's Unscheduled tray: the same subset |
 | Yours, "Open the projects you own yourself on the roadmap" (under the projects table, only while a listed project is `direct`) | `/roadmap?mode=prioritization&ownerPersonId=<me.personId>` | the Roadmap's Owner filter; direct ownership on both sides (the table may list more: the projects under a work stream or program the person owns) |
 | Yours, a work stream's / a program's projects figure (positive) | `/roadmap?mode=prioritization&workStreamId=N` / `…&programId=N` | the Work stream filter / the program pick with one program; a node with no project has a plain zero (no filter option); the NAME leads to the overview |
 | Yours, a project's and a team's name; a team's Jira badge | their pages; the Deviations page | existing links, not figure-links |
@@ -673,7 +673,7 @@ Files:
 `ProjectPage` composes child components, split for the complexity backstop (`complexity: 35`, `eslint.config.js`):
 
 - `ProjectPageHeader` (name, the program · work stream · owner line as links, the `can`-gated actions), `ProjectViewNotices` (notes, inline write failures, the polite status region), `ProjectEditors` (the dialogs for the
-  open `editor`), `TimelineTitle` and `UnscheduledTraySection` (shared with the team page).
+  open `editor`), `TimelineTitle` and `UnscheduledTraySection` (shared with the team page; the project page passes `headingRef` so `?milestones=unscheduled` can focus its h3: `projects-view.md` "The page's address words").
 - The team page has the same shape (`TeamPageHeader.tsx`, `TeamViewNotices.tsx`, `TeamResetConfirm.tsx`, `TeamFlowSection.tsx`).
 - A split moves markup, never ARIA, focus or queries.
 
@@ -2447,7 +2447,7 @@ When a feature needs one of these, port the sibling's `web/` implementation and 
   pages' `…filter.*` and `…filtersOpen`, and the timeline and planning keys below.
 - **The Roadmap's six filter keys** (`roadmap.filter.workStream|team|owner|flagged|severity|unranked`) and `planning.programPick` are MEMORY, not state: the address holds the state and only the user's
   own change writes them ("The URL holds the filters" under "Roadmap"); the overview does too for the pick; **`roadmap.mode`** is the mode last chosen with the switch (a link naming a mode never writes it).
-- **`projects.last`** (the project `/projects` opens), **`project.milestonesOpen`**, **`project.dependenciesOpen`**, **`roadmap.dependenciesOpen`**: `projects-view.md`.
+- **`projects.last`** (the project `/projects` opens), **`project.dependenciesOpen`**, **`roadmap.dependenciesOpen`**: `projects-view.md`.
 - **The Plan page's** `plan.collapsed` (folded node keys), `plan.pins`, `plan.pinnedCollapsed`, `plan.pinnedOpen` and `plan.filtersOpen` (`plan-tree.md`); its filters and focus are address-only.
 - **Timeline view settings** (`timeline.*`, shared by the pages that show them): `zoom` (project, team), `planZoom` (roadmap, programs), `criticalPath` (project and team, default false;
   `hooks/useCriticalPathPick.ts`), `columns.<page>` (`project|team|roadmap|programs`; `{collapsed, hidden[]}`, `hooks/useTimelineColumns.ts`; a first visit shows all and writes nothing), `baseline` (all four, an id or none; `hooks/useBaselinePick.ts`), and **`jiraBars`** (all four pages; a boolean, **default true**: the "Jira dates" toggle of the

@@ -18,8 +18,8 @@
 ## Scenario: on the project page a milestone of another project opens that project with its row marked, and the team, program, work stream and owner names go where they say
 
 1. The administrator opens the project that has a link from another project's milestone and presses that milestone's name in the Dependencies table ("Open milestone <name>").
-   - *Expected*: the other project's page; the milestone's timeline row header is marked (`aria-current`) and focused, its Milestones table row is marked, and the address is the project's own (`?milestone=` was dropped).
-2. They reopen the first project and press the team name in the Milestones table.
+   - *Expected*: the other project's page; the milestone's timeline row header is marked (`aria-current`) and focused, and the address is the project's own (`?milestone=` was dropped).
+2. They reopen the first project and press the team name in the timeline's Team column.
    - *Expected*: `/teams/<id>`, its heading the team name.
 3. They reopen it and press the header's program name, then (reopened) the work stream name.
    - *Expected*: the overview narrowed by `programId`, then by `workStreamId` ("Work stream: <name>").
@@ -29,7 +29,7 @@
 ## Scenario: on the team page a milestone name opens its project with the row marked and the manager name opens their page
 
 1. The administrator opens the team's page and presses a milestone's name in the timeline.
-   - *Expected*: the milestone's project, the row header and the Milestones table row marked and the header focused, the address without `?milestone=`.
+   - *Expected*: the milestone's project, the row header marked and focused, the address without `?milestone=`.
 2. They reopen the team page and press the manager's name.
    - *Expected*: the person's page, its heading the manager's name.
 

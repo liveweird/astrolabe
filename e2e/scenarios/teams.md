@@ -57,11 +57,11 @@
 
 1. The admin signs in and seeds, through the API, a team whose colour is Indigo and a project with one scheduled milestone of that team.
 2. They open the project's page.
-   - *Expected*: the milestone's bar carries `data-tint` for Indigo and its Team cell's swatch reads `INDIGO`, as does the swatch in the same milestone's row of the Milestones table (the test reads the attributes, never the colour).
+   - *Expected*: the milestone's bar carries `data-tint` for Indigo and its Team cell's swatch reads `INDIGO` (the test reads the attributes, never the colour).
 3. They open the team's page, click **Edit**, pick **Raspberry** in the colour group, and Save.
    - *Expected*: the editor closes.
 4. They open the project's page again.
-   - *Expected*: the same milestone's bar carries `data-tint` for Raspberry and the Team cell's swatch, and the Milestones table's, read `RASPBERRY`.
+   - *Expected*: the same milestone's bar carries `data-tint` for Raspberry and the Team cell's swatch read `RASPBERRY`.
 5. The browser is switched to forced colours (an emulated media feature), then back.
    - *Expected*: while forced, that bar's body opts out of the forcing (`forced-color-adjust: none`) and has a 1 px solid border (structure only, never a colour); after the switch back it has no border. The rows are removed afterwards through the API.
 

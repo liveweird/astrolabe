@@ -358,12 +358,11 @@ test("a milestone's address marks and focuses its row on the project page, then 
   await world.api.dispose();
 
   await login(page);
-  // A scheduled milestone: its timeline row header is current and focused, the Milestones table row is marked, and the parameter leaves the address (replace).
+  // A scheduled milestone: its timeline row header is current and focused, and the parameter leaves the address (replace).
   await page.goto(`/projects/${world.projectId}?milestone=${scheduledId}`);
   const header = page.getByRole("grid", { name: "Milestone timeline" }).getByRole("rowheader", { name: new RegExp(`^${scheduled}`) });
   await expect(header).toHaveAttribute("aria-current", "true");
   await expect(header).toBeFocused();
-  await expect(page.getByRole("table", { name: "Milestones of this project" }).getByRole("row", { name: new RegExp(`^${scheduled}`) })).toHaveAttribute("aria-current", "true");
   await expect(page).toHaveURL(new RegExp(`/projects/${world.projectId}$`));
 
   // An unscheduled one: its tray row is current and focused instead.

@@ -126,13 +126,12 @@ async function openProject(page: Page, id: number, name: string): Promise<void> 
   await expect(page.getByRole("grid", { name: "Milestone timeline", exact: true })).toBeVisible();
 }
 
-/** The landing page of a milestone's address: its project, the timeline row header and the Milestones table row marked (`aria-current`), the header focused, the parameter gone. */
+/** The landing page of a milestone's address: its project, the timeline row header marked (`aria-current`) and focused, the parameter gone. */
 async function expectMilestoneMarked(page: Page, projectId: number, projectName: string, milestone: string): Promise<void> {
   await expect(heading(page, projectName)).toBeVisible();
   const header = page.getByRole("grid", { name: "Milestone timeline", exact: true }).getByRole("rowheader", { name: new RegExp(`^${milestone}`) });
   await expect(header).toHaveAttribute("aria-current", "true");
   await expect(header).toBeFocused();
-  await expect(page.getByRole("table", { name: "Milestones of this project", exact: true }).getByRole("row", { name: new RegExp(`^${milestone}`) })).toHaveAttribute("aria-current", "true");
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}$`));
 }
 
@@ -176,9 +175,9 @@ test("on the project page a milestone of another project opens that project with
   await link(page.getByRole("table", { name: "Dependencies of the project", exact: true }), "milestone", world.otherMilestone).click();
   await expectMilestoneMarked(page, world.otherId, world.other, world.otherMilestone);
 
-  // The team of a milestone, in the Milestones table: the team's page.
+  // The team of a milestone, in the timeline's Team column: the team's page.
   await openProject(page, world.projectId, world.project);
-  await link(page.getByRole("table", { name: "Milestones of this project", exact: true }), "team", world.team).click();
+  await link(page.getByRole("grid", { name: "Milestone timeline", exact: true }), "team", world.team).first().click();
   await expect(page).toHaveURL(/\/teams\/\d+$/);
   await expect(heading(page, world.team)).toBeVisible();
 
@@ -242,7 +241,7 @@ test("a regular user follows the names to the plan, the project and the team, an
     await expect(link(treeRow(page, "project", world.project), "project", world.project)).toBeVisible();
     await openProject(page, world.projectId, world.project);
     await expect(link(page, "program", world.program)).toBeVisible();
-    await expect(link(page.getByRole("table", { name: "Milestones of this project", exact: true }), "team", world.team)).toBeVisible();
+    await expect(link(page.getByRole("grid", { name: "Milestone timeline", exact: true }), "team", world.team).first()).toBeVisible();
     await openTeam(page);
     await expect(link(page.getByRole("grid", { name: "Team milestone timeline", exact: true }), "milestone", world.milestone)).toBeVisible();
     await expect(link(page, "person", world.manager)).toBeVisible();
