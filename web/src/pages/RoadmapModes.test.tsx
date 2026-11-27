@@ -145,8 +145,10 @@ describe("RoadmapModes: which mode opens", () => {
     localStorage.setItem(MODE_KEY, JSON.stringify("prioritization"));
     renderAt("/roadmap?proposal=5&programId=10");
     await overviewShown();
-    expect(where()).toBe("/roadmap?mode=overview&proposal=5&programId=10");
     expect(localStorage.getItem(MODE_KEY)).toBe(JSON.stringify("prioritization"));
+    // The proposal does not exist (404): the page reads it once more and drops the parameter, so the address is checked only once that has finished (asserting
+    // `proposal=5` first would race the 404). Waiting also keeps the second read inside the fetch stub; after `afterEach` it would go to localhost:3000.
+    await waitFor(() => expect(where()).toBe("/roadmap?mode=overview&programId=10"));
   });
 
   test("a link naming a mode is shown as written and does not change what is remembered", async () => {
