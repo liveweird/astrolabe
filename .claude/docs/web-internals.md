@@ -54,8 +54,8 @@ Rules: `web/CLAUDE.md` "Layout conventions"; the route of every page: its "Pages
 
 The model is `utils/navigation.ts`, shared by the sidebar and the command palette (the rules: `web/CLAUDE.md` "Layout conventions").
 
-- `NAV_SECTIONS` is the labelled sections of `NavLeaf`s: the `label` is a typed i18n key, `adminOnly?` gates admin leaves, `keywords?` adds raw palette search
-  terms (a renamed page's old name), and `visibleSections(isAdmin())` drops an emptied section.
+- `NAV_SECTIONS` is the labelled sections of `NavLeaf`s (`label`, `adminOnly?`: the rules): `keywords?` adds raw palette search terms (a renamed page's old name),
+  and `visibleSections(isAdmin())` drops an emptied section.
 - `ACCOUNT_NAV` (Change password, Changelog) is rendered by the header `UserMenu` and the palette, never by the sidebar.
 - Leaf clicks close mobile navigation. `activeNavPath` picks the longest prefix and highlights Projects on a project's page.
 - Planning groups plan views and lists. Teams and capacity groups staffing and scheduling. Integrations holds deviations and connection
@@ -72,10 +72,9 @@ The model is `utils/navigation.ts`, shared by the sidebar and the command palett
   for an ADMIN a "Telemetry panel" toggle, Sign out. The version stamp stays in the sidebar footer.
 - Theme is three `Menu.Item`s (Light / Dark / System): the chosen one carries `IconCheck` + `aria-current`, and `closeMenuOnClick={false}` keeps the menu open.
   A SegmentedControl is a radiogroup, which axe `aria-required-children` refuses inside `role="menu"`.
-- **Focus on navigation**: `hooks/useFocusMainOnNavigation.ts` (called in the `Shell`) focuses `#main-content` (`tabIndex={-1}`, ring suppressed in
-  `index.css`, `preventScroll`) when the PATHNAME changes. It never fires for a `?baseline=`/filter/sort change or a same-path push, nor on the first render
-  (a fresh sign-in or reload leaves the document start; the skip link is the first Tab stop), and it leaves a focus already inside main alone, so a page's
-  own `autoFocus` wins in either mount order.
+- **Focus on navigation** (`hooks/useFocusMainOnNavigation.ts`, in the `Shell`; the rule: `web/CLAUDE.md`): `#main-content` is `tabIndex={-1}`, its ring suppressed in
+  `index.css`, focused with `preventScroll`; a same-path push or a `?baseline=`/filter/sort change never fires it, the first render leaves the document start (the skip
+  link is the first Tab stop), and a page's own `autoFocus` wins in either mount order.
 - **`components/CommandPalette.tsx`** wraps `@mantine/spotlight` (pinned to the core version) over a module-level store (`utils/commandPalette.ts`): the
   session's pages, plus an ADMIN-only show/hide action for the telemetry panel. No `highlightQuery`: it splits labels into `<mark>` fragments that
   role/name locators cannot match.
@@ -90,9 +89,8 @@ The rules (the `Stack`, the widths, the one spinner, the heading outline, the ta
   - Semantics: `aria-haspopup="dialog"`, `aria-expanded` and, while open, `aria-controls`; the dropdown is a `role="dialog"` named by the button. Focus moves in on open, Escape returns it to the button, an outside click closes it, links inside stay links.
   - Print: the button and the dropdown do not print. A generic intro stays out of print; with `printDescription` (a project's, team's or baseline's own written text) a `data-print="only"` copy sits under the title.
   - Tests open it with `test/pageInfo.ts` `openPageInfo(user)` (e2e: `helpers.ts` `openPageInfo(page)`) and assert INSIDE the dialog; the print copy is in the DOM, so assert absence with `queryByRole("dialog")`. `TelemetryPanel`'s and `AuthCard`'s titles are not page headers.
-- `components/LoadingBlock.tsx` is the one spinner (`TableLoadingRow` wraps it); `components/EditPageLoadState.tsx` is the edit pages' shared load-failure
-  triage (a centred loader, else a back-to-list alert); `EmptyState` sizes the Tabler icon itself, and an optional `hint` is the next step under the label.
-- Page tests pin the outline with `test/headings.ts`'s `headingOutline()`.
+- `TableLoadingRow` wraps `LoadingBlock`; `EditPageLoadState` is a centred loader, else a back-to-list alert; `EmptyState` sizes the Tabler icon itself, and an
+  optional `hint` is the next step under the label. Page tests pin the outline with `test/headings.ts`.
 - The tab title is `appShell.documentTitle` = "{{page}} · Astrolabe", the brand alone for Home or a blank title. A detail page's entity name only exists once
   loaded, so its load and failure states pass a static title. Mantine's `useDocumentTitle` does not restore on unmount, so `test/setup.ts` resets
   `document.title` after each test.
@@ -254,22 +252,18 @@ The rules are in `web/CLAUDE.md` "Error handling"; the wiring:
   `location.pathname`, so navigating anywhere recovers). The plain `ErrorBoundary` in `main.tsx` is the last resort and only catches crashes of the shell itself.
   The one deliberate third mount is the telemetry panel's: `App.tsx` wraps the right-hand `AppShell.Aside` in its own `ErrorBoundary` with `fallback={<TelemetryPanelCrash onClose={closePanel} />}`, outside every route boundary.
   The panel's open flag (`astrolabe.viewSettings.telemetry.panelOpen`) survives a reload, so a render crash inside it would come back on every load with no way to switch it off; "Close panel" clears the flag (the account menu opens it again).
-- **Chunk-load recovery**: `main.tsx` listens for `vite:preloadError` (a redeploy 404s the old hashed chunks) and reloads once a minute at most, keyed in
-  sessionStorage by `astrolabe.chunkReloadedAt`.
+- **Chunk-load recovery**: `vite:preloadError` (a redeploy 404s the old hashed chunks); the once-a-minute key `astrolabe.chunkReloadedAt` lives in sessionStorage.
 - **Query retry policy**: the `QueryClient` in `main.tsx` uses `shouldRetryQuery` (`api/http.ts`); the rule is in `web/CLAUDE.md`. The database time-out is the
   `500` whose problem `type` is `urn:astrolabe:problem:database-timeout` (`DATABASE_TIMEOUT_PROBLEM`, `isDatabaseTimeout(err)` in `api/http.ts`).
-  - The server cancelled a statement at its own limit (15 s by default, `persistence.md`), so it has just spent that whole limit on the request, and two more
-    tries would be half a minute more spinner and two more statements on a database that is not answering. A stuck read therefore says so after about 15 s
-    instead of about 93 (30 s a try, three tries).
+  - Not retried because the server already spent its whole statement limit (15 s by default, `persistence.md`) on a database that is not answering: a stuck
+    read says so after about 15 s instead of about 93 (30 s a try, three tries).
   - A browser-side `TimeoutError` (the server sent nothing for 30 s) is still retried.
   - `loadErrorMessage` and `saveErrorMessage` answer `common.error.timeout` ("The request timed out. Try again.") for it before any status branch, so a page's
     own `500` wording never shows over it; a kept document stays on screen under the alert, as for any failed re-read.
   - The sentence never claims that nothing was saved: the cancelled transaction is rolled back, but an earlier committed step of the same request (a
     create's re-read) may stay, so a retry of a save can meet a `409`.
-- **Messages**: `error.message` is the internal `API <status>` / the browser's "Failed to fetch". Statuses map to i18n keys through the shared mappers in
-  `utils/saveError.ts`: `saveErrorMessage(err, t, keys)` for mutations (per-status keys + a `failed` fallback) and `loadErrorMessage(err, t)` for list loads.
-  A failed QUERY renders through `components/ErrorAlert.tsx` (`error`, optional `title`), a form/action failure (an already-mapped string) through
-  `components/FormErrorAlert.tsx`.
+- **Messages**: `error.message` is the internal `API <status>` / the browser's "Failed to fetch"; the mappers (`saveErrorMessage`'s `keys`: per-status keys + a `failed` fallback) and
+  the two alerts (`ErrorAlert`: `error`, optional `title`) are `web/CLAUDE.md` "Error handling".
 - **Toasts**: the `@mantine/notifications` host is mounted in `main.tsx` (top-center, autoClose 2500, limit 3), deliberately not in App, so unit tests never
   mount it; top-center because bottom-right would cover `PaginationBar` and form footers, and top-right the header cluster. `showSuccessToast(t("<area>.toast.*"))`
   in `utils/toast.tsx` is the only writer (green; the close X's accessible name, `common.action.closeNotification`, is set there too, at show time).
@@ -297,8 +291,8 @@ The rule (a Reload notice, never an automatic reload): `web/CLAUDE.md` "Error ha
 The template and its rules (the chrome, the colour vocabulary, delete, the entity name as the way into its page, row actions): `web/CLAUDE.md` "Shared
 list-page building blocks". The pieces behind them were copied from Lettuce (`pages/Users.tsx` is the reference page).
 
-- `SortHeader` renders its own `Table.Th` so the sort state lands as `aria-sort` on the header cell; wrapping it in another `Th` would lose that. Its button inherits the cell's font size and line height (the theme's 12 px; Mantine's own button is 16 px), `minHeight: 24`.
-- **Every paged list page calls `useClampPage`** (`hooks/usePagedSort.ts`) beside `usePagedSort`: when a SETTLED answer's `total` falls below the current page (a delete emptied the last page, a filter narrowed it elsewhere) it returns to the last real page; a failed or placeholder (`keepPreviousData`) answer never moves the user.
+- `SortHeader`'s own `Table.Th` carries `aria-sort` (why it is never wrapped); its button inherits the cell's 12 px font and line height (Mantine's own is 16 px), `minHeight: 24`.
+- **`useClampPage`** (`hooks/usePagedSort.ts`): when a SETTLED answer's `total` falls below the current page (a delete emptied the last page, a filter narrowed it elsewhere) it returns to the last real page; a failed or placeholder (`keepPreviousData`) answer never moves the user.
 - `FilterPanel` is collapsed by default, remembers open or closed per view, and badges the number of active filters; `ClearableTextInput` debounces.
 - **A filter select is complete, or says what it lacks.** The team options are ALL teams: `api/teams.ts` `listEveryTeam` reads pages of 100 by name until
   they reach `total` or a page is empty, at most 20 pages, and `hooks/useTeamOptions.ts` answers `{ teams, settled }` under the one key
@@ -308,17 +302,15 @@ list-page building blocks". The pieces behind them were copied from Lettuce (`pa
   does). An id from a link that a SETTLED list does not hold is one more option, "Team 12" / "Project 12"; while a read runs or failed the field is blank,
   because nothing is said about a team or project from data that has not arrived.
 - `PlanFilterSelect` owns its plan read (a panel's fields mount only while it is open); `TeamSelect` / `ProjectSelect` stay the dialogs' search-as-you-type pickers.
-- **Refresh after a mutation**: `refreshQueriesAfterMutation(queryClient, ["area"], ...)` (`utils/queryRefresh.ts`) cancels all affected query groups before
-  invalidating them, because a newly keyed initial fetch has no cached data even when `keepPreviousData` displays rows, so default invalidation alone may
-  reuse a pre-mutation response. Refresh stays out of failed mutation paths.
+- **Refresh after a mutation** (`refreshQueriesAfterMutation`, `utils/queryRefresh.ts`) cancels before it invalidates because a newly keyed initial fetch has no cached data
+  even when `keepPreviousData` displays rows, so default invalidation alone may reuse a pre-mutation response.
 - **`ConfirmActionModal`** is the non-destructive sibling of `ConfirmDeleteModal` (Lettuce's, ported with the feature-flags bulk actions): a message plus a
-  neutral cancel and a confirm button whose `loading` blocks cancel/close while the action runs; labels arrive already translated.
+  neutral cancel and a confirm button whose `loading` blocks cancel/close while the action runs.
 
 ### Focus after a delete
 
-`useDeleteConfirm` takes `focusAfterDelete` (required): the page's `PageHeader` `titleRef` (the title is `tabIndex={-1}`, never a tab stop; `index.css` draws
-the accent ring on `:focus-visible`), a section's own h3 ref, or `null` where the delete navigates away (`useFocusMainOnNavigation` owns the focus; the hook
-unmounts with the page, so they never fight).
+`focusAfterDelete`'s three targets are `web/CLAUDE.md`'s; the title's ring is `index.css`'s `:focus-visible`, and under `null` `useFocusMainOnNavigation` owns the focus
+(the hook unmounts with the page, so they never fight).
 
 - The kebab and the dialog's Delete button are both gone and the browser would leave the focus on `body`, so the hook tries the target at every render and when
   the modal has exited (`ConfirmDeleteModal` wires `onExitTransitionEnd`; the hook keeps looking for up to half a second while the leaving dialog still holds
@@ -340,10 +332,8 @@ unmounts with the page, so they never fight).
 - **Tab leaves a menu**: Tab or Shift+Tab closes an open menu and moves on from its trigger (`hooks/useMenuTabExit.ts`; Mantine's trap would swallow the
   key). Menu items are `tabindex="-1"`, so the first Tab leaves, including the account menu's theme items. Every menu is items only, so the hook has no inner-Tab-stop
   branch; a menu that ever needs its own tabbable controls adds one.
-- **A destructive item** (Delete, Sign out) is `components/DestructiveMenuItem.tsx`, never `Menu.Item color="red"` (red-6 is 3.3:1 on the white dropdown). An item's
-  `aria-label` must contain its visible text ("Move to top: {{name}}", not "Move {{name}} to top": axe `label-content-name-mismatch`).
-- **`hooks/useDialogFocus.ts`**: a dialog mounted with `opened` already true (`{editor && <XModal ... />}`) calls `useDialogFocus(open)` in its owner. Mantine
-  records no opener for it, so without the hook the focus lands on `body`. A dialog that opens only after an await wraps the awaited promise in the returned
+- **A destructive item** (Delete, Sign out) is `DestructiveMenuItem` because red-6 is 3.3:1 on the white dropdown; an `aria-label` contains its visible text for axe `label-content-name-mismatch`.
+- **`hooks/useDialogFocus.ts`** (who calls it: `web/CLAUDE.md`): Mantine records no opener for a dialog mounted open, so without the hook the focus lands on `body`. A dialog that opens only after an await wraps the awaited promise in the returned
   `claim(...)` (Teams' Edit).
   - Focus returns to the opener when it closes (the kebab for a row-menu item, else the button that held the focus), and for 5 seconds after that a refetch
     cannot lose it: a focus blurred to `body` by a row moving in the DOM goes back to the opener, or to `#main-content` if the opener is gone, while a focus
@@ -377,9 +367,6 @@ Files: `components/EntityLink.tsx`, `OpenEntityItem.tsx`, `utils/entityLinks.ts`
   (`milestonePath`; marked and focused there: projects-view.md "The page's address words"), a login its ADMIN edit page, a program the overview narrowed by pick (`programPath`: `?mode=overview&programId=N`), a work stream by `workStreamId` (`workStreamPath`; "Programs").
 - **`<EntityLink entity name>`**: a `RouterLink` `Anchor` in the theme's look, visible text the name (or `children`, a team's swatch), accessible name `common.entity.open.<kind>` (a key per kind, EN/PL; "Open project {{name}}";
   `aria-label` replaces it and must start with the visible text, `to` the destination). A null `entity` or `current` is plain text, same typography; a `user` links for an ADMIN only. A figure leading to an entity's page spells `to={entityPath(...)}`; the guard fails `to={projectPath(...)}` and siblings outside `EntityLink` and the three menu-item files.
-- **The link look (1.37; one rule, `theme.module.css` `.anchor`).** A link is text-coloured and underlines on hover (the theme's `Anchor` default); a header or summary link (the facts line) sits in a sentence and is underlined always. Below a `Table` or in a Gantt's left pane (`.timelineLeft`) every `Anchor` and `EntityLink`
-  is the brand ink instead (`--astrolabe-accent-ink`: shade 8 / 4, 5.0:1 at worst on the hover tint, 6.8:1 in the dark scheme; `theme.test.ts`), underlined on hover and on keyboard focus (the focus ring stays), `LinkText` in forced colours. A page passes nothing; there is no per-site literal. Semantic colours keep precedence: a `BadgeLink` is a Badge (its tint and ink stay), and an explicit
-  `c` is an inline style that beats the rule, except that a link is never dimmed (`EntityLink` drops `c="dimmed"` from a link; plain text keeps it). Print has no rule of its own. The cyan is 2.83:1 against body text (dark 1.59:1), below axe `link-in-text-block`'s 3:1, so a link inline in a sentence inside a table cell (e.g. `AckSentence`) still needs `underline="always"`.
 - **Where NOT to link** (plain text): (1) the page's own subject (h2, the narrowed node's header, the last breadcrumb step, a milestone's marked row); (2) a label of another control (select
   options, menu items, chevrons, checkboxes, handles, filter chips); (3) inside a dialog; (4) not rendered text (bar and handle names, `title`, arrow titles, live regions, toasts); (5) an entity gone or
   foreign (removed or frozen baseline rows, a deleted login, raw Jira or Flow values); (6) prose or the session (changelog, account menu); (7) an unknown id, never a guessed link.
@@ -389,6 +376,15 @@ Files: `components/EntityLink.tsx`, `OpenEntityItem.tsx`, `utils/entityLinks.ts`
   The Plan tree's disclosure button is chevron-only beside the name link. A link sits in a flex item, or `underline="always"`, when text shares its block (axe `link-in-text-block`).
 - **Names in a sentence, "by" cells**: `EntitySentence` translates the sentence once with a mark per name and swaps in the links (EN/PL keep their word order; no `<Trans>`, names unparsed).
   `CreatorName` (the person's page given a `personId`), `AckSentence`, `refOf`. A heading link keeps the heading's name. Frozen sides (anything against another baseline, a saved run whose plan moved, the saved list's teams) are text.
+
+### The link look
+
+One rule, `theme.module.css` `.anchor`: a page passes nothing, no per-site literal; print has no rule of its own.
+
+- A link is text-coloured and underlines on hover (the theme's `Anchor` default); a header or summary link (the facts line) sits in a sentence and is always underlined.
+- Below a `Table` or in a Gantt's left pane (`.timelineLeft`) every `Anchor` and `EntityLink` takes `--astrolabe-accent-ink` (≥ 5.0:1 on the hover tint, 6.8:1 dark; `theme.test.ts`), underlined on hover and keyboard focus (the ring stays), `LinkText` in forced colours.
+- Semantic colours win: a `BadgeLink` keeps its Badge tint and ink; an explicit `c` beats the rule, but a link is never dimmed (`EntityLink` drops `c="dimmed"` from a link, plain text keeps it).
+- The cyan is 2.83:1 against body text (dark 1.59:1), under axe `link-in-text-block`'s 3:1: a link inline in a sentence in a table cell (e.g. `AckSentence`) still needs `underline="always"`.
 
 ## Timeline mechanics (`components/Timeline*.tsx`)
 
@@ -411,6 +407,7 @@ follows: `web/CLAUDE.md` "Per-feature rules". What the pages see of the componen
     the fifth drag kind `draw`, previewed as a window-toned ghost and proposed through the SAME `onSchedule` as a bar move (`drawOutcome`; the page's dialog is the keyboard/touch path).
   - `ref` exposes `focusRow(rowId)` (focus + reveal a row header, mounted or not; `false` for an unknown row) and `scrollToDay(iso)`. `TimelineRowData.current` only marks a row.
   - Reference: "The draw gesture", "Bar tones", "Accessibility model".
+- **Opening and the toolbar.** Where every Gantt opens, and `TOOLBAR_CONTROL_SIZE` (Add dependency and Add period too): `timeline.md` "Where a Gantt opens", "The toolbar".
 - **Bands.** `TimelineBandData.tone` is `window` (quiet gray, dashed edges), `drift` (orange) or `idle` (a diagonal hatch, no edges: the idle gaps); each carries `data-band-tone`, is `aria-hidden`, its facts in the page's text. Reference: "Idle bands".
 - **Tones and arrows.** A read-only bar may carry a `tone` (`ghost`: another project's endpoint; `summary`: the project's own span; `proposal`: a PROPOSED span; `baseline`: the span a picked baseline froze, a shadow bar; `jira`: the dates Jira holds, a dashed outline; looks in "Bar tones").
 - Dependency arrows are `TimelineArrowData[]` (`from`/`to` `{row, bar, kind: START|END}`, `violated`, `label`) drawn by `components/TimelineArrows.tsx` through the
@@ -430,8 +427,7 @@ follows: `web/CLAUDE.md` "Per-feature rules". What the pages see of the componen
 2. `TimelineDndContext` passes its handlers as `DndContext` props; dnd-kit calls those BEFORE the monitor that feeds `accessibility.announcements`, so the handlers stash the latest outcome in refs for the announcements.
 3. A resize redraws from the context's preview (`PreviewContext`); a move is a CSS translate of the bar wrapper from `useDraggable` (the modifiers hold it to its row and snap it to days); the outside handles keep a constant width, so a resize never re-measures the dragged node.
 4. `useDraggable` results are destructured in `TimelineBar`: the React-compiler lint (`react-hooks/refs`) flags field reads off an object that carries a ref. `useVirtualizer` carries the one justified `react-hooks/incompatible-library` disable.
-5. The track drop zone's droppable `data` carries `visibleBounds()` (the scroller's live rectangle minus the sticky parts) and `zoneLeft()` (its element's live left edge). `outcomeOf` combines them with the
-   pointer `TimelineDndContext` tracks itself during a tray drag (`delta` is wrong for it, `timeline.md`).
+5. A tray drag's day: `outcomeOf` combines the drop zone's `visibleBounds()`/`zoneLeft()` with the pointer `TimelineDndContext` tracks itself (`delta` is wrong for it; `timeline.md` "Drag, resize and keyboard").
 6. Tests stub the scroller size with `HTMLElement.prototype.clientWidth/clientHeight` (happy-dom lays nothing out; the virtualiser reads them), restore the descriptors in a file-level `afterEach` and
    wait with `waitFor`, never a real sleep (`isolate: false`); the keyboard-sensor test fakes only `setTimeout` (dnd-kit's zero-delay listener attach).
 8. **Arrows.** `TimelineArrows` renders a fragment (`<defs>` with two `<marker>`s of FIXED ids, then one `<path>` per kept arrow) inside the Timeline's own `aria-hidden` svg. The marker colours are CSS classes
@@ -500,7 +496,7 @@ linked person may manage through the owner chain (what they own and everything u
   the switch, then up to three tables, each under its h4, each a `Table` with an `aria-label` in a `ScrollRegion`, each only when it has a row, plus `home.mine.truncated` when the
   document says a list was cut (the cap, 100, is the spec's).
 - **The switch "Only what I own myself"** (`home.mine.ownOnly`) sits above the tables, only while a project or program row exists; off by default and remembered in this browser
-  (`useStoredState`, key `home.mine.ownOnly` under `astrolabe.viewSettings.`, every read and write try/catch-wrapped, a corrupt value reads as off).
+  (`useStoredState`, key `home.mine.ownOnly`; a corrupt value reads as off).
   - On, it keeps the `direct` rows of the projects and programs tables on the client. A work stream is listed only when the person owns it, so it stays, and its roll-up figures
     (programs, projects, flags) still count the rows under it, the document's own; the teams are untouched.
   - A table it empties keeps its h4 and says `home.mine.ownOnlyNoProjects|NoPrograms` ("You do not own any of the listed projects yourself."), a claim about the LISTED rows only,
@@ -519,7 +515,7 @@ linked person may manage through the owner chain (what they own and everything u
 
 A figure that leads somewhere is itself the link: a real `RouterLink` (`components/BadgeLink.tsx`, a light `Badge` as a link, the `DeviationCount` idiom; `whole` for a badge in a table cell, so its text is never cut to an ellipsis; a text line is an `Anchor`),
 shown only when positive (zero is no claim and no link). What it says is still the document's own figure - a link changes where it leads, never what it says. Every URL comes from a
-builder (`roadmapFilteredPath`, `projectUnscheduledPath`, `teamsWarningPath`); none is assembled by hand.
+builder (`roadmapFilteredPath`, `projectUnscheduledPath`, `teamsWarningPath`).
 
 | Figure on Home | Leads to | Why the two agree |
 |---|---|---|
@@ -557,7 +553,7 @@ builder (`roadmapFilteredPath`, `projectUnscheduledPath`, `teamsWarningPath`); n
   - Cost: with `acknowledged=true` the deviations read is under 1 KB on a sample plan against about 2 KB for the default list (capacity views: about 137 B either way); a heavily bound plan costs more (the Jira computation is about 50 ms for 1,100 bindings, `timeline.md` "Measured figures").
 - Per source, ONE line (label "Open differences from Jira:" / "Open capacity differences from Flow:" and the orange warnings / gray infos badges of the Deviations page; a zero badge is
   omitted), shown only for a source whose view lists a connection AND whose count is positive. **No claim at zero** (no "nothing open", `web/CLAUDE.md` "Deviations wording"): zero, no
-  connection and loading all show nothing. The one exception is neutral and separate (1.26.0): `flowPending` (the Flow view's `totals.pending`, which counts under `acknowledged=true` too) shows one
+  connection and loading all show nothing. The one exception is neutral and separate: `flowPending` (the Flow view's `totals.pending`, which counts under `acknowledged=true` too) shows one
   dimmed line "N teams waiting for a complete Flow refresh" (`deviations.flowSection.totals.pending`, plural keys) under the Flow line, with or without any difference.
 - A failed read is the inline `ErrorAlert` (title `home.deviations.loadFailed`) inside the Deviations card; the other source's line still shows and the links never depend on either read.
 - `useOpenDeviationCounts` also answers `jiraStale` (`hasStaleSource` of the Jira document's connections: the Deviations banner's fold, an ENABLED connection only) and `flowStale`
@@ -775,7 +771,6 @@ column, the ghost-row lookup (by kind + id, never by `hops`) and the Critical ch
 
 - `ProjectPage` holds `useCriticalPathPick()` (the one `timeline.criticalPath` key, shared with the team page; called before the early return: hooks stay unconditional) and passes
   `criticalPath` and `<CriticalPathToggle>` (as `toolbar`) to `ProjectTimeline`, `showCritical` to `ProjectDependencies`.
-  Every Gantt page opens by the shared rule (today a quarter of the visible grid in, else the first bar: `timeline.md` "Where a Gantt opens"); the toolbar's controls and "Add dependency" (and the team page's "Add period") share `TOOLBAR_CONTROL_SIZE`.
 - `ProjectTimeline` (rows in `ProjectTimelineRows.tsx`, cell in `SlackCell.tsx`) adds the `slack` column; `withOptional` inserts the cell before the actions cell, so a bar's roving
   columns shift by one. `emphasized(t, critical, describe)` applies the outline to the bar fields, `arrowSpecs(view, criticalPath)` flags the arrows, and the ghost rows' slack and
   emphasis come from `upstreamIndex(view)` by kind + id.
@@ -798,7 +793,7 @@ With a baseline picked (the toolbar's picker, beside the Critical path toggle; `
 - The **Movement section** (`components/BaselineMovement.tsx`, h3, after Idle gaps) is the accessible surface: totals badges, then a disclosure over a table of every milestone against
   the baseline ("Changed only" on by default, an estimate-only change counts as changed).
 - The optimistic step keeps the cached `baseline` block.
-- **Dependencies (1.26):** a link with `newSinceBaseline: true` carries a gray "New since the baseline" Badge beside its status badge (`ProjectDependencies.tsx`); `false` and absent (no baseline, links not captured) show nothing.
+- **Dependencies:** a link with `newSinceBaseline: true` carries a gray "New since the baseline" Badge beside its status badge (`ProjectDependencies.tsx`); `false` and absent (no baseline, links not captured) show nothing.
 
 ### The Jira markers
 
@@ -869,7 +864,7 @@ under the title ("N ranked", "M unranked", an ORANGE "K warnings" badge, a gray 
 - A `SegmentedControl` above the open table (a labelled radiogroup: All / Warnings / Infos, each label with its count, default All) filters the LIST by severity: panel-local state,
   never stored or in the URL. The row icons and the disclosure's count stay total, and an empty slice says "No warnings/infos among the flags shown." instead of an empty table (the
   Programs page has no flag panel).
-- **The pending marker (1.26.0):** `FLOW_CAPACITY_PENDING` (a team flag) is drawn neutral by `TeamFlags` (gray, hourglass, no `data-severity`); a project row's `flowPendingTeamIds` makes `FlagCountsCell` (`PlanProjectCells.tsx`) add a gray hourglass (`data-flow-pending`) and the same words to its hidden sentence, never a count; the sentence names the pending teams (`utils/roadmapRows.ts` `pendingTeamNames`, `roadmap.flag.flowCapacityPendingTeams`), unnamed for a team the view does not list.
+- **The pending marker:** `FLOW_CAPACITY_PENDING` (a team flag) is drawn neutral by `TeamFlags` (gray, hourglass, no `data-severity`); a project row's `flowPendingTeamIds` makes `FlagCountsCell` (`PlanProjectCells.tsx`) add a gray hourglass (`data-flow-pending`) and the same words to its hidden sentence, never a count; the sentence names the pending teams (`utils/roadmapRows.ts` `pendingTeamNames`, `roadmap.flag.flowCapacityPendingTeams`), unnamed for a team the view does not list.
   The team page's Capacity vs Flow row (`CapacityFact`) reads "Waiting for a complete Flow refresh" for an item with `sprintsComplete` false (never "In line"), and the Capacity from Flow section lists such a team with that note, a hint and a neutral `totals.pending` badge.
 - **The Flow capacity flag:** `flagSentence` phrases `FLOW_CAPACITY_MILESTONES` through `names.team` ("{{count}} milestones on {{team}} are scheduled in sprints whose capacity differs
   from Flow"; the plural forms of both languages are in `flagSentences.test.ts`).
@@ -993,7 +988,7 @@ ranked project.
 - The **row menu** (the deterministic, keyboard path; focus: "Roadmap menu focus" below):
   - ranked rows: Move up / Move down / Move to top / Move to bottom (disabled at the ends of the VISIBLE ranked rows) and Unrank;
   - unranked rows: Rank (appended at the END);
-  - always: Dependencies (an in-page action, 1.29: it opens the dependency panel on this address narrowed to the project (`dependencyProjectId=N`) and focuses its h3, `projects-view.md`; accessible name "Dependencies of {{name}}", the arrows' text path, offered on EVERY
+  - always: Dependencies (an in-page action: it opens the dependency panel on this address narrowed to the project (`dependencyProjectId=N`) and focuses its h3, `projects-view.md`; accessible name "Dependencies of {{name}}", the arrows' text path, offered on EVERY
     project row to every viewer, also a project without links, since the row's own document cannot tell; `DependenciesItem` in `PlanProjectCells.tsx`) and Open project.
 - The **row drag** by the pointer-only handle (`TimelineRowHandle`; `onReorder(id, slot)` on the page's `TimelineDndContext`, the team page's mechanism, `timeline.md` "Row drag"):
   inside the ranked rows it moves the row; **across the divider** a drop above it RANKS an unranked row at that slot and a drop below it UNRANKS a ranked row (dropping an unranked row
@@ -1088,7 +1083,7 @@ Files: `pages/Programs.tsx`, `pages/RoadmapModes.tsx`, `components/LegacyRedirec
 
 ### Route and data
 
-`/roadmap?mode=overview` is the Roadmap's second mode (1.29; the old `/programs` redirects here by `LegacyRedirect`, query kept) and renders `GET /views/programs` under `["roadmap","programs"]` (under the
+`/roadmap?mode=overview` is the Roadmap's second mode (the old `/programs` redirects here by `LegacyRedirect`, query kept) and renders `GET /views/programs` under `["roadmap","programs"]` (under the
 `["roadmap"]` prefix the Plan page and the project view already refresh) as the plan **tree on the shared Timeline** (`components/ProgramsTimeline.tsx`): work stream → program →
 project, one row each, in the server's order (open streams first, projects ranked first).
 
@@ -1194,7 +1189,7 @@ Every login previews ONE cross-team run on the tree (the run, rights and section
   revision, so the accept is refused as stale and the page says so.
 - **Section** (h3 under the timeline): the teams as links, "Projects whose dates would move", `CrossTeamRunView`, Save (only when every run team is acceptable), Accept selected (N), Propose again,
   Discard. Nothing acceptable = a preview.
-- **Saved proposals** (1.33): `?proposal=<id>` opens a stored run in this section; the "Saved proposals (N)" panel sits under it ("The cross-team run" "Saved proposals").
+- **Saved proposals**: `?proposal=<id>` opens a stored run in this section; the "Saved proposals (N)" panel sits under it ("The cross-team run" "Saved proposals").
 
 ### Tests
 
@@ -1202,7 +1197,7 @@ The page's co-located tests (`Programs*.test.tsx`, `utils/programsTree.test.ts`)
 
 ## Dependencies
 
-Since 1.29 the plan-wide list is the Roadmap's **dependency panel** (the Dependencies page and its nav item are gone); the panel's place, memory, address and hosts are `projects-view.md` "Dependency panels". Files:
+The plan-wide list is the Roadmap's **dependency panel** (the Dependencies page and its nav item are gone); the panel's place, memory, address and hosts are `projects-view.md` "Dependency panels". Files:
 `components/PlanDependenciesPanel.tsx` over `hooks/usePlanDependencies.ts` and `components/PlanDependenciesContent.tsx`; `api/dependencyList.ts`; `utils/dependencyListRows.ts`, `…Filters.ts`, `…Links.ts`
 (`dependenciesFilteredPath(filter)`, `violatedDependenciesPath({teamId?, projectId?})`: Home's and the team page's links, both `/roadmap?dependencies=…`), `legacyLinks.ts` (the old `/dependencies` address);
 `components/DependencyListFilters.tsx`, `DependencyListTable.tsx`, `DependencyCells.tsx`, `ProjectScopeChip.tsx`, `DependencyAddModal.tsx`, `DependencyFormParts.tsx`.
@@ -1268,10 +1263,10 @@ The panel's co-located tests (`PlanDependenciesPanel*.test.tsx`: the list, `.add
 
 ## Team load
 
-Since 1.32 Team load is the Teams page (`/teams`): ONE table over the one `GET /views/team-load`. Files: `pages/Teams.tsx`; `components/TeamsTable.tsx` (`TeamsTable`, `TeamsFacts`); `api/teamLoad.ts`
+Team load is the Teams page (`/teams`): ONE table over the one `GET /views/team-load`. Files: `pages/Teams.tsx`; `components/TeamsTable.tsx` (`TeamsTable`, `TeamsFacts`); `api/teamLoad.ts`
 (`getTeamLoadView`); `utils/teamLoadFilters.ts` (`parseTeamLoadFilter`, `teamLoadFilterParams`, `teamsKept`, `isNarrowing`, `matchesWarning`); `utils/teamLinks.ts`
 (`teamsWarningPath(warning)`, Home's two capacity badges; `teamWeeklyLoadPath(id, kind)`, the row badges); `hooks/useWeeklyLoadArrival.ts` and `utils/weeklyLoadAddress.ts` (the team page's half); `components/WeekLoadCells.tsx` (`WeekStatus`; `weekLabel`, `mdText`: `utils/weekLoadText.ts`).
-1.36: the "Weeks with a warning" section under the table (1.21) and its "Include past weeks" switch (`?past=true`, 1.22) are gone, removed on the user's word of 2026-11-27 ("yes, remove it and link the badges"): the team page's weekly load table lists every week and the badges lead there.
+The "Weeks with a warning" section and its `?past=true` switch went in 1.36 (`release-history.md`): the team page's weekly load table lists every week and the badges lead there.
 
 ### Route and data
 
@@ -1286,7 +1281,7 @@ Team writes (the editor's save, a delete) refresh `["teams"]` and `["plan"]`; an
 - Columns: Name (`SortHeader`: asc = the document's order, desc reversed, `viewSettings.teams.sortDir`; swatch, team `EntityLink`, the description dimmed under it, one line), Manager (person link; dimmed
   "No manager"), Milestones, Not scheduled (a link to the team's page named by its row, `teamLoad.notScheduledAria`, only when positive), Overloaded and WIP (orange, only when positive; whole text: `miw="max-content"`, nowrap cells), Capacity (a gray "N weeks
   without capacity": a team with work and no capacity can never be overloaded) and, for an ADMIN, Operations.
-  **The three week badges are links (1.36)**: each is a `BadgeLink` (`whole`) to `teamWeeklyLoadPath(id, kind)` = `/teams/:id?load=overloaded|wip|nocapacity` (each badge its own kind), named `teamLoad.weeklyLoadAria` ("3 weeks overloaded: open the weekly load of team Backend": the figure first,
+  **The three week badges are links**: each is a `BadgeLink` (`whole`) to `teamWeeklyLoadPath(id, kind)` = `/teams/:id?load=overloaded|wip|nocapacity` (each badge its own kind), named `teamLoad.weeklyLoadAria` ("3 weeks overloaded: open the weekly load of team Backend": the figure first,
   then where it goes, the team's name because every row shows the same figures). All three count weeks the team page's weekly table lists (its "No capacity" weeks are the gray one's). The facts line's team totals stay plain badges. No row says "fits"; every figure is worded; the table is a 960 px `ScrollRegion`.
 - States: loading (`LoadingBlock`, no facts and no claim), a failed first read (`ErrorAlert` "Could not load the teams", no claim; a failed re-read keeps the rows under it), no team (`totals.teams === 0`),
   nothing matches (not truncated; "Show every team" clears Name and Show) and `truncated` (one dimmed line with the rows shown).
@@ -1307,7 +1302,7 @@ Name and Show sit in the `FilterPanel` (its badge counts both), applied in the b
 
 Files: `pages/Baselines.tsx`; `pages/BaselineCompare.tsx`; `hooks/useBaselines.ts`; `components/BaselineEditorModal.tsx`; `components/BaselineCompareControls.tsx`; `utils/baselineMovement.ts` (`movementTotalsParts`,
 `movementSentence`, `movementStatus`); `utils/baselineOverlay.ts`; `utils/baselineCompare.ts` (`rankSentence`); `hooks/useBaselinePick.ts`; `components/BaselinePicker.tsx`; `components/BaselineMovement.tsx`;
-`components/BaselineTotals.tsx`; 1.26: `components/BaselineLinksSection.tsx`, `components/BaselineCapacitySection.tsx`, `components/TeamBaselineCapacity.tsx`.
+`components/BaselineTotals.tsx`, `components/BaselineLinksSection.tsx`, `components/BaselineCapacitySection.tsx`, `components/TeamBaselineCapacity.tsx`.
 
 ### The registry
 
@@ -1371,9 +1366,9 @@ The co-located `Baseline*.test.tsx`, `useBaselines.test.tsx` and the `baseline*`
 ## The cross-team run
 
 Files: `api/scheduleProposals.ts`; `hooks/use{CrossTeamProposal,ProposalRights,ScheduleCheck,SavedRun,StatusAnnouncer}.ts`;
-`utils/{planProposal,scheduleProposal,savedProposal}.ts`; `components/CrossTeam{Facts,ProposalSection,RunView}.tsx`; saved (1.26): `api/savedProposals.ts`, `components/Saved{ProposalsPanel,ProposalsTable,RunHeader,ProposalState}.tsx`, `SaveProposalModal.tsx`.
+`utils/{planProposal,scheduleProposal,savedProposal}.ts`; `components/CrossTeam{Facts,ProposalSection,RunView}.tsx`; saved: `api/savedProposals.ts`, `components/Saved{ProposalsPanel,ProposalsTable,RunHeader,ProposalState}.tsx`, `SaveProposalModal.tsx`.
 
-There is no page of its own since 1.33: the Schedule proposals page is gone with its nav leaf. The run is previewed on the Roadmap overview ("Programs" "The schedule proposal" - the host, the bars, the lock) and accepts the
+There is no page of its own (gone in 1.33 with its nav leaf). The run is previewed on the Roadmap overview ("Programs" "The schedule proposal" - the host, the bars, the lock) and accepts the
 ticked moves in ONE plan write (`scheduling.md` "The cross-team run"). `/schedule-proposals` redirects to `/roadmap?mode=overview` (`LegacyRedirect`, `carry={false}`), `/schedule-proposals/saved/:id` to the
 overview with `proposal=<id>` (`LegacySavedProposalRedirect`, `legacySavedProposalTarget`; a malformed id: the overview alone).
 
@@ -1386,7 +1381,7 @@ overview with `proposal=<id>` (`LegacySavedProposalRedirect`, `legacySavedPropos
 - `accept()` posts `{expectedRevision, scopeHash, teamIds (the run's blocks), acceptTeamIds, items}` for the ticked moves of all sections on the write key `["schedule-proposals","accept"]`. A synchronous in-flight ref makes a double click ONE request; a second accept or Propose while it runs is refused out loud (`refused`, `project.busy` announced).
 - On success the preview closes, `["plan"]` and `["roadmap"]` refresh and `outcome` is the inline note ("N scheduled · M skipped: reasons", `teams.proposal.reason.*`; no toast).
 - `409 stale-revision` closes the run (reload note); **`409 stale-scope`** closes it, re-proposes the SAME teams once and keeps the ticks of the moves that still exist (`rescoped`, orange note); any other failure is the inline `FormErrorAlert` (focused), the run open.
-- The host owns the ONE polite status region the hook announces into; `useProposalFocus` lands on the section's heading on open ("Saved proposals" below) and hands Propose the focus back on close.
+- The host owns the ONE polite status region the hook announces into; `useProposalFocus` focuses the section's heading on open ("Saved proposals" below), Propose on close.
 
 ### What the viewer may accept
 
@@ -1415,12 +1410,9 @@ A saved run is the SERVER's own re-computation (`scheduling.md` "Saved proposals
 - **`useSavedRun`** (in `useOverviewProposal`) reads `?proposal=` (the saved list's links and the old page's redirect set it): once the rights are read the stored run opens in the overview's own run (`flow.open`), under an h3 "Saved proposal: name" (`SavedRunHeader`: the facts, a state badge `data-state`, green CURRENT else gray).
   `can.accept` AND CURRENT AND `asOf` = today make it acceptable: ticks editable, the stored `check` for the stored ticks (no request), the live one for any other; else the stored ticks are read-only (a refetch that turns it CHANGED takes the Accept away).
   A fresh run (Propose again, a stale scope) is the viewer's own (`sameRun`: Save returns). The accept names the ticked teams (`acceptTeamIds`).
-- **Opening lands on the TOP (1.37), one rule for every run** (fresh or saved; the team page, the project page and the overview; `useProposalFocus(run, busy)`). When a run OPENS, its section's h3 (`headingRef`, `tabIndex={-1}`,
-  `ANCHORED_HEADING_STYLE`, whose scroll margin clears the 56 px header) is scrolled to the top (`scrollIntoView({block:"start"})`) and takes the focus with `preventScroll`. An opening is the run object itself (the latch is that object, cleared
-  when the run closes): a tick, a refetch, a failed accept or a window focus never lands again; Propose again (also with the plan unchanged), a stale refusal's fresh run and another saved proposal are new openings and land again, and so does the same
-  saved proposal opened again after Close. A saved run opens only once its record is read, so it needs no separate gate. Vertical scroll only (none sideways at 390 px).
-  - **Why it landed at the bottom:** the hook focused Discard/Close, the LAST control of a section as tall as the run, so the browser scrolled to it. No control takes the focus on open now.
-- **The open one is marked in the list.** `SavedProposalsTable` marks the row of the saved proposal whose run is on screen (`SavedProposalsPanel`'s `openId` = `saved.record.id`, so a read that fails marks nothing): `aria-current="true"` and `.rowCurrent` (the project page's and the weekly load's mark). Close, Discard, a delete or a verdict clear it with the run.
+- **Opening lands on the top, one rule for every run** (fresh or saved; team page, project page, overview; `useProposalFocus(run, busy)`): the section's h3 (`headingRef`, `tabIndex={-1}`, `ANCHORED_HEADING_STYLE`, whose scroll margin clears the 56 px header) is scrolled to the top (`scrollIntoView({block:"start"})`) and focused with `preventScroll`.
+  No control takes the focus on open (Discard/Close, a tall section's LAST control, scrolled the page to its bottom). An opening is the run object (the latch, cleared on close): a tick, a refetch, a failed accept or a window focus never lands again; Propose again (plan unchanged too), a stale refusal's fresh run, another saved proposal or the same one reopened after Close do. A saved run opens once its record is read. Vertical scroll only.
+- **The open one is marked**: `SavedProposalsTable`'s row of the run on screen (`openId` = `saved.record.id`; a failed read marks nothing) takes `aria-current="true"` and `.rowCurrent`, cleared with the run.
 - It ends with **Close** (Discard once fresh), an accept, a stale refusal, Back or a mode switch (`RoadmapModes` drops `proposal`): the parameter leaves the address. A 404 (also a malformed id), an `UNREADABLE` record (saved by an earlier version) or a failed read opens nothing, says so in a dismissible note (`SavedNotice`) and drops the parameter.
 
 ### Tests
@@ -1712,7 +1704,7 @@ passes the deviations view's `connections[]` filtered to `enabled && mappingOk` 
 - It is enabled only while the plan view holds a program with `can.createProject` or a project with `can.createMilestone` (an optimisation, never the rule); a failed read hides both entries and
   shows no error. `PlanActions.canImportChildren(program)` = the program's `can.createProject` AND a program link, `canImportMilestones(project)` = the project's `can.createMilestone` AND a
   project link.
-- `PlanRowMenu` shows a `Menu.Item` "Import from Jira…" (aria "Import from Jira what is listed under {name}": it starts with the visible text, label-in-name; `IconFileImport`) after "Move
+- `PlanRowMenu` shows a `Menu.Item` "Import from Jira…" (aria "Import from Jira what is listed under {name}"; `IconFileImport`) after "Move
   to…" in the program's menu and in the project row's menu; each kebab's own condition includes the import right, so an owner with `canImportChildren` or `canImportMilestones` alone still gets the menu. Both roots are built by `rootOf(level, node, link)` (`utils/jiraImportRoot.ts`: the node's `workStreamId`,
   `ownerPersonId`/`ownerName`, the link's `issueKey`/`connectionId`/`gone`).
 - A link through a connection that is not usable still shows the entry (the dialog says why), and so does a link whose Jira item the read already says is gone (`link.gone` -> `root.gone`):
@@ -1802,19 +1794,15 @@ it in a fourth "Acknowledgement" column of their table, so a single missing spri
   team view's flag and markers follow the open rows); the shared `409 stale-deviations` (`isStaleDeviations`) is an orange note in the row plus the re-read (a note of a row that left the list is
   shown above the list, `CapacityAckOrphanNotice`), a 403/404 a red message and a `refreshFlowLinks`; the focus rule is the Jira one (the same `useAckFocus`; the fallback is the "Differences
   from Flow" heading).
-- **Acknowledge all** (`CapacityAckAll` in `CapacityAckCell.tsx`, rendered by `CapacityDeviationList`, so the team page has it too): at the head of a team's list a `Button` "Acknowledge all
-  (N)" (named "Acknowledge all (N) open differences of <team>"; `CapacityAckContext.team` is the item's team name), shown only when the item's `can.acknowledge` allows it AND at least two of the listed rows are open (`isOpen`: a stale
-  acknowledgement and every folded "sprints without capacity" row count; acknowledged ones neither count nor are sent). It **acknowledges what the list shows**: the page's
-  Status/severity/team filters have already narrowed the rows, and N is on the label. One request, `POST /integrations/flow/team-bindings/{id}/acknowledge-all`
-  (`acknowledgeCapacityDeviations`, body `{items:[{sprintId|null, fingerprint}]}`, all or nothing).
-- **Withdraw all**: beside it a `Button` "Withdraw all (N)" (named "Withdraw all (N) acknowledged differences of <team>"), shown with `can.acknowledge` and at least two listed rows that are
-  CURRENTLY acknowledged (`!isOpen`: a stale acknowledgement is open and not sent; every folded acknowledged sprint counts), so it shows where the list has acknowledged rows. One request,
-  `POST …/team-bindings/{id}/unacknowledge-all` (`unacknowledgeCapacityDeviations`, body `{items:[{sprintId|null}]}`, all or nothing, `204`).
-- Both batches go through the SAME hook as `{kind: "acknowledgeAll", bindingId, rows}` / `{kind: "unacknowledgeAll", bindingId, rows}` keyed by `capacityAckAllKey(bindingId)` (`<id>:all`, the button's `data-ack-for` and
-  the busy and notice key), with the single write's toast, re-read, stale `409` note (nothing was stored / deleted), refusals (the withdrawal's 404 is the binding) and focus rule - after a batch
-  the focus goes to the first row button still there, else the heading. While any write runs the button is `aria-disabled`/`data-disabled`, never `disabled`. The batch's note shows under the
-  button at the head of its team's list (button or not), and `listedKeys` of both callers hold each listed team's all-key, so `CapacityAckOrphanNotice` shows it above the list only once the
-  team's item has left the list.
+- **Acknowledge all (N)** / **Withdraw all (N)** (`CapacityAckAll` in `CapacityAckCell.tsx`, rendered by `CapacityDeviationList`, so the team page has them too; named "Acknowledge all (N) open
+  differences of <team>" / "Withdraw all (N) acknowledged differences of <team>", `CapacityAckContext.team` the item's team name) head a team's list with the item's `can.acknowledge` and at least two
+  listed rows open (`isOpen`: a stale acknowledgement and every folded "sprints without capacity" row count; acknowledged ones neither count nor are sent) / CURRENTLY acknowledged (a stale one is open
+  and not sent; every folded acknowledged sprint counts). They **act on what the list shows** (the Status/severity/team filters already narrowed it; N is on the label). One all-or-nothing request each:
+  `POST /integrations/flow/team-bindings/{id}/acknowledge-all` (`acknowledgeCapacityDeviations`, `{items:[{sprintId|null, fingerprint}]}`) / `…/unacknowledge-all` (`unacknowledgeCapacityDeviations`, `{items:[{sprintId|null}]}`, `204`).
+- Both go through the SAME hook (`{kind: "acknowledgeAll"|"unacknowledgeAll", bindingId, rows}`, key `capacityAckAllKey(bindingId)` = `<id>:all`: `data-ack-for`, busy and notice) with the single
+  write's toast, re-read, stale `409` note (nothing was stored / deleted), refusals (the withdrawal's 404 is the binding), focus (after a batch the first row button still there, else the heading) and busy look
+  (`aria-disabled`/`data-disabled`, never `disabled`). The note shows under the button at the head of its team's list (button or not); `listedKeys` of both callers hold each listed team's all-key, so
+  `CapacityAckOrphanNotice` shows it above the list only once the team's item has left the list.
 
 ### Tests
 
@@ -1901,7 +1889,7 @@ ADMIN), never the session's roles.
   - `false` as `placed`'s third argument means no page announcement: dnd-kit's region is the drag's single announcer. The menu stays the keyboard path.
   - `moveToSlot` (`utils/roadmapOrder.ts`) removes the id and re-inserts it at `slot − 1` when the gap lies below it, else at `slot`; a slot of `from` or `from + 1` is the identity: the context
     proposes those too and `placed` answers `true` WITHOUT a PUT when the permutation equals the displayed order (the page, not a pick-up snapshot, judges a no-op).
-  - `TimelineDndContext` keeps the picked-up `DragData` in a ref (dnd-kit blanks an unmounted active node's data). Mechanics and slot arithmetic: `timeline.md` "Row drag".
+  - Mechanics, the slot arithmetic and a row that unmounts mid-drag: `timeline.md` "Row drag".
 
 ### Idle gaps and the Flow capacity marks
 
@@ -1921,7 +1909,7 @@ period takes effect on ANY date (no weekday rule: a weekend date applies from th
 - **Capacity dialog.** The `NumberInput`s use `clampBehavior="none"`: Mantine's default clamps `0` to the `min` of 1 on blur, silently making an invalid WIP limit valid.
 - **The weekly load table** (`TeamWeeklyLoad.tsx`, behind a `TableDisclosure`) is the accessible surface of the decorative strip: load, capacity ("—" when none), peak WIP and the verdict in words
   (orange "Overloaded · +X MD", orange "Over WIP limit", gray "OK" / "No capacity", plus the "Differs from Flow" badge).
-  - **Its address (1.36).** `/teams/:id?load=overloaded|wip|nocapacity|weeks` (`teamWeeklyLoadPath(id, kind)`, `utils/weeklyLoadAddress.ts`; the Teams table's week badges, each with its own kind; `weeks` = open, no particular week) is
+  - **Its address.** `/teams/:id?load=overloaded|wip|nocapacity|weeks` (`teamWeeklyLoadPath(id, kind)`, `utils/weeklyLoadAddress.ts`; the Teams table's week badges, each with its own kind; `weeks` = open, no particular week) is
     `hooks/useWeeklyLoadArrival.ts`, mirroring `useMilestoneArrival`. It acts once the page has SETTLED: the view's query is `isSuccess && !isFetching` AND the Flow section above the table has its final height (`TeamFlowSection`'s
     `onSettled`: its panel read, and for a linked team its capacity comparison, answered or failed - the section grows when they land, which would push the table off-screen; waiting is the simplest dependable option, a background re-read does not unsettle it). A read still running or failed does nothing and keeps the address.
     Then the disclosure OPENS for this visit (the page controls it through `TeamWeeklyLoad`'s `arrival`; never remembered, so nothing is written), taken once per history entry (the entry's key is the latch, set during render, so a Hide click
@@ -1936,7 +1924,7 @@ period takes effect on ANY date (no weekday rule: a weekend date applies from th
 Both are the shared pieces, fed from the team view alone (`timeline.md` "The baseline overlay" and "The Jira markers" hold the rows, bars, columns and the toggle).
 
 - **Baseline.** The picker sits in the timeline's toolbar (after Scroll to today); the query key and the three write hooks (`useTeamSchedule`, `useTeamOrder`, `useScheduleProposal`) take the pick. The Movement
-  section (`scope="team"`, with a Project column) follows Idle gaps. 1.26: `TeamBaselineCapacity` (inside `TeamCapacity`, under the current periods) lists the capacity the baseline froze
+  section (`scope="team"`, with a Project column) follows Idle gaps. `TeamBaselineCapacity` (inside `TeamCapacity`, under the current periods) lists the capacity the baseline froze
   as ranges (h4, From / To or "no end" / man-days / WIP); `captured: false` is one dimmed note without a heading.
 - **Jira.** The chip's count line is `teamMarks(view)` (the team's linked milestones, scheduled and tray, and their open flags); the "Jira dates" toggle sits after the baseline picker. The Flags
   column, the tray rows' key link and the dimmed appended rows `jira-unscheduled:<milestoneId>` are the shared pieces.
@@ -1963,15 +1951,14 @@ unplaced rows are `components/ProposalTable.tsx`, a controlled, action-free tabl
   the whole-batch stale refusal and the re-proposal after a `stale-scope` refusal. The status region is the single announcer (never an `Alert` with its implicit `role="alert"`); no success toast on accept.
 - **Failures.** A 403/404/400 of the accept is a `FormErrorAlert` INSIDE the open section above the actions (the preview stays open, the selection is kept) and takes the focus (the disabled Accept
   would otherwise drop it to the body); a propose's failure shows under the timeline header while no preview is open.
-- **Focus.** The section's heading takes it when the preview opens (scrolled to the top, `useProposalFocus`; Discard did until 1.37 and scrolled the page to the bottom); Propose gets it back after Discard, an accept or a stale refusal, once no write is running (a disabled button cannot take it)
-  (`hooks/useProposalFocus.ts`).
+- **Focus** (`hooks/useProposalFocus.ts`): the section's heading on open ("The cross-team run" "Saved proposals"); Propose gets it back after Discard, an accept or a stale refusal, once no write runs (a disabled button cannot take it).
 
 ### The scope check and the ticked-subset check
 
 - **The scope check.** The accept sends the proposal's `scopeHash`; on a `409 stale-scope` (`isStaleScope`; the team's plan changed since the proposal, nothing was written) the hook closes the
   preview, requests a fresh proposal at once (a fresh `asOf`), refreshes `["plan"]`, and the new preview keeps the ticks of the milestones that were ticked and still move (`keptTicks`: the old
-  selection intersected with the new moves; a move new to the page starts unticked) with an orange dismissible `role="note"` `teams.proposal.rescoped` (`rescoped`). The fresh preview is a new opening: the focus lands on its heading
-  (the accept button was disabled while the write ran, and the heading is always focusable, so nothing waits for `applying`). A fresh proposal with nothing to show leaves the usual note instead. The whole-batch `stale-revision` 409 keeps the "reloaded, propose again" note.
+  selection intersected with the new moves; a move new to the page starts unticked) with an orange dismissible `role="note"` `teams.proposal.rescoped` (`rescoped`). The fresh preview is a new opening (its heading takes the focus;
+  nothing waits for `applying`). A fresh proposal with nothing to show leaves the usual note instead. The whole-batch `stale-revision` 409 keeps the "reloaded, propose again" note.
 - **The ticked-subset check.** The proposal's link verdicts (`dependencies`) and proposed load (`weeks`) describe EVERY move accepted, so they would lie once some moves are unticked.
   `hooks/useScheduleCheck.ts` (`{teamIds, revision, scopeHash, moves, selected, enabled}`; the cross-team page reuses it with the run's teams) asks the server (`checkSchedule`,
   `api/scheduleProposals.ts`: `POST /schedule-proposals/check {teamIds:[team], items}`, a computation) for the verdicts of exactly the ticked moves, and ONLY while some but not all are ticked: all
@@ -2018,11 +2005,10 @@ follow the panel's `can:{link, unlink, importCapacity}`, never the session's rol
   `gone`, or a `TEAM_GONE` row) adds no fact row, no sprint lines and no import remedy: the panel's own orange badge says it.
 - **The lines** are `CapacityDeviationList` (shared with the Deviations page's "Capacity from Flow", which holds the sentences, the folded no-capacity line and the acknowledge mechanics): warnings
   first, the first five, the rest behind a `TableDisclosure` "Show N more". EVERY line carries its `CapacityAckCell` (`CapacityDetails` passes `ack`: the section's `useCapacityAcknowledge`, keyed by
-  the team's id, whose focus fallback is the section's h3; an orphaned note shows above the lines), so the manager acknowledges where they plan; the list opens with "Acknowledge all (N)"
-  (`CapacityAckAll`, exported from `CapacityAckCell.tsx`). A gone Flow team's OWN row is listed with its cell (`sprintId` null, the DELETE carries no parameter): the open row counts in the header's
+  the team's id, whose focus fallback is the section's h3; an orphaned note shows above the lines), so the manager acknowledges where they plan; the list opens with the batch buttons. A gone Flow team's OWN row is listed with its cell (`sprintId` null, the DELETE carries no parameter): the open row counts in the header's
   flag, so the manager silences it where they plan.
 - **The remedy line**, for whoever `can.importCapacity` (and no proposal is open): "Import capacity… shows what an import would change. Hand-entered periods are left as they are, and a sprint where
-  Flow has 0 must be ticked by hand." It never promises the plan will match: a hand-entered period and a ZERO_CAPACITY sprint are not touched by default.
+  Flow has 0 must be ticked by hand." It never promises the plan will match.
 - **Invalidations.** Links use `refreshFlowLinks`; imports, period changes and acknowledgements use `refreshFlowCapacity`. Both refresh
   Flow deviations, planning views and the Roadmap family. Public-holiday writes also refresh these views.
 
@@ -2053,16 +2039,14 @@ Files: `pages/People.tsx`, `PersonDetails.tsx`; `components/PersonEditorModal.ts
 
 The people directory, a Teams clone under Administration after Teams, **visible to everyone** (reads are open, emails included): `useRegistryListControls` + `RegistryListTable` (Name link, Email,
 Login), ADMIN-only New/Edit/Delete through `PersonEditorModal` (name, optional email, optional Login via `UserSelect`, an ADMIN-only users search). A list row carries every field of the detail, so
-Edit takes the row as it stands (no detail fetch). The family of paths is spelled out in `utils/peopleLinks.ts`; the team editor's manager is a person (`managerPersonId`).
+Edit takes the row as it stands (no detail fetch); the team editor's manager is a person (`managerPersonId`).
 
 - **`PersonSelect`** is the owner/manager picker (`["people","picker",term]`, enabled for every session, options `name (email)` or `name`); it and `UserSelect` are thin wrappers over `SearchPicker`
   (debounced server-side search, the picked entry held by the caller). It also takes `disabled` and `error` (the plan editors' Owner: read-only for a caller who may edit only another part of the
   modal, and the required-owner message).
-- **What the person is responsible for** (`PersonResponsibilities`, under the header of `/people/:id`, 1.37): four sections (`people.responsibilities.*`), each an h3 with a dimmed count and a list of `EntityLink` rows or its empty sentence.
-  - Teams managed (`TeamNameCell`: swatch and name); Work streams, Programs and Projects owned (a program names its work stream, a project its program and work stream, as underlined links in a dimmed tail). A closed work stream reads "(closed)" (`plan.move.closedName`); a work stream link opens the Roadmap overview narrowed to it.
-  - No endpoint or filter was added. The owned nodes are `ownedBy(plan, personId)` (`utils/personResponsibilities.ts`) over `getPlanView` under `planViewKey` (the Plan page's own key and validator; the view holds only active nodes and every owner; ownership is DIRECT; the plan's own order).
-  - The managed teams are `listEveryTeam` under `["teams","options"]` (the team filters' key) filtered by `managerPersonId`: pages of 100 up to `MAX_TEAM_OPTION_PAGES`, so nothing is cut short and there is no "and N more".
-  - The two reads load and fail separately (a `LoadingBlock` or an `ErrorAlert` in place of that half, the other half still lists). A login's presence changes nothing here.
+- **Responsibilities** (`PersonResponsibilities`, under `/people/:id`'s header): four h3 sections (`people.responsibilities.*`), each a dimmed count and `EntityLink` rows or its empty sentence: Teams managed (`TeamNameCell`), Work streams, Programs and Projects owned (a program's work stream, a project's program and work stream as underlined links in a dimmed tail; a closed stream "(closed)", `plan.move.closedName`; a stream link opens the overview narrowed to it).
+  - No endpoint or filter was added. Owned nodes: `ownedBy(plan, personId)` (`utils/personResponsibilities.ts`) over `getPlanView` under `planViewKey` (active nodes, DIRECT ownership, the plan's order). Managed teams: `listEveryTeam` under `["teams","options"]` by `managerPersonId` (pages of 100 up to `MAX_TEAM_OPTION_PAGES`: nothing cut, no "and N more").
+  - The two halves load and fail apart (`LoadingBlock`/`ErrorAlert` each); a login changes nothing.
 - **A 409 on save** marks the email field, or the login field when the problem `type` is `person-login-taken` (`isPersonLoginTaken`, `api/people.ts`); an untyped 409 reads as the email.
 
 The co-located `People*.test.tsx`, `PersonDetails.test.tsx`, `PersonSelect.test.tsx`; the real browser is `e2e/tests/people.spec.ts`.
@@ -2379,7 +2363,7 @@ The ADMIN telemetry panel (the shell's right-hand aside: memory, storage, **sync
 
 The rules (resources, typed keys, `common.*`, parity, Polish voice, English in tests): `web/CLAUDE.md` "Internationalization". The mechanics:
 
-- **Resources.** `src/locales/{en,pl}/<area>.json`, one file per area (`common` is the shared one), merged by `i18n.ts` into one `translation` namespace. Only EN is statically imported; every other
+- **Resources.** `i18n.ts` merges the area files; only EN is statically imported, every other
   language is auto-discovered from `locales/<lang>/` via `import.meta.glob`. Bundles are eager on purpose; move non-EN to lazy loading when a 3rd language ships or a bundle grows large.
 - **Keys are typed:** `src/i18next.d.ts` augments i18next's `CustomTypeOptions` with `typeof en` from `i18n.ts` (the `@public`-tagged export: knip can't trace the d.ts consumer), so every `t()` call
   and `i18nKey` is compile-checked against the EN tree: a typo or removed key fails `tsc`/`npm run build`. The `NavLeaf` `label` in `utils/navigation.ts` is the `ParseKeys` pattern.
@@ -2409,12 +2393,9 @@ The rules (restrained cyan, neutral defaults, success green, overlay close names
 
 - **The brand** is the 10-stop **`astrolabe` cyan tuple** (`#e3fafc … #0b7285 #095c6b`: Mantine's cyan shifted one step deeper) with `primaryShade: { light: 8, dark: 9 }`: Mantine's own shade 7/8 pair
   falls short of 4.5:1 for white text on this hue (white on shade 8 is 5.6:1, on shade 9 7.6:1), and `autoContrast: true`.
-  - Cyan marks only primary CTAs, the active nav item (a light tint + a 3px accent bar) and focus (chart series colours are `utils/chartColors.ts`'s); everything else is neutral by theme default
-    (tables `verticalSpacing="xs"`, ≈40px rows), and pages never pass those props back.
-  - GREEN is the SUCCESS colour, red the BLOCKING one, orange the warning one (soft findings, waived); the ADMIN role badge is `variant="outline" color="gray"`. **Never use teal for success:** its
-    tints are near-identical to the cyan brand's; `theme.test.ts` pins the CIEDE2000 distance between the brand and success tints (≥ 10) and fills (≥ 20).
-- **Surfaces.** `theme.module.css` is scheme-aware via `light-dark()` throughout. Every `Table` inherits the card frame, hoverable rows and neutral compact header from the theme's `Table.extend`.
-  **The hover tint is theme-owned and AA-tested too** (`tableHover` in `themeVariables.ts`, applied by `table.table` in `theme.module.css` as `--table-hover-color`; light gray-1 `#f1f3f5`, dark dark-6
+  - Where cyan goes, the neutral defaults and the status colours: `web/CLAUDE.md` "Theming". The active nav item is a light tint + a 3px accent bar, tables `verticalSpacing="xs"` (≈40px rows), the ADMIN role badge `variant="outline" color="gray"`.
+  - No teal for success because its tints are near-identical to the brand's: `theme.test.ts` pins the CIEDE2000 distance between the brand and success tints (≥ 10) and fills (≥ 20).
+- **Surfaces** (`light-dark()`, `Table.extend`: `web/CLAUDE.md`). **The table hover tint is theme-owned and AA-tested too** (`tableHover` in `themeVariables.ts`, applied by `table.table` in `theme.module.css` as `--table-hover-color`; light gray-1 `#f1f3f5`, dark dark-6
   `#2e2e2e`, because Mantine's own dark-5 left dimmed text at 4.44:1): `theme.test.ts` pins that every table ink clears 4.5:1 on it in both schemes and that it stays ≥ 1.1:1 against the row. The e2e
   axe scan of hovered rows is in `accessibility.spec.ts`.
 - A soft diffuse `shadows` scale and tightened heading sizes; Inter is bundled (`@fontsource-variable/inter`, imported in `main.tsx`): same-origin for the CSP `font-src 'self'`, the system stack the
@@ -2432,8 +2413,7 @@ The rules (restrained cyan, neutral defaults, success green, overlay close names
 ### Colour tokens
 
 - **Colour tokens are AA-tested** (`themeVariables.ts`, ported from Lettuce): `LIGHT_TOKENS`/`DARK_TOKENS` (text, dimmed, canvas, border, table hover, error inks) and `LIGHT_VARIANT_INKS` (the per-hue
-  ink over a `variant="light"` surface: Mantine's stock light-scheme ink fails 4.5:1 for several hues) go in through `cssVariablesResolver` in `main.tsx`. Never hand a shade-suffixed colour
-  (`"orange.8"`) to a light Badge/Alert: the tint comes from the hue, the ink from this map.
+  ink over a `variant="light"` surface: Mantine's stock light-scheme ink fails 4.5:1 for several hues) go in through `cssVariablesResolver` in `main.tsx` (hence `web/CLAUDE.md`'s no shade-suffixed colour on a light Badge/Alert).
 - **`--astrolabe-accent-ink`** is the brand hue where it must be PERCEIVED against the canvas (the nav marker, the anchor hover underline, focus, and the ink of a table or Gantt left-pane link, "The link look"): the light primary (deep cyan `#0b7285`) in light
   mode, the 4-shade (`#3bc9db`) in dark mode. The light-variant ink for the brand hue is `#095c6b`.
 - Success GREEN has the ink `#236b34`; the colour vocabulary is `web/CLAUDE.md`'s.
@@ -2444,7 +2424,7 @@ The rules (restrained cyan, neutral defaults, success green, overlay close names
 
 `components/BrandLogo.tsx` selects `public/logo-{light,dark}.svg` for the app theme. The marks depict a mariner’s astrolabe with a suspension loop, a graduated rim, and a sighting rule over a wind rose and chart lines.
 `web/index.html` declares `public/favicon.svg` as the single browser-tab icon for both themes. It keeps the loop, rim, and four-point rose legible at 16 px. Check the app logos and favicon in both colour schemes.
-The geometry is computed: change it in a vector editor or regenerate it, not by hand-editing path data. Restyle rule: keep aria-labels, roles and real semantic elements stable, since e2e and unit tests locate by role/name.
+Its geometry is computed (a vector editor or a regeneration, never hand-edited path data) and the restyle rule is `web/CLAUDE.md`'s: e2e and unit tests locate by role/name.
 
 ## Not yet ported
 
