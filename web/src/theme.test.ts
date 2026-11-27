@@ -249,6 +249,38 @@ describe("theme colour tokens (WCAG AA)", () => {
     expect(LIGHT_VARIANT_INKS.astrolabe).toBe(brand[9]);
   });
 
+  it("a link in a table cell or a Gantt's left pane is the brand ink: AA on every row surface in both schemes (1.37)", () => {
+    // Surfaces a table or left-pane link sits on: the row (white / dark-7), the hover tint, the faint surface of `.rowCurrent`, the current cell, a
+    // table header and the row-hover of the left pane (gray-0 / dark-6), and the canvas (a tray beside the page). No table here is striped.
+    const light = [WHITE, LIGHT_TOKENS.tableHover, DEFAULT_THEME.colors.gray[0], DEFAULT_THEME.colors.gray[1], LIGHT_TOKENS.canvas];
+    const dark = [DEFAULT_THEME.colors.dark[7], DEFAULT_THEME.colors.dark[6], DARK_TOKENS.tableHover, DARK_TOKENS.canvas];
+    for (const surface of light) {
+      expect(contrast(LIGHT_TOKENS.accentInk, surface), `light: link ink on ${surface}`).toBeGreaterThanOrEqual(AA);
+    }
+    for (const surface of dark) {
+      expect(contrast(DARK_TOKENS.accentInk, surface), `dark: link ink on ${surface}`).toBeGreaterThanOrEqual(AA);
+    }
+    // The minimum is 5.02:1 (light, on the hover tint) and 6.83:1 (dark, on dark-6).
+    expect(Math.min(...light.map((surface) => contrast(LIGHT_TOKENS.accentInk, surface)))).toBeCloseTo(5.02, 2);
+    expect(Math.min(...dark.map((surface) => contrast(DARK_TOKENS.accentInk, surface)))).toBeCloseTo(6.83, 2);
+    // The `.rowCurrent` and left-pane hover surfaces are the gray-0 / dark-6 pair the pins above read.
+    expect(themeCss).toMatch(/\.rowCurrent \{\s*background: light-dark\(var\(--mantine-color-gray-0\), var\(--mantine-color-dark-6\)\)/);
+    expect(themeCss).toMatch(/\.timelineRow:hover \.timelineLeft \{\s*background: light-dark\(var\(--mantine-color-gray-0\), var\(--mantine-color-dark-6\)\)/);
+    // Mantine's own anchor colour is the same pair (light primary 8, dark shade 4): the ink is the one the stock Anchor would paint.
+    expect(LIGHT_TOKENS.accentInk).toBe(theme.colors!.astrolabe![8]);
+    expect(DARK_TOKENS.accentInk).toBe(theme.colors!.astrolabe![4]);
+  });
+
+  it("theme.module.css gives the brand ink to Anchors below a Table or a Gantt's left pane only, underlined on keyboard focus, LinkText in forced colours", () => {
+    // The base rule stays text-coloured (header and summary links), the exception is scoped, and nothing else paints a link cyan.
+    expect(themeCss).toMatch(/\n\.anchor \{\s*color: var\(--mantine-color-text\);/);
+    expect(themeCss).toMatch(/\.table \.anchor,\s*\.timelineLeft \.anchor \{\s*color: var\(--astrolabe-accent-ink\);\s*\}/);
+    expect(themeCss).toMatch(/\.table \.anchor:focus-visible,\s*\.timelineLeft \.anchor:focus-visible \{\s*text-decoration: underline;/);
+    expect(themeCss).toMatch(/@media \(forced-colors: active\) \{\s*\.table \.anchor,\s*\.timelineLeft \.anchor \{\s*color: LinkText;/);
+    // The theme's Anchor default is still the underline on hover (the table links gain the ink, not another underline rule).
+    expect(theme.components?.Anchor?.defaultProps?.underline).toBe("hover");
+  });
+
   it("success is green, never teal: the brand and success tints and fills are clearly different colours (CIEDE2000)", () => {
     const brand = theme.colors!.astrolabe!;
     const green = DEFAULT_THEME.colors.green;

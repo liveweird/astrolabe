@@ -219,6 +219,37 @@ table.table {
   text-decoration-color: var(--astrolabe-accent-ink);
 }
 
+/* The one exception (1.37): a link in a table cell or in a Gantt's left pane is not in a sentence, so it would read as plain text. There it is the brand
+   ink (`--astrolabe-accent-ink`: shade 8 in the light scheme, 4 in the dark, AA on every row surface, `theme.test.ts`), underlined on hover (the Anchor
+   default) and on keyboard focus (the browser's focus ring stays). One rule for every Anchor and EntityLink below a `Table` or a `.timelineLeft`: a page
+   passes nothing. A header or summary link sits outside both and stays text-coloured and underlined. A semantic colour keeps precedence: a Badge link is a
+   Badge, not an Anchor, and an explicit `c` is an inline style, which beats this rule. */
+.table .anchor,
+.timelineLeft .anchor {
+  color: var(--astrolabe-accent-ink);
+}
+
+.table .anchor:focus-visible,
+.timelineLeft .anchor:focus-visible {
+  text-decoration: underline;
+  text-decoration-color: var(--astrolabe-accent-ink);
+}
+
+/* Forced colours: the link keeps the system's link colour (and the underline, which is a shape). */
+@media (forced-colors: active) {
+  .table .anchor,
+  .timelineLeft .anchor {
+    color: LinkText;
+  }
+
+  .table .anchor:hover,
+  .table .anchor:focus-visible,
+  .timelineLeft .anchor:hover,
+  .timelineLeft .anchor:focus-visible {
+    text-decoration-color: LinkText;
+  }
+}
+
 /* Every menu item. The menu focuses its first item when it opens (theme.ts) and Mantine paints `:focus` like `:hover`, so after a CLICK on
    the kebab the first item would sit highlighted until the pointer moved. A focus the browser does not mark focus-visible (the pointer opened
    the menu) and a pointer that is not on the item get no tint; a keyboard focus keeps its ring and tint. */

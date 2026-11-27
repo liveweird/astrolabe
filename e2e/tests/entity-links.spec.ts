@@ -3,7 +3,7 @@
 // project page a milestone of ANOTHER project (the Dependencies table) lands on that project with the milestone's row marked and focused, the team, program, work stream
 // and owner names go where they say; the team page's milestone and manager names do the same; a regular user follows the names too, and a baseline's author is a link to
 // their person's page only when the login has one (a login's own edit page is the ADMIN's, so for a user it is text); the Roadmap's project row menu offers "Open program"
-// to the keyboard. Nothing is written by the tests themselves: the world (below) is seeded once through the API and only navigated. Owns: its throwaway people, team,
+// to the keyboard; a link in a table or a Gantt's left pane is the brand colour and underlines on hover and keyboard focus (1.37). Nothing is written by the tests themselves: the world (below) is seeded once through the API and only navigated. Owns: its throwaway people, team,
 // two work streams (one is the decoy the narrowing must leave out) with a program each, three projects, two scheduled milestones (2027-05, the link between them holds, so
 // no figure depends on a holiday: no far-off year, no lock), one regular user, all `e2e-el-*`, seeded in the beforeAll and removed in the afterAll through the API, children
 // first; and, in the user test alone, two throwaway administrators with a baseline each and one person linked to one of them (removed in that test's finally). It never
@@ -194,6 +194,38 @@ test("on the project page a milestone of another project opens that project with
   await link(page, "person", world.projectOwner).click();
   await expect(page).toHaveURL(/\/people\/\d+$/);
   await expect(heading(page, world.projectOwner)).toBeVisible();
+});
+
+test("a name link in a table or in a Gantt's left pane is the brand colour and underlines on hover and keyboard focus, the header's link stays text-coloured and underlined (1.37)", async ({ page }) => {
+  await login(page);
+  await openProject(page, world.projectId, world.project);
+  const ink = (target: Locator) => target.evaluate((element) => getComputedStyle(element).color);
+  const bodyInk = await page.evaluate(() => getComputedStyle(document.body).color);
+
+  // The header's link sits in a sentence, outside every table: the text colour, underlined always.
+  const header = link(page, "program", world.program);
+  await expect(header).toHaveCSS("text-decoration-line", "underline");
+  expect(await ink(header)).toBe(bodyInk);
+
+  // A table's link (the Dependencies table's milestone) and the Gantt's left pane link (the Team column): another colour, no underline at rest.
+  const tableLink = link(page.getByRole("table", { name: "Dependencies of the project", exact: true }), "milestone", world.otherMilestone);
+  const paneLink = link(page.getByRole("grid", { name: "Milestone timeline", exact: true }), "team", world.team).first();
+  for (const target of [tableLink, paneLink]) {
+    expect(await ink(target)).not.toBe(bodyInk);
+    await expect(target).toHaveCSS("text-decoration-line", "none");
+    // Hover underlines it; the pointer away takes the underline off.
+    await target.hover();
+    await expect(target).toHaveCSS("text-decoration-line", "underline");
+    await page.mouse.move(0, 0);
+    await expect(target).toHaveCSS("text-decoration-line", "none");
+  }
+
+  // Keyboard focus underlines the table's link too: Shift+Tab away, Tab back, so the browser counts it as a keyboard focus (:focus-visible).
+  await tableLink.focus();
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("Tab");
+  await expect(tableLink).toBeFocused();
+  await expect(tableLink).toHaveCSS("text-decoration-line", "underline");
 });
 
 test("on the team page a milestone name opens its project with the row marked and the manager name opens their page", async ({ page }) => {

@@ -12,6 +12,7 @@ import type { RovingTarget } from "../utils/timelineModel";
  */
 type GridPlacement = { stop?: RovingTarget; secondary?: false } | { stop?: never; secondary: true };
 
+// `c="dimmed"` dims only the plain-text variant (null entity, `current`); it is ignored on a link, which the theme inks (`theme.module.css` `.anchor`).
 export type EntityLinkProps = Omit<TextProps, "children"> & GridPlacement & {
   /** What the name stands for; `null` when its id is unknown (the name is then plain text, never a guessed link). */
   entity: EntityRef | null;
@@ -32,7 +33,7 @@ export type EntityLinkProps = Omit<TextProps, "children"> & GridPlacement & {
 };
 
 /**
- * An entity's NAME as the way into its page (1.31): a real link in the theme's own Anchor look (text colour, underline on hover), its accessible name
+ * An entity's NAME as the way into its page (1.31): a real link in the theme's own Anchor look (text colour, underline on hover; in a table or a Gantt's left pane the brand colour, 1.37), its accessible name
  * `common.entity.open.<kind>` ("Open project {{name}}"). The ONE component for a work stream, program, project, milestone, team, person or login name:
  * no page hand-assembles an entity's address (`entityLinkGuard.test.ts`). Without a `size` the font is the surroundings' (`inherit`). A null `entity`, or `current`, shows the name as plain text of the same typography;
  * a `user` is a link for an ADMIN only (the edit page is theirs). "Where not to link": web-internals "Entity links".
@@ -43,6 +44,10 @@ export default function EntityLink({ entity, name, children, stop, secondary, cu
   const content = children ?? name;
   // No `size` of its own: the surroundings' font (Mantine's Text would otherwise be 16 px, `md`, inside a `sm` cell).
   const inheritFont = typography.inherit ?? typography.size === undefined;
+  // A link is never dimmed: the theme gives it its own ink (a table or Gantt left-pane link the brand colour, `theme.module.css` `.anchor`), and an inline
+  // `c` would beat that stylesheet. Plain text (below) keeps its dimmed; any other `c` (a semantic colour) still wins.
+  const { c, ...linkTypography } = typography;
+  const linkColour = c === "dimmed" ? undefined : c;
   if (entity === null || current === true || (entity.kind === "user" && !admin)) {
     return (
       // The cell's roving stop stays on the text when the name stops being a link (`current`, a null entity), so the grid keeps its position.
@@ -59,7 +64,8 @@ export default function EntityLink({ entity, name, children, stop, secondary, cu
       title={title}
       onClick={onClick}
       underline={underline}
-      {...typography}
+      {...linkTypography}
+      c={linkColour}
       inherit={inheritFont}
       {...(secondary === true ? { tabIndex: -1 } : stop)}
     >

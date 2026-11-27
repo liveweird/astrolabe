@@ -26,6 +26,15 @@
 4. They reopen it and press the owner's name in the header.
    - *Expected*: the person's page.
 
+## Scenario: a name link in a table or in a Gantt's left pane is the brand colour and underlines on hover and keyboard focus, the header's link stays text-coloured and underlined (1.37)
+
+1. The administrator opens the project page.
+   - *Expected*: the header's program link is underlined and has the page's text colour.
+2. They read the Dependencies table's milestone link and the timeline's Team column link.
+   - *Expected*: each has a colour other than the text colour and no underline at rest; hovering it underlines it, and moving the pointer away takes the underline off.
+3. They focus the table's milestone link, press Shift+Tab, then Tab.
+   - *Expected*: the link is focused and underlined (a keyboard focus).
+
 ## Scenario: on the team page a milestone name opens its project with the row marked and the manager name opens their page
 
 1. The administrator opens the team's page and presses a milestone's name in the timeline.

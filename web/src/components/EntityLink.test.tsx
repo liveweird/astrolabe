@@ -25,6 +25,19 @@ describe("EntityLink", () => {
     expect(screen.getByRole("link", { name })).toHaveAttribute("href", href);
   });
 
+  test("a link is never dimmed (the theme inks it); plain text keeps its dimmed colour; a semantic colour still wins", () => {
+    renderWithProviders(
+      <>
+        <EntityLink entity={{ kind: "team", id: 3 }} name="Linked" c="dimmed" />
+        <EntityLink entity={null} name="Plain" c="dimmed" />
+        <EntityLink entity={{ kind: "team", id: 4 }} name="Warned" c="red" />
+      </>,
+    );
+    expect(screen.getByRole("link", { name: "Open team Linked" }).getAttribute("style") ?? "").not.toContain("color");
+    expect(screen.getByText("Plain").getAttribute("style") ?? "").toContain("--mantine-color-dimmed");
+    expect(screen.getByRole("link", { name: "Open team Warned" }).getAttribute("style") ?? "").toContain("--mantine-color-red");
+  });
+
   test("a bare link takes its surroundings' font; an explicit size keeps its own", () => {
     renderWithProviders(
       <>

@@ -27,8 +27,8 @@ const sans =
   "'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 
 // Design language (the Lettuce/Toadie "clean enterprise SaaS" posture): the brand cyan is
-// the interactive accent — primary CTAs, the active nav item, focus — and NOTHING else: links
-// are dark text with a hover underline, chips and badges are light tints, icon controls are
+// the interactive accent — primary CTAs, the active nav item, focus, table links — and NOTHING else:
+// links elsewhere are dark text with a hover underline, chips and badges are light tints, icon controls are
 // neutral gray. One colour at one intensity for one job, so the few cyan elements on a
 // screen are the ones that matter. Semantic colours never impersonate the brand: red =
 // blocking error, orange = warning (soft finding, waived), GREEN = success — never teal, whose
@@ -93,7 +93,8 @@ export const theme = createTheme({
       },
     }),
     NavLink: NavLink.extend({ classNames: { root: classes.navLink, section: classes.navLinkSection } }),
-    // Links are text-coloured and underline on hover — the accent is reserved for actions.
+    // Links are text-coloured and underline on hover — the accent is reserved for actions; the one exception is a link in a table or a Gantt's left pane
+    // (theme.module.css `.anchor`: the accent ink, underlined on hover and keyboard focus), where a text-coloured link read as plain text (1.37).
     Anchor: Anchor.extend({ defaultProps: { underline: "hover" }, classNames: { root: classes.anchor } }),
     // Filter chips (types, lifecycles, finding severities) are toggles, not calls to action: a
     // light tint when checked, never the filled brand colour.

@@ -200,7 +200,7 @@ through `const { t } = useTranslation()` / `<Trans>` — **no hardcoded UI text*
 **The design language is theme-owned** (`src/theme.ts` + `src/themeVariables.ts` + `src/theme.module.css`; `src/theme.test.ts` guards every contrast ratio):
 
 - The brand is the 10-stop **`astrolabe` cyan tuple** with `primaryShade: { light: 8, dark: 9 }` and `autoContrast: true`. **Restrained**: cyan marks only
-  primary CTAs, the active nav item and focus; everything else is neutral BY THEME DEFAULT (`Anchor`, `Chip`/`Badge` `variant="light"`, `ActionIcon` `subtle`
+  primary CTAs, the active nav item, focus and links in tables and Gantt left panes (theme `.anchor`, 1.37); everything else is neutral BY THEME DEFAULT (`Anchor`, `Chip`/`Badge` `variant="light"`, `ActionIcon` `subtle`
   gray — destructive ones pass `color="red"` —, `Menu` bottom-end in a portal, `verticalSpacing="xs"` tables); pages never pass those props back (`src/theme.defaults.test.tsx` pins the defaults and fails on a `Badge` `variant="light"` or an `ActionIcon` `variant="subtle"`/`color="gray"`). GREEN is
   success, red blocking, orange warning/waived; **never use teal for success** (`theme.test.ts` pins the distance to the brand tints).
 - **Colour tokens are AA-tested** (`themeVariables.ts`, wired through `cssVariablesResolver` in `main.tsx`): never hand a shade-suffixed colour (`"orange.8"`)
