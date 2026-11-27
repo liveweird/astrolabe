@@ -5,6 +5,7 @@ import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import type { CrossTeamProposal } from "../api/scheduleProposals";
 import type { ProjectProposal as ProjectProposalState } from "../hooks/useProjectProposal";
+import { ANCHORED_HEADING_STYLE } from "../utils/layout";
 import CrossTeamRunView from "./CrossTeamRunView";
 import EntityLink from "./EntityLink";
 import FormErrorAlert from "./FormErrorAlert";
@@ -29,7 +30,7 @@ function projectSentence(entry: CrossTeamProposal["projects"][number] | undefine
 export default function ProjectProposal({ proposal, announce }: { proposal: ProjectProposalState; announce: (text: string) => void }) {
   const { t } = useTranslation();
   const { flow, rights, run, check, teamIds, others, proposable } = proposal;
-  const { proposeRef, discardRef } = proposal.focus;
+  const { proposeRef, headingRef } = proposal.focus;
   const hintId = useId();
   // The accept button held the focus and is disabled while the write runs, so a failure would leave it on the body: it goes to the alert.
   const errorRef = useRef<HTMLDivElement>(null);
@@ -75,7 +76,7 @@ export default function ProjectProposal({ proposal, announce }: { proposal: Proj
       <ProposalNotes proposal={flow} />
       {run !== null && (
         <Stack gap="md">
-          <Title order={3} size="h4">
+          <Title order={3} size="h4" ref={headingRef} tabIndex={-1} style={ANCHORED_HEADING_STYLE}>
             {t("programs.proposal.title")}
           </Title>
           <Text size="sm" role="note">
@@ -132,7 +133,6 @@ export default function ProjectProposal({ proposal, announce }: { proposal: Proj
               {t("programs.proposal.again")}
             </Button>
             <Button
-              ref={discardRef}
               variant="default"
               leftSection={<IconX size={16} />}
               disabled={flow.applying}

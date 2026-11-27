@@ -23,7 +23,7 @@ Wednesday 01-06, exactly eight weeks, 40 working days earlier.
 1. The project OWNER signs in and opens the project's page.
    - *Expected*: the timeline is shown, no dashed bar is drawn, and **Propose schedule** is enabled once the viewer's rights are read (everyone previews).
 2. They press **Propose schedule**.
-   - *Expected*: a run over the project's two teams opens after the Unscheduled tray (the heading "Schedule proposal"); a note says "This is a preview."; there is no **Accept selected**, no **Save**; **Propose again**
+   - *Expected*: a run over the project's two teams opens after the Unscheduled tray (the heading "Schedule proposal", focused and below the 56 px header); a note says "This is a preview."; there is no **Accept selected**, no **Save**; **Propose again**
      and **Discard** are offered.
 3. They read the timeline.
    - *Expected*: three dashed read-only bars: `x1`'s row (2049-01-04 to 2049-01-05), the appended row of `y1` marked "(new)" (2049-01-06 to 2049-01-06) and the project's summary row

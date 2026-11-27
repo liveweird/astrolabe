@@ -28,7 +28,7 @@ export function useProjectProposal(projectId: number, { view, announce, pending 
   const lock = useProposalLock(flow, announce);
   const run = flow.proposal;
   const busy = flow.requesting || flow.applying;
-  const focus = useProposalFocus(flow, run, busy);
+  const focus = useProposalFocus(run, busy);
   const check = useScheduleCheck({
     teamIds: run?.teams.map((team) => team.teamId) ?? [],
     revision: run?.revision ?? 0,

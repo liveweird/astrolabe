@@ -146,6 +146,9 @@ async function propose(page: Page): Promise<number> {
   const [response] = await Promise.all([page.waitForResponse(isApi("POST", "")), proposeButton(page).click()]);
   await expectOk(response);
   await expect(runHeading(page)).toBeVisible();
+  // The run opens on its heading (1.37): focused and below the sticky 56 px header, not scrolled down to the Discard button at the end of the section.
+  await expect(runHeading(page)).toBeFocused();
+  await expect.poll(async () => (await runHeading(page).boundingBox())?.y ?? 0).toBeGreaterThanOrEqual(56);
   await expect(page.getByRole("button", { name: "Discard", exact: true })).toBeVisible();
   return ((await response.json()) as { revision: number }).revision;
 }
@@ -334,6 +337,16 @@ test("a manager of two teams saves a proposal, a manager of another team opens i
   await page.getByRole("link", { name: `Open ${savedName}`, exact: true }).click();
   await expect(page).toHaveURL(/[?&]proposal=\d+/);
   await expect(savedHeading).toBeVisible();
+  // It lands on the TOP of the proposal (1.37): the heading holds the focus and is in view (the focus used to go to the Close button at the end, which scrolled to the bottom), and the list marks the open one.
+  await expect(savedHeading).toBeFocused();
+  await expect(savedHeading).toBeInViewport();
+  await expect.poll(async () => (await savedHeading.boundingBox())?.y ?? 0).toBeGreaterThanOrEqual(56);
+  await expect(savedRow(savedName)).toHaveAttribute("aria-current", "true");
+  // An initial deep link (a fresh load of `?proposal=<id>`, no click before it) lands the same way.
+  await page.goto(page.url());
+  await expect(savedHeading).toBeVisible();
+  await expect(savedHeading).toBeFocused();
+  await expect.poll(async () => (await savedHeading.boundingBox())?.y ?? 0).toBeGreaterThanOrEqual(56);
   await expect(stateBadge(page, "CURRENT")).toHaveText("Current");
   await expect(note(page, "You can read it; only an administrator or the manager of one of its teams can change the ticks and accept their moves.")).toBeVisible();
   await page.getByRole("button", { name: `Show the moves of ${world.teamY}`, exact: true }).click();
@@ -344,6 +357,7 @@ test("a manager of two teams saves a proposal, a manager of another team opens i
   await page.getByRole("button", { name: "Close", exact: true }).click();
   await expect(savedHeading).toHaveCount(0);
   await expect(page).not.toHaveURL(/proposal=/);
+  await expect(savedRow(savedName)).not.toHaveAttribute("aria-current", "true");
 
   // The manager of both teams opens it from the list: the stored run is the editable preview, and ONE accept writes both teams' moves.
   await signOut(page);

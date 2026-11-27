@@ -1,47 +1,36 @@
 import { useEffect, useRef } from "react";
-import type { ProposalFlow } from "../utils/scheduleProposal";
-
-/** What the focus hand-over reads of a proposal hook (structural: the team page's and the cross-team page's both fit). */
-type Proposal = Pick<ProposalFlow, "rescoped"> & { applying: boolean };
 
 /**
- * Focus follows the schedule proposal's preview on the team page and the cross-team page: Discard (in the section) takes it when a proposal opens, Propose gets it back once
- * the preview is closed (discarded, accepted or voided by a stale refusal) and no write is running any more (`busy`), since a button that is still
- * disabled cannot take it. Returns the two refs the page hands to the buttons.
+ * Focus follows the schedule proposal's preview on the team page, the project page and the Roadmap overview (one rule for a fresh run and a saved one): when a run OPENS, its
+ * section's heading (`headingRef`: an h3 with `tabIndex={-1}` and `ANCHORED_HEADING_STYLE`, whose scroll margin clears the sticky header) is scrolled to the top of the viewport and takes
+ * the focus (`preventScroll`), so the reader starts at the top of what was proposed. It was Discard that took the focus until 1.37, the LAST control of a section as tall as the run, so the
+ * page jumped to the bottom. An opening is the run object itself (`open`): a tick, a refetch, a failed accept or a window focus never lands again, a Propose again (or a stale refusal's
+ * fresh run, or another saved proposal) is a new opening and lands again; the latch is cleared when the run closes, so the same stored run opened again lands again too.
+ * Propose gets the focus back once the preview is closed (discarded, accepted or voided by a stale refusal) and no write is running any more (`busy`), since a button that is still
+ * disabled cannot take it. Returns the refs the page hands to the heading and to Propose.
  */
-export function useProposalFocus(proposal: Proposal, open: object | null, busy: boolean) {
+export function useProposalFocus(open: object | null, busy: boolean) {
   const proposeRef = useRef<HTMLButtonElement>(null);
-  const discardRef = useRef<HTMLButtonElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const wasOpen = useRef(false);
+  const landedOn = useRef<object | null>(null);
   const isOpen = open !== null;
-  // Discard takes the focus when a preview opens, but only once the accept is no longer running (a disabled button cannot take it): a
-  // preview that opens while `applying` (a fresh proposal after a stale-scope refusal) waits for it. A failed accept never re-arms this,
-  // so its inline alert keeps the focus it was given.
-  const focusDiscard = useRef(false);
-  const applying = proposal.applying;
   useEffect(() => {
-    if (isOpen) {
-      wasOpen.current = true;
-      focusDiscard.current = true;
+    if (open === null) {
+      landedOn.current = null;
+      return;
     }
-  }, [isOpen]);
-  // The fresh preview of a stale-scope refusal may replace the voided one within one render batch (`isOpen` stays true): its note
-  // appearing arms the hand-over as well.
-  const rescoped = proposal.rescoped;
-  useEffect(() => {
-    if (rescoped) focusDiscard.current = true;
-  }, [rescoped]);
-  useEffect(() => {
-    if (isOpen && !applying && focusDiscard.current) {
-      focusDiscard.current = false;
-      discardRef.current?.focus();
-    }
-  }, [isOpen, applying, rescoped]);
+    wasOpen.current = true;
+    if (landedOn.current === open) return;
+    landedOn.current = open;
+    headingRef.current?.scrollIntoView?.({ block: "start" });
+    headingRef.current?.focus({ preventScroll: true });
+  }, [open]);
   useEffect(() => {
     if (!isOpen && wasOpen.current && !busy) {
       wasOpen.current = false;
       proposeRef.current?.focus();
     }
   }, [isOpen, busy]);
-  return { proposeRef, discardRef };
+  return { proposeRef, headingRef };
 }

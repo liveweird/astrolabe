@@ -15,9 +15,9 @@ const OPEN_KEY = "roadmap.savedProposalsOpen";
  * The saved cross-team proposals under the Roadmap overview's timeline (1.33; the list of the former Schedule proposals page): "Saved proposals (N)", the newest 20 runs
  * managers saved for each other to open. Hidden by default and remembered per browser; the count is the list's own, read even while it is hidden (a bounded list, no
  * documents), the table is not rendered while hidden (so it does not print, heading included). A row's name opens that run on the overview above (`?proposal=`), where
- * `useSavedRun` shows it. Any signed-in user reads; the rows' own `can.delete` carries the right to delete.
+ * `useSavedRun` shows it. `openId` (the overview's open saved run, if any) marks its row. Any signed-in user reads; the rows' own `can.delete` carries the right to delete.
  */
-export default function SavedProposalsPanel() {
+export default function SavedProposalsPanel({ openId = null }: { openId?: number | null }) {
   const { t } = useTranslation();
   const list = useQuery({ queryKey: savedProposalListKey, queryFn: listSavedProposals });
   const [open, setOpen] = useStoredState(OPEN_KEY, false, isBoolean);
@@ -30,7 +30,7 @@ export default function SavedProposalsPanel() {
         {count === undefined ? t("programs.saved.panelTitle") : t("programs.saved.panelTitleCount", { count })}
       </Title>
       <TableDisclosure open={open} onOpenChange={setOpen} showLabel={t("programs.saved.show")} hideLabel={t("programs.saved.hide")}>
-        <SavedProposalsTable list={list} headingRef={headingRef} />
+        <SavedProposalsTable list={list} headingRef={headingRef} openId={openId} />
       </TableDisclosure>
     </Stack>
   );

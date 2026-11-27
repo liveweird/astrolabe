@@ -1385,7 +1385,7 @@ overview with `proposal=<id>` (`LegacySavedProposalRedirect`, `legacySavedPropos
 - `accept()` posts `{expectedRevision, scopeHash, teamIds (the run's blocks), acceptTeamIds, items}` for the ticked moves of all sections on the write key `["schedule-proposals","accept"]`. A synchronous in-flight ref makes a double click ONE request; a second accept or Propose while it runs is refused out loud (`refused`, `project.busy` announced).
 - On success the preview closes, `["plan"]` and `["roadmap"]` refresh and `outcome` is the inline note ("N scheduled · M skipped: reasons", `teams.proposal.reason.*`; no toast).
 - `409 stale-revision` closes the run (reload note); **`409 stale-scope`** closes it, re-proposes the SAME teams once and keeps the ticks of the moves that still exist (`rescoped`, orange note); any other failure is the inline `FormErrorAlert` (focused), the run open.
-- The host owns the ONE polite status region the hook announces into; `useProposalFocus` hands Discard the focus on open and Propose back on close.
+- The host owns the ONE polite status region the hook announces into; `useProposalFocus` lands on the section's heading on open ("Saved proposals" below) and hands Propose the focus back on close.
 
 ### What the viewer may accept
 
@@ -1414,6 +1414,12 @@ A saved run is the SERVER's own re-computation (`scheduling.md` "Saved proposals
 - **`useSavedRun`** (in `useOverviewProposal`) reads `?proposal=` (the saved list's links and the old page's redirect set it): once the rights are read the stored run opens in the overview's own run (`flow.open`), under an h3 "Saved proposal: name" (`SavedRunHeader`: the facts, a state badge `data-state`, green CURRENT else gray).
   `can.accept` AND CURRENT AND `asOf` = today make it acceptable: ticks editable, the stored `check` for the stored ticks (no request), the live one for any other; else the stored ticks are read-only (a refetch that turns it CHANGED takes the Accept away).
   A fresh run (Propose again, a stale scope) is the viewer's own (`sameRun`: Save returns). The accept names the ticked teams (`acceptTeamIds`).
+- **Opening lands on the TOP (1.37), one rule for every run** (fresh or saved; the team page, the project page and the overview; `useProposalFocus(run, busy)`). When a run OPENS, its section's h3 (`headingRef`, `tabIndex={-1}`,
+  `ANCHORED_HEADING_STYLE`, whose scroll margin clears the 56 px header) is scrolled to the top (`scrollIntoView({block:"start"})`) and takes the focus with `preventScroll`. An opening is the run object itself (the latch is that object, cleared
+  when the run closes): a tick, a refetch, a failed accept or a window focus never lands again; Propose again (also with the plan unchanged), a stale refusal's fresh run and another saved proposal are new openings and land again, and so does the same
+  saved proposal opened again after Close. A saved run opens only once its record is read, so it needs no separate gate. Vertical scroll only (none sideways at 390 px).
+  - **Why it landed at the bottom:** the hook focused Discard/Close, the LAST control of a section as tall as the run, so the browser scrolled to it. No control takes the focus on open now.
+- **The open one is marked in the list.** `SavedProposalsTable` marks the row of the saved proposal whose run is on screen (`SavedProposalsPanel`'s `openId` = `saved.record.id`, so a read that fails marks nothing): `aria-current="true"` and `.rowCurrent` (the project page's and the weekly load's mark). Close, Discard, a delete or a verdict clear it with the run.
 - It ends with **Close** (Discard once fresh), an accept, a stale refusal, Back or a mode switch (`RoadmapModes` drops `proposal`): the parameter leaves the address. A 404 (also a malformed id), an `UNREADABLE` record (saved by an earlier version) or a failed read opens nothing, says so in a dismissible note (`SavedNotice`) and drops the parameter.
 
 ### Tests
@@ -1956,16 +1962,15 @@ unplaced rows are `components/ProposalTable.tsx`, a controlled, action-free tabl
   the whole-batch stale refusal and the re-proposal after a `stale-scope` refusal. The status region is the single announcer (never an `Alert` with its implicit `role="alert"`); no success toast on accept.
 - **Failures.** A 403/404/400 of the accept is a `FormErrorAlert` INSIDE the open section above the actions (the preview stays open, the selection is kept) and takes the focus (the disabled Accept
   would otherwise drop it to the body); a propose's failure shows under the timeline header while no preview is open.
-- **Focus.** Discard takes it when the preview opens; Propose gets it back after Discard, an accept or a stale refusal, once no write is running (a disabled button cannot take it)
+- **Focus.** The section's heading takes it when the preview opens (scrolled to the top, `useProposalFocus`; Discard did until 1.37 and scrolled the page to the bottom); Propose gets it back after Discard, an accept or a stale refusal, once no write is running (a disabled button cannot take it)
   (`hooks/useProposalFocus.ts`).
 
 ### The scope check and the ticked-subset check
 
 - **The scope check.** The accept sends the proposal's `scopeHash`; on a `409 stale-scope` (`isStaleScope`; the team's plan changed since the proposal, nothing was written) the hook closes the
   preview, requests a fresh proposal at once (a fresh `asOf`), refreshes `["plan"]`, and the new preview keeps the ticks of the milestones that were ticked and still move (`keptTicks`: the old
-  selection intersected with the new moves; a move new to the page starts unticked) with an orange dismissible `role="note"` `teams.proposal.rescoped` (`rescoped`). The focus goes back to Discard once
-  the preview is open and the accept has settled (the refresh is not awaited, so `applying` ends at once; the page arms the focus when a preview opens or the rescoped note appears, and hands it over
-  when `applying` is false). A fresh proposal with nothing to show leaves the usual note instead. The whole-batch `stale-revision` 409 keeps the "reloaded, propose again" note.
+  selection intersected with the new moves; a move new to the page starts unticked) with an orange dismissible `role="note"` `teams.proposal.rescoped` (`rescoped`). The fresh preview is a new opening: the focus lands on its heading
+  (the accept button was disabled while the write ran, and the heading is always focusable, so nothing waits for `applying`). A fresh proposal with nothing to show leaves the usual note instead. The whole-batch `stale-revision` 409 keeps the "reloaded, propose again" note.
 - **The ticked-subset check.** The proposal's link verdicts (`dependencies`) and proposed load (`weeks`) describe EVERY move accepted, so they would lie once some moves are unticked.
   `hooks/useScheduleCheck.ts` (`{teamIds, revision, scopeHash, moves, selected, enabled}`; the cross-team page reuses it with the run's teams) asks the server (`checkSchedule`,
   `api/scheduleProposals.ts`: `POST /schedule-proposals/check {teamIds:[team], items}`, a computation) for the verdicts of exactly the ticked moves, and ONLY while some but not all are ticked: all

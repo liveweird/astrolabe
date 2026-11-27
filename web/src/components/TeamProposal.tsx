@@ -3,6 +3,7 @@ import { Button, Group, Stack, Text, Title } from "@mantine/core";
 import { IconCheck, IconX } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import type { ProposalContent, ScheduleCheckState } from "../utils/scheduleProposal";
+import { ANCHORED_HEADING_STYLE } from "../utils/layout";
 import FormErrorAlert from "./FormErrorAlert";
 import ProposalTable from "./ProposalTable";
 
@@ -24,7 +25,7 @@ export default function TeamProposal({
   onSelectNone,
   onAccept,
   onDiscard,
-  discardRef,
+  headingRef,
   error,
   check,
 }: {
@@ -37,7 +38,8 @@ export default function TeamProposal({
   onSelectNone: () => void;
   onAccept: () => void;
   onDiscard: () => void;
-  discardRef?: Ref<HTMLButtonElement>;
+  /** The section's heading: what a newly opened proposal scrolls to and focuses (`useProposalFocus`). */
+  headingRef?: Ref<HTMLHeadingElement>;
   /** The inline failure of the last accept (already words), or `null`; shown above the actions, and it takes the focus when it appears. */
   error?: string | null;
   /** The state of the ticked-subset check (see `useScheduleCheck`); absent = the verdicts are not subject to a check. */
@@ -51,7 +53,7 @@ export default function TeamProposal({
   }, [error]);
   return (
     <Stack gap="xs">
-      <Title order={3} size="h4">
+      <Title order={3} size="h4" ref={headingRef} tabIndex={-1} style={ANCHORED_HEADING_STYLE}>
         {t("teams.proposal.title")}
       </Title>
       <Text size="sm" c="dimmed">
@@ -67,7 +69,7 @@ export default function TeamProposal({
         <Button leftSection={<IconCheck size={16} />} loading={applying} disabled={selected.size === 0 || busy} onClick={onAccept}>
           {t("teams.proposal.accept", { count: selected.size })}
         </Button>
-        <Button ref={discardRef} variant="default" leftSection={<IconX size={16} />} disabled={applying} onClick={onDiscard}>
+        <Button variant="default" leftSection={<IconX size={16} />} disabled={applying} onClick={onDiscard}>
           {t("teams.proposal.discard")}
         </Button>
       </Group>

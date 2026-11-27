@@ -132,7 +132,11 @@ async function propose(page: Page): Promise<void> {
     proposeButton(page).click(),
   ]);
   expect(response.status(), await response.text()).toBe(200);
-  await expect(page.getByRole("heading", { level: 3, name: "Proposed schedule" })).toBeVisible();
+  const heading = page.getByRole("heading", { level: 3, name: "Proposed schedule" });
+  await expect(heading).toBeVisible();
+  // The run opens on its heading (1.37): focused and below the sticky 56 px header, not scrolled down to the Discard button at the end of the section.
+  await expect(heading).toBeFocused();
+  await expect.poll(async () => (await heading.boundingBox())?.y ?? 0).toBeGreaterThanOrEqual(56);
   await expect(proposalTable(page)).toBeVisible();
 }
 

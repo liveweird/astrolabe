@@ -24,7 +24,7 @@ the week of 01-13 loads 1 + 2 = 3 of 10 (the server's answer agrees; checked by 
 1. The team's manager signs in and opens the team's page.
    - *Expected*: the strip's week of 2042-03-03 reads "2 of 10 man-days" (c's current load); the Unscheduled tray lists a and b.
 2. They press **Propose schedule**.
-   - *Expected*: the proposal request succeeds and the **Proposed schedule** section opens with the summary "3 moves · 2 newly scheduled · 0 stay · 0
+   - *Expected*: the proposal request succeeds and the **Proposed schedule** section opens (its heading focused and below the 56 px header) with the summary "3 moves · 2 newly scheduled · 0 stay · 0
      could not be placed". Three dashed proposal bars are drawn (read-only images named "Proposed: <name>, <start> to <end>"): b
      2042-01-06 to 2042-01-13, a 2042-01-06 to 2042-01-09, c 2042-01-14 to 2042-01-15 (c beside its current bar, a and b on rows the preview appends).
      The load strip shows the proposed load: week of 2042-01-06 "9 of 10 man-days; up to 2 milestones in progress", week of 2042-01-13 "3 of 10 man-days",

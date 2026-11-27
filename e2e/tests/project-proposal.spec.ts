@@ -129,6 +129,9 @@ async function propose(page: Page): Promise<void> {
   const [response] = await Promise.all([page.waitForResponse(isApi("POST", "")), proposeButton(page).click()]);
   await expectOk(response);
   await expect(runHeading(page)).toBeVisible();
+  // The run opens on its heading (1.37): focused and below the sticky 56 px header, not scrolled down to the Discard button at the end of the section.
+  await expect(runHeading(page)).toBeFocused();
+  await expect.poll(async () => (await runHeading(page).boundingBox())?.y ?? 0).toBeGreaterThanOrEqual(56);
   await expect(page.getByRole("button", { name: "Discard", exact: true })).toBeVisible();
 }
 

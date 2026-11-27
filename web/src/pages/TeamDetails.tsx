@@ -106,8 +106,8 @@ function TeamPage({ id }: { id: number }) {
   const busy = writing || proposal.requesting;
   // The baseline pick and the Critical path toggle each select the cached view entry the writes target: neither changes while a write runs or a proposal is requested or open.
   const frozen = busy || locked;
-  // Focus follows the preview (Discard takes it when a proposal opens, Propose gets it back once the preview is closed): `useProposalFocus`.
-  const { proposeRef, discardRef } = useProposalFocus(proposal, open, busy);
+  // Focus follows the preview (the section's heading takes it when a proposal opens, Propose gets it back once the preview is closed): `useProposalFocus`.
+  const { proposeRef, headingRef } = useProposalFocus(open, busy);
   const [zoom, setZoom] = useStoredState<Zoom>("timeline.zoom", "week", isOneOf(MILESTONE_ZOOMS));
   const [editing, setEditing] = useState(false);
   useDialogFocus(editing);
@@ -254,7 +254,7 @@ function TeamPage({ id }: { id: number }) {
               onSelectNone={proposal.selectNone}
               onAccept={proposal.accept}
               onDiscard={proposal.discard}
-              discardRef={discardRef}
+              headingRef={headingRef}
               error={proposal.error}
             />
           )}

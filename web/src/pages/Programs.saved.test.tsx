@@ -46,6 +46,8 @@ let mockFetch: ReturnType<typeof routeFetch>;
 // What `GET /views/programs` answers (a plan with no work streams for the empty overview) and, when set, the gate the record read waits on.
 let planView: ReturnType<typeof viewOf>;
 let hold: Promise<void> | null;
+// When set, the run request waits on it (the window between Propose again and its answer).
+let runGate: Promise<void> | null;
 
 const posts = (url: string) => mockFetch.mock.calls.filter(([u, init]) => String(u) === url && (init as RequestInit | undefined)?.method === "POST").map(([, init]) => JSON.parse((init as RequestInit).body as string) as Record<string, unknown>);
 const recordReads = () => mockFetch.mock.calls.filter(([u, init]) => String(u).startsWith(`${SAVED_URL}/`) && (init as RequestInit | undefined)?.method === undefined).length;
@@ -70,6 +72,7 @@ beforeEach(() => {
   record = CURRENT;
   planView = viewOf();
   hold = null;
+  runGate = null;
   rights = TEAMS;
   runAnswer = jsonResponse(200, { ...RUN, revision: 13, scopeHash: "c".repeat(64) });
   acceptAnswer = jsonResponse(200, { revision: 13, accepted: [11, 21, 31], skipped: [] });
@@ -84,7 +87,10 @@ beforeEach(() => {
       return record;
     },
     [`DELETE ${SAVED_URL}/:id`]: () => new Response(null, { status: 204 }),
-    [`POST ${RUN_URL}`]: () => runAnswer,
+    [`POST ${RUN_URL}`]: async () => {
+      await runGate;
+      return runAnswer;
+    },
     [`POST ${ACCEPT_URL}`]: () => acceptAnswer,
     [`POST ${CHECK_URL}`]: { teams: STORED_CHECK.teams.map((team) => ({ ...team, weeks: [week("2042-01-05", 4)] })) },
   });
@@ -459,9 +465,147 @@ describe("opening from the list", () => {
     await screen.findByRole("heading", { name: "Saved proposal: Q2 plan" });
     expect(screen.queryByRole("heading", { name: "Saved proposal: Q1 plan" })).toBeNull();
     expect(where()).toBe("?mode=overview&programId=10&proposal=6");
+    // the mark follows the open one
+    expect(screen.getByRole("link", { name: "Open Q2 plan" }).closest("tr")).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("link", { name: "Open Q1 plan" }).closest("tr")).not.toHaveAttribute("aria-current");
     await user.click(screen.getByRole("button", { name: "Close" }));
     await waitFor(() => expect(where()).toBe("?mode=overview&programId=10"));
     const list = screen.getByRole("table", { name: "Saved proposals" });
     expect(within(list).getAllByRole("link")).toHaveLength(2);
+  });
+});
+
+describe("opening a saved proposal lands on its top (1.37)", () => {
+  const freshClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const original = Element.prototype.scrollIntoView;
+  let scrolled: ReturnType<typeof vi.fn>;
+  beforeEach(() => {
+    scrolled = vi.fn();
+    Element.prototype.scrollIntoView = scrolled as unknown as typeof original;
+    localStorage.setItem(OPEN, "true");
+  });
+  afterEach(() => {
+    Element.prototype.scrollIntoView = original;
+  });
+  const heading = () => screen.getByRole("heading", { level: 3, name: "Saved proposal: Q1 plan" });
+  const listRow = () => (screen.getByRole("link", { name: "Open Q1 plan" }).closest("tr") as HTMLElement);
+
+  test("the heading takes the focus and is scrolled to the top of the viewport; Discard does not (it is the last control of the section, and focusing it scrolled to the bottom)", async () => {
+    await opened();
+    await waitFor(() => expect(heading()).toHaveFocus());
+    expect(heading()).toHaveAttribute("tabindex", "-1");
+    expect(scrolled).toHaveBeenCalledWith({ block: "start" });
+    expect(scrolled.mock.contexts).toContain(heading());
+    expect(screen.getByRole("button", { name: "Close" })).not.toHaveFocus();
+  });
+
+  test("once per opening: a refetch of the record and a tick leave the focus where the user put it", async () => {
+    const queryClient = freshClient();
+    const user = userEvent.setup();
+    await opened(undefined, queryClient);
+    await waitFor(() => expect(heading()).toHaveFocus());
+    const landings = scrolled.mock.calls.length;
+    await user.click(screen.getByRole("checkbox", { name: "Accept g1" }));
+    expect(screen.getByRole("checkbox", { name: "Accept g1" })).toHaveFocus();
+    await act(() => queryClient.refetchQueries({ queryKey: savedProposalKey(5) }));
+    expect(screen.getByRole("checkbox", { name: "Accept g1" })).toHaveFocus();
+    expect(scrolled.mock.calls).toHaveLength(landings);
+  });
+
+  test("a read that is still running opens nothing and lands nothing; the arrival comes with the run", async () => {
+    let release: () => void = () => undefined;
+    hold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    renderWithProviders(
+      <>
+        <Programs />
+        <Where />
+      </>,
+      { route: "/roadmap?mode=overview&proposal=5" },
+    );
+    await settle();
+    expect(screen.queryByRole("heading", { name: "Saved proposal: Q1 plan" })).toBeNull();
+    expect(scrolled).not.toHaveBeenCalled();
+    release();
+    await screen.findByRole("heading", { name: "Saved proposal: Q1 plan" });
+    await waitFor(() => expect(heading()).toHaveFocus());
+  });
+
+  test("a failed read lands nothing: no heading, no scroll, the note says why", async () => {
+    record = jsonResponse(500, { title: "Boom", status: 500 });
+    renderWithProviders(
+      <>
+        <Programs />
+        <Where />
+      </>,
+      { route: "/roadmap?mode=overview&proposal=5" },
+    );
+    await screen.findByText("Load failed (500)", NOTE_ONLY);
+    expect(screen.queryByRole("heading", { name: /^Saved proposal:/ })).toBeNull();
+    expect(scrolled).not.toHaveBeenCalled();
+    // nothing opened, so no row is marked (the mark does not flash on a read that fails)
+    expect((await screen.findByRole("link", { name: "Open Q1 plan" })).closest("tr")).not.toHaveAttribute("aria-current");
+  });
+
+  test("Propose again is a new opening and lands on the heading again, with a changed plan and with the plan unchanged (the same run), once each", async () => {
+    const user = userEvent.setup();
+    await opened();
+    await waitFor(() => expect(heading()).toHaveFocus());
+    const landed = () => scrolled.mock.calls.length;
+    expect(landed()).toBe(1);
+    await user.click(screen.getByRole("button", { name: "Propose again" }));
+    expect(await screen.findByText(/This is a fresh run for the same teams/)).toBeInTheDocument();
+    await waitFor(() => expect(heading()).toHaveFocus());
+    expect(landed()).toBe(2);
+    expect(screen.getByRole("button", { name: "Discard" })).not.toHaveFocus();
+    // The plan did not move: the server answers the stored run again; it is still a new opening.
+    runAnswer = jsonResponse(200, RUN);
+    await user.click(screen.getByRole("button", { name: "Propose again" }));
+    await waitFor(() => expect(posts(RUN_URL)).toHaveLength(2));
+    await waitFor(() => expect(landed()).toBe(3));
+    await waitFor(() => expect(heading()).toHaveFocus());
+    await settle();
+    expect(landed()).toBe(3);
+  });
+
+  test("the list mark stays on the open row while Propose again's request runs, and is gone with the run", async () => {
+    let release: () => void = () => undefined;
+    runGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const user = userEvent.setup();
+    await opened();
+    await user.click(screen.getByRole("button", { name: "Propose again" }));
+    await waitFor(() => expect(posts(RUN_URL)).toHaveLength(1));
+    // the run is out of the section while the answer is awaited; the opened proposal is still the open one
+    expect(screen.queryByRole("heading", { name: /^Saved proposal:/ })).toBeNull();
+    expect(listRow()).toHaveAttribute("aria-current", "true");
+    release();
+    expect(await screen.findByText(/This is a fresh run for the same teams/)).toBeInTheDocument();
+    expect(listRow()).toHaveAttribute("aria-current", "true");
+  });
+
+  test("Close and the same name again land again", async () => {
+    const user = userEvent.setup();
+    await opened();
+    await waitFor(() => expect(scrolled).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(where()).toBe("?mode=overview"));
+    await user.click(screen.getByRole("link", { name: "Open Q1 plan" }));
+    await screen.findByRole("heading", { name: "Saved proposal: Q1 plan" });
+    await waitFor(() => expect(scrolled).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(heading()).toHaveFocus());
+  });
+
+  test("the list row of the open proposal carries aria-current and the mark, only that row; Close clears it", async () => {
+    const user = userEvent.setup();
+    await opened();
+    expect(listRow()).toHaveAttribute("aria-current", "true");
+    expect(listRow().className).toMatch(/rowCurrent/);
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(where()).toBe("?mode=overview"));
+    expect(listRow()).not.toHaveAttribute("aria-current");
+    expect(listRow().className).not.toMatch(/rowCurrent/);
   });
 });

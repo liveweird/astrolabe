@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { SAVED_PROPOSALS_KEY } from "../api/savedProposals";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 import { MAX_RUN_TEAMS, type OverviewProposal } from "../hooks/useOverviewProposal";
+import { ANCHORED_HEADING_STYLE } from "../utils/layout";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import CrossTeamRunView from "./CrossTeamRunView";
 import EntityLink from "./EntityLink";
@@ -29,7 +30,7 @@ import ProposalNotes from "./TeamProposalNotes";
 export default function OverviewProposalSection({ proposal, announce, onShowAll }: { proposal: OverviewProposal; announce: (text: string) => void; onShowAll: (() => void) | null }) {
   const { t } = useTranslation();
   const { flow, rights, run, check, teamIds, tooMany, proposable, unsettled, saved, ticked, editable } = proposal;
-  const { proposeRef, discardRef } = proposal.focus;
+  const { proposeRef, headingRef } = proposal.focus;
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   useDialogFocus(saving);
@@ -92,7 +93,7 @@ export default function OverviewProposalSection({ proposal, announce, onShowAll 
       <ProposalNotes proposal={flow} />
       {run !== null && (
         <Stack gap="md">
-          <Title order={3} size="h4">
+          <Title order={3} size="h4" ref={headingRef} tabIndex={-1} style={ANCHORED_HEADING_STYLE}>
             {saved === null ? t("programs.proposal.title") : t("programs.saved.title", { name: saved.record.name })}
           </Title>
           {saved === null ? (
@@ -144,7 +145,7 @@ export default function OverviewProposalSection({ proposal, announce, onShowAll 
             <Button variant="default" leftSection={<IconRefresh size={16} />} disabled={busy} onClick={() => flow.proposeAgain(run.teams.map((team) => team.teamId), ticked, saved?.record.state === "CHANGED")}>
               {t("programs.proposal.again")}
             </Button>
-            <Button ref={discardRef} variant="default" leftSection={<IconX size={16} />} disabled={flow.applying} onClick={proposal.close}>
+            <Button variant="default" leftSection={<IconX size={16} />} disabled={flow.applying} onClick={proposal.close}>
               {closing ? t("programs.saved.close") : t("teams.proposal.discard")}
             </Button>
           </Group>

@@ -61,6 +61,17 @@ describe("SavedProposalsPanel", () => {
     expect(link).toHaveAttribute("href", "/roadmap?mode=overview&programId=3&proposal=5");
   });
 
+  test("the row of the open proposal (`openId`) is marked (aria-current, the row mark), the others are not; none open marks nothing (1.37)", async () => {
+    const { rerender } = renderWithProviders(<SavedProposalsPanel openId={6} />);
+    const row = async (name: string) => (await screen.findByRole("link", { name })).closest("tr") as HTMLElement;
+    expect(await row("Open Hands off")).toHaveAttribute("aria-current", "true");
+    expect((await row("Open Hands off")).className).toMatch(/rowCurrent/);
+    expect(await row("Open Q1 plan")).not.toHaveAttribute("aria-current");
+    rerender(<SavedProposalsPanel openId={null} />);
+    expect(await row("Open Hands off")).not.toHaveAttribute("aria-current");
+    expect((await row("Open Hands off")).className).not.toMatch(/rowCurrent/);
+  });
+
   test("lists the saved proposals under an h3 with their count: the name is the link, the teams, the day, the ticked moves, who and when; Delete only where the row's can allows", async () => {
     renderWithProviders(<SavedProposalsPanel />);
     const table = await screen.findByRole("table", { name: "Saved proposals" });

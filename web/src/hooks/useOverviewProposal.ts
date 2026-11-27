@@ -48,9 +48,9 @@ export function useOverviewProposal({
   const run = flow.proposal;
   const writing = useIsMutating({ mutationKey: ROADMAP_WRITE_KEY }) > 0;
   const busy = flow.requesting || flow.applying;
-  const focus = useProposalFocus(flow, run, busy);
   // A saved proposal the address names (`?proposal=`) opens in this very run; its stored check describes its stored ticks, any other ticks are asked of the server.
   const savedRun = useSavedRun({ flow, ready: rights.ready, announce });
+  const focus = useProposalFocus(run, busy);
   const { saved } = savedRun;
   const liveCheck = useScheduleCheck({
     teamIds: run?.teams.map((team) => team.teamId) ?? [],
@@ -80,6 +80,8 @@ export function useOverviewProposal({
     focus,
     /** The saved proposal whose run is on screen (`useSavedRun`), or `null`; the ticks and whether they are the viewer's to change follow it. */
     saved,
+    /** The saved proposal's id the page opened, kept while Propose again's request runs (the list's mark). */
+    openedId: savedRun.openedId,
     ticked: saved?.ticked ?? flow.selected,
     editable: saved?.editable ?? true,
     /** What a `?proposal=` address named that did not open, the way to dismiss it, and whether its record is still on its way. */

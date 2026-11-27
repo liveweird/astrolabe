@@ -20,6 +20,7 @@ type Flow = ReturnType<typeof useCrossTeamProposal>;
  * parameter leaves the address. `close()` (Close, Discard) drops it too, and so does an accept that went through or any other end of the run. A different id
  * replaces the run on screen (the previous one is discarded first, never while an accept runs); the parameter leaving the address (Back, a mode switch) closes the run it opened.
  * Nothing here asks the server to compute anything.
+ * The focus and the scroll of an opening (the heading at the top) are the shared `useProposalFocus`'s: a saved run is a run like any other.
  */
 export function useSavedRun({ flow, ready, announce }: { flow: Flow; ready: boolean; announce: (text: string) => void }) {
   const { t } = useTranslation();
@@ -76,6 +77,8 @@ export function useSavedRun({ flow, ready, announce }: { flow: Flow; ready: bool
   const storedIds = useMemo(() => new Set(shown?.selectedMilestoneIds ?? []), [shown]);
 
   return {
+    /** The id of the saved proposal this page opened (while its record is read and its address still names it), steady through Propose again; `null` for a read that failed or is gone. */
+    openedId: record !== undefined && opened === id ? id : null,
     /** The saved record whose run is on screen (stored or re-proposed), with what its page derives of it; `null` when the run on screen is not from a saved proposal. */
     saved:
       shown === null || derived === null

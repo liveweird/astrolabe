@@ -28,7 +28,7 @@ The run, counted by hand on the Monday-to-Friday calendar (no holiday): team X i
 1. The project OWNER signs in and opens the Roadmap overview narrowed to the spec's program.
    - *Expected*: the timeline is shown and **Propose schedule** is enabled once the viewer's rights are read (everyone previews).
 2. They press **Propose schedule**.
-   - *Expected*: the run request succeeds; the "Schedule proposal" h3 and **Discard** appear; the note "This is a preview."; no **Accept selected** and no **Save proposal**; **Propose again** is offered; a dashed proposal bar is drawn
+   - *Expected*: the run request succeeds; the "Schedule proposal" h3 appears, holds the focus and sits below the 56 px header (the page lands on the top of the run, not on **Discard** at the end), with **Discard**; the note "This is a preview."; no **Accept selected** and no **Save proposal**; **Propose again** is offered; a dashed proposal bar is drawn
      (the work stream's and the program's, the project row being folded); the "Projects whose dates would move" table shows the project's span now (2048-03-02 to 2048-03-03) and proposed (2048-01-06 to 2048-01-08).
 3. They open team Y's section ("Show the moves of <Y>").
    - *Expected*: y1's row reads "Unscheduled → 2048-01-08 to 2048-01-08, 1 working day" and its checkbox is disabled.
@@ -73,9 +73,9 @@ The run, counted by hand on the Monday-to-Friday calendar (no holiday): team X i
 2. They sign out; the SINGLE manager (the manager of team Z only) signs in, opens the overview and shows the Saved proposals.
    - *Expected*: the same row shows no Delete button.
 3. They open the proposal through its name link.
-   - *Expected*: the address carries `proposal=<id>`; the h3 "Saved proposal: <name>"; the state badge reads **Current**; the note says they can read it but only an administrator or the manager of one of its teams can accept its moves; after "Show the moves of <Y>", y1's row reads "Unscheduled → 2048-01-08 to 2048-01-08, 1 working day"; no **Accept selected** and no **Save proposal**.
+   - *Expected*: the address carries `proposal=<id>`; the h3 "Saved proposal: <name>" holds the focus and is in the viewport (the page lands on the top of the proposal, not its bottom); the saved list's row of that proposal is marked (`aria-current="true"`); reloading that address (a fresh load of `?proposal=<id>`) lands the same way, the heading focused and below the header; the state badge reads **Current**; the note says they can read it but only an administrator or the manager of one of its teams can accept its moves; after "Show the moves of <Y>", y1's row reads "Unscheduled → 2048-01-08 to 2048-01-08, 1 working day"; no **Accept selected** and no **Save proposal**.
 4. They press **Close**.
-   - *Expected*: the saved heading is gone and `proposal` has left the address.
+   - *Expected*: the saved heading is gone, `proposal` has left the address and the list's row is no longer marked.
 5. They sign out; the MANAGER signs in, opens the overview, shows the Saved proposals and opens the same proposal.
    - *Expected*: the badge reads **Current** and **Accept selected (2)** shows (the stored run is the editable preview).
 6. They press **Accept selected (2)**.

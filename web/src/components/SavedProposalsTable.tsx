@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Link as RouterLink, useSearchParams } from "react-router-dom";
 import { deleteSavedProposal, savedProposalKey, SAVED_PROPOSALS_KEY, type SavedProposalSummary } from "../api/savedProposals";
 import { ApiError } from "../api/http";
+import classes from "../theme.module.css";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { formatDateTime } from "../utils/formatDate";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
@@ -25,9 +26,9 @@ const COLUMNS = 7;
  * The table of the saved proposals (1.26; the Roadmap overview's "Saved proposals" panel since 1.33 reads the list, `list`, and owns the heading): the newest 20 saved runs,
  * newest first (a bounded set, one unpaged table). Any signed-in user reads; a name opens the run on the overview (`proposal=<id>` set on the CURRENT address, so the pick
  * and the narrowing stay), Delete shows by the row's own `can.delete` (the server's arithmetic, never the session's roles). A delete is a hard delete and touches nothing of
- * the plan; the focus then goes to the panel's heading (`headingRef`).
+ * the plan; the focus then goes to the panel's heading (`headingRef`). `openId` is the saved proposal whose run is on screen: its row is marked (`aria-current="true"`, `.rowCurrent`, 1.37); it goes when the run closes.
  */
-export default function SavedProposalsTable({ list, headingRef }: { list: Pick<UseQueryResult<{ items: SavedProposalSummary[] }>, "data" | "isLoading" | "isError" | "error">; headingRef: RefObject<HTMLHeadingElement | null> }) {
+export default function SavedProposalsTable({ list, headingRef, openId = null }: { list: Pick<UseQueryResult<{ items: SavedProposalSummary[] }>, "data" | "isLoading" | "isError" | "error">; headingRef: RefObject<HTMLHeadingElement | null>; openId?: number | null }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
@@ -86,7 +87,7 @@ export default function SavedProposalsTable({ list, headingRef }: { list: Pick<U
               <TableLoadingRow colSpan={COLUMNS} />
             ) : items.length > 0 ? (
               items.map((proposal) => (
-                <Table.Tr key={proposal.id}>
+                <Table.Tr key={proposal.id} aria-current={proposal.id === openId ? "true" : undefined} className={proposal.id === openId ? classes.rowCurrent : undefined}>
                   <Table.Td>
                     <Anchor component={RouterLink} to={{ search: withProposal(params, proposal.id).toString() }} fw={500} size="sm" aria-label={t("scheduleProposals.saved.openAria", { name: proposal.name })}>
                       {proposal.name}

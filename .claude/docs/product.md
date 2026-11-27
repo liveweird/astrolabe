@@ -207,6 +207,7 @@ The standing rules the pages after 1.16 follow; the answers with their rejected 
 - A release is cut only on the user's word; the bump rules are `app-releases.md`. ONE changelog entry covers everything since the last release.
 - **The caveat sentence.** A Jira-touching release keeps the repo's binding sentence ("Proven against a built-in Jira stub; not yet tested against a real Jira site."); the Flow line says the same of the built-in Flow stub. Both stub sentences stay in the changelog. 1.14.0 was released without the real-site check of `parent in (...)` on the user's word.
 - **When the user is absent** (1.16, 1.20, 1.21 were built overnight): every question of the plan is answered with the recommended option (a), listed in the version's section of `release-history.md` for review; the user confirms or reverses afterwards.
+- **Fix (2026-11-27, 1.37): a proposal run opens on its heading.** Opening a saved proposal scrolled to its bottom, and so did every fresh Propose, because the focus went to the last button of the section; the heading now takes the focus and the page, the saved list marks the open row (`web-internals.md` "Saved proposals").
 - **The docs' sizes (decided 2026-11-27).** The release history lives in `release-history.md`, the one instruction doc without a byte ceiling: no entry is trimmed to make room. The other ceilings were re-based once after 1.34, each to its doc's size plus about 5,000 bytes (`ci.md` "Docs shape").
 
 ## Assumptions (not asked — change on request)

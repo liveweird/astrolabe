@@ -505,12 +505,29 @@ describe("read-only while a proposal is requested or open", () => {
 });
 
 describe("focus", () => {
-  test("opening a proposal moves the focus to Discard and discarding gives it back to Propose", async () => {
-    const user = userEvent.setup();
-    await openPreview(user);
-    await waitFor(() => expect(screen.getByRole("button", { name: "Discard" })).toHaveFocus());
-    await user.click(screen.getByRole("button", { name: "Discard" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Propose schedule" })).toHaveFocus());
+  test("opening a proposal scrolls its heading to the top and focuses it (not Discard, the last control, which scrolled to the bottom), once; discarding gives the focus back to Propose", async () => {
+    const original = Element.prototype.scrollIntoView;
+    const scrolled = vi.fn();
+    Element.prototype.scrollIntoView = scrolled as unknown as typeof original;
+    try {
+      const user = userEvent.setup();
+      await openPreview(user);
+      const heading = screen.getByRole("heading", { level: 3, name: "Proposed schedule" });
+      await waitFor(() => expect(heading).toHaveFocus());
+      expect(heading).toHaveAttribute("tabindex", "-1");
+      expect(scrolled).toHaveBeenCalledTimes(1);
+      expect(scrolled.mock.contexts[0]).toBe(heading);
+      expect(scrolled).toHaveBeenCalledWith({ block: "start" });
+      // a tick keeps the focus where the user put it, and lands nothing again
+      await user.click(screen.getByRole("checkbox", { name: "Accept tp-tray" }));
+      expect(screen.getByRole("checkbox", { name: "Accept tp-tray" })).toHaveFocus();
+      expect(scrolled).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole("button", { name: "Discard" })).not.toHaveFocus();
+      await user.click(screen.getByRole("button", { name: "Discard" }));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Propose schedule" })).toHaveFocus());
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
   });
 });
 
@@ -611,7 +628,7 @@ describe("the Proposed schedule section", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Propose schedule" })).toBeEnabled());
   });
 
-  test("a stale-scope refusal swaps in a fresh preview with the ticks kept, an orange note, and the focus on Discard", async () => {
+  test("a stale-scope refusal swaps in a fresh preview with the ticks kept, an orange note, and the focus on the new section's heading", async () => {
     batchAnswer = jsonResponse(409, { type: "urn:astrolabe:problem:stale-scope", title: "Conflict", status: 409, detail: "scope" });
     const user = userEvent.setup();
     await openPreview(user);
@@ -623,14 +640,14 @@ describe("the Proposed schedule section", () => {
     expect(table()).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Accept tp-b" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Accept tp-tray" })).not.toBeChecked();
-    await waitFor(() => expect(screen.getByRole("button", { name: "Discard" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("heading", { level: 3, name: "Proposed schedule" })).toHaveFocus());
     expect(screen.queryByRole("alert")).toBeNull();
     await user.click(within(note).getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("note")).toBeNull();
     expect(table()).toBeInTheDocument();
   });
 
-  test("a stale-scope refusal whose fresh proposal arrives BEFORE the plan refetch still ends with Discard enabled and focused", async () => {
+  test("a stale-scope refusal whose fresh proposal arrives BEFORE the plan refetch still ends with Discard enabled and the heading focused", async () => {
     batchAnswer = jsonResponse(409, { type: "urn:astrolabe:problem:stale-scope", title: "Conflict", status: 409, detail: "scope" });
     const user = userEvent.setup();
     await openPreview(user);
@@ -649,7 +666,7 @@ describe("the Proposed schedule section", () => {
     await screen.findByRole("note");
     const discard = screen.getByRole("button", { name: "Discard" });
     await waitFor(() => expect(discard).toBeEnabled());
-    await waitFor(() => expect(discard).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("heading", { level: 3, name: "Proposed schedule" })).toHaveFocus());
     expect(acceptButton(2)).toBeEnabled();
     held.release();
   });
@@ -695,7 +712,6 @@ describe("the Proposed schedule section", () => {
   test("Discard closes the section without a batch and gives the focus back to Propose", async () => {
     const user = userEvent.setup();
     await openPreview(user);
-    await waitFor(() => expect(screen.getByRole("button", { name: "Discard" })).toHaveFocus());
     await user.click(screen.getByRole("button", { name: "Discard" }));
     expect(screen.queryByRole("table", { name: "Proposed schedule moves" })).toBeNull();
     expect(batchPosts()).toEqual([]);

@@ -278,6 +278,35 @@ describe("what the open proposal draws", () => {
     expect(screen.getByRole("button", { name: "Accept selected (3)" })).toBeEnabled();
   });
 
+  test("a run opens on its heading: scrolled to the top and focused (not Discard, the last control), once; Propose again lands on it again", async () => {
+    const original = Element.prototype.scrollIntoView;
+    const scrolled = vi.fn();
+    Element.prototype.scrollIntoView = scrolled as unknown as typeof original;
+    try {
+      const user = userEvent.setup();
+      await opened(user);
+      await user.click(proposeButton());
+      await screen.findByRole("heading", { name: "Schedule proposal" });
+      const heading = screen.getByRole("heading", { level: 3, name: "Schedule proposal" });
+      await waitFor(() => expect(heading).toHaveFocus());
+      expect(heading).toHaveAttribute("tabindex", "-1");
+      expect(scrolled).toHaveBeenCalledTimes(1);
+      expect(scrolled).toHaveBeenCalledWith({ block: "start" });
+      expect(scrolled.mock.contexts[0]).toBe(heading);
+      // a tick leaves the focus where the user put it
+      const tick = screen.getAllByRole("checkbox")[0];
+      await user.click(tick);
+      expect(tick).toHaveFocus();
+      expect(scrolled).toHaveBeenCalledTimes(1);
+      await user.click(screen.getByRole("button", { name: "Propose again" }));
+      await waitFor(() => expect(bodies("POST", RUN_URL)).toHaveLength(2));
+      await waitFor(() => expect(scrolled).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(screen.getByRole("heading", { level: 3, name: "Schedule proposal" })).toHaveFocus());
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
+
   test("Discard removes the bars and the section, gives the focus back to Propose and leaves the timeline as it was", async () => {
     const user = userEvent.setup();
     await opened(user);

@@ -333,7 +333,7 @@ function ProgramsBody({
         </Stack>
       </TimelineDndContext>
       <OverviewProposalSection proposal={proposal} announce={announce} onShowAll={pick === null ? null : () => setPick([])} />
-      <SavedProposalsPanel />
+      <SavedProposalsPanel openId={proposal.openedId} />
 
       <RoadmapCriticalChain
         projects={projects}
