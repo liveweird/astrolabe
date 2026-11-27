@@ -34,27 +34,29 @@ const RULES_EXEMPT = new Set([".claude/docs/product.md", ".claude/docs/web-inter
 // Limit 5. A parked move (`## To place (from <doc>)`) is emptied by the destination's own commit; a restructured doc keeps none.
 const TO_PLACE = /^to place\b/i;
 // Limit 9. A byte ceiling per named instruction doc (`wc -c`, bytes not characters), so none drifts over its size again; a group is ONE ceiling
-// on the members' sum (the always-loaded set's budget). A doc not named has no ceiling; a ceiling that names no file fails. Raising one is a
-// reviewed exception with its reason in the commit; the numbers sit just above the 1.26 sizes.
-//   release-history.md is not named, on purpose: it is the one doc meant to grow (a release adds a section and trims none).
+// on the members' sum (none today). A doc not named has no ceiling; a ceiling that names no file fails. Raising one is a reviewed exception
+// with its reason in the commit. The numbers are the re-base after 1.34: a doc's size then, rounded up to a thousand, plus 5,000 (the first
+// ceilings sat just above the 1.26 sizes and every release since met them).
+//   Not named, on purpose: release-history.md, the one doc meant to grow (a release adds a section and trims none), and the always-loaded
+//   testing.md and list-endpoints.md, bounded with CLAUDE.md by AlwaysLoadedDocsBudgetTest (check-docs-budget.mjs).
 const CEILINGS = [
-  { files: [".claude/docs/web-internals.md"], bytes: 285_000 },
-  { files: [".claude/docs/planning-model.md"], bytes: 145_000 },
-  { files: [".claude/docs/persistence.md"], bytes: 135_000 },
-  { files: [".claude/docs/timeline.md"], bytes: 120_000 },
-  { files: [".claude/docs/product.md"], bytes: 110_000 },
-  { files: [".claude/docs/jira-sync.md"], bytes: 110_000 },
-  { files: [".claude/docs/authorization.md"], bytes: 95_000 },
-  { files: [".claude/docs/security.md"], bytes: 92_000 },
-  { files: [".claude/docs/test-fixtures.md"], bytes: 72_000 },
-  { files: [".claude/docs/observability.md"], bytes: 68_000 },
-  { files: [".claude/docs/flow-sync.md"], bytes: 65_000 },
-  { files: [".claude/docs/scheduling.md"], bytes: 45_000 },
+  { files: [".claude/docs/web-internals.md"], bytes: 290_000 },
+  { files: [".claude/docs/planning-model.md"], bytes: 150_000 },
+  { files: [".claude/docs/persistence.md"], bytes: 140_000 },
+  { files: [".claude/docs/timeline.md"], bytes: 125_000 },
+  { files: [".claude/docs/jira-sync.md"], bytes: 115_000 },
+  { files: [".claude/docs/authorization.md"], bytes: 100_000 },
+  { files: [".claude/docs/security.md"], bytes: 97_000 },
+  { files: [".claude/docs/test-fixtures.md"], bytes: 75_000 },
+  { files: [".claude/docs/observability.md"], bytes: 73_000 },
+  { files: [".claude/docs/flow-sync.md"], bytes: 70_000 },
+  { files: [".claude/docs/product.md"], bytes: 59_000 },
+  { files: [".claude/docs/scheduling.md"], bytes: 50_000 },
   { files: ["e2e/README.md"], bytes: 45_000 },
-  { files: [".claude/docs/build-times.md"], bytes: 36_000 },
-  { files: [".claude/docs/sync.md"], bytes: 30_000 },
-  // The always-loaded docs beside CLAUDE.md (AlwaysLoadedDocsBudgetTest): conventions.md + ci.md + testing.md + list-endpoints.md.
-  { files: [".claude/docs/conventions.md", ".claude/docs/ci.md", ".claude/docs/testing.md", ".claude/docs/list-endpoints.md"], bytes: 36_000 },
+  { files: [".claude/docs/build-times.md"], bytes: 41_000 },
+  { files: [".claude/docs/sync.md"], bytes: 35_000 },
+  { files: [".claude/docs/ci.md"], bytes: 22_000 },
+  { files: [".claude/docs/conventions.md"], bytes: 12_000 },
 ];
 
 // Limit 6 (CLAUDE.md's table names exactly the on-demand docs), limit 7 (an in-doc anchor names a heading of that doc) and
