@@ -186,7 +186,7 @@ test("the critical path: the owner turns it on and reads the chain beyond the ne
   const rows = chainTable(page).getByRole("row");
   await expect(rows).toHaveCount(2); // the header and x1
   await expect(rows.nth(1).getByRole("cell")).toHaveText(["2", x1.name, "Milestone", x.name, `${WEEK_1.start} – ${WEEK_1.end}`, "0 working days"]);
-  await expect(chainTable(page).getByRole("link", { name: `${x1.name} - open project ${x.name}` })).toHaveAttribute("href", `/projects/${x.id}`);
+  await expect(chainTable(page).getByRole("link", { name: `${x1.name} - open the milestone in project ${x.name}` })).toHaveAttribute("href", `/projects/${x.id}?milestone=${x1.id}`);
   await expect(chainTable(page).getByText(y1.name)).toHaveCount(0);
   await expect(page.getByText("None.", { exact: true })).toBeVisible(); // "Upstream with slack"
   // x1 has no row and no bar on P's timeline.

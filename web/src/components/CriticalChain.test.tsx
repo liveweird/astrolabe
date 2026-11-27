@@ -56,8 +56,8 @@ describe("CriticalChain", () => {
       ["2", "m1", "Milestone", "P1", "2027-02-01 – 2027-02-05", "0 working days"],
       ["1", "Gamma", "Project", "Gamma", "2027-02-01 – 2027-02-05", "0 working days"],
     ]);
-    const link = screen.getByRole("link", { name: "m1 - open project P1" });
-    expect(link).toHaveAttribute("href", "/projects/91");
+    const link = screen.getByRole("link", { name: "m1 - open the milestone in project P1" });
+    expect(link).toHaveAttribute("href", "/projects/91?milestone=1");
     expect(link).toHaveTextContent("m1");
     expect(screen.getByRole("link", { name: "Gamma - open project Gamma" })).toHaveAttribute("href", "/projects/98");
   });

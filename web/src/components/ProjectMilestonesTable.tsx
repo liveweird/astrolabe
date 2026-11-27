@@ -30,6 +30,7 @@ import TableDisclosure from "./TableDisclosure";
 import TeamFilterSelect from "./TeamFilterSelect";
 import TeamNameCell from "./TeamNameCell";
 import EntityLink from "./EntityLink";
+import classes from "../theme.module.css";
 
 const TABLE_MAX_HEIGHT = 420;
 const NO_WRAP = { whiteSpace: "nowrap" } as const;
@@ -38,10 +39,11 @@ const CONTROL_WIDTH = { base: "100%", xs: 200 } as const;
 /** The view-settings key of the show/hide choice (`astrolabe.viewSettings.project.milestonesOpen`), shared by every project. */
 const OPEN_KEY = "project.milestonesOpen";
 
-function MilestoneRow({ milestone, colour }: { milestone: ProjectMilestone; colour: TeamColour | undefined }) {
+function MilestoneRow({ milestone, colour, current }: { milestone: ProjectMilestone; colour: TeamColour | undefined; current: boolean }) {
   const { t } = useTranslation();
   return (
-    <Table.Tr>
+    // The milestone the page was opened at (`?milestone=`, 1.31): marked, its name is the page's own subject here (plain text).
+    <Table.Tr className={current ? classes.rowCurrent : undefined} aria-current={current ? "true" : undefined}>
       <Table.Td>
         <Text size="sm" fw={500}>
           {milestone.name}
@@ -83,7 +85,7 @@ function MilestoneRow({ milestone, colour }: { milestone: ProjectMilestone; colo
  * teams) and the name (a folded substring match) are page state. The show/hide choice is remembered per browser (default shown); a hidden table is
  * not rendered, so it does not print either. Read-only: the dates are set on the timeline and the tray above.
  */
-export default function ProjectMilestonesTable({ view }: { view: ProjectView }) {
+export default function ProjectMilestonesTable({ view, current = null }: { view: ProjectView; current?: number | null }) {
   const { t } = useTranslation();
   const colours = useTeamColours();
   const [params, setParams] = useSearchParams();
@@ -191,7 +193,7 @@ export default function ProjectMilestonesTable({ view }: { view: ProjectView }) 
                     </Table.Td>
                   </Table.Tr>
                 ) : (
-                  rows.map((milestone) => <MilestoneRow key={milestone.id} milestone={milestone} colour={colours.get(milestone.teamId)} />)
+                  rows.map((milestone) => <MilestoneRow key={milestone.id} milestone={milestone} colour={colours.get(milestone.teamId)} current={milestone.id === current} />)
                 )}
               </Table.Tbody>
             </Table>

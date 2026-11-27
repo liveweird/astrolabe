@@ -22,7 +22,7 @@ export const projectsPath = "/projects";
 /** The ONE place a project's page is spelled out — the project view (its milestones on the timeline). */
 export const projectPath = (id: number) => `${projectsPath}/${id}`;
 
-/** A milestone's address: its project's page with `?milestone=<id>` (1.31; the page marks and focuses the row once it reads the parameter - the link may exist before that arrival handling). */
+/** A milestone's address (1.31): its project's page with `?milestone=<id>`; the page marks and focuses the milestone's row, then drops the parameter (`useMilestoneArrival`). */
 export const milestonePath = (projectId: number, id: number) => `${projectPath(projectId)}?milestone=${id}`;
 
 /** A project's page with its Milestones table narrowed to the milestones without dates (Home's "not scheduled" figure of a project). */
@@ -31,10 +31,7 @@ export const projectUnscheduledPath = (id: number) => `${projectPath(id)}?milest
 /** A program's address (1.31): the Roadmap overview narrowed to it, written through the same `programId` pick the overview reads (`/roadmap?mode=overview&programId=3`). */
 export const programPath = (id: number) => `${roadmapOverviewPath}&${roadmapFilterParams({ pick: [id] })}`;
 
-/**
- * A work stream's address (1.31): the Roadmap overview narrowed to it, `/roadmap?mode=overview&workStreamId=3`.
- * Still to come in 1.31: the overview does not read `workStreamId` yet (it narrows by `programId` alone); the narrowing arrives with the overview commit, the parameter name is fixed here.
- */
+/** A work stream's address (1.31): the Roadmap overview narrowed to it, `/roadmap?mode=overview&workStreamId=3` (read by `useWorkStreamNarrowing`; the address's alone, never remembered). */
 export const workStreamPath = (id: number) => `${roadmapOverviewPath}&workStreamId=${id}`;
 
 /**

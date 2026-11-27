@@ -93,7 +93,7 @@ describe("Deviations page", () => {
       [3, "Data from Jira"],
       [3, "Differences"],
     ]);
-    expect(within(table).getByRole("link", { name: "Checkout page - open project Invoices" })).toHaveAttribute("href", "/projects/7");
+    expect(within(table).getByRole("link", { name: "Open milestone Checkout page" })).toHaveAttribute("href", "/projects/7?milestone=11");
     const key = within(table).getByRole("link", { name: /E2E-3/ });
     expect(key).toHaveAttribute("href", "https://acme.atlassian.net/browse/E2E-3");
     expect(key.getAttribute("rel")).toContain("noopener");

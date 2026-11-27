@@ -19,7 +19,7 @@
    Predecessor picker and pick "a1 · A" (the option names the milestone's project), keep **Finish → Start (FS)** and the lag of 0, and
    press **Save**.
    - *Expected*: the POST answers 201 and the dialog closes; the Dependencies table has a row for a1 (the predecessor, with its
-     project) that reads **OK**; the timeline has a dimmed ghost row "A › a1" whose link (named "A › a1 - open project A") leads to `/projects/<A>`; there is
+     project) that reads **OK**; the timeline has a dimmed ghost row "A › a1" whose link (named "A › a1 - open the milestone in project A") leads to `/projects/<A>?milestone=<a1>`; there is
      exactly one arrow and it is not violated; the facts line shows no conflicts.
 3. They open project A, press **Add dependency**, choose a1 as the Successor, search b1 and pick "b1 · B", and **Save**.
    - *Expected*: the POST answers 409; the dialog stays open and its alert says "This link would close a cycle through:" and names a1

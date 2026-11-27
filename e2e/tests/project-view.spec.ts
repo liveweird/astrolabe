@@ -347,3 +347,37 @@ test("the project owner reads the scheduled timeline, the derived span and the d
   await expect(page.getByRole("menuitem", { name: `Edit ${name}` })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: /schedule/i })).toHaveCount(0);
 });
+
+test("a milestone's address marks and focuses its row on the project page, then leaves the address; a milestone the project does not have is a notice", async ({ page }) => {
+  const world = await seedWorld();
+  const scheduled = uniqueText("e2e-pv-addr-s");
+  const waiting = uniqueText("e2e-pv-addr-t");
+  const scheduledId = await seedMilestone(world, scheduled, 2);
+  await scheduleViaApi(world, scheduledId, "2027-01-11", "2027-01-15");
+  const waitingId = await seedMilestone(world, waiting, 3);
+  await world.api.dispose();
+
+  await login(page);
+  // A scheduled milestone: its timeline row header is current and focused, the Milestones table row is marked, and the parameter leaves the address (replace).
+  await page.goto(`/projects/${world.projectId}?milestone=${scheduledId}`);
+  const header = page.getByRole("grid", { name: "Milestone timeline" }).getByRole("rowheader", { name: new RegExp(`^${scheduled}`) });
+  await expect(header).toHaveAttribute("aria-current", "true");
+  await expect(header).toBeFocused();
+  await expect(page.getByRole("table", { name: "Milestones of this project" }).getByRole("row", { name: new RegExp(`^${scheduled}`) })).toHaveAttribute("aria-current", "true");
+  await expect(page).toHaveURL(new RegExp(`/projects/${world.projectId}$`));
+
+  // An unscheduled one: its tray row is current and focused instead.
+  await page.goto(`/projects/${world.projectId}?milestone=${waitingId}`);
+  const row = tray(page).getByRole("row", { name: new RegExp(waiting) });
+  await expect(row).toHaveAttribute("aria-current", "true");
+  await expect(row).toBeFocused();
+  await expect(page.getByRole("grid", { name: "Milestone timeline" }).getByRole("rowheader", { name: new RegExp(`^${scheduled}`) })).not.toHaveAttribute("aria-current", "true");
+
+  // A milestone that is not this project's: no error page, a dismissible notice, and the page works as ever.
+  await page.goto(`/projects/${world.projectId}?milestone=2147483000`);
+  await expect(page.getByText("That milestone is not in this project any more", { exact: false })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: world.project })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/projects/${world.projectId}$`));
+  await page.getByRole("button", { name: "Dismiss this notice" }).click();
+  await expect(page.getByText("That milestone is not in this project any more", { exact: false })).toHaveCount(0);
+});

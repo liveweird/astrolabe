@@ -1329,6 +1329,16 @@ describe("the Unscheduled tray", () => {
     expect(screen.getByText("Training")).toBeInTheDocument();
   });
 
+  test("a row the page marks current (1.31) is aria-current and a programmatic focus target, never a tab stop; the others are neither", () => {
+    renderTray([{ ...ITEMS[0], current: true }, ITEMS[1]]);
+    const [marked, plain] = screen.getAllByRole("row").slice(1);
+    expect(marked).toHaveAttribute("aria-current", "true");
+    expect(marked).toHaveAttribute("tabindex", "-1");
+    expect(marked).toHaveAttribute("data-tray-item", "7");
+    expect(plain).not.toHaveAttribute("aria-current");
+    expect(plain).not.toHaveAttribute("tabindex");
+  });
+
   test("the drag handle is a pointer affordance only: hidden from assistive technology, no keyboard stop", () => {
     renderTray();
     const rows = screen.getAllByRole("row").slice(1);
@@ -1938,6 +1948,43 @@ describe("the draw gesture", () => {
     } as never);
     expect(found?.map((collision) => collision.id)).toEqual([TIMELINE_DROP_ID]);
     emit("onDragCancel", {});
+  });
+});
+
+describe("a row the page marks current (1.31)", () => {
+  test("only its row header carries aria-current, and the mark adds no tab stop and keeps the one-stop rule", () => {
+    renderWithProviders(<Harness rows={[ROWS[0], { ...ROWS[1], current: true }, ROWS[2]]} />);
+    const marked = screen.getByRole("rowheader", { name: "Build" });
+    expect(marked).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("rowheader", { name: "Discovery" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("rowheader", { name: "Launch" })).not.toHaveAttribute("aria-current");
+    expect(document.querySelectorAll("[aria-current]")).toHaveLength(1);
+    expect(within(screen.getByRole("grid")).getAllByRole("rowheader").filter((cell) => cell.getAttribute("tabindex") === "0")).toHaveLength(1);
+  });
+
+  test("a function cell (a link) is marked on its row header too, the link keeping the stop", () => {
+    const named: TimelineRowData = { id: 2, cells: [(stop) => <a href="/x" {...stop}>Build</a>, "Team A"], bars: [], current: true };
+    renderWithProviders(<Harness rows={[ROWS[0], named]} />);
+    const header = screen.getByRole("link", { name: "Build" }).closest("[role='rowheader']");
+    expect(header).toHaveAttribute("aria-current", "true");
+  });
+});
+
+describe("scrollToDay (1.31)", () => {
+  test("centres the day in the track part of the viewport, the Today button's arithmetic, and touches neither the focus nor the rows", () => {
+    const ref = createRef<TimelineHandle>();
+    renderWithProviders(<Harness ref={ref} />);
+    const scroller = screen.getByRole("region", { name: "Project timeline" });
+    Object.defineProperty(scroller, "clientWidth", { configurable: true, value: 760 });
+    const scale = scaleOf();
+    // the sticky columns are 260 px (160 + 100): the track part of the viewport is 500 px wide
+    const expected = Math.max(0, scale.xOf(toEpochDay("2026-10-05")) + scale.dayWidth / 2 - (760 - 260) / 2);
+    expect(expected).toBeGreaterThan(0);
+    act(() => ref.current?.scrollToDay("2026-10-05"));
+    expect(scroller.scrollLeft).toBe(expected);
+    expect(document.activeElement).toBe(document.body);
+    act(() => ref.current?.scrollToDay("2026-09-14"));
+    expect(scroller.scrollLeft).toBe(0);
   });
 });
 

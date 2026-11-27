@@ -12,7 +12,6 @@ import { ghostRowId } from "../utils/dependencyArrows";
 import { projectRowId, summaryCritical, upstreamOf } from "../utils/projectDependencies";
 import { teamTint, type TeamColour } from "../utils/teamColours";
 import type { BarId, RovingTarget, TimelineBandData, TimelineBarData, TimelineRowData } from "../utils/timelineModel";
-import { entityPath } from "../utils/entityLinks";
 import { AppendedRowName, BaselineRowName } from "./BaselineParts";
 import JiraRowMenu from "./JiraRowMenu";
 import { MilestoneFlags } from "./MilestoneFlags";
@@ -141,12 +140,11 @@ export function ghostRow(
           <EntityLink
             entity={endpoint.kind === "MILESTONE" ? { kind: "milestone", id: endpoint.id, projectId: endpoint.projectId } : { kind: "project", id: endpoint.projectId }}
             name={text}
-            // A milestone's own address (`?milestone=`) is read by the project page from its own commit on; until then its link is its project's page.
-            to={entityPath({ kind: "project", id: endpoint.projectId })}
             size="sm"
             c="dimmed"
             truncate
-            aria-label={t("project.ghostLinkAria", { text, project: endpoint.projectName })}
+            // The visible text is the ghost's sentence ("Project - name"): the accessible name keeps it and says where the link leads.
+            aria-label={t(endpoint.kind === "MILESTONE" ? "project.ghostMilestoneLinkAria" : "project.ghostLinkAria", { text, project: endpoint.projectName })}
             stop={stop}
           />
         ),
@@ -187,7 +185,7 @@ type RowOptions = { criticalPath: boolean; flagsColumn: boolean };
 export function milestoneRows(
   view: ProjectView,
   t: TFunction,
-  { actions, jira, conflicts, criticalPath, flagsColumn, colours }: RowOptions & { actions: MilestoneActions; jira: JiraWindow | null; conflicts: ReadonlyMap<BarId, number>; colours: ReadonlyMap<number, TeamColour> },
+  { actions, jira, conflicts, criticalPath, flagsColumn, colours, current }: RowOptions & { actions: MilestoneActions; jira: JiraWindow | null; conflicts: ReadonlyMap<BarId, number>; colours: ReadonlyMap<number, TeamColour>; current: number | null },
 ): TimelineRowData[] {
   const canLink = view.project.can.createDependency;
   const sites = siteUrls(view.jiraSites);
@@ -197,6 +195,8 @@ export function milestoneRows(
   const fresh = overlay === undefined ? null : newSince(overlay, view.scheduled);
   return view.scheduled.map((milestone) => ({
     id: milestone.id,
+    // The milestone the page was opened at (`?milestone=`): its row is marked.
+    current: milestone.id === current,
     cells: withOptional(
       [
         <NameCell key="name" milestone={milestone} mark={fresh?.has(milestone.id) === true ? t("timeline.baseline.newMark") : undefined} />,

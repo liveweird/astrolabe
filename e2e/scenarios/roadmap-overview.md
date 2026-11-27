@@ -71,6 +71,15 @@
 2. They open **Roadmap** from the Planning section of the sidebar (the link wrote no mode, so it opens Prioritization) and choose **Roadmap overview**.
    - *Expected*: the address names `mode=prioritization` and `programId=<B>` (the remembered pick is brought back), then, after the switch, `programId=<B>` still; program B's chevron button is in the tree and program A's is not.
 
+## Scenario: a Roadmap overview link that names a work stream narrows the tree to it, says so with a way back, leaves the remembered pick alone, and drops an unknown one with a notice
+
+1. The administrator signs in; the browser remembers program B; they open `/roadmap?mode=overview&workStreamId=<stream>` (where a work stream's name leads).
+   - *Expected*: the overview shows "Work stream: <stream>" above the timeline; the facts line says "1 work stream"; both programs' chevron buttons are in the tree with their projects open (a narrowed work stream opens its programs); the remembered pick (program B) is neither restored into the address nor applied, and is still stored.
+2. They press **Show every work stream**.
+   - *Expected*: the "Work stream: …" line is gone and the address names neither `workStreamId` nor `programId`; the remembered pick (program B) does not come back: both programs' chevron buttons show.
+3. They open `/roadmap?mode=overview&workStreamId=2147483000` (a work stream the plan does not have), then dismiss the notice.
+   - *Expected*: the whole plan shows; a notice says "That work stream is not in the plan any more…"; the parameter leaves the address; Dismiss removes the notice.
+
 ## Not covered here (and why)
 
 - **The roll-up in part (a work stream the pick shows only partly), the plural sentences, the empty and failed loads, Expand all's announcement,

@@ -21,6 +21,7 @@ function Probe() {
       <button onClick={() => setPick([22, 21])}>pick 21 22</button>
       <button onClick={() => setPick([])}>clear pick</button>
       <button onClick={() => navigate("/programs?programId=30")}>go 30</button>
+      <button onClick={() => navigate("/roadmap?mode=overview")}>go bare overview</button>
       <button onClick={() => navigate(-1)}>back</button>
     </div>
   );
@@ -76,6 +77,24 @@ describe("useProgramPick", () => {
     expect(shown()).toEqual([]);
     expect(url()).toBe("?programId=abc");
     expect(nav()).toHaveTextContent("POP");
+    expect(stored()).toEqual([11]);
+  });
+
+  test("an address naming a work stream narrowing (1.31) is a linked view too: a remembered pick is not restored over it, the address is left as written", () => {
+    remember("[11]");
+    renderWithProviders(<Probe />, { route: "/roadmap?mode=overview&workStreamId=3" });
+    expect(shown()).toEqual([]);
+    expect(url()).toBe("?mode=overview&workStreamId=3");
+    expect(nav()).toHaveTextContent("POP");
+    expect(stored()).toEqual([11]);
+  });
+
+  test("clearing the work stream narrowing (a bare address again) does not bring the remembered pick back: the page arrived linked and stays so", async () => {
+    remember("[11]");
+    renderWithProviders(<Probe />, { route: "/roadmap?mode=overview&workStreamId=3" });
+    await userEvent.setup().click(screen.getByText("go bare overview"));
+    expect(url()).toBe("?mode=overview");
+    expect(shown()).toEqual([]);
     expect(stored()).toEqual([11]);
   });
 

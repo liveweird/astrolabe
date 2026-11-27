@@ -56,12 +56,16 @@ export default function TimelineRow({ row, index, scale, columns, leftWidth, act
           const cell = row.cells[c];
           const style = { width: column.width };
           const role = c === 0 ? "rowheader" : "gridcell";
+          // The page's mark (`row.current`) sits on the row header, the cell a screen reader reads first and `focusRow` focuses.
+          const marked = c === 0 && row.current === true;
+          const className = marked ? `${classes.timelineCell} ${classes.timelineCellCurrent}` : classes.timelineCell;
+          const current = marked ? ({ "aria-current": "true" } as const) : undefined;
           return typeof cell === "function" ? (
-            <div key={column.id} role={role} className={classes.timelineCell} style={style}>
+            <div key={column.id} role={role} className={className} style={style} {...current}>
               {cell(roving(c))}
             </div>
           ) : (
-            <div key={column.id} role={role} className={classes.timelineCell} style={style} {...roving(c)}>
+            <div key={column.id} role={role} className={className} style={style} {...current} {...roving(c)}>
               {cell}
             </div>
           );

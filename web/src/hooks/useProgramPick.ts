@@ -15,7 +15,7 @@ const isIdList = (value: unknown): value is number[] => Array.isArray(value) && 
  * |---|---|---|---|
  * | bare address, nothing remembered | every program | stays bare | untouched |
  * | bare address, a pick remembered | the remembered pick | rewritten by `replace` to say so | untouched |
- * | an address naming `programId` (even a malformed one) | exactly the programs it names (none valid = every program) | as written | untouched |
+ * | an address naming `programId` or `workStreamId` (even a malformed one; the latter stays "linked" for the page's life) | exactly the programs it names (none valid = every program) | as written | untouched |
  * | the user changes the pick | the new pick | rewritten by `replace` (bare when empty) | written |
  * | Back / forward | what that address names | as navigated | untouched |
  *
@@ -29,7 +29,10 @@ export function useProgramPick(): [number[], (next: number[]) => void] {
     const stored = readStoredJson(KEY);
     return isIdList(stored) ? stored : [];
   });
-  const linked = params.has("programId");
+  // An address naming a work stream narrowing (`workStreamId`, 1.31) is taken as written too: the remembered pick is not restored over it (it could hide the very work stream the link names).
+  // STICKY for the page's life: clearing the narrowing ("Show every work stream") leaves a bare address, which must not bring the remembered pick back and hide work streams again.
+  const [arrivedNarrowed] = useState(() => params.has("workStreamId"));
+  const linked = params.has("programId") || params.has("workStreamId") || arrivedNarrowed;
   const search = params.toString();
   const shown = useMemo(() => (linked ? parseProgramPick(new URLSearchParams(search)) : remembered), [linked, search, remembered]);
 

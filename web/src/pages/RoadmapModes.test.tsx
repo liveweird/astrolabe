@@ -212,6 +212,16 @@ describe("RoadmapModes: the switch", () => {
     expect(localStorage.getItem(PICK_KEY)).toBe(JSON.stringify([10]));
   });
 
+  test("a switch leaves the overview's work stream narrowing behind with the filters (it is the address's alone)", async () => {
+    const user = userEvent.setup();
+    renderAt("/roadmap?mode=overview&workStreamId=1");
+    await overviewShown();
+    expect(where()).toBe("/roadmap?mode=overview&workStreamId=1");
+    await user.click(screen.getByRole("radio", { name: "Prioritization" }));
+    await prioritizationShown();
+    expect(where()).toBe("/roadmap?mode=prioritization");
+  });
+
   test("a bare link after a choice lands on the chosen mode; a link naming the other mode shows it and leaves the choice", async () => {
     const user = userEvent.setup();
     renderAt("/roadmap?mode=prioritization");

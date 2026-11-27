@@ -85,7 +85,7 @@ describe("useRowMenuFocus", () => {
   describe("where the focus goes", () => {
     const timelineOf = (found: boolean) => {
       const focusRow = vi.fn((_id: number | string) => found);
-      return { handle: { current: { focusRow } satisfies TimelineHandle }, focusRow };
+      return { handle: { current: { focusRow, scrollToDay: vi.fn() } satisfies TimelineHandle }, focusRow };
     };
     const fallbackButton = () => {
       const button = document.createElement("button");

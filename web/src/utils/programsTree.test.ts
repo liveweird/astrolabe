@@ -4,7 +4,7 @@ import type { RoadmapProject } from "../api/roadmap";
 import { roadmapProject } from "../test/roadmapView";
 import { jiraWindow } from "./jiraBars";
 import type { RemovedProjectRow } from "./baselineOverlay";
-import { allOpen, arrowAnchors, defaultOpen, programChoices, toggled, treeDates, treeFacts, treeRows } from "./programsTree";
+import { allOpen, arrowAnchors, defaultOpen, inWorkStream, programChoices, toggled, treeDates, treeFacts, treeRows } from "./programsTree";
 
 const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): RoadmapProject => roadmapProject({ id, name, ...over });
 
@@ -183,6 +183,24 @@ describe("the expanded set", () => {
     expect([...toggled(open, "pg:10")]).toEqual(["ws:1", "pg:10"]);
     expect([...toggled(open, "ws:1")]).toEqual([]);
     expect([...open]).toEqual(["ws:1"]);
+  });
+
+  test("narrowed to a work stream (1.31), defaultOpen also opens the programs that have projects (a program without any stays folded)", () => {
+    const view = viewOf();
+    expect([...defaultOpen(view, true)]).toEqual(["ws:1", "pg:10", "pg:11", "ws:2", "ws:3"]);
+    expect([...defaultOpen(inWorkStream(view, 2), true)]).toEqual(["ws:2"]);
+  });
+});
+
+describe("inWorkStream (1.31)", () => {
+  test("keeps only that work stream, the rest of the document as it is; null and an id the plan lacks leave nothing / everything as asked", () => {
+    const view = viewOf();
+    const narrowed = inWorkStream(view, 1);
+    expect(narrowed.workStreams.map((stream) => stream.id)).toEqual([1]);
+    expect(narrowed.links).toBe(view.links);
+    expect(shape(treeRows(narrowed, null, defaultOpen(narrowed)))).toEqual(["workStream:Platform+", "program:Billing", "program:Reports"]);
+    expect(inWorkStream(view, null)).toBe(view);
+    expect(inWorkStream(view, 99).workStreams).toEqual([]);
   });
 });
 

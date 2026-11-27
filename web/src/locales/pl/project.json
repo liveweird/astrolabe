@@ -110,6 +110,9 @@
   "scheduleInvalid": "Serwer odrzucił te terminy: koniec nie może być przed początkiem, a kamień milowy musi obejmować co najmniej jeden dzień roboczy (od poniedziałku do piątku, poza świętami państwowymi).",
   "saving": "Zapisujemy…",
   "busy": "Poprzedni zapis jeszcze trwa — spróbuj ponownie za chwilę.",
+  "milestoneArrival": {
+    "gone": "Tego kamienia milowego nie ma już w tym projekcie — mógł zostać usunięty albo przeniesiony do innego projektu."
+  },
   "milestoneGone": "Ten kamień milowy już nie istnieje — został w międzyczasie usunięty.",
   "announce": {
     "scheduled": "{{name}} ma termin od {{start}} do {{end}}",
@@ -219,6 +222,7 @@
   "ghostName": "{{project}} › {{name}}",
   "ghostSpan": "{{name}}, od {{start}} do {{end}}",
   "ghostLinkAria": "{{text}} – otwórz projekt {{project}}",
+  "ghostMilestoneLinkAria": "{{text}} – otwórz kamień milowy w projekcie {{project}}",
   "dependenciesTitle": "Zależności",
   "dependenciesAria": "Zależności projektu",
   "dependenciesIntro": "Zależność sprawia, że jeden koniec czeka na drugi: następnik czeka na poprzednik. Zależności, które nie są dotrzymane, są wymienione na początku i tylko ostrzegają — nic nie przesuwa się samo.",

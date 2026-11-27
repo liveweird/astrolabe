@@ -159,9 +159,20 @@ export function arrowAnchors(view: ProgramsView, pick: ReadonlySet<number> | nul
 /** Is this row a work stream or program (the expandable ones, with a `key`)? */
 export const isNodeRow = (row: TreeRow): row is NodeRow => row.kind === "workStream" || row.kind === "program";
 
-/** What the page opens with: every work stream expanded (its programs show), every program collapsed. */
-export function defaultOpen(view: ProgramsView): Set<string> {
-  return new Set(view.workStreams.map((stream) => streamKey(stream.id)));
+/**
+ * What the page opens with: every work stream expanded (its programs show), every program collapsed - unless the overview is NARROWED to a work stream (`narrowed`,
+ * 1.31), when its programs with projects open too: the viewer asked for that work stream's projects, one click short of them is no arrival. (A program pick keeps the
+ * programs collapsed, as it always has.)
+ */
+export function defaultOpen(view: ProgramsView, narrowed = false): Set<string> {
+  return new Set(
+    view.workStreams.flatMap((stream) => [streamKey(stream.id), ...(narrowed ? stream.programs.filter((program) => program.projects.length > 0).map((program) => programKey(program.id)) : [])]),
+  );
+}
+
+/** The plan narrowed to one work stream (1.31: the overview a work stream's name leads to); `null` = the plan as it is. Only what the tree shows narrows: the dates, the links and the critical chain read the whole plan. */
+export function inWorkStream(view: ProgramsView, id: number | null): ProgramsView {
+  return id === null ? view : { ...view, workStreams: view.workStreams.filter((stream) => stream.id === id) };
 }
 
 /** Every work stream and program that has children (the `removed` rows count, as in `treeRows`): "Expand all". */

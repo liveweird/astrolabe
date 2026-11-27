@@ -31,6 +31,17 @@
     "projects_many": "{{count}} projektów",
     "projects_other": "{{count}} projektu"
   },
+  "narrow": {
+    "workStream": "Strumień pracy: {{name}}",
+    "showStreams": "Pokaż wszystkie strumienie pracy",
+    "showPrograms": "Pokaż wszystkie programy",
+    "noProjectsStream": "W tym strumieniu pracy nie ma jeszcze projektów.",
+    "noProjectsPicked_one": "W wybranym programie nie ma jeszcze projektów.",
+    "noProjectsPicked_few": "W wybranych programach nie ma jeszcze projektów.",
+    "noProjectsPicked_many": "W wybranych programach nie ma jeszcze projektów.",
+    "noProjectsPicked_other": "W wybranych programach nie ma jeszcze projektów.",
+    "unknown": "Tego strumienia pracy nie ma już w planie, więc przegląd nie jest do niego zawężony."
+  },
   "announce": {
     "expandedStream_one": "Rozwinięto: {{name}}, {{count}} program",
     "expandedStream_few": "Rozwinięto: {{name}}, {{count}} programy",

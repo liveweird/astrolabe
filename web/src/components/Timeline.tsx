@@ -41,7 +41,7 @@ import TimelineRow, { TimelineBand } from "./TimelineRow";
 import TimelineToolbar from "./TimelineToolbar";
 import classes from "../theme.module.css";
 
-/** What a page can ask of a mounted Timeline (`ref`): move the keyboard focus to a row, whether or not the virtual path has mounted it. */
+/** What a page can ask of a mounted Timeline (`ref`): move the keyboard focus to a row, whether or not the virtual path has mounted it, and scroll to a day. */
 export interface TimelineHandle {
   /**
    * Focus the row-header cell of the row with this `TimelineRowData.id` and reveal it clear of the sticky parts (a programmatic focus after a
@@ -50,6 +50,8 @@ export interface TimelineHandle {
    * put the focus somewhere else.
    */
   focusRow: (rowId: number | string) => boolean;
+  /** Scroll the track sideways to centre an ISO day (the Today button's arithmetic; the browser clamps a day outside the range). Never moves the focus or the rows. */
+  scrollToDay: (iso: string) => void;
 }
 
 export interface TimelineProps {
@@ -189,9 +191,15 @@ export default function Timeline({
 
   const reveal = (target: HTMLElement, force = false) => revealFocused(scrollRef.current, target, head, leftWidth, force);
 
+  const scrollToDay = (iso: string) => {
+    const scroller = scrollRef.current;
+    if (scroller !== null) scroller.scrollLeft = scrollLeftToCenter(scale, toEpochDay(iso), scroller.clientWidth, leftWidth);
+  };
+
   useImperativeHandle(
     ref,
     () => ({
+      scrollToDay,
       focusRow: (rowId) => {
         const index = rows.findIndex((candidate) => candidate.id === rowId);
         if (index < 0) return false;
@@ -212,10 +220,7 @@ export default function Timeline({
 
   const todayDay = toEpochDay(today);
   const todayInRange = todayDay >= scale.from && todayDay <= scale.to;
-  const scrollToToday = () => {
-    const scroller = scrollRef.current;
-    if (scroller !== null) scroller.scrollLeft = scrollLeftToCenter(scale, todayDay, scroller.clientWidth, leftWidth);
-  };
+  const scrollToToday = () => scrollToDay(today);
 
   const holidayByDay = holidayDayMap(holidays ?? []);
   const hatch = trackBackground(scale, holidayByDay);

@@ -4,7 +4,6 @@ import type { DeviationConnection, DeviationItem } from "../api/deviations";
 import type { Acknowledge } from "../hooks/useAcknowledge";
 import { ageText, deviationKindLabel, deviationSentence, goneBadge, isLineOpen, itemAckKeys } from "../utils/deviations";
 import { formatDateTime } from "../utils/formatDate";
-import { entityPath } from "../utils/entityLinks";
 import DeviationAckCell, { DeviationAckAll } from "./DeviationAckCell";
 import JiraKeyWithPrevious from "./JiraKeyWithPrevious";
 import JiraRollupText from "./JiraRollupText";
@@ -29,11 +28,8 @@ function PlanCell({ item }: { item: DeviationItem }) {
         <EntityLink
           entity={{ kind: "milestone", id: node.id, projectId: node.projectId }}
           name={node.name}
-          // A milestone's own address (`?milestone=`) is read by the project page from its own commit on; until then its link is its project's page.
-          to={entityPath({ kind: "project", id: node.projectId })}
           size="sm"
           fw={500}
-          aria-label={t("deviations.node.openMilestoneAria", { name: node.name, project: node.projectName ?? "" })}
         />
       ) : (
         <Text size="sm" fw={500}>

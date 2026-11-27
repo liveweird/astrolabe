@@ -37,7 +37,7 @@ async function schedule(api: APIRequestContext, projectId: number, teamId: numbe
   expect(response.status(), await response.text()).toBe(200);
 }
 
-type Plan = { stream: string; a: string; b: string; aId: number; bId: number; late: string; early: string; other: string };
+type Plan = { stream: string; streamId: number; a: string; b: string; aId: number; bId: number; late: string; early: string; other: string };
 
 /**
  * One work stream with two programs. Program A: `late` (target 2026-03-02 to 03-31, milestones 03-02 to 03-06 and 04-06 to 04-10: its span
@@ -66,7 +66,7 @@ async function seedPlan(): Promise<Plan> {
     await schedule(api, earlyId, teamId, uniqueText("e2e-pg-m3"), "2026-02-02", "2026-02-06");
     await schedule(api, otherId, teamId, uniqueText("e2e-pg-m4"), "2026-05-04", "2026-05-08");
     await seed(api, `/api/v1/projects/${otherId}/dependencies`, { predecessor: { kind: "PROJECT", id: lateId }, successor: { kind: "PROJECT", id: otherId }, type: "FS", lagDays: 0 }, null);
-    return { stream, a, b, aId, bId, late, early, other };
+    return { stream, streamId, a, b, aId, bId, late, early, other };
   } finally {
     await api.dispose();
   }
@@ -289,4 +289,38 @@ test("a Roadmap overview link that names a program shows it without changing wha
   await expect(page).toHaveURL(new RegExp(`[?&]programId=${plan.bId}(&|$)`));
   await expect(nodeButton(page, `Program ${plan.b}`)).toBeVisible();
   await expect(nodeButton(page, `Program ${plan.a}`)).toHaveCount(0);
+});
+
+test("a Roadmap overview link that names a work stream narrows the tree to it, says so with a way back, leaves the remembered pick alone, and drops an unknown one with a notice", async ({ page }) => {
+  const plan = await seedPlan();
+  await login(page);
+  await page.evaluate(([key, value]) => localStorage.setItem(key, value), [PICK_KEY, JSON.stringify([plan.bId])]);
+  // The link is shown as written: that work stream with BOTH of its programs open on their projects (the remembered pick of program B is not applied), nothing else of the plan.
+  await page.goto(`/roadmap?mode=overview&workStreamId=${plan.streamId}`);
+  await expect(grid(page)).toBeVisible();
+  await expect(page.getByText(`Work stream: ${plan.stream}`, { exact: true })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Programs facts" })).toContainText("1 work stream");
+  await expect(nodeButton(page, `Program ${plan.a}`)).toBeVisible();
+  await expect(nodeButton(page, `Program ${plan.b}`)).toBeVisible();
+  await expect(projectRow(page, plan.late)).toBeVisible();
+  await expect(projectRow(page, plan.other)).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/roadmap\\?mode=overview&workStreamId=${plan.streamId}$`));
+  expect(await page.evaluate((key) => localStorage.getItem(key), PICK_KEY)).toBe(JSON.stringify([plan.bId]));
+
+  // The way back leaves the narrowing; the address says so.
+  await page.getByRole("button", { name: "Show every work stream" }).click();
+  await expect(page.getByText(`Work stream: ${plan.stream}`, { exact: true })).toHaveCount(0);
+  await expect(page).not.toHaveURL(/workStreamId=/);
+  // The remembered pick (program B) does not come back over the way back: the whole plan shows, program A included.
+  await expect(page).not.toHaveURL(/programId=/);
+  await expect(nodeButton(page, `Program ${plan.a}`)).toBeVisible();
+  await expect(nodeButton(page, `Program ${plan.b}`)).toBeVisible();
+
+  // A work stream the plan does not have: the whole plan shows, with a notice that can be dismissed.
+  await page.goto("/roadmap?mode=overview&workStreamId=2147483000");
+  await expect(grid(page)).toBeVisible();
+  await expect(page.getByText("That work stream is not in the plan any more", { exact: false })).toBeVisible();
+  await expect(page).not.toHaveURL(/workStreamId=/);
+  await page.getByRole("button", { name: "Dismiss this notice" }).click();
+  await expect(page.getByText("That work stream is not in the plan any more", { exact: false })).toHaveCount(0);
 });

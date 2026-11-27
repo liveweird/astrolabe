@@ -23,6 +23,7 @@ import CriticalPathToggle from "../components/CriticalPathToggle";
 import IdleGaps from "../components/IdleGaps";
 import JiraBarsToggle from "../components/JiraBarsToggle";
 import JiraUnlinkModal from "../components/JiraUnlinkModal";
+import MilestoneArrivalNotice from "../components/MilestoneArrivalNotice";
 import ProjectDependencies from "../components/ProjectDependencies";
 import ProjectEditors from "../components/ProjectEditors";
 import ProjectFacts from "../components/ProjectFacts";
@@ -42,6 +43,7 @@ import { useJiraLinks } from "../hooks/useDeviations";
 import { useJiraBarsPick } from "../hooks/useJiraBarsPick";
 import { useLocalToday } from "../hooks/useLocalToday";
 import { useJiraUnlink } from "../hooks/useJiraUnlink";
+import { useMilestoneArrival } from "../hooks/useMilestoneArrival";
 import { useMilestoneSchedule } from "../hooks/useMilestoneSchedule";
 import { useRowMenuFocus } from "../hooks/useRowMenuFocus";
 import { isOneOf, useStoredState } from "../hooks/useStoredState";
@@ -106,6 +108,8 @@ function ProjectPage({ id }: { id: number }) {
   // "Schedule on Jira's dates" takes the dashed row (and its kebab) away: the focus goes to the milestone's own row (`useRowMenuFocus`).
   const timelineRef = useRef<TimelineHandle>(null);
   const rowFocus = useRowMenuFocus(timelineRef);
+  // 1.31: a milestone's address (`?milestone=`) marks and focuses its row (or its tray row) once the view is here, then leaves the address.
+  const arrival = useMilestoneArrival(view, query.isSuccess && !query.isFetching, timelineRef);
   const unlinkJira = useJiraUnlink(titleRef);
   const removeMilestone = useDeleteConfirm<{ milestone: ProjectMilestone; links: number }>({
     mutationFn: ({ milestone }) => deleteMilestone(milestone.id),
@@ -252,6 +256,7 @@ function ProjectPage({ id }: { id: number }) {
 
       {query.isError && <ErrorAlert error={query.error} title={t("project.loadFailed")} />}
       <ProjectViewNotices schedule={schedule} />
+      <MilestoneArrivalNotice gone={arrival.gone} onClose={arrival.dismiss} />
 
       {milestoneCount === 0 ? (
         <EmptyState icon={IconCalendarStats} label={t("project.noMilestones")} hint={project.can.createMilestone ? t("project.noMilestonesHint") : t("project.noMilestonesHintReadOnly")} />
@@ -271,15 +276,16 @@ function ProjectPage({ id }: { id: number }) {
               toolbar={toolbar}
               jira={jiraWindowNow}
               timelineRef={timelineRef}
+              current={arrival.marked}
             />
           </Stack>
           <UnscheduledTraySection hasItems={view.unscheduled.length > 0} canSchedule={canTrayEdit}>
-            <ProjectTray view={view} actions={actions} label={t("project.trayAria")} />
+            <ProjectTray view={view} actions={actions} label={t("project.trayAria")} current={arrival.marked} />
           </UnscheduledTraySection>
         </TimelineDndContext>
       )}
       {/* 1.29: the milestones as a filterable table, after the tray (and with something to list: an empty project has the empty state above). */}
-      {milestoneCount > 0 && <ProjectMilestonesTable view={view} />}
+      {milestoneCount > 0 && <ProjectMilestonesTable view={view} current={arrival.marked} />}
       {/* After the tray, not between: the tray's pointer drop needs it close to the timeline (and in view with it). */}
       {dependencies}
       {/* Between the links and the idle gaps; only with the timeline (its toggle is the way out of it). */}

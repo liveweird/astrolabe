@@ -43,6 +43,7 @@ export default function ProjectTimeline({
   toolbar,
   jira,
   timelineRef,
+  current = null,
 }: {
   view: ProjectView;
   scale: TimelineScale;
@@ -59,6 +60,8 @@ export default function ProjectTimeline({
   jira: JiraWindow | null;
   /** The Timeline's imperative handle, for the page's focus after "Schedule on Jira's dates" took the dashed row away. */
   timelineRef?: Ref<TimelineHandle>;
+  /** The milestone the page was opened at (1.31, `?milestone=`): its row is marked `current`. */
+  current?: number | null;
 }) {
   const { t } = useTranslation();
   const { holidays, failed: holidaysFailed } = useHolidays();
@@ -79,7 +82,7 @@ export default function ProjectTimeline({
   const appended = { criticalPath, flagsColumn, trayBars: jiraTrayBars(view.unscheduled, jira, t), scheduleOnJira: actions.scheduleOnJira };
   const rows = [
     ...(summaryRowNeeded(view) ? [summaryRow(view, t, conflicts, criticalPath, flagsColumn)] : []),
-    ...milestoneRows(view, t, { actions, jira, conflicts, criticalPath, flagsColumn, colours }),
+    ...milestoneRows(view, t, { actions, jira, conflicts, criticalPath, flagsColumn, colours, current }),
     ...baselineRows(view, t, appended),
     ...jiraRows(view, t, appended),
     ...ghostEndpoints(view).map((endpoint) => ghostRow(endpoint, t, upstream, flagsColumn, colours)),
@@ -104,8 +107,8 @@ export default function ProjectTimeline({
   );
 }
 
-/** The Unscheduled tray of the project's milestones without dates: drag onto the timeline (pointer) or Schedule (button), inside the same `TimelineDndContext`. */
-export function ProjectTray({ view, actions, label }: { view: ProjectView; actions: MilestoneActions; label: string }) {
+/** The Unscheduled tray of the project's milestones without dates: drag onto the timeline (pointer) or Schedule (button), inside the same `TimelineDndContext`; `current` marks the milestone the page was opened at. */
+export function ProjectTray({ view, actions, label, current = null }: { view: ProjectView; actions: MilestoneActions; label: string; current?: number | null }) {
   const { t } = useTranslation();
   const canLink = view.project.can.createDependency;
   const sites = siteUrls(view.jiraSites);
@@ -121,6 +124,7 @@ export function ProjectTray({ view, actions, label }: { view: ProjectView; actio
       estimateText(t, milestone),
     ],
     canSchedule: milestone.can.schedule,
+    current: milestone.id === current,
     actions: hasMenu(milestone, canLink) ? <MilestoneMenu milestone={milestone} actions={actions} canLink={canLink} /> : null,
   }));
   return (

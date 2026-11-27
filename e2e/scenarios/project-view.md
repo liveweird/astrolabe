@@ -60,6 +60,15 @@
    - *Expected*: the bar is a read-only image ("…, read-only") with no start/end handles and nothing to pick up; the row menu offers
      Edit but no schedule item.
 
+## Scenario: a milestone's address marks and focuses its row on the project page, then leaves the address; a milestone the project does not have is a notice
+
+1. The administrator (through the API) schedules one milestone of the project for 2027-01-11 – 2027-01-15 and leaves a second one unscheduled. They sign in and open `/projects/<P>?milestone=<scheduled>`.
+   - *Expected*: the milestone's timeline row header is the current item (`aria-current`) and has the keyboard focus; its row of the Milestones table is the current item too; the address becomes `/projects/<P>` (the parameter is dropped by a replace, so Back and a reload do not take the focus again).
+2. They open `/projects/<P>?milestone=<unscheduled>`.
+   - *Expected*: the milestone's row of the Unscheduled tray is the current item and has the focus; the timeline's row of the first milestone is no longer current.
+3. They open `/projects/<P>?milestone=2147483000` (a milestone this project does not have), then dismiss the notice.
+   - *Expected*: no error page: the project's heading and the timeline show as ever; a notice says "That milestone is not in this project any more…"; the parameter leaves the address; Dismiss removes the notice.
+
 ## Not covered here (and why)
 
 - **The 400 refusals, the optimistic rollback on a non-409 failure, the ignored change while a save is in flight, the pre-checked

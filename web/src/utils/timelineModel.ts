@@ -138,6 +138,11 @@ export interface TimelineRowData {
   bars: readonly TimelineBarData[];
   /** Bands confined to this row's track. */
   bands?: readonly TimelineBandData[];
+  /**
+   * The page marks this row as the one it was opened at (1.31: a milestone's address, `?milestone=`): the row header cell takes `aria-current="true"` and a
+   * leading accent stripe (a border, so forced colours keep it). Only a mark - it moves nothing and adds no stop; the page focuses the row through `focusRow`.
+   */
+  current?: boolean;
   /** Draw a new span across this row's empty stretch (a row without its target window). Absent = no draw surface. */
   draw?: TimelineDrawData;
   /** Replaces the bar rendering of this row's track, positioned with the exported scale. No page uses it: the load strip is a header band (`TimelineStripData`). */

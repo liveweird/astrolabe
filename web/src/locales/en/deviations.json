@@ -93,7 +93,6 @@
     "observed": "Data as of"
   },
   "node": {
-    "openMilestoneAria": "{{name}} - open project {{project}}",
     "team": "Team {{name}}"
   },
   "jira": {

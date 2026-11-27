@@ -6,6 +6,7 @@
     "delete": "Usuń",
     "edit": "Edytuj",
     "close": "Zamknij",
+    "dismissNotice": "Zamknij to powiadomienie",
     "closeNotification": "Zamknij powiadomienie",
     "editAria": "Edytuj {{name}}",
     "deleteAria": "Usuń {{name}}",

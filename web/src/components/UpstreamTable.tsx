@@ -17,10 +17,8 @@ export type UpstreamRow = {
   hops: number;
   /** The visible text of the link into the entity's page. */
   name: string;
-  /** What the name stands for: a project, or a milestone (its project's page). */
+  /** What the name stands for: a project, or a milestone (its row on its project's page). */
   entity: EntityRef;
-  /** Where the link goes when that is not the entity's own address (a milestone's row goes to its project's page until the page reads `?milestone=`). */
-  to?: string;
   /** The link's accessible name when it is not the entity's own (`common.entity.open.<kind>`); it keeps the visible text. */
   ariaLabel?: string;
   /** The "Kind" column's text (only when the table has that column). */
@@ -76,7 +74,7 @@ export default function UpstreamTable({
               <Table.Td>{row.hops}</Table.Td>
               <Table.Td>
                 {/* The entity's own accessible name ("Open project X"), or the row's `ariaLabel` (a ghost row's "text - open project X"): both keep the visible text (label-content-name-mismatch). */}
-                <EntityLink entity={row.entity} to={row.to} name={row.name} aria-label={row.ariaLabel} />
+                <EntityLink entity={row.entity} name={row.name} aria-label={row.ariaLabel} />
                 {row.note !== undefined && (
                   <Text span size="sm" c="dimmed">
                     {" "}

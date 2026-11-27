@@ -3,20 +3,17 @@ import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import type { ProjectView, UpstreamEntity } from "../api/milestones";
 import { chainEntries } from "../utils/projectDependencies";
-import { entityPath } from "../utils/entityLinks";
 import TableDisclosure from "./TableDisclosure";
 import UpstreamTable, { type UpstreamRow } from "./UpstreamTable";
 
-/** The server's upstream entries as the shared table's rows: the name links into the entity's own project. */
+/** The server's upstream entries as the shared table's rows: a project's name links to its page, a milestone's to its row on its project's page. */
 function rowsOf(entries: readonly UpstreamEntity[], t: TFunction): UpstreamRow[] {
   return entries.map((entry) => ({
     key: `${entry.kind}:${entry.id}`,
     hops: entry.hops,
     name: entry.name,
     entity: entry.kind === "MILESTONE" ? { kind: "milestone", id: entry.id, projectId: entry.projectId } : { kind: "project", id: entry.projectId },
-    // A milestone's own address (`?milestone=`) is read by the project page from its own commit on; until then its row goes to its project's page.
-    to: entityPath({ kind: "project", id: entry.projectId }),
-    ariaLabel: t("project.ghostLinkAria", { text: entry.name, project: entry.projectName }),
+    ariaLabel: t(entry.kind === "MILESTONE" ? "project.ghostMilestoneLinkAria" : "project.ghostLinkAria", { text: entry.name, project: entry.projectName }),
     kind: t(`project.dependency.kind.${entry.kind}`),
     context: entry.projectName,
     startDate: entry.startDate,

@@ -25,6 +25,15 @@
     "projects_one": "{{count}} project",
     "projects_other": "{{count}} projects"
   },
+  "narrow": {
+    "workStream": "Work stream: {{name}}",
+    "showStreams": "Show every work stream",
+    "showPrograms": "Show every program",
+    "noProjectsStream": "No projects in this work stream yet.",
+    "noProjectsPicked_one": "No projects in the picked program yet.",
+    "noProjectsPicked_other": "No projects in the picked programs yet.",
+    "unknown": "That work stream is not in the plan any more, so the overview is not narrowed to it."
+  },
   "announce": {
     "expandedStream_one": "{{name}} expanded, {{count}} program",
     "expandedStream_other": "{{name}} expanded, {{count}} programs",

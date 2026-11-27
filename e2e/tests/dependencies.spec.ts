@@ -134,13 +134,13 @@ test("a project owner links a milestone to a milestone of another project, sees 
   ]);
   await expect(dialog).toHaveCount(0);
 
-  // The table lists the link as holding; a1 is a grayed ghost row whose name leads to project A; the link is one gray arrow.
+  // The table lists the link as holding; a1 is a grayed ghost row whose name leads to its row on project A's page; the link is one gray arrow.
   const row = dependenciesTable(page).getByRole("row").filter({ hasText: a.milestone });
   await expect(row).toContainText("OK");
   await expect(row).toContainText(`${a.milestone} · ${a.name}`);
   const grid = page.getByRole("grid", { name: "Milestone timeline" });
   await expect(grid.getByRole("rowheader").filter({ hasText: `${a.name} › ${a.milestone}` })).toBeVisible();
-  await expect(grid.getByRole("link", { name: `${a.name} › ${a.milestone} - open project ${a.name}` })).toHaveAttribute("href", `/projects/${a.id}`);
+  await expect(grid.getByRole("link", { name: `${a.name} › ${a.milestone} - open the milestone in project ${a.name}` })).toHaveAttribute("href", `/projects/${a.id}?milestone=${a.milestoneId}`);
   await expect(arrows(page)).toHaveCount(1);
   await expect(arrows(page)).toHaveAttribute("data-violated", "false");
   await expect(facts(page)).not.toContainText("conflict");
@@ -209,7 +209,7 @@ test("the team's manager moves the successor before its predecessor and reads th
   await expect(confirm).toHaveCount(0);
   await expect(page.getByText("No dependencies yet")).toBeVisible();
   await expect(arrows(page)).toHaveCount(0);
-  await expect(page.getByRole("grid", { name: "Milestone timeline" }).getByRole("link", { name: new RegExp(`open project ${a.name}$`) })).toHaveCount(0);
+  await expect(page.getByRole("grid", { name: "Milestone timeline" }).getByRole("link", { name: new RegExp(`in project ${a.name}$`) })).toHaveCount(0);
   await expect(facts(page)).not.toContainText("conflict");
 });
 

@@ -94,6 +94,9 @@
   "scheduleInvalid": "These dates cannot be saved: the end must not be before the start, and a milestone must cover at least one working day (Monday to Friday, not a public holiday).",
   "saving": "Saving…",
   "busy": "A save is still running — try your change again in a moment.",
+  "milestoneArrival": {
+    "gone": "That milestone is not in this project any more - it may have been removed or moved to another project."
+  },
   "milestoneGone": "This milestone no longer exists — it was removed in the meantime.",
   "announce": {
     "scheduled": "{{name}} scheduled: {{start}} to {{end}}",
@@ -193,6 +196,7 @@
   "ghostName": "{{project}} › {{name}}",
   "ghostSpan": "{{name}}, {{start}} to {{end}}",
   "ghostLinkAria": "{{text}} - open project {{project}}",
+  "ghostMilestoneLinkAria": "{{text}} - open the milestone in project {{project}}",
   "dependenciesTitle": "Dependencies",
   "dependenciesAria": "Dependencies of the project",
   "dependenciesIntro": "A dependency makes one end wait for another: the successor waits for the predecessor. Links that do not hold are listed first and only warn — nothing is moved automatically.",

@@ -105,7 +105,6 @@
     "observed": "Dane z chwili"
   },
   "node": {
-    "openMilestoneAria": "{{name}} - otwórz projekt {{project}}",
     "team": "Zespół {{name}}"
   },
   "jira": {

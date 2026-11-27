@@ -368,19 +368,18 @@ The rules: `web/CLAUDE.md` "Registries" and "Forms". The small ADMIN-curated reg
 
 Files: `components/EntityLink.tsx`, `utils/entityLinks.ts`, `entityLinkGuard.test.ts`; the rule: `web/CLAUDE.md` "An entity's NAME is the way into its detail page".
 
-- **`EntityRef`** is `{kind: workStream|program|project|team|person|user, id}` or `{kind: "milestone", id, projectId}`; `entityPath(ref)` dispatches to the area's own helper: `/projects/P`, a milestone
-  `/projects/P?milestone=M` (`milestonePath`), team, person, a login's ADMIN edit page, a program the Roadmap overview narrowed by its pick (`programPath`: `?mode=overview&programId=N`) and a work stream
-  the overview narrowed by `workStreamId` (`workStreamPath`). The overview and the project page read the last two parameters from the commits that follow the ids reaching the views.
+- **`EntityRef`** is `{kind: workStream|program|project|team|person|user, id}` or `{kind: "milestone", id, projectId}`; `entityPath(ref)` dispatches to the area's own helper: a milestone `/projects/P?milestone=M`
+  (`milestonePath`; the page marks and focuses it: projects-view.md "The Milestones table"), a login's ADMIN edit page, a program the Roadmap overview narrowed by its pick (`programPath`: `?mode=overview&programId=N`),
+  a work stream the overview narrowed by `workStreamId` (`workStreamPath`; "Programs").
 - **`<EntityLink entity name>`**: a `RouterLink` `Anchor` in the theme's look (no colour or underline prop), visible text the name (or `children`, a team's swatch), accessible name
   `common.entity.open.<kind>` ("Open project {{name}}"; `aria-label` replaces it and must start with the visible text, `to` replaces the destination). A null `entity` or `current` is the same typography as
-  plain text; a `user` links for an ADMIN only. A figure leading to an entity's page spells `to={entityPath(...)}`; the guard fails `to={projectPath(...)}` and siblings outside `EntityLink` and the three
-  files with menu items (whose visible text is the action).
+  plain text; a `user` links for an ADMIN only. A figure leading to an entity's page spells `to={entityPath(...)}`; the guard fails `to={projectPath(...)}` and siblings outside `EntityLink` and the three menu-item files.
 - **Where NOT to link** (text, not a link): (1) the page's own subject (h2, the narrowed node's header, the last breadcrumb step, a milestone's own marked row); (2) a label of another control (select
   options, menu items, chevrons, checkboxes, handles, filter chips); (3) inside a dialog; (4) not rendered text (bar and handle names, `title`, arrow titles, live regions, toasts); (5) an entity gone or
   foreign (removed or frozen baseline rows, a deleted login, raw Jira or Flow values); (6) prose or the session (changelog, account menu); (7) an unknown id, never a guessed link.
 - **Keyboard**: a native table gives every link a tab stop. A Timeline grid keeps one stop per cell (`useRovingGrid`): the link takes `stop` where its cell has no other focusable, else it is `secondary`
   (`tabIndex -1`; the props exclude both at once). Later 1.31 commits add the row menu's "Open ..." item for it and make the Plan tree's fold button chevron-only, the name link beside it.
-- Keys: `common.entity.open.{workStream,program,project,milestone,team,person,user}` (EN/PL). Names never pass through `<Trans>` values.
+- Keys: `common.entity.open.{workStream,program,project,milestone,team,person,user}` (EN/PL); names never pass through `<Trans>` values.
 
 ## Timeline mechanics (`components/Timeline*.tsx`)
 
@@ -391,70 +390,48 @@ follows: `web/CLAUDE.md` "Per-feature rules". What the pages see of the componen
 - **Boundary.** `Timeline` takes rows, bars and bands as `TimelineRowData[]` (`utils/timelineModel.ts`); the page builds the `scale` (`makeScale(zoom, range)`,
   `defaultRange`) and keeps the range stable across edits. `editable` comes from the view's `can` flags, and a drop is only `onSchedule(id, start, end)` on the
   page's `TimelineDndContext`: the page's write path owns the optimistic update, the revision and the rollback.
-  - Dates are ISO strings at the boundary; layout is `utils/timelineScale.ts` (28/8/3/1 px per day at week/month/quarter/year), drag arithmetic is
-    `utils/timelineDrag.ts`, both pure and unit-tested.
-  - It is a `role="grid"` with ONE roving tab stop (`useRovingGrid`; a left cell that holds its own focusable is a function cell that spreads the stop on it),
-    rows virtualised with TanStack Virtual only above `virtualizeFrom` (80).
-  - Keyboard: Space/Enter picks up a bar or edge handle, ←/→ a day, Shift a week, Space drops, Escape cancels, announced in the UI language
-    (`timeline.announce.*`); the page ships the explicit buttons (Edit schedule…, the tray's Schedule).
-  - Pointer drags are not unit-tested (happy-dom has no layout; `Timeline.test.tsx` feeds the wrapped `DndContext` its events); the e2e does them.
+  - Dates are ISO strings at the boundary; layout is `utils/timelineScale.ts` (28/8/3/1 px per day), drag arithmetic `utils/timelineDrag.ts`, both pure.
+  - It is a `role="grid"` with ONE roving tab stop (`useRovingGrid`; a left cell holding its own focusable is a function cell that spreads the stop on it), rows virtualised (TanStack Virtual) above `virtualizeFrom` (80).
+  - Keyboard: Space/Enter picks up a bar or handle, ←/→ a day, Shift a week, Space drops, Escape cancels (`timeline.announce.*`); the page ships the explicit buttons (Edit schedule…, the tray's Schedule).
+  - Pointer drags run in the e2e only (`Timeline.test.tsx` feeds the wrapped `DndContext` its events).
   - Reference: "Coordinate model", "Data contract", "Drag, resize and keyboard", "Accessibility model", "Virtualisation".
 - **Zooms, the window tone, draw and `focusRow`.** `Timeline` takes `zooms` (default `MILESTONE_ZOOMS` = week/month/quarter, which the project and team pages
-  keep; the plan pages pass `PLAN_ZOOMS` = month/quarter/year, Year = 1 px per day, year header over quarter cells) and validates a stored zoom against its own
-  list (`isOneOf(MILESTONE_ZOOMS)`).
-  - `tone: "window"` is the one tone an EDITABLE bar honours (a target window as a bar: the band look over the whole row height, handles and keyboard as any editable bar).
+  keep; the plan pages pass `PLAN_ZOOMS` = month/quarter/year, Year = 1 px per day) and validates a stored zoom against its own list (`isOneOf(MILESTONE_ZOOMS)`).
+  - `tone: "window"` is the one tone an EDITABLE bar honours (a target window as a bar: the band look, handles and keyboard as any editable bar).
   - `TimelineRowData.draw = {barId, label}` mounts a pointer-only, `aria-hidden` `TimelineDrawSurface` behind the row's bars: a drag across the empty stretch is
-    the fifth drag kind `draw`, previewed as a window-toned ghost and proposed through the SAME `onSchedule(barId, start, end)` as a bar move
-    (`drawOutcome(anchorDay, pointerDay)`; the page's dialog is the keyboard/touch path).
-  - `ref` exposes `focusRow(rowId)`: focus + reveal a row header, mounted or not; it answers `false` for a row the Timeline does not have.
+    the fifth drag kind `draw`, previewed as a window-toned ghost and proposed through the SAME `onSchedule` as a bar move (`drawOutcome`; the page's dialog is the keyboard/touch path).
+  - `ref` exposes `focusRow(rowId)` (focus + reveal a row header, mounted or not; `false` for an unknown row) and `scrollToDay(iso)`. `TimelineRowData.current` only marks a row.
   - Reference: "The draw gesture", "Bar tones", "Accessibility model".
-- **Bands.** `TimelineBandData.tone` is `window` (quiet gray, dashed edges), `drift` (orange) or `idle` (a diagonal gray hatch, no edges; the project and
-  team pages' idle gaps). Every band carries `data-band-tone`, is `aria-hidden`, and its facts live in the page's text. Reference: "Idle bands".
-- **Tones and arrows.** A read-only bar may carry a `tone`:
-  - `tone: "ghost"`: another project's endpoint, faint and dashed;
-  - `"summary"`: the project's own span, hollow;
-  - `"proposal"`: a PROPOSED span of the team page's schedule proposal, hollow with a dashed 2 px text-colour outline, no new hue;
-  - `"baseline"`: the span a picked baseline froze, a 5 px SHADOW bar along the bottom of the row, pointer-transparent, no hue;
-  - `"jira"`: the dates Jira holds, a 5 px dashed outline along the TOP of the row, pointer-transparent.
+- **Bands.** `TimelineBandData.tone` is `window` (quiet gray, dashed edges), `drift` (orange) or `idle` (a diagonal hatch, no edges: the idle gaps); each carries `data-band-tone`, is `aria-hidden`, its facts in the page's text. Reference: "Idle bands".
+- **Tones and arrows.** A read-only bar may carry a `tone` (`ghost`: another project's endpoint; `summary`: the project's own span; `proposal`: a PROPOSED span; `baseline`: the span a picked baseline froze, a shadow bar; `jira`: the dates Jira holds, a dashed outline; looks in "Bar tones").
 - Dependency arrows are `TimelineArrowData[]` (`from`/`to` `{row, bar, kind: START|END}`, `violated`, `label`) drawn by `components/TimelineArrows.tsx` through the
   `overlay={(geometry) => …}` slot: decorative (`aria-hidden`; the page's table is the accessible surface), gray, RED when `violated`, only for mounted rows
   and from committed dates. Tests read `data-arrow`/`data-violated`/`data-tone`, never colour.
   Reference: "Arrows", "The proposal preview", "The baseline overlay", "The Jira markers".
-- **Row drag.** The one `TimelineDndContext` has a fourth drag kind, `kind: "row"` (no `@dnd-kit/sortable`: no row ever gets a transform; a `DragOverlay`
-  card plus an insertion line show the slot, computed from the live pointer against the body-wide row zone, so it reaches unmounted rows). It is the
-  timeline's variant of the Roadmap rule: a pointer-only, `aria-hidden` handle (one cell, one roving stop) plus the row menu as the keyboard path, announced
-  by dnd-kit's region (`timeline.announce.*Row`). The page passes `onReorder(id, slot) → boolean`; absent, there is no reordering. Reference: "Row drag".
+- **Row drag.** The one `TimelineDndContext` has a fourth drag kind, `kind: "row"` (no `@dnd-kit/sortable`; a `DragOverlay` card plus an insertion line show the slot, so it reaches unmounted rows): a pointer-only,
+  `aria-hidden` handle (one cell, one roving stop) plus the row menu as the keyboard path (`timeline.announce.*Row`). The page passes `onReorder(id, slot) → boolean`; absent, no reordering. Reference: "Row drag".
 - **Public holidays.** `holidays?: {date, name}[]` is the dictionary, any range; every page passes `useHolidays()`. Reference: "Public holidays".
 - **The load strip.** The optional `strip={{label, render: (scale) => …}}` prop adds a sticky THIRD header row (36 px, `aria-hidden`, a visible caption) under
-  the date cells; `components/TimelineLoadStrip.tsx` draws the weekly load into it from a local `LoadWeek[]` (the server's week row; the page maps its view onto it). Reference: "The load strip".
+  the date cells; `components/TimelineLoadStrip.tsx` draws the weekly load into it from a local `LoadWeek[]` (the page maps its view onto it). Reference: "The load strip".
 
 ### Wiring notes
 
-The non-obvious wiring:
-
-1. `Timeline` reads `useDndContext().active` to suspend its own arrow handling while a bar is held (dnd-kit's keyboard sensor listens on the document, AFTER
-   React's handlers) and registers the track drop zone with `useDroppable`. Both work without a `DndContext` (read-only timelines need none).
-2. `TimelineDndContext` passes its handlers as `DndContext` props; dnd-kit calls those BEFORE the monitor that feeds `accessibility.announcements`, so the
-   handlers stash the latest outcome in refs and the announcements only read them.
-3. A resize redraws from the context's preview (`PreviewContext`); a move is a CSS translate of the bar wrapper from `useDraggable` (the context's modifiers
-   hold it to its row and snap it to days). The edge handles sit outside the bar with a constant width per zoom, so a resize never re-measures the dragged node.
-4. `useDraggable` results are destructured in `TimelineBar` because the React-compiler lint (`react-hooks/refs`) flags field reads off an object that carries a ref.
-5. The virtualiser's `useVirtualizer` carries the one justified `react-hooks/incompatible-library` disable.
-6. The track drop zone's droppable `data` carries `visibleBounds()` (the scroller's live rectangle minus the sticky columns and header) and `zoneLeft()` (its
-   element's live left edge). `outcomeOf` combines them with the pointer `TimelineDndContext` tracks itself during a tray drag, so a tray item released over
-   the tray below or the left columns is not scheduled and a scrolled grid gives the right day (dnd-kit's `delta` is wrong for it, `timeline.md`).
-7. A pending "focus the row once it mounts" wish is cleared by another key, a focus elsewhere or a manual scroll.
-8. Tests stub the scroller size with `HTMLElement.prototype.clientWidth/clientHeight` (happy-dom lays nothing out; the virtualiser reads them), restore the
-   original descriptors in a file-level `afterEach` and wait with `waitFor`, never a real sleep (the suite is `isolate: false`). The keyboard-sensor test
-   fakes only `setTimeout` for dnd-kit's zero-delay listener attach.
-9. **Arrows.** `TimelineArrows` renders a fragment (the `<defs>` with two `<marker>`s of FIXED ids, then one `<path>` per kept arrow) inside the Timeline's own
-   `aria-hidden` svg. The marker colours are CSS classes (`timelineArrowHead*`), because a marker's content inherits from the marker's ancestors, not from the
-   path that references it, and the theme tokens `--timeline-arrow`/`--timeline-violation` live on `.timelineGrid`, an ancestor of both. `geometry.rowIndexOf`
-   (a lazily built id→index map) lets the arrow input name rows by `TimelineRowData.id`, so a re-sorted page never re-indexes its arrows. The route math
-   (`utils/timelineArrows.ts`) is pure; the tests feed a hand-built geometry, and `Timeline.test.tsx` covers the plain and the virtual path (the unmounted end
-   of an arrow is positioned from data).
-10. **The header height** (`timeline.md` "The load strip"). NOT pinned (happy-dom has no layout and ignores CSS modules): `scrollPaddingStart` and the CSS uses (the team page's e2e or a manual pass).
-11. **Public holidays** (`timeline.md`). The tests count `gradient(` occurrences on the body row's LAST `gridcell` (happy-dom keeps gradient strings in `style.backgroundImage`).
+1. `Timeline` reads `useDndContext().active` to suspend its own arrow handling while a bar is held (dnd-kit's keyboard sensor listens on the document, AFTER React's handlers) and registers the track drop
+   zone with `useDroppable`; both work without a `DndContext`.
+2. `TimelineDndContext` passes its handlers as `DndContext` props; dnd-kit calls those BEFORE the monitor that feeds `accessibility.announcements`, so the handlers stash the latest outcome in refs for the announcements.
+3. A resize redraws from the context's preview (`PreviewContext`); a move is a CSS translate of the bar wrapper from `useDraggable` (the modifiers hold it to its row and snap it to days); the outside handles keep a constant width, so a resize never re-measures the dragged node.
+4. `useDraggable` results are destructured in `TimelineBar`: the React-compiler lint (`react-hooks/refs`) flags field reads off an object that carries a ref. `useVirtualizer` carries the one justified `react-hooks/incompatible-library` disable.
+5. The track drop zone's droppable `data` carries `visibleBounds()` (the scroller's live rectangle minus the sticky parts) and `zoneLeft()` (its element's live left edge). `outcomeOf` combines them with the
+   pointer `TimelineDndContext` tracks itself during a tray drag, so a tray item released over
+   the tray or the left columns is not scheduled and a scrolled grid gives the right day (`delta` is wrong for it, `timeline.md`).
+6. A pending "focus the row once it mounts" wish is cleared by another key, a focus elsewhere or a manual scroll.
+7. Tests stub the scroller size with `HTMLElement.prototype.clientWidth/clientHeight` (happy-dom lays nothing out; the virtualiser reads them), restore the descriptors in a file-level `afterEach` and
+   wait with `waitFor`, never a real sleep (`isolate: false`); the keyboard-sensor test fakes only `setTimeout` (dnd-kit's zero-delay listener attach).
+8. **Arrows.** `TimelineArrows` renders a fragment (`<defs>` with two `<marker>`s of FIXED ids, then one `<path>` per kept arrow) inside the Timeline's own `aria-hidden` svg. The marker colours are CSS classes
+   (`timelineArrowHead*`): a marker's content inherits from its ancestors, not from the path that references it, and the tokens `--timeline-arrow`/`--timeline-violation` live on `.timelineGrid`.
+   `geometry.rowIndexOf` lets the arrow input name rows by `TimelineRowData.id`, so a re-sorted page never re-indexes. The route math (`utils/timelineArrows.ts`) is pure; `Timeline.test.tsx` covers both paths.
+9. **The header height** (`timeline.md` "The load strip") is NOT pinned (happy-dom has no layout or CSS modules): `scrollPaddingStart` and the CSS uses (team page e2e, a manual pass).
+10. **Public holidays** (`timeline.md`): tests count `gradient(` occurrences on the body row's LAST `gridcell` (`style.backgroundImage`).
 
 ## Home
 
@@ -755,8 +732,7 @@ The view's `dependencies[]` is read, never recomputed: the SERVER's `check` (OK 
 - **In the rest of the page:**
   - The facts line gains a red "N conflicts" badge; a violated bar's accessible name gains ", N conflicts" (an editable bar's name ends with it; a read-only bar reads "…, N conflicts,
     read-only").
-  - The timeline gets a **ghost row** per distinct external endpoint with dates (dimmed; its name a `RouterLink` to that project whose accessible name keeps the visible text -
-    `project.ghostLinkAria` "A › a1 - open project A", axe's label-content-name-mismatch), a **summary row** only while the project itself is an endpoint, and gray/red arrows
+  - The timeline gets a **ghost row** per distinct external endpoint with dates (dimmed; its name a `RouterLink` whose accessible name keeps the visible text, axe's label-content-name-mismatch: a project endpoint leads to its page, `project.ghostLinkAria` "A - open project A"; a milestone endpoint to its row there (`?milestone=`), `ghostMilestoneLinkAria` "A › a1 - open the milestone in project A"), a **summary row** only while the project itself is an endpoint, and gray/red arrows
     (`utils/projectDependencies.ts` maps view → `TimelineArrowData[]`; an own end with no row is simply not drawn).
 - **Add dependency** (button beside the heading, and "Add dependency…" in a milestone's row menu, both gated by `project.can.createDependency`) opens `DependencyEditorModal`:
   - The SUCCESSOR is fixed to this project or one of its milestones (the constrained side).
@@ -1128,6 +1104,14 @@ project, one row each, in the server's order (open streams first, projects ranke
   server's spans, flag counts, drift and link checks are only read. The Timeline sits in the page's `TimelineDndContext`, as on the roadmap.
 - **Zoom:** Month / Quarter / Year under `timeline.planZoom` (the roadmap's key); the range grows over every span and window of the WHOLE plan (`hooks/usePlanScale.ts`).
 
+### Narrowed to a work stream
+
+`?mode=overview&workStreamId=N` (`workStreamPath`; `hooks/useWorkStreamNarrowing.ts`): `inWorkStream(view, id)` narrows the tree's input only (range, links, critical chain and Dependencies panel read the whole plan) and `defaultOpen(view, true)` opens its programs with projects.
+- **The address alone**; `useProgramPick` takes it as written for the page's life (a remembered pick is neither restored nor applied, also after "Show every work stream"). `replace`, foreign parameters kept; the mode switch drops it. The filter panel's Work stream field sets it.
+- **Said in words** (`ProgramsNarrowing`): "Work stream: X" and "Show every work stream"; with no project under the narrowing (or the picked programs) an empty line and the way back, also said by the status region.
+- **An unknown or malformed id** (judged only after a successful, settled read): dropped with the parameter; a dismissible `note` Alert says so, through an always-mounted status region (`useLiveText`).
+- The narrowed node's own row is its page's subject: plain text once the tree's names become links (rule 1).
+
 ### Rows
 
 `treeRows(view, pick, open)` (`utils/programsTree.ts`, pure and tested). Left columns, 448 px sticky (the Flags column is 120 px: a stream's roll-up runs to three digits on the sample
@@ -1153,7 +1137,7 @@ A node with children has a chevron `ActionIcon` as the ONE roving stop of its na
 `programs.streamAria`/`programAria`; no `aria-controls` - the child rows are separate grid rows without ids). Enter/Space flips it, the focus stays on that chevron and the page SAYS what
 happened in its polite status region ("X expanded, 3 programs", "X collapsed").
 
-- Defaults: every work stream open, every program closed. **Expand all / Collapse all** buttons in the facts row. The expanded set is **page state, not persisted**.
+- Defaults: every work stream open, every program closed (narrowed to a work stream: its programs with projects open too). **Expand all / Collapse all** buttons in the facts row. The expanded set is **page state, not persisted**.
 - **The expanded set** is `useState<ReadonlySet<string> | null>(null)` in `ProgramsBody`: `null` means "the defaults" (`defaultOpen(view)`: every stream), so a work stream that appears
   with a refetch opens; any change (a chevron, Expand all, Collapse all) writes a concrete set from what the user sees.
 - `toggle(key)` finds the row in the CURRENT rows to say what it did (`programs.announce.*` with a plural `count`).
@@ -1166,7 +1150,7 @@ happened in its polite status region ("X expanded, 3 programs", "X collapsed").
 The roadmap's pick, in the address (`hooks/useProgramPick.ts`): the same rule as the Roadmap's filters ("Roadmap" "The URL holds the filters", the table), for the pick alone.
 `programId` repeated (`parseProgramPick` / `withProgramPick` in `utils/roadmapFilterParams.ts`, the Roadmap's own spelling: de-duplicated, ascending, at most 100).
 
-- An address naming `programId` (even a malformed one) is shown exactly as written (none valid = every program) and remembers nothing; only the user's own change writes the ONE key
+- An address naming `programId` (even a malformed one) or `workStreamId` is shown exactly as written (none valid = every program) and remembers nothing; only the user's own change writes the ONE key
   `planning.programPick` (shared with the Roadmap) and rewrites the address by `replace`.
 - The same `ProgramPickField` (its labels `common.filter.*`) sits in a `FilterPanel` (stored `programs.filtersOpen`). The `MultiSelect`'s clear button is `aria-hidden` (Mantine), so tests
   and e2e find it by its label (`getByLabel`), not by role.
@@ -2498,7 +2482,7 @@ When a feature needs one of these, port the sibling's `web/` implementation and 
 - **View settings** (`astrolabe.viewSettings.<key>`, each a `useStoredState` with its own validator): `appShell.navCollapsed`, `home.mine.ownOnly`, `telemetry.panelOpen|range|sections`, the list
   pages' `…filter.*` and `…filtersOpen`, and the timeline and planning keys below.
 - **The Roadmap's six filter keys** (`roadmap.filter.workStream|team|owner|flagged|severity|unranked`) and `planning.programPick` are MEMORY, not state: the address holds the state and only the user's
-  own change writes them ("The URL holds the filters" under "Roadmap"); the overview mode reads and writes `planning.programPick` alone on the same terms; **`roadmap.mode`** is the mode last chosen with the switch (a link naming a mode never writes it).
+  own change writes them ("The URL holds the filters" under "Roadmap"); the overview does too for the pick; **`roadmap.mode`** is the mode last chosen with the switch (a link naming a mode never writes it).
 - **`projects.last`** (the project `/projects` opens), **`project.milestonesOpen`**, **`project.dependenciesOpen`**, **`roadmap.dependenciesOpen`**: `projects-view.md`.
 - **The Plan page's** `plan.collapsed` (folded node keys), `plan.pins`, `plan.pinnedCollapsed`, `plan.pinnedOpen` and `plan.filtersOpen` (`plan-tree.md`); its filters and focus are address-only.
 - **Timeline view settings** (`timeline.*`, shared by the pages that show them): `zoom` (project, team), `planZoom` (roadmap, programs), `criticalPath` (project and team, default false;

@@ -1060,9 +1060,9 @@ describe("Project view page: dependencies", () => {
     view = viewOf({ dependencies: [VIOLATED_LINK, OK_LINK, NOT_YET_LINK] });
     renderPage();
     const grid = await screen.findByRole("grid", { name: "Milestone timeline" });
-    // own rows first, then the ghost: "Alpha › a1" with the link (its accessible name keeps the visible text and says where it goes)
-    const link = within(grid).getByRole("link", { name: "Alpha › a1 - open project Alpha" });
-    expect(link).toHaveAttribute("href", "/projects/99");
+    // own rows first, then the ghost: "Alpha › a1" with the link (its accessible name keeps the visible text and says where it goes: the milestone's row on its project's page)
+    const link = within(grid).getByRole("link", { name: "Alpha › a1 - open the milestone in project Alpha" });
+    expect(link).toHaveAttribute("href", "/projects/99?milestone=21");
     expect(link).toHaveTextContent("Alpha › a1");
     const ghostBar = within(grid).getByRole("img", { name: /^a1, 2027-01-04 to 2027-01-08, from project Alpha, read-only$/ });
     expect(ghostBar).toHaveAttribute("data-tone", "ghost");
@@ -1276,7 +1276,7 @@ describe("Project view page: dependencies", () => {
     expect(viewGets(mockFetch)).toBeGreaterThan(before);
     expect(screen.queryByText(/conflict/)).toBeNull();
     // no ghost row any more: the link to a1 is gone
-    expect(screen.queryByRole("link", { name: /open project Alpha$/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: /in project Alpha$/ })).toBeNull();
   });
 
   test("a delete right after an edit of the same link ends with the focus on the Dependencies heading (1.23)", async () => {
@@ -1516,7 +1516,7 @@ describe("Project view page: the critical path", () => {
       ["1", "a0", "Milestone", "Alpha", "2026-12-14 – 2026-12-18", "0 working days"],
       ["2", "Gamma", "Project", "Gamma", "2026-11-02 – 2026-12-11", "0 working days"],
     ]);
-    expect(chain.getByRole("link", { name: "a0 - open project Alpha" })).toHaveAttribute("href", "/projects/99");
+    expect(chain.getByRole("link", { name: "a0 - open the milestone in project Alpha" })).toHaveAttribute("href", "/projects/99?milestone=22");
     expect(chain.getByRole("link", { name: "Gamma - open project Gamma" })).toHaveAttribute("href", "/projects/98");
     expect(screen.queryByRole("table", { name: "Upstream entries with slack" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Show the upstream entries with slack" }));

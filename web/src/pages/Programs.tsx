@@ -19,6 +19,8 @@ import PageHeader from "../components/PageHeader";
 import PlanDependenciesPanel from "../components/PlanDependenciesPanel";
 import type { WindowActions } from "../components/PlanProjectCells";
 import ProgramPickField from "../components/ProgramPickField";
+import ProgramsNarrowing from "../components/ProgramsNarrowing";
+import ProgramsWorkStreamField from "../components/ProgramsWorkStreamField";
 import ProgramsTimeline from "../components/ProgramsTimeline";
 import RoadmapCriticalChain from "../components/RoadmapCriticalChain";
 import RoadmapCriticalPicker from "../components/RoadmapCriticalPicker";
@@ -32,11 +34,12 @@ import { usePlanScale } from "../hooks/usePlanScale";
 import { useProgramPick } from "../hooks/useProgramPick";
 import { useRowMenuFocus } from "../hooks/useRowMenuFocus";
 import { useTargetWindow } from "../hooks/useTargetWindow";
+import { useWorkStreamNarrowing } from "../hooks/useWorkStreamNarrowing";
 import { projectTotals, removedProjectRows } from "../utils/baselineOverlay";
 import { localIsoDate } from "../utils/isoDate";
 import { jiraWindow } from "../utils/jiraBars";
 import { projectOfWindowBar } from "../utils/planTrack";
-import { allOpen, arrowAnchors, defaultOpen, isNodeRow, programChoices, toggled, treeDates, treeFacts, treeProjects, treeRows } from "../utils/programsTree";
+import { allOpen, arrowAnchors, defaultOpen, inWorkStream, isNodeRow, programChoices, toggled, treeDates, treeFacts, treeProjects, treeRows } from "../utils/programsTree";
 import { withoutCriticalPath } from "../utils/roadmapCritical";
 import { pickAmong } from "../utils/roadmapRows";
 import { isStaleSource } from "../utils/staleness";
@@ -104,7 +107,7 @@ export default function Programs({ modeSwitch }: { modeSwitch?: ReactNode }) {
       {pick !== null && query.isError && !dropping && view === undefined && <ShowWithoutBaseline onClick={() => setPick(null)} />}
       {(query.isLoading || dropping) && <LoadingBlock />}
       {empty && <EmptyState icon={IconListTree} label={t("programs.empty")} hint={t("programs.emptyHint")} />}
-      {view && !empty && <ProgramsBody view={view} pick={pick} onPick={setPick} target={critical.target} onTarget={critical.set} loading={query.isPlaceholderData} />}
+      {view && !empty && <ProgramsBody view={view} pick={pick} onPick={setPick} target={critical.target} onTarget={critical.set} loading={query.isPlaceholderData} settled={query.isSuccess && !query.isFetching} />}
       {/* 1.29: the explicit list of every dependency of the plan (the arrows' text), hidden until asked for. It reads its own endpoint, so it sits
           OUTSIDE the body (an error on this page's view read must not hide it) and at ONE position in every state (loading, error, data: a recovery
           never remounts it, so an open Add dialog survives); `ready` holds its arrival focus back until the page's own read has settled. */}
@@ -121,6 +124,7 @@ function ProgramsBody({
   target,
   onTarget,
   loading,
+  settled,
 }: {
   view: ProgramsView;
   pick: number | null;
@@ -129,9 +133,14 @@ function ProgramsBody({
   target: number | null;
   onTarget: (id: number | null) => void;
   loading: boolean;
+  /** The last read of the view succeeded and none is in flight (a failed refetch leaves a stale copy that says nothing): only then is a work stream the address names, and the plan lacks, called unknown (`useWorkStreamNarrowing`). */
+  settled: boolean;
 }) {
   const { t } = useTranslation();
   const [addressPick, setPick] = useProgramPick();
+  // 1.31: the work stream the overview is narrowed to (the address's alone; a link's, or the filter panel's field). Only the tree narrows: the range, the links and the critical chain read the whole plan.
+  const narrowing = useWorkStreamNarrowing(view, settled);
+  const narrowed = inWorkStream(view, narrowing.workStream?.id ?? null);
   // The expanded set is page state, not persisted. Until the user first changes it the defaults apply (every work stream open), so a stream that
   // arrives with a refetch opens too; the first change freezes the set as the user sees it.
   const [expanded, setExpanded] = useState<ReadonlySet<string> | null>(null);
@@ -145,12 +154,12 @@ function ProgramsBody({
   const { scale, setZoom, today } = usePlanScale(treeDates(view, jira));
 
   // The pick is the address's (1.21; a bare visit shows the remembered one): an id of a program the plan no longer has filters nothing instead of hiding every row.
-  const choices = programChoices(view);
+  const choices = programChoices(narrowed);
   const pick = pickAmong(choices, addressPick);
-  const open = expanded ?? defaultOpen(view);
+  const open = expanded ?? defaultOpen(narrowed, narrowing.workStream !== null);
   const removedRows = removedProjectRows(view.baseline?.removedProjects ?? [], t);
-  const rows = treeRows(view, pick, open, removedRows);
-  const anchors = arrowAnchors(view, pick, open);
+  const rows = treeRows(narrowed, pick, open, removedRows);
+  const anchors = arrowAnchors(narrowed, pick, open);
 
   // A toggle can change what the grid is made of: when it takes the rows across the virtualisation threshold (80) the Timeline switches paths and
   // EVERY row remounts as a new DOM node, so the pressed chevron is gone and the focus falls to `body` (and, going virtual, the first render
@@ -235,7 +244,7 @@ function ProgramsBody({
       )}
       {windowWrite.error && <FormErrorAlert>{windowWrite.error}</FormErrorAlert>}
       <Group gap="sm" justify="space-between" align="flex-end" wrap="wrap">
-        <ProgramsFacts view={view} pick={pick} />
+        <ProgramsFacts view={narrowed} pick={pick} />
         <Group gap="xs" data-print="hide">
           <Button variant="default" size="xs" leftSection={<IconArrowsMaximize size={14} />} onClick={() => setAll(allOpen(view, removedRows), t("programs.announce.expandedAll"))}>
             {t("programs.expandAll")}
@@ -246,8 +255,18 @@ function ProgramsBody({
         </Group>
       </Group>
       {view.baseline !== undefined && <BaselineTotals name={view.baseline.name} totals={projectTotals(projects, view.baseline.removedProjects.length)} />}
-      <FilterPanel activeFilterCount={pick === null ? 0 : 1} storageKey="programs">
+      <ProgramsNarrowing
+        workStreamName={narrowing.workStream?.name ?? null}
+        pickCount={pick?.size ?? 0}
+        empty={treeFacts(narrowed, pick).projects === 0}
+        unknown={narrowing.unknown}
+        onClearWorkStream={() => narrowing.set(null)}
+        onClearPick={() => setPick([])}
+        onDismissUnknown={narrowing.dismiss}
+      />
+      <FilterPanel activeFilterCount={(pick === null ? 0 : 1) + (narrowing.workStream === null ? 0 : 1)} storageKey="programs">
         <ProgramPickField programs={choices} pick={[...(pick ?? [])]} onPick={setPick} />
+        <ProgramsWorkStreamField workStreams={view.workStreams} value={narrowing.workStream?.id ?? null} onChange={narrowing.set} />
       </FilterPanel>
       {/* Expanding and collapsing are announced here: the buttons keep their focus, so nothing else says the tree changed. */}
       <VisuallyHidden role="status" aria-live="polite">

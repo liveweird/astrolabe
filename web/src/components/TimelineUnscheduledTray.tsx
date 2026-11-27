@@ -20,6 +20,8 @@ export interface TrayItem {
   disabled?: boolean;
   /** Extra controls after Schedule (the row menu). */
   actions?: ReactNode;
+  /** The page marks this row as the one it was opened at (1.31, a milestone's address): `aria-current`, the accent stripe, and a programmatic focus target (`data-tray-item`, `tabIndex` -1; never a tab stop). */
+  current?: boolean;
 }
 
 function TrayRow({ item, onSchedule }: { item: TrayItem; onSchedule: (id: BarId) => void }) {
@@ -33,8 +35,10 @@ function TrayRow({ item, onSchedule }: { item: TrayItem; onSchedule: (id: BarId)
   return (
     <Table.Tr
       ref={setNodeRef}
-      className={isDragging ? classes.timelineTrayRowDragging : undefined}
+      className={[isDragging ? classes.timelineTrayRowDragging : "", item.current === true ? classes.rowCurrent : ""].filter(Boolean).join(" ") || undefined}
       style={{ transform: CSS.Translate.toString(transform) }}
+      data-tray-item={item.id}
+      {...(item.current === true ? { "aria-current": "true" as const, tabIndex: -1 } : {})}
     >
       <Table.Td style={{ width: 1 }}>
         {draggable && (

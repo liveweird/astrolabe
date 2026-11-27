@@ -416,7 +416,7 @@ test.describe("detail pages and overlays", () => {
       await expect(page.getByText("1 conflict", { exact: true })).toBeVisible();
       await expect(page.getByRole("table", { name: "Dependencies of the project" }).getByRole("row")).toHaveCount(3); // the header, the violated link and the chain link
       await expect(page.locator('[data-arrow][data-violated="true"]')).toHaveCount(1);
-      await expect(page.getByRole("link", { name: new RegExp(`open project ${linkedProjectName}$`) })).toBeVisible();
+      await expect(page.getByRole("link", { name: new RegExp(`in project ${linkedProjectName}$`) })).toBeVisible();
       await expectScheme(page, scheme);
       await scan(page);
     });
