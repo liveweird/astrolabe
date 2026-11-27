@@ -17,6 +17,24 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.35.0",
+    date: "2026-11-27",
+    en: `**Fixes after 1.34: the Teams figures, phone width, hidden columns**
+
+- **Teams:** the Overloaded and WIP figures and the gray weeks without capacity are shown whole (they were cut to "4 weeks overl…", worse in Polish), and a manager's name stays on one line where there is room.
+- **On a phone** (or any narrow window) no page scrolls sideways any more: the Unscheduled table scrolls inside its own box, and every Gantt keeps room for its bars by leaving out the columns between the name and Operations, from the last, then narrowing the name. **Choose columns** then shows what is drawn, ticking a column brings it back, and none of this is remembered: on a wider screen the Gantt shows your own choice.
+- **Choose columns** counts what is hidden, e.g. "2 hidden", whenever a column is left out.
+- The Gantt's **Operations** header no longer reads "Operati" (it holds only the ⋯ button; screen readers still hear "Operations"), and the Roadmap's Flags column fits two flags.
+- API and stored data: nothing changes.`,
+    pl: `**Poprawki po 1.34: liczby na stronie Zespoły, wąski ekran, ukryte kolumny**
+
+- **Zespoły:** liczby w kolumnach Przeciążenie i WIP oraz szare tygodnie bez przepustowości są widoczne w całości (były ucinane do „4 tygodnie pr…”), a nazwisko kierownika/kierowniczki mieści się w jednym wierszu, gdy jest miejsce.
+- **Na telefonie** (i w każdym wąskim oknie) żadna strona nie przewija się już w bok: tabela Niezaplanowane przewija się we własnym polu, a każdy wykres Gantta zostawia miejsce na paski, pomijając kolumny między nazwą a Operacjami, od ostatniej, a potem zwężając nazwę. **Wybierz kolumny** pokazuje wtedy to, co jest narysowane, zaznaczenie kolumny przywraca ją i nic z tego nie jest zapamiętywane: na szerszym ekranie wykres pokazuje Twój własny wybór.
+- **Wybierz kolumny** podaje, ile kolumn jest ukrytych, np. „2 ukryte”, gdy którejś brakuje.
+- Nagłówek **Operacje** na wykresie Gantta nie jest już ucinany do „Operacj” (kolumna zawiera tylko przycisk ⋯; czytniki ekranu nadal odczytują „Operacje”), a kolumna Flagi na Roadmapie mieści dwie flagi.
+- API i zapisane dane: bez zmian.`,
+  },
+  {
     version: "1.34.0",
     date: "2026-11-27",
     en: `**Collapsible Gantt columns, Scroll to today**

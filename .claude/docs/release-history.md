@@ -13,6 +13,17 @@ Owns: what each version shipped, newest first: its scope, the user's answers, th
 
 Newest first. Each version: its scope, the user's answers, the defaults that still bind and what was not built; the commits, the plans (they live outside the repository) and the test runs are in git. "No migration" means the preceding schema still applies. Every release leaves "nothing is written to Jira or Flow" true.
 
+### v1.35.0 — the 1.34 walkthrough fixes
+
+The user's choices of 2026-11-27 from the suggestions after 1.34: an eye walkthrough of 1.31 to 1.34 on the sample plan, a sweep for the live-region test race, the count while only some columns are hidden, and room under the docs' ceilings (`product.md` "Releases"); then "fix the Teams cut-off, the 390px scrolling and the clipped headers" from what the walkthrough found. A minor bump; web, e2e and docs only (the spec changes only in `info.version`); no migration.
+
+- **Teams:** a badge in a cell is at least as wide as its text (`miw="max-content"`): its label hides overflow, so its minimum width was next to nothing and the auto-layout table shrank the Overloaded and WIP columns into an ellipsis.
+- **Phone width:** below a 600 px scroller the Unscheduled tray is a `ScrollRegion` and `useTimelineColumns` fits the left pane (`timeline.md` "Hidden columns"); the fit is session-only and never stored, the control describes the drawn pane, a column the viewer ticks is drawn and the pane gives way. Decided: an untick of a column drawn only because it was asked for stores nothing; a drag cannot leave the tray below 600 px (Schedule is the way).
+- **Choose columns** says "N hidden" (in its name too, EN/PL plural keys); the Gantt's Operations header is `iconOnly` (its text for assistive tech only); Prioritization's Flags column is 120 px.
+- **Docs:** the release history moved here; `CLAUDE.md`'s roadmap line is in ranges; every ceiling re-based to the doc's size rounded up to a thousand plus 5,000.
+- **Tests:** two unit tests no longer race `useLiveText`'s status region; one no longer lets a read escape its fetch stub after `afterEach` (the `localhost:3000` noise in every run).
+- Not built (`BACKLOG.md`, from the walkthrough, for the user to triage): where the Gantts open, link styling in tables, toolbar text sizes, the person page's content, opening a saved proposal.
+
 ### v1.34.0 — collapsible Gantt columns, Scroll to today
 
 The user's request of 2026-11-27: "In all Gantt charts, can we: 1. make all the columns on the left (before the Gantt bars), EXCEPT the first (name), and operations (three dots), collapsible/extendable? 2. add a button 'scroll to Today'".

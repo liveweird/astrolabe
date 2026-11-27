@@ -15,7 +15,7 @@ Scale assumed: about 15 teams, 5 work streams, 20 programs, 100 projects, 1,000 
 
 ## Roadmap
 
-Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.34.0**. Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-visible fix between two increments is a patch bump. One row a version (patches ride their minor's row); the scope only, the detail is in `release-history.md`.
+Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.35.0**. Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-visible fix between two increments is a patch bump. One row a version (patches ride their minor's row); the scope only, the detail is in `release-history.md`.
 
 ### 0.1 to 0.9: the plan
 
@@ -80,6 +80,7 @@ Each increment gets its own plan (architect) before implementation; only v0.1.0 
 | **1.32.0 Team load folded into Teams** | One Teams table with every team's load (`GET /views/team-load` gains `description`), its filters and "Weeks with a warning"; the Team load page and nav leaf gone, `/team-load` redirects |
 | **1.33.0 Schedule proposals on the Gantts** | The project page and the Roadmap overview preview a cross-team proposal as dashed bars (everyone previews, a manager accepts only their teams' moves, `projects[]` in the run); saved proposals live on the overview; the Schedule proposals page and nav leaf gone |
 | **1.34.0 Collapsible Gantt columns, Scroll to today** | Every Gantt can hide the columns between the name and Operations (one toggle and a menu per column, remembered per page in the browser); Today reads "Scroll to today"; web and e2e only |
+| **1.35.0 The 1.34 walkthrough fixes** | The Teams figures whole; no sideways scroll at 390 px (the tray scrolls in its box, a narrow Gantt fits its columns, session only); "N hidden" on Choose columns; clipped Gantt headers; web and e2e only |
 
 ## Domain decisions taken with the user
 
