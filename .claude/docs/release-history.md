@@ -13,6 +13,16 @@ Owns: what each version shipped, newest first: its scope, the user's answers, th
 
 Newest first. Each version: its scope, the user's answers, the defaults that still bind and what was not built; the commits, the plans (they live outside the repository) and the test runs are in git. "No migration" means the preceding schema still applies. Every release leaves "nothing is written to Jira or Flow" true.
 
+### v1.37.0 — the 1.35 walkthrough's five
+
+The five "(1.35 walkthrough)" items the user promoted to `[next]` on 2026-11-27 ("go ahead with all five as 1.37"), with three answers (each the recommended option): every Gantt opens around today, else at its work; links in tables and Gantt left panes are brand cyan, underlined on hover and focus; every toolbar control takes the zoom switch's small size. A minor bump; web, e2e and docs only (the spec changes only in `info.version`); no migration.
+
+- **Where a Gantt opens** (`timeline.md` "Where a Gantt opens"): `openScrollLeft` + `useTimelineOpen` in the shared Timeline; today at a quarter of the visible track, else 40 px before the first bar ahead (else the earliest), the pill never cut; applied once before paint and once after the narrow fit, then settled; arrivals win.
+- **Toolbar** (`timeline.md` "The toolbar"): `TOOLBAR_CONTROL_SIZE` (Mantine xs, 30 px targets) on every toolbar control, Add dependency (both panels), Add period, Propose schedule and Reset order.
+- **Links** (`web-internals.md` "The link look"): `.table .anchor, .timelineLeft .anchor` take the accent ink (at least 5.02:1 light, 6.83:1 dark, pinned), underline on hover and focus-visible, `LinkText` in forced colours; `EntityLink` no longer dims a link. Accepted: secondary names in a row are as cyan as the primary one.
+- **Person page** (`web-internals.md` "People"): `PersonResponsibilities` from the plan view and the team options, no server change; axe scans it.
+- **Proposals** (`web-internals.md`): one rule for every run on the three pages, the heading scrolled clear of the header and focused once per opening; Discard is no longer a focus target; the saved list marks the open record. Decided by the main session: fresh runs follow the same rule (they had the same bottom jump).
+
 ### v1.36.0 — less repetition, a compact page header
 
 The user's requests of 2026-11-27 after 1.35: "remove it, point Home's link at the Unscheduled table" (the project page's Milestones table), "yes, remove it and link the badges" (the Teams page's "Weeks with a warning"), and a smaller page header (answers: the description behind an ⓘ button; titles kept, more compact). A minor bump; web, e2e and docs only (the spec changes only in `info.version`); no migration.

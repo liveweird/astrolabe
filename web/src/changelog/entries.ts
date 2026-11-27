@@ -17,6 +17,26 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.37.0",
+    date: "2026-11-27",
+    en: `**The walkthrough's polish: where the Gantts open, links that look like links, a fuller person page**
+
+- **Every Gantt opens where the work is:** today sits about a quarter from the left; if nothing is on that first screen, it opens just before the next work instead, so the grid is never empty. The **Today** label is never cut off, and hiding columns or a refresh never moves the grid afterwards.
+- **One toolbar size:** every Gantt toolbar control uses the same small size, and so do Add dependency, Add period, Propose schedule and Reset order.
+- **Links in tables and in the Gantts' name column** are deep cyan and underline on hover and keyboard focus, so a name you can open no longer looks like plain text. Header links stay underlined.
+- **A person's page** lists the teams they manage and the work streams, programs and projects they own, each a link.
+- **A proposal opens at its heading,** saved or fresh, on the team page, the project page and the Roadmap overview (it used to scroll to the bottom). The saved list marks the one that is open.
+- API and stored data: nothing changes.`,
+    pl: `**Szlify po przeglądzie: gdzie otwierają się wykresy Gantta, odnośniki wyglądające jak odnośniki, pełniejsza strona osoby**
+
+- **Każdy wykres Gantta otwiera się przy pracy:** dzisiejszy dzień jest mniej więcej na jednej czwartej od lewej; jeśli na pierwszym ekranie nic nie ma, wykres otwiera się tuż przed najbliższą pracą, więc siatka nigdy nie jest pusta. Etykieta **Dziś** nie jest już ucinana, a ukrycie kolumn ani odświeżenie nie przesuwa potem siatki.
+- **Jeden rozmiar paska narzędzi:** wszystkie kontrolki paska narzędzi wykresu Gantta mają ten sam mały rozmiar, podobnie Dodaj zależność, Dodaj okres, Zaproponuj harmonogram i Przywróć kolejność.
+- **Odnośniki w tabelach i w kolumnie nazw wykresów Gantta** mają kolor ciemnego cyjanu i podkreślają się po najechaniu i przy fokusie z klawiatury, więc nazwa, którą można otworzyć, nie wygląda już jak zwykły tekst. Odnośniki w nagłówkach pozostają podkreślone.
+- **Strona osoby** wymienia zespoły, którymi kieruje, oraz strumienie prac, programy i projekty, których jest właścicielem/właścicielką, każdy jako odnośnik.
+- **Propozycja otwiera się na swoim nagłówku,** zapisana lub nowa, na stronie zespołu, projektu i w przeglądzie Roadmapy (wcześniej przewijała się na dół). Lista zapisanych oznacza tę, która jest otwarta.
+- API i zapisane dane: bez zmian.`,
+  },
+  {
     version: "1.36.0",
     date: "2026-11-27",
     en: `**Less repetition, more room: tables that echoed the Gantts are gone, page headers are compact**
