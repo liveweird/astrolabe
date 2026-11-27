@@ -8,7 +8,7 @@ import type { RoadmapView } from "../api/roadmap";
 import { forgetRevalidated } from "../api/revalidate";
 import i18n from "../i18n";
 import { headingOutline } from "../test/headings";
-import { routeFetch } from "../test/http";
+import { jsonResponse, routeFetch } from "../test/http";
 import { renderWithProviders } from "../test/render";
 import { roadmapProject, roadmapView } from "../test/roadmapView";
 import { roadmapModePath, roadmapPath } from "../utils/planLinks";
@@ -46,6 +46,8 @@ beforeEach(() => {
   mockFetch = routeFetch({
     "GET /api/v1/views/roadmap": ROADMAP,
     "GET /api/v1/views/programs": PROGRAMS,
+    "GET /api/v1/saved-schedule-proposals": { items: [] },
+    "GET /api/v1/saved-schedule-proposals/:id": () => jsonResponse(404, { title: "Not found", status: 404 }),
     "GET /api/v1/baselines": { items: [], can: { manage: false } },
     "GET /api/v1/public-holidays": { items: [] },
     "GET /api/v1/schedule-proposals/teams": { items: [], truncated: false },
@@ -139,6 +141,14 @@ describe("RoadmapModes: which mode opens", () => {
     expect(where()).toBe("/roadmap?mode=overview&programId=10");
   });
 
+  test("a bare address naming a saved proposal opens the overview whatever is remembered (only the overview reads it)", async () => {
+    localStorage.setItem(MODE_KEY, JSON.stringify("prioritization"));
+    renderAt("/roadmap?proposal=5&programId=10");
+    await overviewShown();
+    expect(where()).toBe("/roadmap?mode=overview&proposal=5&programId=10");
+    expect(localStorage.getItem(MODE_KEY)).toBe(JSON.stringify("prioritization"));
+  });
+
   test("a link naming a mode is shown as written and does not change what is remembered", async () => {
     localStorage.setItem(MODE_KEY, JSON.stringify("overview"));
     renderAt("/roadmap?mode=prioritization");
@@ -218,6 +228,15 @@ describe("RoadmapModes: the switch", () => {
     renderAt("/roadmap?mode=overview&workStreamId=1");
     await overviewShown();
     expect(where()).toBe("/roadmap?mode=overview&workStreamId=1");
+    await user.click(screen.getByRole("radio", { name: "Prioritization" }));
+    await prioritizationShown();
+    expect(where()).toBe("/roadmap?mode=prioritization");
+  });
+
+  test("a switch leaves the open saved proposal behind too (the overview's own, 1.33)", async () => {
+    const user = userEvent.setup();
+    renderAt("/roadmap?mode=overview&proposal=5");
+    await overviewShown();
     await user.click(screen.getByRole("radio", { name: "Prioritization" }));
     await prioritizationShown();
     expect(where()).toBe("/roadmap?mode=prioritization");

@@ -171,6 +171,7 @@ describe("Programs page: the critical path to a picked project", () => {
     expect(headingOutline()).toEqual([
       [2, "Roadmap"],
       [3, "Timeline"],
+      [3, "Saved proposals"],
       [3, "Dependencies"],
     ]);
     await openProgram(user, "Billing");

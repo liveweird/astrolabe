@@ -8,6 +8,7 @@ import type { RoadmapProject } from "../api/roadmap";
 import BaselinePicker from "../components/BaselinePicker";
 import BaselineTotals from "../components/BaselineTotals";
 import { ShowWithoutBaseline } from "../components/BaselineParts";
+import EmptyPlanSavedNotice from "../components/EmptyPlanSavedNotice";
 import EmptyState from "../components/EmptyState";
 import ErrorAlert from "../components/ErrorAlert";
 import FilterPanel from "../components/FilterPanel";
@@ -25,6 +26,7 @@ import ProgramsWorkStreamField from "../components/ProgramsWorkStreamField";
 import ProgramsTimeline from "../components/ProgramsTimeline";
 import RoadmapCriticalChain from "../components/RoadmapCriticalChain";
 import RoadmapCriticalPicker from "../components/RoadmapCriticalPicker";
+import SavedProposalsPanel from "../components/SavedProposalsPanel";
 import TargetWindowModal from "../components/TargetWindowModal";
 import type { TimelineHandle } from "../components/Timeline";
 import TimelineDndContext from "../components/TimelineDndContext";
@@ -108,6 +110,7 @@ export default function Programs({ modeSwitch }: { modeSwitch?: ReactNode }) {
       {query.isError && !dropping && <ErrorAlert error={query.error} title={t("programs.loadFailed")} />}
       {pick !== null && query.isError && !dropping && view === undefined && <ShowWithoutBaseline onClick={() => setPick(null)} />}
       {(query.isLoading || dropping) && <LoadingBlock />}
+      {empty && <EmptyPlanSavedNotice />}
       {empty && <EmptyState icon={IconListTree} label={t("programs.empty")} hint={t("programs.emptyHint")} />}
       {view && !empty && <ProgramsBody view={view} pick={pick} onPick={setPick} target={critical.target} onTarget={critical.set} loading={query.isPlaceholderData} settled={query.isSuccess && !query.isFetching} />}
       {/* 1.29: the explicit list of every dependency of the plan (the arrows' text), hidden until asked for. It reads its own endpoint, so it sits
@@ -329,7 +332,8 @@ function ProgramsBody({
           />
         </Stack>
       </TimelineDndContext>
-      <OverviewProposalSection proposal={proposal} announce={announce} />
+      <OverviewProposalSection proposal={proposal} announce={announce} onShowAll={pick === null ? null : () => setPick([])} />
+      <SavedProposalsPanel />
 
       <RoadmapCriticalChain
         projects={projects}

@@ -1,20 +1,7 @@
 {
-  "teamsTruncated": "This list shows the first 1,000 eligible teams. For a team outside the list, open its team page to propose a schedule.",
-  "title": "Schedule proposals",
-  "intro": "Propose dates for several teams at once. The teams are placed in dependency order, each with the teams placed before it as fixed dates, until the dates stop changing. Nothing changes until you accept.",
-  "teams": "Teams",
-  "teamsPlaceholder": "Pick the teams to plan together",
-  "clearTeams": "Clear the teams",
-  "allTeams": "All teams",
-  "propose": "Propose",
-  "readOnly": "A proposal is open, so the teams are locked — discard it first to pick other teams.",
-  "noTeams": "You manage no team",
-  "noTeamsHint": "A team's manager or an administrator can run a proposal.",
-  "loadFailed": "Could not load your teams",
-  "forbidden": "Only a manager of every listed team or an administrator can propose or accept a schedule across teams",
+  "forbidden": "Only an administrator or the manager of every team of the ticked moves can accept a schedule across teams",
   "gone": "A team of the proposal no longer exists — reload the page",
   "invalid": "The proposal could not be applied — propose again",
-  "accept": "Accept selected across teams ({{count}})",
   "facts": {
     "settled_one": "Placed in {{count}} pass · settled",
     "settled_other": "Placed in {{count}} passes · settled",
@@ -40,11 +27,7 @@
   "noCapacity": "Nothing could be placed: the chosen teams have no capacity after {{date}} for the milestones to place — add a capacity period first.",
   "rescoped": "The plan of the chosen teams changed since the proposal: here is a fresh one. Your selection was kept for the milestones that still move.",
   "stale": "The plan changed in the meantime — nothing was saved. Propose again.",
-  "requesting": "Asking for a proposal — the teams are locked until it arrives.",
-  "noTeamsAdmin": "No team to propose for yet",
-  "noTeamsAdminHint": "Create a team under Teams first.",
   "saved": {
-    "title": "Saved proposals",
     "intro": "The newest 20 saved runs, for another manager to open. Saving a 21st removes the oldest.",
     "tableAria": "Saved proposals",
     "loadFailed": "Could not load the saved proposals",
@@ -77,8 +60,6 @@
     "saveInvalid": "The proposal could not be saved as sent",
     "saveStale": "The plan changed since this proposal was computed, so it was not saved. Propose again for the same teams — your ticks are kept.",
     "proposeAgain": "Propose again",
-    "back": "Back to schedule proposals",
-    "pageTitle": "Saved proposal",
     "notFound": "This saved proposal does not exist — it may have been deleted.",
     "facts": "Saved by {{name}} on {{when}} · as of {{asOf}} · teams: {{teams}} · {{selected}} of {{total}} moves ticked · plan revision {{revision}}",
     "factsAnonymous": "Saved on {{when}} · as of {{asOf}} · teams: {{teams}} · {{selected}} of {{total}} moves ticked · plan revision {{revision}}",
@@ -93,7 +74,7 @@
       "UNREADABLE": "It was saved by an older version of Astrolabe and cannot be shown. Propose again for the same teams to get a fresh one."
     },
     "outdated": "Computed for {{date}}; propose again for today.",
-    "readOnly": "You can read it; only an administrator or the manager of every team in it can change the ticks and accept it.",
-    "fresh": "This is a fresh run for the same teams, not the saved proposal. Discard it to return to the saved one."
+    "readOnly": "You can read it; only an administrator or the manager of one of its teams can change the ticks and accept their moves.",
+    "fresh": "This is a fresh run for the same teams, not the saved proposal. Close it to leave it."
   }
 }

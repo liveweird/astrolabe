@@ -92,5 +92,21 @@
       "proposed": "Proponowane terminy",
       "end": "Koniec"
     }
+  },
+  "saved": {
+    "panelTitle": "Zapisane propozycje",
+    "panelTitleCount": "Zapisane propozycje ({{count}})",
+    "show": "Pokaż zapisane propozycje",
+    "hide": "Ukryj zapisane propozycje",
+    "title": "Zapisana propozycja: {{name}}",
+    "opened": "Otwarto zapisaną propozycję „{{name}}”.",
+    "opening": "Otwieranie zapisanej propozycji…",
+    "unreadable": "„{{name}}” zapisała starsza wersja Astrolabe i nie można jej już otworzyć.",
+    "close": "Zamknij",
+    "outside_one": "{{count}} projekt przesuwany przez tę propozycję jest poza bieżącym wyborem programów",
+    "outside_few": "{{count}} projekty przesuwane przez tę propozycję są poza bieżącym wyborem programów",
+    "outside_many": "{{count}} projektów przesuwanych przez tę propozycję jest poza bieżącym wyborem programów",
+    "outside_other": "{{count}} projektu przesuwanego przez tę propozycję jest poza bieżącym wyborem programów",
+    "showAll": "Pokaż wszystkie programy"
   }
 }

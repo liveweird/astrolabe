@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { sameIds, sameRun, storedCheckState } from "./savedProposal";
+import { sameIds, sameRun, storedCheckState, withoutProposal, withProposal } from "./savedProposal";
 import { SAVED_RECORD } from "../test/crossTeamRun";
 
 describe("sameRun", () => {
@@ -35,5 +35,14 @@ describe("storedCheckState", () => {
 
   test("a subset whose check is missing shows the run's own verdicts (no map) rather than inventing one", () => {
     expect(storedCheckState({ ...SAVED_RECORD, check: null })).toMatchObject({ mode: "some", byTeam: null });
+  });
+});
+
+describe("the proposal parameter", () => {
+  test("is set beside every other parameter, replaced when there already, and taken out again", () => {
+    const current = new URLSearchParams("mode=overview&programId=3&programId=4");
+    expect(withProposal(current, 5).toString()).toBe("mode=overview&programId=3&programId=4&proposal=5");
+    expect(withProposal(withProposal(current, 5), 6).toString()).toBe("mode=overview&programId=3&programId=4&proposal=6");
+    expect(withoutProposal(withProposal(current, 5)).toString()).toBe(current.toString());
   });
 });

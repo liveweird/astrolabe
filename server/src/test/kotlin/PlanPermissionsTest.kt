@@ -324,7 +324,7 @@ class PlanPermissionsTest {
     }
 
     @Test
-    fun `the saved-proposal flags equal requireTeamManagerOfAllOrAdmin over the stored teams - accept also needs the proposal CURRENT`() {
+    fun `saved-proposal delete equals the all-teams guard - accept needs ONE managed team and CURRENT`() {
         val sets = listOf(listOf(teamA), listOf(teamA, teamB), listOf(teamB, teamC), listOf(teamA, teamB, teamC))
         var cells = 0
         for (actor in actors) for (set in sets) {
@@ -333,12 +333,18 @@ class PlanPermissionsTest {
             val plan = actor.asPlanActor()
             assertEquals(guard, PlanPermissions.canScheduleAll(plan, set), "scheduleAll: ${actor.label} on $set")
             assertEquals(guard, PlanPermissions.canDeleteSavedProposal(plan, set), "delete: ${actor.label} on $set")
+            // The accept names the teams it writes: ONE team the caller may accept for is enough (ADMIN always), and only while CURRENT.
+            val managesOne = actor.caller.roles.isNotEmpty() ||
+                set.any { team -> allowed { runBlocking { requireTeamManagerOfAllOrAdmin(actor.caller, listOf(team), lookup) } } }
             for (state in SavedProposalState.entries) {
-                val expected = guard && state == SavedProposalState.CURRENT
+                val expected = managesOne && state == SavedProposalState.CURRENT
                 assertEquals(expected, PlanPermissions.canAcceptSavedProposal(plan, set, state), "accept $state: ${actor.label} on $set")
             }
             cells++
         }
         assertEquals(actors.size * sets.size, cells)
+        val manager = actors[10].asPlanActor()
+        val none = PlanPermissions.canAcceptSavedProposal(manager, emptyList(), SavedProposalState.CURRENT)
+        assertFalse(none, "no stored team: nothing to accept for")
     }
 }

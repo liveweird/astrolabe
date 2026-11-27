@@ -166,7 +166,6 @@ const AUTHED_PAGES: { path: string; heading: string; settled?: Settled }[] = [
       await expect(page.getByText(/^(No project picked|No projects yet)$/)).toBeVisible();
     },
   },
-  { path: "/schedule-proposals", heading: "Schedule proposals" },
   {
     path: "/teams",
     heading: "Teams",
@@ -690,7 +689,7 @@ function registerHoveredRowScan(scheme: Scheme, fixture: () => HoverFixture): vo
 }
 
 /** The open-proposal world (below): both teams, the plan and the links; every delete path is handed to `track` the moment its row exists. */
-async function seedProposalWorld(api: APIRequestContext, track: (deletePath: string) => void): Promise<{ teamId: number; teamName: string }> {
+async function seedProposalWorld(api: APIRequestContext, track: (deletePath: string) => void): Promise<{ teamId: number; teamName: string; programId: number }> {
   async function create(path: string, data: object, tear?: string): Promise<number> {
     const created = await api.post(path, { data });
     expect(created.status(), await created.text()).toBe(201);
@@ -730,7 +729,7 @@ async function seedProposalWorld(api: APIRequestContext, track: (deletePath: str
       lagDays: 0,
     });
   }
-  return { teamId, teamName };
+  return { teamId, teamName, programId };
 }
 
 // The team page with an OPEN schedule proposal (v0.8): the dashed proposal bars, the Proposed schedule section (the summary line, the table with its
@@ -744,11 +743,12 @@ test.describe("an open schedule proposal", () => {
   let api: APIRequestContext;
   let teamId: number;
   let teamName: string;
+  let programId: number;
   const paths: string[] = []; // delete paths in creation order, registered the moment each row exists; the afterAll deletes them in reverse
 
   test.beforeAll(async () => {
     ({ api } = await apiAsAdmin());
-    ({ teamId, teamName } = await seedProposalWorld(api, (path) => paths.push(path)));
+    ({ teamId, teamName, programId } = await seedProposalWorld(api, (path) => paths.push(path)));
   });
   test.afterAll(async () => {
     try {
@@ -788,6 +788,34 @@ test.describe("an open schedule proposal", () => {
   test.describe("dark scheme", () => {
     test.use({ colorScheme: "dark" });
     registerProposalScan("dark");
+  });
+
+  // The Roadmap overview (1.33) narrowed to the world's program with an open cross-team proposal over its two teams (the administrator may accept both): the dashed
+  // bars of the work stream and the program, the "Projects whose dates would move" table, the run's sections with their ticks, and Save / Accept / Propose again / Discard.
+  function registerOverviewProposalScan(scheme: Scheme): void {
+    const suffix = scheme === "dark" ? " in the dark scheme" : "";
+    test(`/roadmap overview with an open schedule proposal has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await login(page);
+      await page.goto(`/roadmap?mode=overview&programId=${programId}`);
+      await expect(page.getByRole("grid", { name: "Programs timeline" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Propose schedule", exact: true })).toBeEnabled();
+      await page.getByRole("button", { name: "Propose schedule", exact: true }).click();
+      const heading = page.getByRole("heading", { level: 3, name: "Schedule proposal", exact: true });
+      await expect(heading).toBeVisible();
+      await expect(page.getByRole("table", { name: "Projects whose dates would move", exact: true })).toBeVisible();
+      await expect(page.getByRole("table", { name: `Proposed moves of ${teamName}` })).toBeVisible();
+      await expect(page.locator('[data-tone="proposal"]').first()).toBeVisible();
+      await expect(page.getByRole("button", { name: /^Accept selected \(\d+\)$/ })).toBeEnabled();
+      // The pointer still rests where Propose was: park it on the section heading so no row is hover-tinted.
+      await heading.hover();
+      await expectScheme(page, scheme);
+      await scan(page);
+    });
+  }
+  registerOverviewProposalScan("light");
+  test.describe("dark scheme", () => {
+    test.use({ colorScheme: "dark" });
+    registerOverviewProposalScan("dark");
   });
 });
 

@@ -1,16 +1,16 @@
-import { useRef } from "react";
-import { Anchor, Button, Stack, Table, Text, Title } from "@mantine/core";
+import type { RefObject } from "react";
+import { Anchor, Button, Stack, Table, Text } from "@mantine/core";
 import { IconBookmarks } from "@tabler/icons-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Link as RouterLink } from "react-router-dom";
-import { deleteSavedProposal, listSavedProposals, savedProposalKey, savedProposalListKey, SAVED_PROPOSALS_KEY, type SavedProposalSummary } from "../api/savedProposals";
+import { Link as RouterLink, useSearchParams } from "react-router-dom";
+import { deleteSavedProposal, savedProposalKey, SAVED_PROPOSALS_KEY, type SavedProposalSummary } from "../api/savedProposals";
 import { ApiError } from "../api/http";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { formatDateTime } from "../utils/formatDate";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
-import { savedScheduleProposalPath } from "../utils/scheduleProposalLinks";
+import { PROPOSAL_PARAM, withProposal, withoutProposal } from "../utils/savedProposal";
 import ConfirmDeleteModal from "./ConfirmDeleteModal";
 import CreatorName from "./CreatorName";
 import EmptyState from "./EmptyState";
@@ -22,18 +22,23 @@ const NO_WRAP = { whiteSpace: "nowrap" } as const;
 const COLUMNS = 7;
 
 /**
- * The "Saved proposals" section of the schedule-proposals page (1.26): the newest 20 saved runs, newest first (a bounded set, one unpaged
- * table). Any signed-in user reads; a name opens the saved page, Delete shows by the row's own `can.delete` (the server's arithmetic, never the
- * session's roles). A delete is a hard delete and touches nothing of the plan.
+ * The table of the saved proposals (1.26; the Roadmap overview's "Saved proposals" panel since 1.33 reads the list, `list`, and owns the heading): the newest 20 saved runs,
+ * newest first (a bounded set, one unpaged table). Any signed-in user reads; a name opens the run on the overview (`proposal=<id>` set on the CURRENT address, so the pick
+ * and the narrowing stay), Delete shows by the row's own `can.delete` (the server's arithmetic, never the session's roles). A delete is a hard delete and touches nothing of
+ * the plan; the focus then goes to the panel's heading (`headingRef`).
  */
-export default function SavedProposalsTable() {
+export default function SavedProposalsTable({ list, headingRef }: { list: Pick<UseQueryResult<{ items: SavedProposalSummary[] }>, "data" | "isLoading" | "isError" | "error">; headingRef: RefObject<HTMLHeadingElement | null> }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const { data, isLoading, isError, error } = useQuery({ queryKey: savedProposalListKey, queryFn: listSavedProposals });
-  const headingRef = useRef<HTMLHeadingElement>(null);
+  const [params, setParams] = useSearchParams();
+  const { data, isLoading, isError, error } = list;
   const refresh = () => refreshQueriesAfterMutation(queryClient, [...SAVED_PROPOSALS_KEY]);
   // A deleted proposal's own page must not keep a copy to open from the cache (it would offer an Accept for a proposal that is gone).
-  const forget = (id: number) => queryClient.removeQueries({ queryKey: savedProposalKey(id) });
+  // And when it is the one open on the overview, the address lets go of it (the run closes with the parameter, `useSavedRun`; the delete's own toast says why).
+  const forget = (id: number) => {
+    queryClient.removeQueries({ queryKey: savedProposalKey(id) });
+    if (params.get(PROPOSAL_PARAM) === String(id)) setParams((current) => withoutProposal(current), { replace: true });
+  };
   const remove = useDeleteConfirm<SavedProposalSummary>({
     mutationFn: async (row) => {
       try {
@@ -59,9 +64,6 @@ export default function SavedProposalsTable() {
 
   return (
     <Stack gap="xs">
-      <Title order={3} size="h4" ref={headingRef} tabIndex={-1}>
-        {t("scheduleProposals.saved.title")}
-      </Title>
       <Text size="sm" c="dimmed">
         {t("scheduleProposals.saved.intro")}
       </Text>
@@ -86,11 +88,11 @@ export default function SavedProposalsTable() {
               items.map((proposal) => (
                 <Table.Tr key={proposal.id}>
                   <Table.Td>
-                    <Anchor component={RouterLink} to={savedScheduleProposalPath(proposal.id)} fw={500} size="sm" aria-label={t("scheduleProposals.saved.openAria", { name: proposal.name })}>
+                    <Anchor component={RouterLink} to={{ search: withProposal(params, proposal.id).toString() }} fw={500} size="sm" aria-label={t("scheduleProposals.saved.openAria", { name: proposal.name })}>
                       {proposal.name}
                     </Anchor>
                   </Table.Td>
-                  {/* The teams are the run's as named at the save: one may be gone since and the list has no state to say so, so they are text here; the saved page links them while it is current. */}
+                  {/* The teams are the run's as named at the save: one may be gone since and the list has no state to say so, so they are text here; the open saved run links them while it is current. */}
                   <Table.Td>{proposal.teams.map((team) => team.name).join(", ")}</Table.Td>
                   <Table.Td style={NO_WRAP}>{proposal.asOf}</Table.Td>
                   <Table.Td ta="right" style={NO_WRAP}>

@@ -1,20 +1,7 @@
 {
-  "teamsTruncated": "Lista pokazuje pierwsze 1000 dostępnych zespołów. Aby zaproponować harmonogram dla innego zespołu, otwórz jego stronę.",
-  "title": "Propozycje harmonogramu",
-  "intro": "Zaproponuj terminy dla kilku zespołów naraz. Zespoły są układane w kolejności zależności, każdy przy założeniu, że terminy wcześniej ułożonych zespołów są stałe, aż terminy przestaną się zmieniać. Nic się nie zmieni, dopóki nie zaakceptujesz propozycji.",
-  "teams": "Zespoły",
-  "teamsPlaceholder": "Wybierz zespoły do wspólnego planowania",
-  "clearTeams": "Wyczyść zespoły",
-  "allTeams": "Wszystkie zespoły",
-  "propose": "Zaproponuj",
-  "readOnly": "Propozycja jest otwarta, więc zespoły są zablokowane — najpierw ją odrzuć, aby wybrać inne zespoły.",
-  "noTeams": "Nie zarządzasz żadnym zespołem",
-  "noTeamsHint": "Propozycję może uruchomić kierownik/czka zespołu albo administrator/ka.",
-  "loadFailed": "Nie udało się wczytać Twoich zespołów",
-  "forbidden": "Harmonogram dla kilku zespołów może zaproponować i zaakceptować tylko kierownik/czka każdego z wybranych zespołów albo administrator/ka",
+  "forbidden": "Harmonogram dla kilku zespołów może zaakceptować tylko administrator/ka albo kierownik/czka każdego zespołu z zaznaczonych zmian",
   "gone": "Któryś z zespołów propozycji już nie istnieje — odśwież stronę",
   "invalid": "Nie udało się zastosować propozycji — zaproponuj ponownie",
-  "accept": "Zaakceptuj zaznaczone we wszystkich zespołach ({{count}})",
   "facts": {
     "settled_one": "Ułożono w {{count}} przebiegu · terminy się ustabilizowały",
     "settled_few": "Ułożono w {{count}} przebiegach · terminy się ustabilizowały",
@@ -46,11 +33,7 @@
   "noCapacity": "Nic nie udało się umieścić: wybrane zespoły nie mają przepustowości po {{date}} dla kamieni milowych do ułożenia — najpierw dodaj okres przepustowości.",
   "rescoped": "Plan wybranych zespołów zmienił się od czasu propozycji: oto nowa. Zachowaliśmy zaznaczenie dla kamieni milowych, które nadal się przesuwają.",
   "stale": "Plan zmienił się w międzyczasie — niczego nie zapisaliśmy. Zaproponuj ponownie.",
-  "requesting": "Pobieramy propozycję — zespoły są zablokowane do jej nadejścia.",
-  "noTeamsAdmin": "Nie ma jeszcze zespołu, dla którego można zaproponować harmonogram",
-  "noTeamsAdminHint": "Najpierw utwórz zespół w sekcji Zespoły.",
   "saved": {
-    "title": "Zapisane propozycje",
     "intro": "Najnowsze 20 zapisanych przebiegów, do otwarcia przez innego kierownika/czkę. Zapisanie 21. usuwa najstarszy.",
     "tableAria": "Zapisane propozycje",
     "loadFailed": "Nie udało się wczytać zapisanych propozycji",
@@ -83,8 +66,6 @@
     "saveInvalid": "Nie udało się zapisać propozycji w takiej postaci",
     "saveStale": "Plan zmienił się od obliczenia tej propozycji, więc nie została zapisana. Zaproponuj ponownie dla tych samych zespołów — zaznaczenie zostanie zachowane.",
     "proposeAgain": "Zaproponuj ponownie",
-    "back": "Wróć do propozycji harmonogramu",
-    "pageTitle": "Zapisana propozycja",
     "notFound": "Ta zapisana propozycja nie istnieje — mogła zostać usunięta.",
     "facts": "Zapisał/a {{name}} {{when}} · na dzień {{asOf}} · zespoły: {{teams}} · zaznaczone zmiany: {{selected}} z {{total}} · rewizja planu {{revision}}",
     "factsAnonymous": "Zapisano {{when}} · na dzień {{asOf}} · zespoły: {{teams}} · zaznaczone zmiany: {{selected}} z {{total}} · rewizja planu {{revision}}",
@@ -99,7 +80,7 @@
       "UNREADABLE": "Zapisała ją starsza wersja Astrolabe i nie można jej wyświetlić. Zaproponuj ponownie dla tych samych zespołów, aby dostać nową."
     },
     "outdated": "Obliczona na dzień {{date}}; zaproponuj ponownie na dziś.",
-    "readOnly": "Możesz ją przeczytać; zaznaczenie zmienić i zaakceptować może tylko administrator/ka albo kierownik/czka każdego z jej zespołów.",
-    "fresh": "To nowy przebieg dla tych samych zespołów, a nie zapisana propozycja. Odrzuć go, aby wrócić do zapisanej."
+    "readOnly": "Możesz ją przeczytać; zaznaczenie zmienić i zaakceptować zmiany jej zespołu może tylko administrator/ka albo kierownik/czka któregoś z nich.",
+    "fresh": "To nowy przebieg dla tych samych zespołów, a nie zapisana propozycja. Zamknij go, aby ją opuścić."
   }
 }

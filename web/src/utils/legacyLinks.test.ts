@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { legacyDependenciesTarget, legacyMilestonesTarget } from "./legacyLinks";
+import { legacyDependenciesTarget, legacyMilestonesTarget, legacySavedProposalTarget } from "./legacyLinks";
 
 describe("legacyMilestonesTarget", () => {
   test("a project goes to its page, the Schedule filter carried as the table's word", () => {
@@ -36,5 +36,12 @@ describe("legacyDependenciesTarget", () => {
     expect(legacyDependenciesTarget("")).toEqual({ to: "/roadmap", params: { dependencies: "all" } });
     expect(legacyDependenciesTarget("?status=bogus&teamId=abc&projectId=0")).toEqual({ to: "/roadmap", params: { dependencies: "all" } });
     expect(legacyDependenciesTarget("?status=all")).toEqual({ to: "/roadmap", params: { dependencies: "all" } });
+  });
+});
+
+describe("legacySavedProposalTarget", () => {
+  test("a saved proposal's id opens it on the Roadmap overview; a malformed or missing id leads to the overview alone", () => {
+    expect(legacySavedProposalTarget("5")).toEqual({ to: "/roadmap", params: { mode: "overview", proposal: "5" } });
+    for (const bad of ["0", "abc", "1e3", "-2", "99999999999", undefined]) expect(legacySavedProposalTarget(bad)).toEqual({ to: "/roadmap", params: { mode: "overview" } });
   });
 });

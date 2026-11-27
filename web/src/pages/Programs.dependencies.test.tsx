@@ -63,6 +63,7 @@ const dependencyReads = () => mockFetch.mock.calls.filter(([url]) => String(url)
 beforeEach(() => {
   mockFetch = routeFetch({
     "GET /api/v1/views/programs": VIEW,
+    "GET /api/v1/saved-schedule-proposals": { items: [] },
     "GET /api/v1/baselines": { items: [], can: { manage: false } },
     "GET /api/v1/public-holidays": { items: [] },
     "GET /api/v1/schedule-proposals/teams": { items: [], truncated: false },
@@ -97,9 +98,11 @@ describe("Programs page: the dependency panel", () => {
   test("sits under the timeline, hidden: no table, no read, a Show button", async () => {
     renderAt();
     await screen.findByRole("grid");
+    await screen.findByRole("heading", { name: "Saved proposals (0)" });
     expect(headingOutline()).toEqual([
       [2, "Roadmap"],
       [3, "Timeline"],
+      [3, "Saved proposals (0)"],
       [3, "Dependencies"],
     ]);
     expect(screen.getByRole("button", { name: "Show the dependency list" })).toHaveAttribute("aria-expanded", "false");
@@ -143,6 +146,7 @@ describe("Programs page: the dependency panel", () => {
   test("a failed view read shows the error alert AND the panel's rows (the address names the panel)", async () => {
     mockFetch = routeFetch({
       "GET /api/v1/views/programs": jsonResponse(500, { title: "Internal error", status: 500 }),
+      "GET /api/v1/saved-schedule-proposals": { items: [] },
       "GET /api/v1/views/dependencies": () => dependencyListView([violatedRow({ id: 1 }, 3), dependencyRow({ id: 2 })]),
       "GET /api/v1/views/plan": planOf([{ id: 700, name: "Platform", programs: [{ id: 70, name: "Billing", projects: [{ id: 1, name: "Invoices" }] }] }]),
       "GET /api/v1/teams": { items: [], page: 1, pageSize: 100, total: 0 },
@@ -160,6 +164,7 @@ describe("Programs page: the dependency panel", () => {
     let answer: () => Response = () => jsonResponse(500, { title: "Internal error", status: 500 });
     mockFetch = routeFetch({
       "GET /api/v1/views/programs": () => answer(),
+      "GET /api/v1/saved-schedule-proposals": { items: [] },
       "GET /api/v1/baselines": { items: [], can: { manage: false } },
       "GET /api/v1/public-holidays": { items: [] },
       "GET /api/v1/schedule-proposals/teams": { items: [], truncated: false },
@@ -184,6 +189,7 @@ describe("Programs page: the dependency panel", () => {
   test("an empty plan has no panel once the view is known", async () => {
     mockFetch = routeFetch({
       "GET /api/v1/views/programs": { ...VIEW, workStreams: [] },
+      "GET /api/v1/saved-schedule-proposals": { items: [] },
       "GET /api/v1/views/dependencies": () => dependencyListView([]),
       "GET /api/v1/views/plan": planOf([]),
       "GET /api/v1/teams": { items: [], page: 1, pageSize: 100, total: 0 },
@@ -199,6 +205,7 @@ describe("Programs page: the dependency panel", () => {
     const view = deferred<Response>();
     mockFetch = routeFetch({
       "GET /api/v1/views/programs": () => view.promise,
+      "GET /api/v1/saved-schedule-proposals": { items: [] },
       "GET /api/v1/baselines": { items: [], can: { manage: false } },
       "GET /api/v1/public-holidays": { items: [] },
       "GET /api/v1/schedule-proposals/teams": { items: [], truncated: false },

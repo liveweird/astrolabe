@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { listProposalTeams } from "../api/scheduleProposals";
 
-/** The one cache key of "the teams whose proposed moves the caller may accept" (the Schedule proposals page's list reads the same one). */
+/** The one cache key of "the teams whose proposed moves the caller may accept". */
 const PROPOSAL_TEAMS_KEY = ["schedule-proposals", "teams"] as const;
 
 /**

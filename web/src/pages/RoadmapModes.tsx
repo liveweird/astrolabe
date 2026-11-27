@@ -5,6 +5,7 @@ import { Navigate, useLocation, useSearchParams } from "react-router-dom";
 import { isOneOf, readStoredJson, writeStoredJson } from "../hooks/useStoredState";
 import { ROADMAP_MODES, type RoadmapMode } from "../utils/planLinks";
 import { hasPrioritizationOnlyParams, withRoadmapFilterParams } from "../utils/roadmapFilterParams";
+import { PROPOSAL_PARAM, withoutProposal } from "../utils/savedProposal";
 import classes from "../theme.module.css";
 import Programs from "./Programs";
 import Roadmap from "./Roadmap";
@@ -26,8 +27,8 @@ function withMode(current: URLSearchParams, mode: RoadmapMode): URLSearchParams 
   return next;
 }
 
-/** A switch leaves the filters and the pick behind: each mode restores its own from the browser's memory (the pick is one shared memory). The dependency panel's parameters and foreign ones stay. */
-const withoutFilters = (current: URLSearchParams) => withRoadmapFilterParams(current, {});
+/** A switch leaves the filters, the pick and the open saved proposal (the overview's, 1.33) behind: each mode restores its own filters from the browser's memory (the pick is one shared memory). The dependency panel's parameters and foreign ones stay. */
+const withoutFilters = (current: URLSearchParams) => withoutProposal(withRoadmapFilterParams(current, {}));
 
 /**
  * The Roadmap (`/roadmap`, 1.29): ONE page in two modes, `?mode=prioritization` (the projects by global rank: `pages/Roadmap.tsx`) and
@@ -36,7 +37,7 @@ const withoutFilters = (current: URLSearchParams) => withRoadmapFilterParams(cur
  *
  *  - An address naming a valid `mode` is shown as written and changes nothing the browser remembers.
  *  - An address without one (the nav link, Home's card, an old bookmark) renders ONLY a `replace` redirect to the same address (hash and state kept) plus the
- *    remembered mode (`roadmap.mode`, Prioritization on a first visit) - or Prioritization whatever is remembered when the address names a filter only that mode has. The body mounts on the next render: `useRoadmapFilters` and `useProgramPick` each rewrite the
+ *    remembered mode (`roadmap.mode`, Prioritization on a first visit) - or Prioritization whatever is remembered when the address names a filter only that mode has, or the overview when it names a saved proposal (`proposal`, which only the overview reads). The body mounts on the next render: `useRoadmapFilters` and `useProgramPick` each rewrite the
  *    address on mount, and a second writer in the first commit would clobber the first.
  *  - The switch (a labelled radiogroup, in the header's toolbar row, rendered by whichever body is shown) writes the memory and puts the new `mode` in
  *    the address as a history entry, so Back returns to the other mode. The filters and the pick leave the address (each mode restores its own from the
@@ -66,7 +67,8 @@ export default function RoadmapModes() {
   }, [mode]);
 
   if (mode === null) {
-    const first = hasPrioritizationOnlyParams(params) ? "prioritization" : rememberedMode();
+    // `proposal` (a saved proposal's address, 1.33) belongs to the overview alone, as `programId` does not belong to Prioritization alone.
+    const first: RoadmapMode = params.has(PROPOSAL_PARAM) ? "overview" : hasPrioritizationOnlyParams(params) ? "prioritization" : rememberedMode();
     return <Navigate replace to={{ pathname, search: withMode(params, first).toString(), hash }} state={state} />;
   }
 

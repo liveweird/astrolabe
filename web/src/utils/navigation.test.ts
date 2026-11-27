@@ -6,7 +6,7 @@ describe("visibleSections", () => {
     const sections = visibleSections(false);
     expect(sections.map((s) => s.label)).toEqual(["appShell.section.overview", "appShell.section.planning", "appShell.section.teams", "appShell.section.integrations"]);
     const paths = sections.flatMap((s) => s.items.map((l) => l.to));
-    expect(paths).toEqual(["/", "/plan", "/roadmap", "/projects", "/baselines", "/teams", "/schedule-proposals", "/people", "/public-holidays", "/deviations"]);
+    expect(paths).toEqual(["/", "/plan", "/roadmap", "/projects", "/baselines", "/teams", "/people", "/public-holidays", "/deviations"]);
   });
 
   test("an admin session gets account controls under Administration and connection settings under Integrations", () => {
@@ -34,7 +34,7 @@ describe("visibleSections", () => {
   test("the Roadmap leaf is findable in the palette by the words of its two modes and of the retired Programs and Dependencies pages", () => {
     const roadmap = visibleSections(false).flatMap((s) => s.items).find((l) => l.to === "/roadmap");
     expect(roadmap?.label).toBe("appShell.nav.roadmap");
-    expect(roadmap?.keywords).toEqual(["programs", "programy", "overview", "prioritization", "rank", "dependencies", "dependency", "zależności"]);
+    expect(roadmap?.keywords).toEqual(["programs", "programy", "overview", "prioritization", "rank", "dependencies", "dependency", "zależności", "proposal", "schedule", "cross-team", "międzyzespołowa", "propozycja", "harmonogram"]);
   });
 
   test("the Flow leaf is findable in the palette by what it is for: flow, capacity, roster", () => {

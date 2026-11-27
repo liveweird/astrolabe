@@ -32,3 +32,12 @@ export function legacyDependenciesTarget(search: string): LegacyTarget {
   const filter = parseDependencyListFilter(new URLSearchParams(search), LEGACY_PARAMS);
   return { to: roadmapPath, params: Object.fromEntries(withPanelFilter(new URLSearchParams(), filter)) };
 }
+
+/**
+ * Where the retired `/schedule-proposals/saved/:id` page's address leads (1.33): the Roadmap overview with `proposal=<id>` (a malformed id leads to the overview alone; a proposal
+ * that is gone says so there). The old query had none of its own.
+ */
+export function legacySavedProposalTarget(id: string | undefined): LegacyTarget {
+  const proposal = idOf(id ?? null);
+  return { to: roadmapPath, params: proposal === undefined ? { mode: "overview" } : { mode: "overview", proposal: String(proposal) } };
+}

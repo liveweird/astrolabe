@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { SavedProposalRecord } from "../api/savedProposals";
 
 /**
- * The state line of a saved proposal's page: the badge (green CURRENT, gray otherwise, never red: nothing here blocks), what the state means,
+ * The state line of a saved proposal on the Roadmap overview: the badge (green CURRENT, gray otherwise, never red: nothing here blocks), what the state means,
  * and the two reasons a CURRENT run still cannot be accepted here: it was computed for an earlier day (`outdated`), or the viewer may not
  * accept it. A FRESH run on screen is said to be the viewer's own, not the saved one.
  */

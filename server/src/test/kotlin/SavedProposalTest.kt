@@ -238,6 +238,7 @@ class SavedProposalTest {
         )
         for ((label, entry) in flags) {
             val (caller, mayAct) = entry
+            // Accept is wider than delete (1.33): the manager of ONE stored team accepts their part; see the single-team test below.
             val listed = caller.client.get(SAVED_PATH).also { assertEquals(HttpStatusCode.OK, it.status, label) }
                 .body<SavedProposalList>().items
             assertEquals(mayAct, listed.single { it.id == id }.can.delete, "list can.delete: $label")
@@ -253,6 +254,30 @@ class SavedProposalTest {
         assertEquals(badRequest, s.w.admin.client.get("$SAVED_PATH/not-a-number").status)
         assertEquals(HttpStatusCode.Unauthorized, jsonClient().get("$SAVED_PATH/$id").status)
         assertEquals(HttpStatusCode.Unauthorized, jsonClient().get(SAVED_PATH).status)
+    }
+
+    @Test
+    fun `the manager of ONE stored team may accept a saved proposal but not delete it`() = testApplication {
+        val s = savedWorld("svo")
+        val one = planCaller("svo-one")
+        val t4 = TestTeams.seed(planName("svo-t4"), one.personId)
+        TestPlan.capacityPeriod(t4, "2027-01-04", 10.0)
+        val pair = listOf(s.t1, t4)
+        val run = s.w.admin.client.savedRun(pair)
+        val id = s.w.admin.client.saveProposal(run, pair).body<SavedProposalSummary>().id
+
+        val callers = listOf(
+            Triple("ADMIN", s.w.admin, true),
+            Triple("the manager of the second team", one, true),
+            Triple("the manager of the first team", s.both, true),
+            Triple("the manager of an outside team", s.m3, false),
+            Triple("a stranger", s.w.stranger, false),
+        )
+        for ((label, caller, mayAccept) in callers) {
+            val record = caller.client.get("$SAVED_PATH/$id").body<SavedProposalRecord>()
+            assertEquals(mayAccept, record.can.accept, "can.accept: $label")
+            assertEquals(caller === s.w.admin, record.can.delete, "can.delete stays the manager of EVERY team: $label")
+        }
     }
 
     @Test

@@ -89,6 +89,14 @@ describe("useProgramPick", () => {
     expect(stored()).toEqual([11]);
   });
 
+  test("an address naming a saved proposal (1.33) is linked too: a remembered pick is not restored over it, so the bars the run moves are not hidden", () => {
+    remember("[11]");
+    renderWithProviders(<Probe />, { route: "/roadmap?mode=overview&proposal=5" });
+    expect(shown()).toEqual([]);
+    expect(url()).toBe("?mode=overview&proposal=5");
+    expect(stored()).toEqual([11]);
+  });
+
   test("clearing the work stream narrowing (a bare address again) does not bring the remembered pick back: the page arrived linked and stays so", async () => {
     remember("[11]");
     renderWithProviders(<Probe />, { route: "/roadmap?mode=overview&workStreamId=3" });

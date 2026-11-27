@@ -101,7 +101,8 @@ describe("App shell", () => {
       const teams = screen.getByRole("group", { name: "Teams and capacity" });
       // Team load is part of Teams (1.32): no leaf of its own.
       expect(within(teams).queryByRole("link", { name: "Team load" })).not.toBeInTheDocument();
-      expect(within(teams).getByRole("link", { name: "Schedule proposals" })).toHaveAttribute("href", "/schedule-proposals");
+      // The Schedule proposals page is the Roadmap overview's Propose (1.33): no leaf of its own.
+      expect(within(teams).queryByRole("link", { name: "Schedule proposals" })).not.toBeInTheDocument();
       expect(within(teams).getByRole("link", { name: "Teams" })).toHaveAttribute("href", "/teams");
       expect(within(teams).getByRole("link", { name: "People" })).toHaveAttribute("href", "/people");
       const integrations = screen.getByRole("group", { name: "Integrations" });

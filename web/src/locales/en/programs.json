@@ -74,5 +74,19 @@
       "proposed": "Proposed dates",
       "end": "End"
     }
+  },
+  "saved": {
+    "panelTitle": "Saved proposals",
+    "panelTitleCount": "Saved proposals ({{count}})",
+    "show": "Show the saved proposals",
+    "hide": "Hide the saved proposals",
+    "title": "Saved proposal: {{name}}",
+    "opened": "Saved proposal “{{name}}” opened.",
+    "opening": "Opening the saved proposal…",
+    "unreadable": "“{{name}}” was saved in an earlier version of Astrolabe and can no longer be opened.",
+    "close": "Close",
+    "outside_one": "{{count}} of the projects this proposal moves is outside the current pick",
+    "outside_other": "{{count}} of the projects this proposal moves are outside the current pick",
+    "showAll": "Show every program"
   }
 }

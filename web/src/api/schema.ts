@@ -1414,7 +1414,7 @@ export interface paths {
         };
         /**
          * Get a saved cross-team proposal with its state
-         * @description Any authenticated user; `404` for an unknown id. `state` is derived at read, never stored: `CURRENT` while the plan still matches what the run read, `CHANGED` otherwise (a listed team gone included), `UNREADABLE` when the proposal was stored in a shape this server no longer reads (then `proposal` and `check` are null). `check` is the stored check of the ticked moves and is null when every move was ticked. `can.accept` is the caller's right to accept it (ADMIN, or the active manager of every listed team) while it is `CURRENT`; the accept itself is `POST /schedule-proposals/accept` and re-checks everything.
+         * @description Any authenticated user; `404` for an unknown id. `state` is derived at read, never stored: `CURRENT` while the plan still matches what the run read, `CHANGED` otherwise (a listed team gone included), `UNREADABLE` when the proposal was stored in a shape this server no longer reads (then `proposal` and `check` are null). `check` is the stored check of the ticked moves and is null when every move was ticked. `can.accept` is the caller's right to accept it (ADMIN, or the active manager of at least one listed team: the accept names the teams it writes) while it is `CURRENT`; the accept itself is `POST /schedule-proposals/accept` and re-checks everything.
          */
         get: operations["getSavedScheduleProposal"];
         put?: never;
@@ -5536,7 +5536,7 @@ export interface components {
             delete: boolean;
         };
         SavedProposalCan: {
-            /** @description The caller may accept it: ADMIN or the active manager of every team, and its `state` is `CURRENT`. A client must also require the proposal's `asOf` to be today before offering Accept (the state does not read the clock). */
+            /** @description The caller may accept it: ADMIN or the active manager of at least one of its teams, and its `state` is `CURRENT`. A client must also require the proposal's `asOf` to be today before offering Accept (the state does not read the clock). */
             accept: boolean;
             /** @description The caller may delete the proposal. */
             delete: boolean;

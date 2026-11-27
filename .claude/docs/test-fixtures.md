@@ -301,12 +301,13 @@ Files: `e2e/tests/schedule-proposal.spec.ts`; prefix `e2e-sp-*`. Year **2042** (
 
 ### The e2e cross-team world
 
-Files: `e2e/tests/cross-team-proposal.spec.ts`; prefix `e2e-ct-*`. Year **2048** (2048-01-06 is a Monday; nothing writes a holiday there).
+Files: `e2e/tests/roadmap-proposal.spec.ts` (the Roadmap overview, 1.33); prefix `e2e-ct-*`. Year **2048** (2048-01-06 is a Monday; nothing writes a holiday there).
 
-- Seeded per test (the schedule-proposal helpers, copied): a project OWNER login (manages nothing), a team MANAGER login whose person manages BOTH teams X and Y, a SINGLE manager login (third scenario: the world's `split` flag gives team Y to this person, because a team has one manager; fourth: `soloTeam` gives this person a third team Z instead, so they manage one team and neither of the run's). Each team has ONE capacity period from Monday 2048-01-06 (no WIP limit); `x1` on X is scheduled, `y1` on Y unscheduled, link `x1 -FS-> y1`.
+- Seeded per test (the schedule-proposal helpers, copied): a project OWNER login (manages nothing), a team MANAGER login whose person manages BOTH teams X and Y, a SINGLE manager login (fourth test: the world's `split` flag gives team Y to this person, because a team has one manager; fifth: `soloTeam` gives this person a third team Z instead, so they manage one team and neither of the run's).
+  EVERY overview run narrows to the world's own program (`?mode=overview&programId=`): the run covers the teams of the shown projects, and the plan is shared. Each team has ONE capacity period from Monday 2048-01-06 (no WIP limit); `x1` on X is scheduled, `y1` on Y unscheduled, link `x1 -FS-> y1`.
 - The plan revision is shared with every parallel spec, so the accept test asserts the answer's revision is ABOVE the run's, never an exact bump. The spec holds the lock `holiday-dictionary` (a run's scope hash covers the holiday dictionary).
-- The fourth test SAVES a proposal through the page (`e2e-ct-saved-*`) and registers its delete first in the teardown: the saved table holds the newest 20 for everyone and any save evicts the oldest, so it never relies on another row, clears none, and saves once (10 a minute per login).
-- `accessibility.spec.ts` sweeps `/schedule-proposals` (empty page, as the administrator it offers every team) among the list pages.
+- The fifth test SAVES a proposal through the page (`e2e-ct-saved-*`) and registers its delete first in the teardown: the saved table holds the newest 20 for everyone and any save evicts the oldest, so it never relies on another row, clears none, and saves once (10 a minute per login).
+- `accessibility.spec.ts` scans the overview with an open proposal over its 2042 proposal world (the page is gone since 1.33).
 
 ### The e2e baselines world
 

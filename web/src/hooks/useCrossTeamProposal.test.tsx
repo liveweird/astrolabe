@@ -86,7 +86,7 @@ describe("propose", () => {
   test("the server's refusals read in the page's words: 403, 404 and 400", async () => {
     const { result } = renderHook(() => useCrossTeamProposal(announce), { wrapper });
     for (const [status, words] of [
-      [403, "Only a manager of every listed team or an administrator can propose or accept a schedule across teams"],
+      [403, "Only an administrator or the manager of every team of the ticked moves can accept a schedule across teams"],
       [404, "A team of the proposal no longer exists — reload the page"],
       [400, "The proposal could not be applied — propose again"],
     ] as const) {
@@ -277,7 +277,7 @@ describe("accept", () => {
     acceptAnswer = jsonResponse(403, { title: "Forbidden", status: 403 });
     const { result } = await opened();
     act(() => void result.current.accept());
-    await waitFor(() => expect(result.current.error).toBe("Only a manager of every listed team or an administrator can propose or accept a schedule across teams"));
+    await waitFor(() => expect(result.current.error).toBe("Only an administrator or the manager of every team of the ticked moves can accept a schedule across teams"));
     expect(result.current.proposal).not.toBeNull();
     expect(result.current.stale).toBe(false);
     acceptAnswer = jsonResponse(400, { title: "Bad", status: 400 });

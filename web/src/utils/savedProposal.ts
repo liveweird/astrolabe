@@ -25,3 +25,20 @@ export function storedCheckState(record: Pick<SavedProposalRecord, "check" | "se
     failed: false,
   };
 }
+
+/** The address's word for the saved proposal the Roadmap overview has open (`savedProposalPath`: `/roadmap?mode=overview&proposal=5`). */
+export const PROPOSAL_PARAM = "proposal";
+
+/** The search with `proposal=<id>` set (the saved list's links: every other parameter - the pick, the narrowing - stays, so the bars the run moves are the ones the viewer was looking at). */
+export function withProposal(current: URLSearchParams, id: number): URLSearchParams {
+  const next = new URLSearchParams(current);
+  next.set(PROPOSAL_PARAM, String(id));
+  return next;
+}
+
+/** The search without `proposal`. */
+export function withoutProposal(current: URLSearchParams): URLSearchParams {
+  const next = new URLSearchParams(current);
+  next.delete(PROPOSAL_PARAM);
+  return next;
+}

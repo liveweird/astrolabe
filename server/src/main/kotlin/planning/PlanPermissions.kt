@@ -119,7 +119,15 @@ object PlanPermissions {
     /** `DELETE /saved-schedule-proposals/{id}`: [canScheduleAll] over the proposal's stored teams (a deleted team is not managed). */
     fun canDeleteSavedProposal(actor: PlanActor, teamIds: Collection<UInt>): Boolean = canScheduleAll(actor, teamIds)
 
-    /** A saved proposal's Accept: [canScheduleAll] over its teams AND the proposal still CURRENT ([SavedProposalState]). */
-    fun canAcceptSavedProposal(actor: PlanActor, teamIds: Collection<UInt>, state: SavedProposalState): Boolean =
-        state == SavedProposalState.CURRENT && canScheduleAll(actor, teamIds)
+    /**
+     * A saved proposal's Accept: the proposal still CURRENT ([SavedProposalState]) AND ADMIN or the ACTIVE manager of AT LEAST ONE
+     * of its teams (1.33: the accept writes only the teams the caller ticks, `acceptTeamIds`; no stored team, nothing to accept for).
+     */
+    fun canAcceptSavedProposal(
+        actor: PlanActor,
+        teamIds: Collection<UInt>,
+        state: SavedProposalState,
+    ): Boolean =
+        state == SavedProposalState.CURRENT &&
+            (actor.isAdmin || teamIds.any { it in actor.managedTeamIds })
 }

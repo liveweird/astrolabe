@@ -16,7 +16,7 @@ const linksOfMoves = <T extends { moves: CrossTeamProposalTeam["moves"]; depende
 
 /**
  * A run as the cross-team pages show it (the facts line, then one section per team in placement order with the verdicts and load of the
- * TICKED moves): the open run of `/schedule-proposals` and a saved run's page share it. Controlled: the owner holds the selection;
+ * TICKED moves): the Roadmap overview's open run and a saved run on it share it. Controlled: the owner holds the selection;
  * `applying` also locks every checkbox (a saved run the viewer may not accept is read-only).
  *
  * `acceptable` (1.33, the ids of the teams whose moves the viewer may accept) makes it a preview for everyone: the sections of other teams are

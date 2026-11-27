@@ -116,6 +116,7 @@ describe("Programs page", () => {
     expect(headingOutline()).toEqual([
       [2, "Roadmap"],
       [3, "Timeline"],
+      [3, "Saved proposals"],
       [3, "Dependencies"],
     ]);
     expect(rowLabels()).toEqual(["Work stream Platform", "Program Billing", "Program Reports", "Work stream Archive", LEGACY_ROW]);

@@ -10,6 +10,7 @@ import CommandPalette from "./components/CommandPalette";
 import LegacyDependenciesRedirect from "./components/LegacyDependenciesRedirect";
 import LegacyMilestonesRedirect from "./components/LegacyMilestonesRedirect";
 import LegacyRedirect from "./components/LegacyRedirect";
+import LegacySavedProposalRedirect from "./components/LegacySavedProposalRedirect";
 import LoadingBlock from "./components/LoadingBlock";
 import TelemetryPanelCrash from "./components/TelemetryPanelCrash";
 import UpdateBanner from "./components/UpdateBanner";
@@ -40,8 +41,6 @@ const Plan = lazy(() => import("./pages/Plan"));
 const ProjectView = lazy(() => import("./pages/ProjectView"));
 const RoadmapModes = lazy(() => import("./pages/RoadmapModes"));
 const Baselines = lazy(() => import("./pages/Baselines"));
-const ScheduleProposals = lazy(() => import("./pages/ScheduleProposals"));
-const SavedScheduleProposal = lazy(() => import("./pages/SavedScheduleProposal"));
 const Deviations = lazy(() => import("./pages/Deviations"));
 const BaselineCompare = lazy(() => import("./pages/BaselineCompare"));
 const Teams = lazy(() => import("./pages/Teams"));
@@ -270,8 +269,9 @@ export default function App() {
             <Route path="team-load" element={<LegacyRedirect to={teamsPath} />} />
             <Route path="baselines" element={<Baselines />} />
             <Route path="baselines/:id" element={<BaselineCompare />} />
-            <Route path="schedule-proposals" element={<ScheduleProposals />} />
-            <Route path="schedule-proposals/saved/:id" element={<SavedScheduleProposal />} />
+            {/* 1.33: the Schedule proposals page is the Roadmap overview's Propose (and its Saved proposals panel); old addresses lead there, a saved one opens its run. */}
+            <Route path="schedule-proposals" element={<LegacyRedirect to={roadmapPath} params={{ mode: "overview" }} carry={false} />} />
+            <Route path="schedule-proposals/saved/:id" element={<LegacySavedProposalRedirect />} />
             <Route path="deviations" element={<Deviations />} />
             <Route path="people" element={<People />} />
             <Route path="people/:id" element={<PersonDetails />} />

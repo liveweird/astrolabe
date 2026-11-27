@@ -10,20 +10,25 @@ import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import CrossTeamRunView from "./CrossTeamRunView";
 import EntityLink from "./EntityLink";
 import FormErrorAlert from "./FormErrorAlert";
+import OutsidePickNote from "./OutsidePickNote";
 import OverviewProposalProjects from "./OverviewProposalProjects";
+import SavedRunHeader from "./SavedRunHeader";
 import SaveProposalModal from "./SaveProposalModal";
 import ProposalNotes from "./TeamProposalNotes";
 
 /**
- * The Roadmap overview's schedule proposal under the timeline (1.33; `useOverviewProposal` holds the state): a row with Propose (never automatic) and what it would
+ * The Roadmap overview's schedule proposal under the timeline (1.33; `useOverviewProposal` holds the state; `onShowAll` clears the program pick, or `null` when none is set): a row with Propose (never automatic) and what it would
  * cover, then, while a run is requested or open, its section - the teams it covers, the projects whose dates would move, the run's own sections (`CrossTeamRunView`:
  * only the teams the viewer may accept have ticks), and the buttons. A viewer who may accept nothing previews: no Accept, no Save, no check is asked. Save needs the
  * viewer to be allowed to accept EVERY team of the run (the server's save guard is unchanged). Every taken step is said into the page's one polite region (`announce`);
  * the notes are visible only.
+ *
+ * A SAVED proposal the address names (`?proposal=`, `useSavedRun`) opens in the same section: its own heading and facts, its state (`SavedRunHeader`), the stored ticks (read-only
+ * unless the viewer may accept it), no Save (it is saved), and Close instead of Discard (nothing is thrown away). A saved proposal that does not open says why in a dismissible note.
  */
-export default function OverviewProposalSection({ proposal, announce }: { proposal: OverviewProposal; announce: (text: string) => void }) {
+export default function OverviewProposalSection({ proposal, announce, onShowAll }: { proposal: OverviewProposal; announce: (text: string) => void; onShowAll: (() => void) | null }) {
   const { t } = useTranslation();
-  const { flow, rights, run, check, teamIds, tooMany, proposable, unsettled } = proposal;
+  const { flow, rights, run, check, teamIds, tooMany, proposable, unsettled, saved, ticked, editable } = proposal;
   const { proposeRef, discardRef } = proposal.focus;
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
@@ -36,7 +41,8 @@ export default function OverviewProposalSection({ proposal, announce }: { propos
   }, [error, run]);
 
   const busy = flow.requesting || flow.applying;
-  const canSave = flow.canAccept && run !== null && run.teams.every((team) => rights.acceptable.has(team.teamId));
+  const canSave = flow.canAccept && run !== null && run.teams.every((team) => rights.acceptable.has(team.teamId)) && (saved === null || saved.fresh);
+  const closing = saved !== null && !saved.fresh;
   const hintId = useId();
   // Why Propose is (not) available, in the order the reasons arrive: the request, the rights read, the narrowing the address names, the size of the team set.
   const hint = flow.requesting
@@ -68,6 +74,16 @@ export default function OverviewProposalSection({ proposal, announce }: { propos
           {t("programs.proposal.rightsFailed")}
         </Alert>
       )}
+      {proposal.notice !== null && (
+        <Alert color="orange" variant="light" role="note" withCloseButton closeButtonLabel={t("common.action.dismissNotice")} onClose={proposal.dismissNotice}>
+          {proposal.notice.text}
+        </Alert>
+      )}
+      {proposal.opening && run === null && (
+        <Text size="sm" c="dimmed" role="note">
+          {t("programs.saved.opening")}
+        </Text>
+      )}
       {flow.refused && (
         <Alert color="orange" variant="light" role="note">
           {t("project.busy")}
@@ -77,27 +93,33 @@ export default function OverviewProposalSection({ proposal, announce }: { propos
       {run !== null && (
         <Stack gap="md">
           <Title order={3} size="h4">
-            {t("programs.proposal.title")}
+            {saved === null ? t("programs.proposal.title") : t("programs.saved.title", { name: saved.record.name })}
           </Title>
-          <Text size="sm" role="note">
-            {t("programs.proposal.teams", { count: run.teams.length })}{" "}
-            {run.teams.map((team, index) => (
-              <Fragment key={team.teamId}>
-                {index > 0 && ", "}
-                <EntityLink entity={{ kind: "team", id: team.teamId }} name={team.name} underline="always" />
-              </Fragment>
-            ))}
-            {t("programs.proposal.kept")}
-          </Text>
+          {saved === null ? (
+            <Text size="sm" role="note">
+              {t("programs.proposal.teams", { count: run.teams.length })}{" "}
+              {run.teams.map((team, index) => (
+                <Fragment key={team.teamId}>
+                  {index > 0 && ", "}
+                  <EntityLink entity={{ kind: "team", id: team.teamId }} name={team.name} underline="always" />
+                </Fragment>
+              ))}
+              {t("programs.proposal.kept")}
+            </Text>
+          ) : (
+            <SavedRunHeader record={saved.record} fresh={saved.fresh} outdated={saved.outdated} editable={saved.editable} />
+          )}
           <Text size="sm" c="dimmed">
             {t("programs.proposal.intro")}
           </Text>
+          <OutsidePickNote count={proposal.outside} onShowAll={onShowAll} />
           <OverviewProposalProjects projects={run.projects} />
           <CrossTeamRunView
             run={run}
             check={check}
-            selected={flow.selected}
-            applying={flow.applying}
+            selected={ticked}
+            applying={!editable || flow.applying}
+            live={saved === null || saved.record.state === "CURRENT"}
             onToggle={flow.toggle}
             onSelectAll={flow.selectAll}
             onSelectNone={flow.selectNone}
@@ -114,16 +136,16 @@ export default function OverviewProposalSection({ proposal, announce }: { propos
                 {t("scheduleProposals.saved.save")}
               </Button>
             )}
-            {flow.canAccept && (
+            {flow.canAccept && editable && (
               <Button leftSection={<IconCheck size={16} />} loading={flow.applying} disabled={flow.selected.size === 0 || busy} onClick={flow.accept}>
                 {t("teams.proposal.accept", { count: flow.selected.size })}
               </Button>
             )}
-            <Button variant="default" leftSection={<IconRefresh size={16} />} disabled={busy} onClick={() => flow.proposeAgain(run.teams.map((team) => team.teamId), flow.selected, false)}>
+            <Button variant="default" leftSection={<IconRefresh size={16} />} disabled={busy} onClick={() => flow.proposeAgain(run.teams.map((team) => team.teamId), ticked, saved?.record.state === "CHANGED")}>
               {t("programs.proposal.again")}
             </Button>
-            <Button ref={discardRef} variant="default" leftSection={<IconX size={16} />} disabled={flow.applying} onClick={flow.discard}>
-              {t("teams.proposal.discard")}
+            <Button ref={discardRef} variant="default" leftSection={<IconX size={16} />} disabled={flow.applying} onClick={proposal.close}>
+              {closing ? t("programs.saved.close") : t("teams.proposal.discard")}
             </Button>
           </Group>
         </Stack>
