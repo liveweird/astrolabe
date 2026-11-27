@@ -1,3 +1,4 @@
+import type { RefObject } from "react";
 import type { TimelineColumn } from "./timelineModel";
 
 /** The pages whose Gantt can hide its extra left columns; the choice is remembered per page (`timeline.columns.<page>`). */
@@ -54,9 +55,31 @@ export function pickedColumns(prefs: ColumnPrefs, offered: readonly TimelineColu
   return { collapsed: false, hidden: [...picked, ...kept].slice(0, MAX_HIDDEN_IDS) };
 }
 
-/** What `useTimelineColumns` hands a page: the set for `Timeline.hiddenColumns` and the state of the toolbar control. */
+/**
+ * The menu's pick as the CHANGE it is: `drawn` is what the menu showed ticked (what is on screen, a narrow scroller's fit included), `shown` what it shows
+ * now. Only the columns just ticked or unticked change the choice: a column the fit alone left out is not turned into one the viewer hid. The base is
+ * the viewer's own pick (nothing while collapsed, so a tick then shows that column alone).
+ */
+export function changedPick(prefs: ColumnPrefs, offered: readonly TimelineColumn[], drawn: readonly string[], shown: readonly string[]): ColumnPrefs {
+  const added = shown.filter((id) => !drawn.includes(id));
+  const removed = drawn.filter((id) => !shown.includes(id));
+  const base = offered.filter((column) => !prefs.collapsed && !prefs.hidden.includes(column.id)).map((column) => column.id);
+  return pickedColumns(prefs, offered, [...base, ...added].filter((id) => !removed.includes(id)));
+}
+
+/** The same choice (a write of it would change nothing). */
+export function samePrefs(a: ColumnPrefs, b: ColumnPrefs): boolean {
+  return a.collapsed === b.collapsed && a.hidden.length === b.hidden.length && a.hidden.every((id, index) => id === b.hidden[index]);
+}
+
+/** What `useTimelineColumns` hands a page: the fitted `columns`, `hidden` and `scrollRef` for the Timeline and the state of the toolbar control. */
 export interface TimelineColumnView {
+  /** The page's columns with a narrow scroller's fit applied (the name may be narrower). */
+  columns: readonly TimelineColumn[];
+  /** The columns not drawn: the viewer's pick plus what a narrow scroller's fit left out. The control describes exactly this. */
   hidden: ReadonlySet<string>;
+  /** Goes to `Timeline.scrollRef`: the width the fit follows is the scroller's. */
+  scrollRef: RefObject<HTMLDivElement | null>;
   /** The columns the page lets the viewer hide, in column order. */
   offered: readonly TimelineColumn[];
   /** Every offered column is hidden (the toggle then offers to show them). */

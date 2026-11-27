@@ -839,7 +839,7 @@ Files: `pages/Roadmap.tsx`;
 session's roles): without it there is no handle, no ranking item in the menu, and the bars are read-only.
 
 - Rows: one per project in rank order, then an "Unranked" divider row (present only while something unranked is visible) and the unranked projects (by name).
-- Left columns (404 px sticky): `#` (the SERVER's position, "—" when unranked; a filter leaves gaps), Project (the pointer-only row handle, the name as the link into `/projects/:id`, the program dimmed after it: a pointer-only link), Flags, Operations (the row menu, with "Open program"). Work stream and owner are filters, not columns.
+- Left columns (460 px sticky; Flags 120 px, room for two badges): `#` (the SERVER's position, "—" when unranked; a filter leaves gaps), Project (the pointer-only row handle, the name as the link into `/projects/:id`, the program dimmed after it: a pointer-only link), Flags, Operations (the row menu, with "Open program"). Work stream and owner are filters, not columns.
 - On the track: the project's **span bar** (read-only, `tone: "summary"`, name "{{name}}, {{start}} to {{end}}" plus ", N conflicts") over its **target window** (a `tone: "window"` bar,
   `window:<id>`, name `timeline.bar.window`; editable only where the project's own `can.editTargetWindow` is set, else a read-only image) and, past the window, the orange drift band
   (`utils/roadmapRows.ts` `driftBandOf`).
@@ -1274,7 +1274,7 @@ Team writes (the editor's save, a delete) refresh `["teams"]` and `["plan"]`; an
   when positive), all from the document's `totals` over EVERY team, so no filter or the cap changes it. Under it a dimmed `role="status"` line, "Showing N of M teams" (`teams.shownOf`; M the rows
   read), only while Name or Show narrows; its count waits `FILTER_DEBOUNCE_MS` (the rows follow every key).
 - Columns: Name (`SortHeader`: asc = the document's order, desc reversed, `viewSettings.teams.sortDir`; swatch, team `EntityLink`, the description dimmed under it, one line), Manager (person link; dimmed
-  "No manager"), Milestones, Not scheduled (a link to the team's page named by its row, `teamLoad.notScheduledAria`, only when positive), Overloaded and WIP (orange, only when positive), Capacity (a gray "N weeks
+  "No manager"), Milestones, Not scheduled (a link to the team's page named by its row, `teamLoad.notScheduledAria`, only when positive), Overloaded and WIP (orange, only when positive; whole text: `miw="max-content"`, nowrap cells), Capacity (a gray "N weeks
   without capacity": a team with work and no capacity can never be overloaded) and, for an ADMIN, Operations. No row says "fits"; every figure is worded; the table is a 960 px `ScrollRegion`.
 - States: loading (`LoadingBlock`, no facts and no claim), a failed first read (`ErrorAlert` "Could not load the teams", no claim; a failed re-read keeps the rows under it), no team (`totals.teams === 0`),
   nothing matches (not truncated; "Show every team" clears Name and Show, keeps past) and `truncated` (one dimmed line with the rows shown).

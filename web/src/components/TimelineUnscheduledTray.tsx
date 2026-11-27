@@ -1,12 +1,18 @@
-import type { PointerEventHandler, ReactNode } from "react";
+import { useRef, type PointerEventHandler, type ReactNode } from "react";
 import { Button, Table, Text } from "@mantine/core";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { IconGripVertical } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
+import { useElementWidth } from "../hooks/useElementWidth";
 import type { DragData } from "../hooks/useTimelinePreview";
 import type { BarId } from "../utils/timelineModel";
+import { NARROW_BELOW } from "../utils/timelineNarrow";
+import ScrollRegion from "./ScrollRegion";
 import classes from "../theme.module.css";
+
+/** The table's width inside the scroll region (name, project or team, estimate, Schedule and the menu). */
+const TRAY_MIN_WIDTH = 480;
 
 export interface TrayItem {
   id: BarId;
@@ -67,7 +73,8 @@ function TrayRow({ item, onSchedule }: { item: TrayItem; onSchedule: (id: BarId)
  * handle) onto the timeline above — it is scheduled at the day under the pointer for one calendar week — or scheduled with its
  * Schedule button, which hands the page the id and lets it choose the dates (the deterministic path). It must sit inside the
  * page's `TimelineDndContext`. It is deliberately not in a scroll region: a dragged row translates out of the table, over the
- * timeline, and a scroller would clip it.
+ * timeline, and a scroller would clip it. Only while its own box is narrower than `NARROW_BELOW` (the Gantt pane's rule, `timeline.md`
+ * "Hidden columns") it is a labelled `ScrollRegion` that scrolls sideways instead of widening the page.
  */
 export default function TimelineUnscheduledTray({
   label,
@@ -85,8 +92,10 @@ export default function TimelineUnscheduledTray({
   onSchedule: (id: BarId) => void;
 }) {
   const { t } = useTranslation();
-  if (items.length === 0) return <Text c="dimmed">{emptyText}</Text>;
-  return (
+  // The box is measured, not the table: it is always mounted, so the width is known whenever the first row arrives.
+  const boxRef = useRef<HTMLDivElement>(null);
+  const narrow = (useElementWidth(boxRef, NARROW_BELOW) ?? NARROW_BELOW) < NARROW_BELOW;
+  const table = (
     <Table aria-label={label}>
       <Table.Thead>
         <Table.Tr>
@@ -103,5 +112,18 @@ export default function TimelineUnscheduledTray({
         ))}
       </Table.Tbody>
     </Table>
+  );
+  return (
+    <div ref={boxRef}>
+      {items.length === 0 ? (
+        <Text c="dimmed">{emptyText}</Text>
+      ) : narrow ? (
+        <ScrollRegion label={label} minWidth={TRAY_MIN_WIDTH}>
+          {table}
+        </ScrollRegion>
+      ) : (
+        table
+      )}
+    </div>
   );
 }

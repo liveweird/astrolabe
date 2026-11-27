@@ -6,7 +6,7 @@
 // people, users).
 import { randomUUID } from "node:crypto";
 import type { APIRequestContext, Page } from "@playwright/test";
-import { apiAsAdmin, deleteViaApi, expect, login, rowOperation, test, uniqueText, fillDate } from "./helpers";
+import { apiAsAdmin, deleteViaApi, expect, expectNoSidewaysScroll, expectPaneShareBelow, expectTextWhole, login, PHONE, rowOperation, test, uniqueText, fillDate } from "./helpers";
 
 // Registered in creation order; torn down in reverse (a project before its program before its stream before the team and the people).
 const teardown: string[] = [];
@@ -302,4 +302,26 @@ test("the project owner reads the team page without the manager's controls", asy
   await page.getByRole("button", { name: `Operations for ${first}` }).click();
   await expect(page.getByRole("menuitem", { name: /^Open project / })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: /Move|schedule/i })).toHaveCount(0);
+});
+
+test("the team page keeps the Gantt's headers whole and does not scroll sideways at 390 px", async ({ page }) => {
+  const world = await seedWorld();
+  // Long names on purpose: the Unscheduled table (name, project, estimate, Schedule) is the widest thing on the page.
+  const scheduled = uniqueText("e2e-tv-ms-a-long-scheduled-milestone-name");
+  await scheduleViaApi(world, await seedMilestone(world, scheduled, 3), "2027-02-01", "2027-02-05");
+  await seedMilestone(world, uniqueText("e2e-tv-ms-another-long-unscheduled-milestone-name"), 3);
+  await world.api.dispose();
+
+  await login(page, world.owner.email, world.owner.password);
+  await openTeam(page, world);
+  // The Operations header holds only the kebab buttons: it keeps its name and shows no text, so nothing of it is cut ("Operati").
+  await expect(timeline(page).getByRole("columnheader", { name: "Operations" })).toHaveCount(1);
+  await expectTextWhole(timeline(page).getByRole("columnheader"));
+
+  await page.setViewportSize(PHONE);
+  await expect(page.getByRole("heading", { level: 2, name: world.team })).toBeVisible();
+  await expect(tray(page)).toBeVisible();
+  await expectNoSidewaysScroll(page);
+  // The pane is capped, so the track keeps a share of the scroller.
+  await expectPaneShareBelow(timeline(page), 0.65);
 });

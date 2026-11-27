@@ -32,6 +32,15 @@ Own world, dated from the run (UTC): a team with 1 man-day a week from the Monda
 2. They open the filters and turn on "Include past weeks".
    - *Expected*: the address carries `past=true`; the team has two rows in the weeks table, the earlier Monday first and the later one second; the teams table still reads "2 weeks overloaded"; the "earlier weeks are left out" line is gone.
 
+## Scenario: the Teams page shows every warning badge whole at 1440 px and does not scroll sideways at 390 px
+
+Same own world as the first scenario (one team with a "1 week overloaded" week).
+
+1. The administrator signs in at 1440 x 900 and opens `/teams`.
+   - *Expected*: the spec's team row reads "1 week overloaded"; across the whole table (the plan is shared, so every badge, not only the spec's own) no badge label is cut off (its `scrollWidth` is no more than its `clientWidth`).
+2. The window becomes 390 x 844.
+   - *Expected*: the document is no wider than the window (the table scrolls inside its own box).
+
 ## Not covered here (and why)
 
 - The values of `totals`, the WIP badge, the "weeks without capacity" badge, the "Not scheduled" link and the `truncated` line: four workers share the plan or the case needs another capacity setup; vitest and `TeamLoadViewTest` pin them.

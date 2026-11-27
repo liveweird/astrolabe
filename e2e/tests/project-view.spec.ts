@@ -6,7 +6,7 @@
 // milestones go with it - then program, work stream, team, people, users).
 import { randomUUID } from "node:crypto";
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
-import { addDays, apiAsAdmin, deleteViaApi, expect, login, rowOperation, test, uniqueText, fillDate } from "./helpers";
+import { addDays, apiAsAdmin, deleteViaApi, expect, expectNoSidewaysScroll, expectPaneShareBelow, expectTextWhole, login, PHONE, rowOperation, test, uniqueText, fillDate } from "./helpers";
 
 // Registered in creation order; torn down in reverse (a project before its program before its stream before the team and the people).
 const teardown: string[] = [];
@@ -382,4 +382,28 @@ test("a milestone's address marks and focuses its row on the project page, then 
   await expect(page).toHaveURL(new RegExp(`/projects/${world.projectId}$`));
   await page.getByRole("button", { name: "Dismiss this notice" }).click();
   await expect(gone).toHaveCount(0);
+});
+
+test("the project page keeps the Gantt's headers whole and does not scroll sideways at 390 px", async ({ page }) => {
+  const world = await seedWorld();
+  // Long names on purpose: the Unscheduled table is the widest thing on the page (it is not a scroller on a desktop: a held row leaves it over the timeline).
+  const scheduled = uniqueText("e2e-pv-a-long-scheduled-milestone-name");
+  await scheduleViaApi(world, await seedMilestone(world, scheduled, 3), "2027-01-11", "2027-01-22");
+  await seedMilestone(world, uniqueText("e2e-pv-another-long-unscheduled-milestone-name"), 2);
+  await world.api.dispose();
+
+  await login(page, world.owner.email, world.owner.password);
+  await openProject(page, world);
+  // The Operations header holds only the kebab buttons: it keeps its name and shows no text, so nothing of it is cut ("Operati").
+  const grid = page.getByRole("grid", { name: "Milestone timeline" });
+  await expect(grid.getByRole("columnheader", { name: "Operations" })).toHaveCount(1);
+  await expectTextWhole(grid.getByRole("columnheader"));
+
+  await page.setViewportSize(PHONE);
+  await expect(page.getByRole("heading", { level: 2, name: world.project })).toBeVisible();
+  await expect(tray(page)).toBeVisible();
+  await expectNoSidewaysScroll(page);
+  // The pane is capped, so the track keeps a share of the scroller, and the row header keeps the full name for assistive technology (the cell clips it).
+  await expectPaneShareBelow(grid, 0.65);
+  await expect(grid.getByRole("rowheader", { name: new RegExp(`^${scheduled}`) })).toBeVisible();
 });

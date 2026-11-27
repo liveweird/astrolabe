@@ -126,7 +126,7 @@ describe("TimelineColumnsControl", () => {
       const five = ["a", "b", "c", "d", "e"].map((id) => ({ id, header: id.toUpperCase(), width: 50, hideable: true }));
       const counts: [number, string][] = [[1, "1 ukryta"], [2, "2 ukryte"], [5, "5 ukrytych"]];
       for (const [count, text] of counts) {
-        const view: TimelineColumnView = { hidden: new Set(five.slice(0, count).map((c) => c.id)), offered: five, allHidden: false, toggleAll: vi.fn(), setShown: vi.fn() };
+        const view: TimelineColumnView = { columns: five, scrollRef: { current: null }, hidden: new Set(five.slice(0, count).map((c) => c.id)), offered: five, allHidden: false, toggleAll: vi.fn(), setShown: vi.fn() };
         const { unmount } = renderWithProviders(<TimelineColumnsControl view={view} />);
         expect(screen.getByRole("button", { name: `Wybierz kolumny · ${text}` })).toHaveTextContent(text);
         unmount();
@@ -139,7 +139,7 @@ describe("TimelineColumnsControl", () => {
   test("a click reports the ticked ids to the view", async () => {
     const user = userEvent.setup();
     const setShown = vi.fn();
-    const view: TimelineColumnView = { hidden: new Set(["estimate"]), offered: COLUMNS.filter((c) => c.hideable === true), allHidden: false, toggleAll: vi.fn(), setShown };
+    const view: TimelineColumnView = { columns: COLUMNS, scrollRef: { current: null }, hidden: new Set(["estimate"]), offered: COLUMNS.filter((c) => c.hideable === true), allHidden: false, toggleAll: vi.fn(), setShown };
     renderWithProviders(<TimelineColumnsControl view={view} />);
     await user.click(chevron());
     await user.click(await screen.findByRole("menuitemcheckbox", { name: "Estimate" }));

@@ -69,6 +69,15 @@
 3. They open `/projects/<P>?milestone=2147483000` (a milestone this project does not have), then dismiss the notice.
    - *Expected*: no error page: the project's heading and the timeline show as ever; a notice says "That milestone is not in this project any more…"; the parameter leaves the address; Dismiss removes the notice.
 
+## Scenario: the project page keeps the Gantt's headers whole and does not scroll sideways at 390 px
+
+Own world as above, with a scheduled and an unscheduled milestone whose names are long.
+
+1. The project's owner signs in and opens the project at the default window size.
+   - *Expected*: the grid "Milestone timeline" has one "Operations" column header, and no column header's text is cut off.
+2. The window becomes 390 x 844.
+   - *Expected*: the Unscheduled table is visible; the document is no wider than the window; the Gantt's left pane takes less than 65 % of its scroller, and the scheduled milestone's row header still carries its full name.
+
 ## Not covered here (and why)
 
 - **The 400 refusals, the optimistic rollback on a non-409 failure, the ignored change while a save is in flight, the pre-checked

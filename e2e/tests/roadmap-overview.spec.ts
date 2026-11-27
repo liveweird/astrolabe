@@ -10,7 +10,7 @@
 // the link between two of them (unique `e2e-pg-*` names) and users, all seeded through the API and removed by the afterEach through the API,
 // children first (the users through the Users page). It never touches the global ranking: its projects stay unranked.
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
-import { apiAsAdmin, createUserViaUi, deleteUserRow, deleteViaApi, expect, login, openFilters, signOut, test, uniqueText } from "./helpers";
+import { apiAsAdmin, createUserViaUi, deleteUserRow, deleteViaApi, expect, expectNoSidewaysScroll, expectPaneShareBelow, expectTextWhole, login, openFilters, PHONE, signOut, test, uniqueText } from "./helpers";
 
 // Registered in creation order; torn down in reverse (projects before programs before the stream, the team and the person).
 const teardown: string[] = [];
@@ -329,4 +329,30 @@ test("a Roadmap overview link that names a work stream narrows the tree to it, s
   await page.getByRole("button", { name: "Dismiss this notice" }).click();
   await expect(notice).toHaveCount(0);
   await expect(status(page, "That work stream is not in the plan any more")).toHaveCount(0);
+});
+
+test("the Roadmap keeps its Gantt headers and Flags column whole at desktop width and does not scroll sideways at 390 px, in both modes", async ({ page }) => {
+  const plan = await seedPlan();
+  await login(page);
+  await page.evaluate(([key, value]) => localStorage.setItem(key, value), [PICK_KEY, JSON.stringify([plan.aId, plan.bId])]);
+
+  // Desktop: no header of either Gantt is cut off (Operations draws no text, only its name for assistive technology; Flags and the rest fit their columns).
+  for (const [mode, gridName] of [["overview", "Programs timeline"], ["prioritization", "Roadmap timeline"]] as const) {
+    await page.goto(`/roadmap?mode=${mode}`);
+    const timeline = page.getByRole("grid", { name: gridName });
+    await expect(timeline).toBeVisible();
+    await expect(timeline.getByRole("columnheader", { name: "Operations" })).toHaveCount(1);
+    await expectTextWhole(timeline.getByRole("columnheader"));
+  }
+
+  // A phone: the page does not scroll sideways, and the left pane is capped so the bars keep a share of the Gantt.
+  await page.setViewportSize(PHONE);
+  for (const [mode, gridName] of [["overview", "Programs timeline"], ["prioritization", "Roadmap timeline"]] as const) {
+    await page.goto(`/roadmap?mode=${mode}`);
+    const timeline = page.getByRole("grid", { name: gridName });
+    await expect(timeline).toBeVisible();
+    await expect(timeline.getByRole("row").nth(1)).toBeVisible();
+    await expectNoSidewaysScroll(page);
+    await expectPaneShareBelow(timeline, 0.65);
+  }
 });

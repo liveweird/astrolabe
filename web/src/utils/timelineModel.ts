@@ -118,6 +118,8 @@ export interface TimelineColumn {
   /** The column header text. */
   header: string;
   width: number;
+  /** The column holds only an icon button (Operations): the header text is for assistive technology only (`VisuallyHidden`), as a plain table's operations header is. */
+  iconOnly?: boolean;
   /** The page lets the viewer hide this column (`useTimelineColumns`); never the first (the row header) nor the operations. */
   hideable?: boolean;
 }

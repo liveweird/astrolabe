@@ -508,3 +508,37 @@ export type Scheme = "light" | "dark";
 export async function expectScheme(page: Page, scheme: Scheme): Promise<void> {
   await expect(page.locator("html")).toHaveAttribute("data-mantine-color-scheme", scheme);
 }
+
+/** A phone: the layout checks below are made at this size (390 x 844 is the walk-through's). */
+export const PHONE = { width: 390, height: 844 };
+
+/** The page never scrolls sideways: the document is no wider than the window (a wide table or Gantt scrolls inside its own box). */
+export async function expectNoSidewaysScroll(page: Page): Promise<void> {
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), { message: "the document scrolls sideways" })
+    .toBeLessThanOrEqual(0);
+}
+
+/** No element's text is cut off: none of the located elements holds more than its own box shows (a 1 px tolerance for rounding). */
+export async function expectTextWhole(located: Locator): Promise<void> {
+  expect(await located.count()).toBeGreaterThan(0);
+  const clipped = await located.evaluateAll((elements) =>
+    elements.filter((element) => element.scrollWidth > element.clientWidth + 1).map((element) => `${element.textContent ?? ""} (${element.scrollWidth} > ${element.clientWidth})`),
+  );
+  expect(clipped, "text that does not fit its box").toEqual([]);
+}
+
+/** The Gantt's sticky left pane takes less than `max` of its scroller (the narrow rule caps it; polled, the pane refits after a resize). */
+export async function expectPaneShareBelow(grid: Locator, max: number): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        grid.evaluate((element) => {
+          const left = element.querySelector<HTMLElement>('[role="row"] > [role="presentation"]');
+          const scroller = element.closest<HTMLElement>('[role="region"]');
+          return left && scroller ? left.offsetWidth / scroller.clientWidth : 1;
+        }),
+      { message: "the left pane's share of the Gantt" },
+    )
+    .toBeLessThan(max);
+}

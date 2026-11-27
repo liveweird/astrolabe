@@ -1,4 +1,4 @@
-import { useImperativeHandle, useRef, type CSSProperties, type KeyboardEvent, type ReactNode, type Ref } from "react";
+import { useImperativeHandle, useRef, type CSSProperties, type KeyboardEvent, type ReactNode, type Ref, type RefObject } from "react";
 import { Stack, Text, VisuallyHidden } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import { useDndContext } from "@dnd-kit/core";
@@ -95,6 +95,8 @@ export interface TimelineProps {
   busy?: boolean;
   /** The imperative handle ({@link TimelineHandle}); a plain prop in React 19. */
   ref?: Ref<TimelineHandle>;
+  /** The scroller's element, for a page whose column hook measures it (`useTimelineColumns().scrollRef`); the Timeline keeps its own without it. */
+  scrollRef?: RefObject<HTMLDivElement | null>;
 }
 
 /** `r,c` of the roving element holding the event target. */
@@ -132,9 +134,11 @@ export default function Timeline({
   maxHeight = 640,
   busy = false,
   ref,
+  scrollRef: pageScrollRef,
 }: TimelineProps) {
   const { t } = useTranslation();
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const ownScrollRef = useRef<HTMLDivElement>(null);
+  const scrollRef = pageScrollRef ?? ownScrollRef;
   const { active: dragging } = useDndContext();
   const leftWidth = columns.reduce((sum, column) => (hiddenColumns.has(column.id) ? sum : sum + column.width), 0);
   // The sticky header's height: the ONE number the drop zone, the virtualiser, the reveal and the CSS scroll margins all follow.

@@ -183,7 +183,7 @@ export default function TeamTimeline({
     { id: "estimate", header: t("teams.view.column.estimate"), width: COLUMN_WIDTHS.estimate, hideable: true },
     ...(flagsColumn ? [{ id: "flags", header: t("roadmap.column.flags"), width: flagsWidth, hideable: true }] : []),
     ...(criticalPath ? [{ id: "slack", header: t("project.column.slack"), width: COLUMN_WIDTHS.slack, hideable: true }] : []),
-    { id: "actions", header: t("common.table.operations"), width: COLUMN_WIDTHS.actions },
+    { id: "actions", header: t("common.table.operations"), width: COLUMN_WIDTHS.actions, iconOnly: true },
   ];
   const columnView = useTimelineColumns("team", columns);
   const rowIds = new Set<BarId>(view.scheduled.map((milestone) => milestone.id));
@@ -286,8 +286,9 @@ export default function TeamTimeline({
       scale={scale}
       onZoomChange={onZoomChange}
       today={today}
-      columns={columns}
+      columns={columnView.columns}
       hiddenColumns={columnView.hidden}
+      scrollRef={columnView.scrollRef}
       rows={rows}
       bands={previewing ? [] : idleBands(view.idleGaps, t)}
       holidays={holidays}

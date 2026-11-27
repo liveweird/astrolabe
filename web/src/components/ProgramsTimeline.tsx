@@ -212,7 +212,7 @@ export default function ProgramsTimeline({
   const columns: TimelineColumn[] = [
     { id: "name", header: t("programs.column.name"), width: COLUMN_WIDTHS.name },
     { id: "flags", header: t("roadmap.column.flags"), width: COLUMN_WIDTHS.flags, hideable: true },
-    { id: "actions", header: t("common.table.operations"), width: COLUMN_WIDTHS.actions },
+    { id: "actions", header: t("common.table.operations"), width: COLUMN_WIDTHS.actions, iconOnly: true },
   ];
   const columnView = useTimelineColumns("programs", columns);
   const projects = treeRows.filter((row): row is ProjectTreeRow => row.kind === "project").map((row) => row.project);
@@ -265,8 +265,9 @@ export default function ProgramsTimeline({
       zooms={PLAN_ZOOMS}
       onZoomChange={onZoomChange}
       today={today}
-      columns={columns}
+      columns={columnView.columns}
       hiddenColumns={columnView.hidden}
+      scrollRef={columnView.scrollRef}
       rows={treeRows.map(rowOf)}
       holidays={holidays}
       holidaysFailed={holidaysFailed}

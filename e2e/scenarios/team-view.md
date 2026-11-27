@@ -63,6 +63,15 @@
      **Reset order**, **Edit** or row handle; the tray says the team's manager or an administrator schedules; the Capacity section says
      "No capacity set" and that the manager sets it; the row menu offers **Open project** and no schedule or order item.
 
+## Scenario: the team page keeps the Gantt's headers whole and does not scroll sideways at 390 px
+
+Own world as above, with a scheduled and an unscheduled milestone whose names are long.
+
+1. The project's owner signs in and opens the team's page at the default window size.
+   - *Expected*: the grid "Team milestone timeline" has one "Operations" column header, and no column header's text is cut off.
+2. The window becomes 390 x 844.
+   - *Expected*: the Unscheduled table is visible; the document is no wider than the window; the Gantt's left pane takes less than 65 % of its scroller.
+
 ## Not covered here (and why)
 
 - **A row drag through autoscroll to a row that is not mounted** — needs a team of 100 rows (the virtual path); the two-row world here

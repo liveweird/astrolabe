@@ -215,6 +215,12 @@ describe("Teams page: the load figures", () => {
     expect(within(backend).getByText("3 weeks overloaded")).toBeInTheDocument();
     expect(within(backend).getByText("1 week over WIP limit")).toBeInTheDocument();
     expect(within(backend).queryByText(/without capacity/)).toBeNull();
+    // The layout pin (jsdom lays nothing out): a badge in a cell is at least as wide as its text (its label hides overflow, so the column could shrink it into an ellipsis), and its cell keeps one line.
+    for (const text of ["3 weeks overloaded", "1 week over WIP limit"]) {
+      const badge = within(backend).getByText(text).closest<HTMLElement>(".mantine-Badge-root")!;
+      expect(badge).toHaveStyle({ minWidth: "max-content" });
+      expect(badge.closest("td")).toHaveStyle({ whiteSpace: "nowrap" });
+    }
     const frontend = screen.getByRole("link", { name: "Open team Frontend" }).closest("tr")!;
     expect(within(frontend).getByText("1 week overloaded")).toBeInTheDocument();
     expect(within(frontend).queryByText(/WIP/)).toBeNull();

@@ -80,6 +80,15 @@
 3. They open `/roadmap?mode=overview&workStreamId=2147483000` (a work stream the plan does not have), then dismiss the notice.
    - *Expected*: the whole plan shows; a notice says "That work stream is not in the plan any more…" (the page's status region says it too); the parameter leaves the address; Dismiss removes the notice (and the announcement).
 
+## Scenario: the Roadmap keeps its Gantt headers and Flags column whole at desktop width and does not scroll sideways at 390 px, in both modes
+
+Own plan as in the first scenario; the program pick is set to its two programs.
+
+1. The administrator signs in and opens `/roadmap?mode=overview`, then `/roadmap?mode=prioritization`, at the default window size.
+   - *Expected*: in each grid ("Programs timeline", "Roadmap timeline") there is one "Operations" column header and no column header's text is cut off.
+2. The window becomes 390 x 844 and both addresses are opened again.
+   - *Expected*: the document is no wider than the window, and the Gantt's left pane takes less than 65 % of its scroller (the bars keep a share).
+
 ## Not covered here (and why)
 
 - **The roll-up in part (a work stream the pick shows only partly), the plural sentences, the empty and failed loads, Expand all's announcement,

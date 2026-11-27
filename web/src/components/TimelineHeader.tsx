@@ -1,4 +1,5 @@
 import { useEffect, useState, type RefObject } from "react";
+import { VisuallyHidden } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import { HEADER_ROW_HEIGHT, NO_HIDDEN_COLUMNS, STRIP_HEIGHT, type TimelineColumn, type TimelineStripData } from "../utils/timelineModel";
 import { HEADER_WINDOW_THRESHOLD_PX, headerRows, headerWindow, toEpochDay, type HeaderCell, type TimelineScale } from "../utils/timelineScale";
@@ -101,7 +102,7 @@ export default function TimelineHeader({
                 className={`${classes.timelineCell} ${classes.timelineHeadCaption}`}
                 style={{ width: column.width }}
               >
-                {column.header}
+                {column.iconOnly === true ? <VisuallyHidden>{column.header}</VisuallyHidden> : column.header}
               </div>
             ),
           )}

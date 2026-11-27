@@ -38,8 +38,8 @@ export type RoadmapActions = {
   critical: { target: number | null; toggle: (project: RoadmapProject) => void; disabled: boolean };
 };
 
-/** The sticky left columns: 404 px in all, so the track keeps the width on a laptop (work stream and owner are filters, not columns). The rank column grows to hold "(was 12)" while a baseline is picked. */
-const COLUMN_WIDTHS = { rank: 44, rankWithBaseline: 96, project: 240, flags: 64, actions: 56 } as const;
+/** The sticky left columns: 460 px in all, so the track keeps the width on a laptop (work stream and owner are filters, not columns). The rank column grows to hold "(was 12)" while a baseline is picked. */
+const COLUMN_WIDTHS = { rank: 44, rankWithBaseline: 96, project: 240, flags: 120, actions: 56 } as const;
 
 /**
  * The rank cell: the position ("—" unranked), and while a baseline is picked a dimmed "(was 3)" / "(was unranked)" when the frozen rank differs
@@ -185,7 +185,7 @@ export default function RoadmapTimeline({
     { id: "rank", header: t("roadmap.column.rank"), width: view.baseline === undefined ? COLUMN_WIDTHS.rank : COLUMN_WIDTHS.rankWithBaseline },
     { id: "project", header: t("roadmap.column.project"), width: COLUMN_WIDTHS.project },
     { id: "flags", header: t("roadmap.column.flags"), width: COLUMN_WIDTHS.flags, hideable: true },
-    { id: "actions", header: t("common.table.operations"), width: COLUMN_WIDTHS.actions },
+    { id: "actions", header: t("common.table.operations"), width: COLUMN_WIDTHS.actions, iconOnly: true },
   ];
   const columnView = useTimelineColumns("roadmap", columns);
   const display = displayRows(visible);
@@ -251,8 +251,9 @@ export default function RoadmapTimeline({
       zooms={PLAN_ZOOMS}
       onZoomChange={onZoomChange}
       today={today}
-      columns={columns}
+      columns={columnView.columns}
       hiddenColumns={columnView.hidden}
+      scrollRef={columnView.scrollRef}
       rows={rows}
       holidays={holidays}
       holidaysFailed={holidaysFailed}

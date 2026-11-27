@@ -10,7 +10,7 @@
 // week three weeks before it and one three weeks after, both Monday to Friday): it can never meet "this week" or expire. It writes no ranking, no
 // holiday and no connection, and needs no lock.
 import type { APIRequestContext } from "@playwright/test";
-import { addDays, apiAsAdmin, deleteViaApi, expect, login, openFilters, test, uniqueText } from "./helpers";
+import { addDays, apiAsAdmin, deleteViaApi, expect, expectNoSidewaysScroll, expectTextWhole, login, openFilters, PHONE, test, uniqueText } from "./helpers";
 
 // Registered in creation order; torn down in reverse (a project before its program before its stream before the team and the person).
 const teardown: string[] = [];
@@ -156,4 +156,23 @@ test("the Teams page lists the weeks from this week on, and Include past weeks b
   await expect(mine.last().getByRole("cell").nth(1)).toHaveText(new RegExp(`^W\\d{2} · ${later}$`));
   await expect(teamRow).toContainText("2 weeks overloaded");
   await expect(page.getByText(/earlier weeks? (is|are) left out here/)).toHaveCount(0);
+});
+
+test("the Teams page shows every warning badge whole at 1440 px and does not scroll sideways at 390 px", async ({ page }) => {
+  const team = await seedOverloadedTeam("2027-04-05", ["2027-04-05"]);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await login(page);
+
+  // The badges (the plan is shared, so every badge on the page is read, not only this spec's own): none ends in an ellipsis, and this spec's own team
+  // has its worded badge in a row that shows it.
+  await page.goto("/teams");
+  const teams = page.getByRole("table", { name: "Teams", exact: true });
+  const mine = teams.locator("tbody tr").filter({ has: page.getByRole("link", { name: `Open team ${team}`, exact: true }) });
+  await expect(mine).toContainText("1 week overloaded");
+  await expectTextWhole(teams.locator(".mantine-Badge-label"));
+
+  // On a phone the table scrolls inside its own box.
+  await page.setViewportSize(PHONE);
+  await expect(mine).toContainText("1 week overloaded");
+  await expectNoSidewaysScroll(page);
 });

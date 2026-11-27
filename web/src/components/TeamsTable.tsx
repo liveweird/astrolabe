@@ -12,10 +12,13 @@ import ScrollRegion from "./ScrollRegion";
 import SortHeader, { type SortDir } from "./SortHeader";
 import TeamSwatch from "./TeamSwatch";
 
-/** One orange warning badge, only while positive (a zero figure is not a claim); `text` is the worded figure. */
-function WarningBadge({ text }: { text: string | null }) {
+/**
+ * One orange warning badge, only while positive (a zero figure is not a claim); `text` is the worded figure. `whole`: in a table cell the badge
+ * keeps its whole text: its label hides overflow, so its minimum width is next to nothing and an auto-layout column would shrink it into an ellipsis.
+ */
+function WarningBadge({ text, whole = false }: { text: string | null; whole?: boolean }) {
   return text === null ? null : (
-    <Badge color="orange" tt="none">
+    <Badge color="orange" tt="none" miw={whole ? "max-content" : undefined}>
       {text}
     </Badge>
   );
@@ -33,6 +36,9 @@ export function TeamsFacts({ totals }: { totals: TeamLoadView["totals"] }) {
     </Group>
   );
 }
+
+/** The manager and the three week columns keep one line, so the Name column takes what is left (its description is clamped to one line anyway). */
+const NO_WRAP = { whiteSpace: "nowrap" } as const;
 
 type RowProps = {
   row: TeamLoadRow;
@@ -61,7 +67,7 @@ function TeamRow({ row, colour, admin, onEdit, onDelete }: RowProps) {
           )}
         </Stack>
       </Table.Td>
-      <Table.Td>
+      <Table.Td style={NO_WRAP}>
         <Text size="sm" c={row.managerName === null ? "dimmed" : undefined}>
           {row.managerName === null ? t("teams.noManager") : <EntityLink entity={refOf("person", row.managerPersonId)} name={row.managerName} />}
         </Text>
@@ -83,15 +89,15 @@ function TeamRow({ row, colour, admin, onEdit, onDelete }: RowProps) {
           <Text size="sm">{row.unscheduledMilestones}</Text>
         )}
       </Table.Td>
-      <Table.Td>
-        <WarningBadge text={row.overloadedWeeks > 0 ? t("teams.view.overloadedWeeks", { count: row.overloadedWeeks }) : null} />
+      <Table.Td style={NO_WRAP}>
+        <WarningBadge whole text={row.overloadedWeeks > 0 ? t("teams.view.overloadedWeeks", { count: row.overloadedWeeks }) : null} />
       </Table.Td>
-      <Table.Td>
-        <WarningBadge text={row.wipExceededWeeks > 0 ? t("teams.view.wipWeeks", { count: row.wipExceededWeeks }) : null} />
+      <Table.Td style={NO_WRAP}>
+        <WarningBadge whole text={row.wipExceededWeeks > 0 ? t("teams.view.wipWeeks", { count: row.wipExceededWeeks }) : null} />
       </Table.Td>
-      <Table.Td>
+      <Table.Td style={NO_WRAP}>
         {row.weeksWithoutCapacity > 0 && (
-          <Badge color="gray" tt="none">
+          <Badge color="gray" tt="none" miw="max-content">
             {t("teamLoad.withoutCapacity", { count: row.weeksWithoutCapacity })}
           </Badge>
         )}
