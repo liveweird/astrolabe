@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useScheduleCheck } from "./useScheduleCheck";
 import type { ScheduleProposalMove } from "../api/teams";
@@ -40,11 +40,23 @@ const mount = (initial: Props) =>
 
 const checkCalls = () => mockFetch.mock.calls.filter(([url]) => url === CHECK_URL);
 const sentItems = () => checkCalls().map(([, init]) => (JSON.parse((init as RequestInit).body as string) as { teamIds: number[]; items: { milestoneId: number }[] }).items.map((i) => i.milestoneId));
-// Fake clock (real time still flows for waitFor): the debounce window is advanced by hand, so the "not yet" assertions never depend on load.
+// A fake clock that moves ONLY when a test moves it (no `shouldAdvanceTime`): real time leaking in under a slow run made the "not yet" at 299 ms of the 300 ms window
+// fire early. What follows a fired window (the request, its answer) is awaited by `until`, which steps the clock instead of waiting on real time.
 const wait = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
+async function until(assertion: () => void) {
+  for (let step = 1; ; step += 1) {
+    try {
+      assertion();
+      return;
+    } catch (error) {
+      if (step >= 200) throw error;
+    }
+    await wait(10);
+  }
+}
 
 beforeEach(() => {
-  vi.useFakeTimers({ shouldAdvanceTime: true });
+  vi.useFakeTimers();
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   answer = () => jsonResponse(200, ANSWER);
   mockFetch = vi.fn((url: string) => Promise.resolve(url === CHECK_URL ? answer() : jsonResponse(404, { title: "Not Found", status: 404 })));
@@ -88,7 +100,7 @@ describe("useScheduleCheck", () => {
     expect(checkCalls()).toEqual([]);
     expect(result.current.pending).toBe(true);
     await wait(1);
-    await waitFor(() => expect(result.current.byTeam).not.toBeNull());
+    await until(() => expect(result.current.byTeam).not.toBeNull());
     expect(checkCalls()).toHaveLength(1);
     expect(JSON.parse((checkCalls()[0][1] as RequestInit).body as string)).toEqual({
       teamIds: [1],
@@ -111,7 +123,7 @@ describe("useScheduleCheck", () => {
     await wait(299);
     expect(checkCalls()).toEqual([]);
     await wait(1);
-    await waitFor(() => expect(result.current.byTeam).not.toBeNull());
+    await until(() => expect(result.current.byTeam).not.toBeNull());
     expect(sentItems()).toEqual([[2]]);
   });
 
@@ -134,7 +146,7 @@ describe("useScheduleCheck", () => {
     const { result, rerender } = mount({ selected: [1, 2, 3] });
     rerender({ selected: [1] });
     await wait(300);
-    await waitFor(() => expect(checkCalls()).toHaveLength(1));
+    await until(() => expect(checkCalls()).toHaveLength(1));
     // the first request is still in flight when the ticks move on
     rerender({ selected: [2] });
     await wait(300);
@@ -143,7 +155,7 @@ describe("useScheduleCheck", () => {
     expect(result.current.byTeam).toBeNull();
     expect(result.current.pending).toBe(true);
     await wait(300);
-    await waitFor(() => expect(checkCalls()).toHaveLength(2));
+    await until(() => expect(checkCalls()).toHaveLength(2));
     expect(sentItems()).toEqual([[1], [2]]);
   });
 
@@ -152,7 +164,7 @@ describe("useScheduleCheck", () => {
     const { result, rerender } = mount({ selected: [1, 2, 3] });
     rerender({ selected: [1] });
     await wait(300);
-    await waitFor(() => expect(result.current.failed).toBe(true));
+    await until(() => expect(result.current.failed).toBe(true));
     expect(result.current).toMatchObject({ mode: "some", byTeam: null, pending: false });
   });
 
@@ -160,15 +172,15 @@ describe("useScheduleCheck", () => {
     const { result, rerender } = mount({ selected: [1, 2, 3], teamIds: [2, 1] });
     rerender({ selected: [1], teamIds: [2, 1] });
     await wait(300);
-    await waitFor(() => expect(result.current.byTeam).not.toBeNull());
+    await until(() => expect(result.current.byTeam).not.toBeNull());
     expect(JSON.parse((checkCalls()[0][1] as RequestInit).body as string).teamIds).toEqual([1, 2]);
     rerender({ selected: [1], teamIds: [1, 2] });
     await wait(10);
     expect(checkCalls()).toHaveLength(1);
     rerender({ selected: [1], teamIds: [1, 2], revision: 11 });
-    await waitFor(() => expect(checkCalls()).toHaveLength(2));
+    await until(() => expect(checkCalls()).toHaveLength(2));
     rerender({ selected: [1], teamIds: [1, 2], revision: 11, scopeHash: "b".repeat(64) });
-    await waitFor(() => expect(checkCalls()).toHaveLength(3));
+    await until(() => expect(checkCalls()).toHaveLength(3));
   });
 
   test("a check cancelled in flight (a write cancels the plan queries) is asked again instead of staying pending forever", async () => {
@@ -180,12 +192,12 @@ describe("useScheduleCheck", () => {
     const { result, rerender } = mount({ selected: [1, 2, 3] });
     rerender({ selected: [1] });
     await wait(300);
-    await waitFor(() => expect(checkCalls()).toHaveLength(1));
+    await until(() => expect(checkCalls()).toHaveLength(1));
     await act(async () => {
       await client.cancelQueries({ queryKey: ["plan"] });
     });
-    await waitFor(() => expect(checkCalls()).toHaveLength(2));
-    await waitFor(() => expect(result.current.byTeam).not.toBeNull());
+    await until(() => expect(checkCalls()).toHaveLength(2));
+    await until(() => expect(result.current.byTeam).not.toBeNull());
     expect(result.current.pending).toBe(false);
   });
 });

@@ -423,6 +423,8 @@ describe("a saved proposal that does not open", () => {
     );
     const note = await screen.findByText("Load failed (500)", NOTE_ONLY);
     expect(note).toBeInTheDocument();
+    // The parameter leaves in a router transition, and the verdict re-asserts the note until it has: Dismiss is clicked on the settled address, as a viewer would.
+    await waitFor(() => expect(where()).toBe("?mode=overview"));
     await user.click(screen.getByRole("button", { name: "Dismiss this notice" }));
     expect(screen.queryByText("Load failed (500)", NOTE_ONLY)).toBeNull();
   });

@@ -36,9 +36,13 @@ export function useSavedVerdict(announce: (text: string) => void, beforeDrop?: (
       : record?.state === "UNREADABLE"
         ? { kind: "unreadable", text: t("programs.saved.unreadable", { name: record.name }) }
         : null;
-  // The notice outlives the parameter (it leaves the address at once): adjusted during render, dismissed by the viewer.
+  // The notice outlives the parameter (it leaves the address at once): adjusted during render, dismissed by the viewer. The parameter leaves in a router transition, so
+  // a Dismiss can land while the address still names the proposal: the dismissed address is remembered and its verdict not shown again, until the parameter has left
+  // (an address that names a proposal again, the same or another, says its verdict again).
   const [notice, setNotice] = useState<SavedNotice | null>(null);
-  if (verdict !== null && (notice?.kind !== verdict.kind || notice.text !== verdict.text)) setNotice(verdict);
+  const [dismissed, setDismissed] = useState<string | null>(null);
+  if (raw === null && dismissed !== null) setDismissed(null);
+  if (verdict !== null && raw !== dismissed && (notice?.kind !== verdict.kind || notice.text !== verdict.text)) setNotice(verdict);
 
   const drop = () => setParams((current) => withoutProposal(current), { replace: true });
   // What each effect has already done for the address it saw (a step that touches the address or the page's status region must not repeat while the address catches up).
@@ -54,5 +58,9 @@ export function useSavedVerdict(announce: (text: string) => void, beforeDrop?: (
     announce(verdict.text);
     drop();
   });
-  return { raw, id, record, verdict, notice, dismissNotice: () => setNotice(null), drop, handled };
+  const dismissNotice = () => {
+    setNotice(null);
+    setDismissed(raw);
+  };
+  return { raw, id, record, verdict, notice, dismissNotice, drop, handled };
 }
