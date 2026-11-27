@@ -58,5 +58,39 @@
   "critical": {
     "intro": "Projekty poprzedzające projekt {{name}}, według dat z planu; te bez luzu wyznaczają jego koniec. Projekty w zwiniętym wierszu albo poza wyborem programów też są wypisane.",
     "notShown": "(zwinięty albo poza wyborem)"
+  },
+  "proposal": {
+    "propose": "Zaproponuj harmonogram",
+    "covers_one": "Proponuje terminy dla {{count}} zespołu pracującego nad pokazanymi projektami. Nic się nie zmieni, dopóki nie zaakceptujesz propozycji.",
+    "covers_few": "Proponuje terminy dla {{count}} zespołów pracujących nad pokazanymi projektami. Nic się nie zmieni, dopóki nie zaakceptujesz propozycji.",
+    "covers_many": "Proponuje terminy dla {{count}} zespołów pracujących nad pokazanymi projektami. Nic się nie zmieni, dopóki nie zaakceptujesz propozycji.",
+    "covers_other": "Proponuje terminy dla {{count}} zespołu pracującego nad pokazanymi projektami. Nic się nie zmieni, dopóki nie zaakceptujesz propozycji.",
+    "noTeams": "Żaden zespół nie ma kamienia milowego w pokazanych projektach, więc nie ma czego proponować.",
+    "tooMany_one": "Pokazane projekty angażują {{count}} zespół, a propozycja obejmuje najwyżej {{max}} — zawęź wybór programów albo strumienia pracy.",
+    "tooMany_few": "Pokazane projekty angażują {{count}} zespoły, a propozycja obejmuje najwyżej {{max}} — zawęź wybór programów albo strumienia pracy.",
+    "tooMany_many": "Pokazane projekty angażują {{count}} zespołów, a propozycja obejmuje najwyżej {{max}} — zawęź wybór programów albo strumienia pracy.",
+    "tooMany_other": "Pokazane projekty angażują {{count}} zespołu, a propozycja obejmuje najwyżej {{max}} — zawęź wybór programów albo strumienia pracy.",
+    "checking": "Sprawdzamy, co możesz zaakceptować…",
+    "settling": "Czekamy na strumień pracy podany w adresie…",
+    "rightsFailed": "Nie udało się odczytać, którymi zespołami zarządzasz; to tylko podgląd.",
+    "requesting": "Pobieramy propozycję — terminy docelowe są zablokowane do jej nadejścia.",
+    "title": "Propozycja harmonogramu",
+    "teams_one": "Propozycja dla {{count}} zespołu:",
+    "teams_few": "Propozycja dla {{count}} zespołów:",
+    "teams_many": "Propozycja dla {{count}} zespołów:",
+    "teams_other": "Propozycja dla {{count}} zespołu:",
+    "kept": "; terminy pozostałych zespołów zostają bez zmian.",
+    "intro": "Kreskowane paski na osi czasu pokazują proponowane terminy, a pasek strumienia pracy lub programu podąża za jego projektami. Nic się nie zmieni, dopóki nie zaakceptujesz propozycji.",
+    "again": "Zaproponuj ponownie",
+    "projectsTitle": "Projekty, których terminy by się przesunęły",
+    "noProjectMoves": "Terminy żadnego projektu by się nie przesunęły.",
+    "newly": "Nowo zaplanowany",
+    "endSame": "Koniec bez zmian",
+    "column": {
+      "project": "Projekt",
+      "now": "Obecne terminy",
+      "proposed": "Proponowane terminy",
+      "end": "Koniec"
+    }
   }
 }

@@ -48,6 +48,7 @@ beforeEach(() => {
     "GET /api/v1/views/programs": PROGRAMS,
     "GET /api/v1/baselines": { items: [], can: { manage: false } },
     "GET /api/v1/public-holidays": { items: [] },
+    "GET /api/v1/schedule-proposals/teams": { items: [], truncated: false },
   });
   vi.stubGlobal("fetch", mockFetch);
   localStorage.setItem("astrolabe.auth.token", "fake-token");

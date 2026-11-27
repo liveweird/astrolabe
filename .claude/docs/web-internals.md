@@ -1076,7 +1076,7 @@ handlers (a row drop is fed with the row zone's live readers), since happy-dom h
 
 ## Programs
 
-Files: `pages/Programs.tsx`, `pages/RoadmapModes.tsx`, `components/LegacyRedirect.tsx`;
+Files: `pages/Programs.tsx`, `pages/RoadmapModes.tsx`, `components/LegacyRedirect.tsx`, `hooks/useOverviewProposal.ts`, `components/OverviewProposal{Section,Projects}.tsx`;
 
 - `api/programs.ts`: `getProgramsView(baseline, criticalPath)`, `programsViewKey` = `["roadmap","programs",{baseline, criticalPath}]`, the view types.
 - `utils/programsTree.ts` (pure: `treeRows`, `defaultOpen`, `allOpen`, `toggled`, `programChoices`, `treeFacts`, `treeDates`, `arrowAnchors`); `components/ProgramsTimeline.tsx` (tree rows →
@@ -1113,19 +1113,15 @@ project, one row each, in the server's order (open streams first, projects ranke
 `treeRows(view, pick, open)` (`utils/programsTree.ts`, pure and tested). Left columns, 448 px sticky (the Flags column is 120 px: a stream's roll-up runs to three digits on the sample
 plan): the name (a tree indent of 16 px per level), Flags, Operations.
 
-- A **work stream / program row** shows its name (a link, narrowed overview), the owner dimmed (a link; "(closed)" for a stream with an end date) and a menu of "Open ..." items, a read-only `tone: "summary"` bar over the span its projects cover
-  (`programs.streamBarAria`/`programBarAria`) and the **roll-up counts** of its projects' flags in the Flags cell (the project row's icons: an orange triangle and a gray info circle
+- A **work stream / program row** (id and bar `ws:<id>` / `pg:<id>`) shows its name (a link, narrowed overview), the owner dimmed (a link; "(closed)" for a stream with an end date) and a menu of "Open ..." items, a read-only `tone: "summary"` bar over the span its projects cover
+  (`programs.streamBarAria`/`programBarAria`) and the **roll-up counts** of its projects' flags in the Flags cell (an orange triangle and a gray info circle
   with a visually hidden sentence, `data-flags`). A node with nothing under it (an empty program) shows no chevron.
-- A **project row** is the roadmap's row - `projectTrack`: the target-window band, the span bar (with ", N conflicts"), the drift band - with the name as the link into the project (the
-  owner dimmed, a pointer link) and a menu that holds the critical-path item ("Show…"/"Hide critical path", for everyone), "Dependencies" (the roadmap's `DependenciesItem`: the text path of the arrows, a
-  link to the list narrowed to the project), "Open project", "Open person" and, by the project's own `can.editTargetWindow`, the window items.
-- Row and bar ids are `ws:<id>` / `pg:<id>` / the project id, so the arrows anchor on the project ids as on the roadmap, or, for a project whose row is folded away, on the bar of the folded
-  row that stands for it ("Arrows").
-- **One project-row builder.** `projectTrack(project, t, conflicts)` is the only place a project's bars and drift band are made; `planArrows` (over `arrowSpecsForLinks` and `rolledUpLinks`,
+- A **project row** (id = the project id) is the roadmap's `projectTrack` row (window band, span bar ", N conflicts", drift band; the name a link, the owner dimmed) with a menu of the critical-path item
+  (everyone), the roadmap's `DependenciesItem`, "Open project", "Open person" and, by the project's own `can.editTargetWindow`, the window items.
+- **One project-row builder.** `projectTrack(project, t, conflicts, jira, critical, preview)` is the only place a project's bars and drift band are made; `planArrows` (over `arrowSpecsForLinks` and `rolledUpLinks`,
   in `utils/roadmapRows.ts`) is the only place the rolled-up links become arrows. `RoadmapTimeline` and `ProgramsTimeline` both call them (the roadmap's `anchorOf` never rolls up), so the
   window gestures (an editable `window:<id>` bar by `can.editTargetWindow`, the draw surface on a row without a window) land once; the menu's window items are `TargetWindowItems`.
-- **Roll-up in part.** `shownStreams` (inside `programsTree.ts`) keeps the server's span/counts for a stream shown whole and recomputes them (`unionSpan`, `sumFlags`) for one the pick
-  shows in part. Nothing else on the page is computed.
+- **Roll-up in part.** `shownStreams` keeps the server's span/counts for a stream shown whole and recomputes them (`unionSpan`, `sumFlags`) for one the pick shows in part; nothing else is computed.
 
 ### Expand and collapse
 
@@ -1134,12 +1130,10 @@ A node with children has a chevron `ActionIcon` as the ONE roving stop of its na
 happened in its polite status region ("X expanded, 3 programs", "X collapsed").
 
 - Defaults: every work stream open, every program closed (narrowed to a work stream: its programs with projects open too). **Expand all / Collapse all** buttons in the facts row. The expanded set is **page state, not persisted**.
-- **The expanded set** is `useState<ReadonlySet<string> | null>(null)` in `ProgramsBody`: `null` means "the defaults" (`defaultOpen(view)`: every stream), so a work stream that appears
-  with a refetch opens; any change (a chevron, Expand all, Collapse all) writes a concrete set from what the user sees.
+- **The expanded set** is `useState<ReadonlySet<string> | null>(null)`: `null` = the defaults (`defaultOpen(view)`), so a stream that arrives with a refetch opens; any change writes a concrete set.
 - `toggle(key)` finds the row in the CURRENT rows to say what it did (`programs.announce.*` with a plural `count`).
-- **Focus.** While the rows stay on one render path the chevron button is the same DOM node before and after (rows are keyed by id), so it keeps the focus and the roving grid re-adopts
-  it as the tab stop. A toggle that crosses the virtualisation threshold (80 rows) remounts every row (`timeline.md` "The programs page's use"), so `toggle` records the node key in a
-  ref and an effect, after the render, calls `timelineRef.focusRow(key)` unless `[data-node-key=<key>]` is already the active element.
+- **Focus.** A toggle across the virtualisation threshold (80 rows) remounts every row (`timeline.md` "The programs page's use"), so `toggle` records the node key and an effect calls
+  `timelineRef.focusRow(key)` unless `[data-node-key=<key>]` is already the focused element.
 
 ### The program pick
 
@@ -1152,47 +1146,52 @@ The roadmap's pick, in the address (`hooks/useProgramPick.ts`): the same rule as
   and e2e find it by its label (`getByLabel`), not by role.
 - It is read through `pickAmong(programChoices(view), pick)` (every program, empty ones too; the roadmap passes its own `programOptions(view)`, programs with projects). An id only one mode
   knows, or that the plan no longer has, is ignored there, not dropped from storage or the address.
-- A picked program keeps its work stream's row; a stream with no picked program is hidden; a stream the pick shows in part is rolled up over the programs that remain ("Roll-up in
-  part"). The facts line ("N work streams · M programs · K projects", an orange "K warnings" and a gray "J infos" badge) counts what is shown.
+- A picked program keeps its work stream's row; a stream with no picked program is hidden; a stream shown in part is rolled up ("Roll-up in part"). The facts line ("N work streams · M programs · K projects", an orange "K warnings" and a gray "J infos" badge) counts what is shown.
 
 ### Arrows
 
-`planArrows` over `view.links` between the rows that STAND FOR the projects (`arrowAnchors(view, pick, open)`, `utils/programsTree.ts`): the project's own row, else its folded
-program's row, else its folded work stream's. Two project rows keep the roadmap's arrows; every other pair of rows gets ONE `rollup:<fromRow>-<toRow>` arrow, END to START, titled by
-`roadmap.rollupLabel` with the two rows' names; a folded node's bar says ", N conflicts" for the violated links ending on it. Nothing is opened for the user; the figures are the
-server's, summed over what is folded. The rules (the anchors, the count, red, critical, what draws nothing): `timeline.md` "The programs page's use".
+`planArrows` over `view.links` between the rows that STAND FOR the projects (`arrowAnchors(view, pick, open)`): the project's own row, else its folded program's, else its folded work
+stream's; a non-project pair gets ONE `rollup:<fromRow>-<toRow>` arrow, END to START. Nothing is opened for the user; the figures are the server's. The rules: `timeline.md` "The programs page's use".
 
 ### The baseline overlay
 
 The same picker, shadow bar (`projectTrack`) and totals line as the roadmap; the rules are `timeline.md` "The baseline overlay" ("Roadmap and programs"). The query key
 `["roadmap","programs",{baseline, criticalPath}]` carries the pick (and the critical-path target).
 
-- The view lists its removed projects: each is appended as a dimmed "(removed)" row under its program when that program is shown and expanded (`treeRows`' `removedProject` kind,
-  `ProgramsTimeline`'s `RemovedLabel`). They count as the program's children, so a program whose live projects are all deleted can still be expanded.
+- The view's removed projects are appended as dimmed "(removed)" rows under their program when it is shown and expanded (`treeRows`' `removedProject` kind, `RemovedLabel`); they count as the
+  program's children, so a program whose live projects are all deleted can still be expanded.
 - A work stream and a program row also get a shadow bar from their own `baseline.span`.
 
 ### The Jira markers
 
 - The same "Jira dates" toggle (after the baseline picker, the one stored `timeline.jiraBars`, on by default, only when the view lists a Jira site) and the same project-row bar
   `jira:<id>` (`projectTrack`; a project row only - work stream and program rows are not bound); the roll-up counts in the Flags cell and the facts badges stay severity-driven.
-- No flag panel. A project's Flow capacity flag counts in its row and in the roll-ups of its program and work stream like any flag; the sentence and the team link are the
-  Roadmap panel's ("Roadmap" "Flags").
-- **The currency line** is the roadmap's: `ProgramsFacts` ends with "Jira data may be out of date" while any site in `view.jiraSites` is behind (`isStaleSource`); neither the pick nor a fold narrows it.
+- No flag panel. A project's Flow capacity flag counts in its row and the roll-ups like any flag; the sentence and the team link are the Roadmap panel's ("Roadmap" "Flags").
+- **The currency line** is the roadmap's: `ProgramsFacts` ends with "Jira data may be out of date" while any site in `view.jiraSites` is behind (`isStaleSource`); no pick or fold narrows it.
 
 ### The critical path to a picked project
 
-The roadmap's pieces, shared and never forked ("Roadmap" "The critical path to a picked project"): the toolbar's "Critical path to…" picker (after the baseline picker; every project of
-the tree with a span, folded or picked away too), the row menu's `CriticalPathItem`, the panel (`RoadmapCriticalChain`, h3 under the timeline) and `useCriticalAnnouncement` (the sentence
-is said once per pick).
+The roadmap's pieces, shared and never forked ("Roadmap" "The critical path to a picked project"): the toolbar's "Critical path to…" picker (every project of the tree with a span, folded or
+picked away too), the row menu's `CriticalPathItem`, the panel (`RoadmapCriticalChain`, h3 under the timeline) and `useCriticalAnnouncement` (said once per pick).
 
-- The target is `useCriticalTarget()` in `Programs()` (page-local, never stored, not the roadmap's) and the second part of the view's key (`programsViewKey(baseline, criticalPath)`,
-  `getProgramsView` → `?baseline=N&criticalPath=M`). `useTargetWindow` gets the keyed entry, so a window write keeps the block; the `keepPreviousData` placeholder shows no chain
-  (`withoutCriticalPath` after `withoutStaleOverlay`). A plain 400 for the target clears it during render and shows `roadmap.critical.unknown` (`isRejectedTarget`).
+- The target is `useCriticalTarget()` in `Programs()` (page-local, never stored) and the second part of the view's key (`programsViewKey(baseline, criticalPath)` → `?baseline=N&criticalPath=M`).
+  `useTargetWindow` gets the keyed entry, so a window write keeps the block; the `keepPreviousData` placeholder shows no chain (`withoutCriticalPath`). A plain 400 for the target clears it during render and shows `roadmap.critical.unknown` (`isRejectedTarget`).
 - **The emphasis lands on the row that stands for the project** (`arrowAnchors`; `timeline.md` "The programs page's use"): a project row on the chain gets `projectTrack`'s `critical`
-  argument; a FOLDED node row that stands for at least one chain project gets `emphasis: "critical"` on its summary bar and ", holds a project on the critical path"
-  (`programs.barCriticalInside`) in its name; an expanded node is not emphasised (its children are); nothing is ever opened for the user.
+  argument; a FOLDED node row standing for a chain project gets `emphasis: "critical"` and ", holds a project on the critical path" (`programs.barCriticalInside`); an expanded node is not emphasised; nothing is ever opened for the user.
 - The panel's `shown` is the project rows on the timeline; a chain project in a folded row or outside the program pick reads `programs.critical.notShown` "(folded or not picked)", and
   the intro's last sentence is `programs.critical.intro`. "Showing the critical path to X" / "Critical path hidden" go through the page's one status region.
+
+### The schedule proposal
+
+Every login previews ONE cross-team run on the tree (the run, rights and sections: "Schedule proposals" "What the viewer may accept").
+- **Propose** is a click (never automatic: run and accept share a 30/min bucket), off (the hint is its description) until the rights are read, while the address's work stream is unsettled or a window write runs, over 50 teams ("narrow the pick") or with no team. It covers
+  `overviewTeamIds`: the union of the SHOWN projects' `teamIds` (`shownProjects`, `treeRows`' own filter: pick + work stream), every team with a milestone when nothing is narrowed.
+- **Bars:** the run's `projects[]` gives a project row `proposal:<id>` (`projectTrack`'s `{proposed, locked}`; the roadmap passes none) and a node row `proposedSpan` (union, only when different),
+  `proposal:ws|pg:<id>`; `usePlanScale` covers them.
+- **Lock** (`useProposalLock`, request to Discard): window bars read-only, no draw surface or window items, `guard(commit)` refuses out loud. Dependencies stay UNLOCKED (decision): an edit bumps the
+  revision, so the accept is refused as stale and the page says so.
+- **Section** (h3 under the timeline): the teams as links, "Projects whose dates would move", `CrossTeamRunView`, Save (only when every run team is acceptable), Accept selected (N), Propose again,
+  Discard. Nothing acceptable = a preview.
 
 ### Tests
 

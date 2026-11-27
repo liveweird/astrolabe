@@ -50,6 +50,7 @@ beforeEach(() => {
     "fetch",
     vi.fn((url: string) => {
       if (url === "/api/v1/public-holidays") return Promise.resolve(jsonResponse(200, { items: [] }));
+      if (url === "/api/v1/schedule-proposals/teams") return Promise.resolve(jsonResponse(200, { items: [], truncated: false }));
       return Promise.resolve(url === "/api/v1/views/programs" ? jsonResponse(200, view) : jsonResponse(404, { title: "x", status: 404 }));
     }),
   );

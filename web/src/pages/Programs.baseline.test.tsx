@@ -116,6 +116,7 @@ beforeEach(() => {
     }
     if (url === "/api/v1/baselines") return Promise.resolve(jsonResponse(200, BASELINES));
     if (url === "/api/v1/public-holidays") return Promise.resolve(jsonResponse(200, { items: [] }));
+    if (url === "/api/v1/schedule-proposals/teams") return Promise.resolve(jsonResponse(200, { items: [], truncated: false }));
     return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
   });
   vi.stubGlobal("fetch", mockFetch);
@@ -201,6 +202,7 @@ describe("Programs page with a baseline", () => {
         const stream = { ...PLATFORM, programs: [...PLATFORM.programs, empty] };
         return Promise.resolve(jsonResponse(200, { ...base, workStreams: [stream], baseline: { ...base.baseline!, removedProjects: [gone(15, "Lost", { programId: 12, programName: "Legacy" })] } }));
       }
+      if (url === "/api/v1/schedule-proposals/teams") return Promise.resolve(jsonResponse(200, { items: [], truncated: false }));
       return Promise.resolve(url === "/api/v1/baselines" ? jsonResponse(200, BASELINES) : url === "/api/v1/public-holidays" ? jsonResponse(200, { items: [] }) : jsonResponse(404, { title: "x", status: 404 }));
     });
     localStorage.setItem(PICK_KEY, "7");

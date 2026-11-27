@@ -39,11 +39,14 @@ type NodeBase = {
   /** The children one level down (programs of a stream, projects of a program); a node with none cannot be expanded. */
   childCount: number;
   expanded: boolean;
+  /** While a schedule proposal previews (1.33): the span the node's shown projects would cover after it, only when it differs from `span` (absent otherwise). */
+  proposedSpan?: DateSpan;
 };
 
 type StreamRow = NodeBase & { kind: "workStream"; /** The stream has an end date: it was closed (it still takes programs). */ closed: boolean };
 type ProgramRow = NodeBase & { kind: "program"; workStreamId: number };
-export type ProjectTreeRow = { kind: "project"; project: RoadmapProject; programId: number };
+/** A project row; `proposed` (1.33) is the span the previewed proposal gives the project, present only for a project whose span it changes. */
+export type ProjectTreeRow = { kind: "project"; project: RoadmapProject; programId: number; proposed?: DateSpan };
 /** A project the baseline froze that is deleted now (1.10), appended under the program it sat in when that program is shown and expanded. */
 export type RemovedTreeRow = { kind: "removedProject"; removed: RemovedProjectRow; programId: number };
 /** A work stream or program row (the expandable ones). */
@@ -58,6 +61,17 @@ function unionSpan(spans: readonly (DateSpan | null)[]): DateSpan | null {
 }
 
 const sumFlags = (all: readonly FlagCounts[]): FlagCounts => all.reduce((sum, flags) => ({ warnings: sum.warnings + flags.warnings, infos: sum.infos + flags.infos }), { warnings: 0, infos: 0 });
+
+/** The proposed spans by project id (the previewed run's `projects[]`, after the move). */
+export type ProposedSpans = ReadonlyMap<number, DateSpan>;
+const NO_PROPOSAL: ProposedSpans = new Map();
+
+/** `{ proposedSpan }` for a node whose shown `projects` would cover a different span than `span` once the proposal is accepted, else nothing to spread. */
+function proposedSpanOf(span: DateSpan | null, projects: readonly RoadmapProject[], proposed: ProposedSpans): { proposedSpan?: DateSpan } {
+  if (!projects.some((project) => proposed.has(project.id))) return {};
+  const union = unionSpan(projects.map((project) => proposed.get(project.id) ?? project.span));
+  return union === null || (span !== null && span.start === union.start && span.end === union.end) ? {} : { proposedSpan: union };
+}
 
 type ShownStream = { stream: ProgramsWorkStream; programs: ProgramsProgram[]; span: DateSpan | null; flags: FlagCounts; baseline: NodeBaseline | null };
 
@@ -100,12 +114,18 @@ function shownStreams(view: ProgramsView, pick: ReadonlySet<number> | null): Sho
  * children, so a program whose live projects are all deleted can still be expanded. `open` holds the keys of the expanded nodes; a node with no
  * children is never expanded.
  */
-export function treeRows(view: ProgramsView, pick: ReadonlySet<number> | null, open: ReadonlySet<string>, removed: readonly RemovedProjectRow[] = []): TreeRow[] {
+export function treeRows(
+  view: ProgramsView,
+  pick: ReadonlySet<number> | null,
+  open: ReadonlySet<string>,
+  removed: readonly RemovedProjectRow[] = [],
+  proposed: ProposedSpans = NO_PROPOSAL,
+): TreeRow[] {
   const rows: TreeRow[] = [];
   for (const { stream, programs, span, flags, baseline } of shownStreams(view, pick)) {
     const key = streamKey(stream.id);
     const expanded = programs.length > 0 && open.has(key);
-    rows.push({ kind: "workStream", key, id: stream.id, name: stream.name, ownerPersonId: stream.ownerPersonId, ownerName: stream.ownerName, closed: stream.endDate !== null, span, flags, baseline, childCount: programs.length, expanded });
+    rows.push({ kind: "workStream", key, id: stream.id, name: stream.name, ownerPersonId: stream.ownerPersonId, ownerName: stream.ownerName, closed: stream.endDate !== null, span, flags, baseline, childCount: programs.length, expanded, ...proposedSpanOf(span, programs.flatMap((program) => program.projects), proposed) });
     if (!expanded) continue;
     for (const program of programs) {
       const programRowKey = programKey(program.id);
@@ -125,9 +145,10 @@ export function treeRows(view: ProgramsView, pick: ReadonlySet<number> | null, o
         baseline: nodeBaseline(program.baseline),
         childCount,
         expanded: programExpanded,
+        ...proposedSpanOf(program.span, program.projects, proposed),
       });
       if (!programExpanded) continue;
-      for (const project of program.projects) rows.push({ kind: "project", project, programId: program.id });
+      for (const project of program.projects) rows.push({ kind: "project", project, programId: program.id, ...(proposed.has(project.id) ? { proposed: proposed.get(project.id) } : {}) });
       for (const row of gone) rows.push({ kind: "removedProject", removed: row, programId: program.id });
     }
   }
@@ -211,6 +232,22 @@ export function treeFacts(view: ProgramsView, pick: ReadonlySet<number> | null):
     projects: programs.reduce((sum, program) => sum + program.projects.length, 0),
     flags: sumFlags(shown.map((entry) => entry.flags)),
   };
+}
+
+/**
+ * The projects the tree shows for a program pick, in the tree's order, whatever is folded: the projects of the programs `treeRows` lists (the SAME `shownStreams`
+ * filter, so what a schedule proposal covers is what the page shows). Hand it the work-stream-narrowed view (`inWorkStream`) the page hands `treeRows`.
+ */
+export const shownProjects = (view: ProgramsView, pick: ReadonlySet<number> | null): RoadmapProject[] =>
+  shownStreams(view, pick).flatMap((entry) => entry.programs.flatMap((program) => program.projects));
+
+/**
+ * The teams a schedule proposal from the overview covers (1.33): the union of the shown projects' `teamIds`, ascending; with nothing narrowed (`narrowed` is the
+ * plan itself - `inWorkStream` returns the same view for no work stream - and no pick) every team of the view, i.e. every active team with a milestone.
+ */
+export function overviewTeamIds(plan: ProgramsView, narrowed: ProgramsView, pick: ReadonlySet<number> | null): number[] {
+  const ids = narrowed === plan && pick === null ? plan.teams.map((team) => team.id) : shownProjects(narrowed, pick).flatMap((project) => project.teamIds);
+  return [...new Set(ids)].sort((a, b) => a - b);
 }
 
 /** Every project of the plan, in the tree's order, whatever is folded or picked away. */

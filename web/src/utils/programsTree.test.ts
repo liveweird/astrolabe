@@ -4,7 +4,7 @@ import type { RoadmapProject } from "../api/roadmap";
 import { roadmapProject } from "../test/roadmapView";
 import { jiraWindow } from "./jiraBars";
 import type { RemovedProjectRow } from "./baselineOverlay";
-import { allOpen, arrowAnchors, defaultOpen, inWorkStream, programChoices, toggled, treeDates, treeFacts, treeRows } from "./programsTree";
+import { allOpen, arrowAnchors, defaultOpen, inWorkStream, overviewTeamIds, programChoices, shownProjects, toggled, treeDates, treeFacts, treeRows } from "./programsTree";
 
 const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): RoadmapProject => roadmapProject({ id, name, ...over });
 
@@ -283,5 +283,84 @@ describe("the pick, the facts and the range", () => {
     expect(treeDates(view)).toEqual(treeDates(view, null));
     expect(treeDates(view).some((date) => date > "2100")).toBe(false);
     expect(treeDates(view, window).filter((date) => !treeDates(view).includes(date))).toEqual(["2026-03-09", "2027-09-04"]);
+  });
+});
+
+describe("the schedule proposal's side of the tree (1.33)", () => {
+  const withTeams = (): ProgramsView => {
+    const view = viewOf();
+    const [platform, archive, empty] = view.workStreams;
+    const [billing, reports] = platform.programs;
+    const [invoices, taxes] = billing.projects;
+    return {
+      ...view,
+      teams: [{ id: 1, name: "Alpha" }, { id: 2, name: "Beta" }, { id: 3, name: "Gamma" }, { id: 4, name: "Idle" }],
+      workStreams: [
+        { ...platform, programs: [{ ...billing, projects: [{ ...invoices, teamIds: [2, 1] }, { ...taxes, teamIds: [2] }] }, { ...reports, projects: [{ ...reports.projects[0], teamIds: [3] }] }] },
+        archive,
+        empty,
+      ],
+    };
+  };
+
+  test("shownProjects is the projects of the programs treeRows lists, in the tree's order - for every pick and work stream narrowing", () => {
+    const view = withTeams();
+    const rowsOf = (v: ProgramsView, pick: ReadonlySet<number> | null) => treeRows(v, pick, allOpen(v)).flatMap((row) => (row.kind === "project" ? [row.project.name] : []));
+    for (const narrowed of [view, inWorkStream(view, 1), inWorkStream(view, 2), inWorkStream(view, 3), inWorkStream(view, 99)]) {
+      for (const pick of [null, new Set([10]), new Set([11]), new Set([10, 11]), new Set([12]), new Set<number>()]) {
+        expect(shownProjects(narrowed, pick).map((p) => p.name)).toEqual(rowsOf(narrowed, pick));
+      }
+    }
+    expect(shownProjects(view, null).map((p) => p.name)).toEqual(["Invoices", "Taxes", "Dashboards"]);
+    expect(shownProjects(view, new Set([11])).map((p) => p.name)).toEqual(["Dashboards"]);
+  });
+
+  test("overviewTeamIds: nothing narrowed = every team of the view; a pick or a work stream = the union of the shown projects' teams, ascending, each once", () => {
+    const view = withTeams();
+    expect(overviewTeamIds(view, view, null)).toEqual([1, 2, 3, 4]);
+    expect(overviewTeamIds(view, view, new Set([10]))).toEqual([1, 2]);
+    expect(overviewTeamIds(view, view, new Set([11]))).toEqual([3]);
+    expect(overviewTeamIds(view, view, new Set([10, 11]))).toEqual([1, 2, 3]);
+    expect(overviewTeamIds(view, view, new Set([12]))).toEqual([]);
+    expect(overviewTeamIds(view, inWorkStream(view, 1), null)).toEqual([1, 2, 3]);
+    expect(overviewTeamIds(view, inWorkStream(view, 2), null)).toEqual([]);
+    expect(overviewTeamIds(view, inWorkStream(view, 1), new Set([11]))).toEqual([3]);
+  });
+
+  test("proposed spans: a project row carries its own, a program and a work stream the union over their shown projects - only where it differs", () => {
+    const view = viewOf();
+    // Invoices 03-02..04-10 moves later, Taxes 05-04..06-05 stays, Dashboards 08-03..09-04 moves earlier: Billing 03-02..06-05 -> 03-09..06-05, Reports -> 07-27..08-28, Platform 03-02..09-04 -> 03-09..08-28
+    const proposed = new Map([
+      [1, { start: "2026-03-09", end: "2026-04-17" }],
+      [3, { start: "2026-07-27", end: "2026-08-28" }],
+    ]);
+    const rows = treeRows(view, null, allOpen(view), [], proposed);
+    const byName = Object.fromEntries(rows.map((row) => [row.kind === "project" ? row.project.name : row.kind === "removedProject" ? "x" : row.name, row]));
+    expect(byName.Invoices).toMatchObject({ proposed: { start: "2026-03-09", end: "2026-04-17" } });
+    expect("proposed" in byName.Taxes).toBe(false);
+    expect(byName.Billing).toMatchObject({ proposedSpan: { start: "2026-03-09", end: "2026-06-05" } });
+    expect(byName.Reports).toMatchObject({ proposedSpan: { start: "2026-07-27", end: "2026-08-28" } });
+    expect(byName.Platform).toMatchObject({ proposedSpan: { start: "2026-03-09", end: "2026-08-28" } });
+    // a work stream with nothing proposed under it has none
+    expect("proposedSpan" in byName.Archive).toBe(false);
+  });
+
+  test("no proposal (or one that moves nothing a node shows): the rows are exactly today's", () => {
+    const view = viewOf();
+    const plain = treeRows(view, null, allOpen(view));
+    expect(treeRows(view, null, allOpen(view), [], new Map())).toEqual(plain);
+    expect(plain.some((row) => "proposedSpan" in row || "proposed" in row)).toBe(false);
+    // a proposed span equal to the node's own span is not drawn twice
+    const same = new Map([[3, { start: "2026-08-03", end: "2026-09-04" }]]);
+    expect(treeRows(view, null, allOpen(view), [], same).filter((row) => "proposedSpan" in row)).toEqual([]);
+  });
+
+  test("a stream the pick shows in part compares its proposed span with the roll-up over the programs that remain", () => {
+    const view = viewOf();
+    const proposed = new Map([[3, { start: "2026-08-10", end: "2026-09-11" }]]);
+    const rows = treeRows(view, new Set([11]), allOpen(view), [], proposed);
+    const platform = rows.find((row) => row.kind === "workStream" && row.name === "Platform");
+    // only Reports remains: its roll-up span is Reports' own (08-03..09-04), not the server's whole-stream 03-02..09-04
+    expect(platform).toMatchObject({ span: { start: "2026-08-03", end: "2026-09-04" }, proposedSpan: { start: "2026-08-10", end: "2026-09-11" } });
   });
 });

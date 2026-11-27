@@ -15,6 +15,7 @@ import FormErrorAlert from "../components/FormErrorAlert";
 import JiraBarsToggle from "../components/JiraBarsToggle";
 import { JiraStaleNote } from "../components/JiraChips";
 import LoadingBlock from "../components/LoadingBlock";
+import OverviewProposalSection from "../components/OverviewProposalSection";
 import PageHeader from "../components/PageHeader";
 import PlanDependenciesPanel from "../components/PlanDependenciesPanel";
 import type { WindowActions } from "../components/PlanProjectCells";
@@ -30,6 +31,7 @@ import TimelineDndContext from "../components/TimelineDndContext";
 import { useBaselinePick, useDropUnknownPick, withoutStaleOverlay } from "../hooks/useBaselinePick";
 import { isRejectedTarget, useCriticalAnnouncement, useCriticalTarget } from "../hooks/useCriticalTarget";
 import { useJiraBarsPick } from "../hooks/useJiraBarsPick";
+import { useOverviewProposal } from "../hooks/useOverviewProposal";
 import { usePlanScale } from "../hooks/usePlanScale";
 import { useProgramPick } from "../hooks/useProgramPick";
 import { useRowMenuFocus } from "../hooks/useRowMenuFocus";
@@ -150,15 +152,18 @@ function ProgramsBody({
   // must not stretch the grow-only range).
   const jiraBars = useJiraBarsPick();
   const jira = jiraBars.shown ? jiraWindow(treeDates(view), localIsoDate()) : null;
-  // Every date of the whole plan, not only of the shown rows: neither the pick nor a fold changes the range under the user.
-  const { scale, setZoom, today } = usePlanScale(treeDates(view, jira));
 
   // The pick is the address's (1.21; a bare visit shows the remembered one): an id of a program the plan no longer has filters nothing instead of hiding every row.
   const choices = programChoices(narrowed);
   const pick = pickAmong(choices, addressPick);
   const open = expanded ?? defaultOpen(narrowed, narrowing.workStream !== null);
+  // 1.33: the schedule proposal previewed on the tree (its bars, its lock over the target windows); the range covers its proposed dates too.
+  const announce = (text: string) => setAnnouncement((previous) => (previous.endsWith(REREAD) ? text : text + REREAD));
+  const proposal = useOverviewProposal({ view, narrowed, pick, unsettled: narrowing.pending, announce });
+  // Every date of the whole plan, not only of the shown rows: neither the pick nor a fold changes the range under the user.
+  const { scale, setZoom, today } = usePlanScale([...treeDates(view, jira), ...proposal.days]);
   const removedRows = removedProjectRows(view.baseline?.removedProjects ?? [], t);
-  const rows = treeRows(narrowed, pick, open, removedRows);
+  const rows = treeRows(narrowed, pick, open, removedRows, proposal.proposed);
   const anchors = arrowAnchors(narrowed, pick, open);
 
   // A toggle can change what the grid is made of: when it takes the rows across the virtualisation threshold (80) the Timeline switches paths and
@@ -179,7 +184,6 @@ function ProgramsBody({
 
   // The target window's write path (the roadmap's, over this tree): a project row's band, draw and menu items. Its sentences go to the same polite
   // region as the fold announcements; an identical sentence said twice is re-read through a toggled invisible suffix.
-  const announce = (text: string) => setAnnouncement((previous) => (previous.endsWith(REREAD) ? text : text + REREAD));
   const windowWrite = useTargetWindow({
     view,
     queryKey: programsViewKey(baselinePick, target),
@@ -189,6 +193,7 @@ function ProgramsBody({
     loading,
   });
   const writing = windowWrite.pending;
+  const commit = proposal.guard(windowWrite.commit); // refused out loud while a proposal is requested or open
   // The critical path toward `project` (or none). Hiding is said at once; showing is said by the hook once the chain has ARRIVED (the change is a bar
   // outline and a panel, so the live region carries it) - never on the pick itself, which the server may still reject.
   const projects = treeProjects(view);
@@ -211,7 +216,7 @@ function ProgramsBody({
   };
   const windowActions: WindowActions = {
     edit: (project) => setEditingId(project.id),
-    clear: (project) => rowFocus.keep(project.id, windowWrite.commit(project.id, null, null, { announce: true })),
+    clear: (project) => rowFocus.keep(project.id, commit(project.id, null, null, { announce: true })),
   };
 
   function toggle(key: string) {
@@ -232,9 +237,9 @@ function ProgramsBody({
   return (
     <>
       {/* The visible notices of the window write path; the status region below says them (an Alert's implicit role="alert" would read each twice). */}
-      {windowWrite.refused && (
+      {(windowWrite.refused || proposal.refusal !== null) && (
         <Alert color="orange" variant="light" role="note">
-          {t("project.busy")}
+          {proposal.refusal ?? t("project.busy")}
         </Alert>
       )}
       {windowWrite.gone && (
@@ -277,7 +282,7 @@ function ProgramsBody({
         // The only bar this page edits is a project's window (`window:<id>`): a move, a resize or a draw all land here.
         onSchedule={(barId, start, end) => {
           const id = projectOfWindowBar(barId);
-          return id !== null && windowWrite.commit(id, start, end);
+          return id !== null && commit(id, start, end);
         }}
       >
         <Stack gap="xs">
@@ -306,6 +311,7 @@ function ProgramsBody({
             onZoomChange={setZoom}
             today={today}
             busy={writing}
+            locked={proposal.lock.locked}
             label={t("programs.timelineAria")}
             timelineRef={timelineRef}
             jira={jira}
@@ -323,6 +329,7 @@ function ProgramsBody({
           />
         </Stack>
       </TimelineDndContext>
+      <OverviewProposalSection proposal={proposal} announce={announce} />
 
       <RoadmapCriticalChain
         projects={projects}
@@ -337,10 +344,10 @@ function ProgramsBody({
           project={editing}
           refused={windowWrite.refused}
           onSave={(start, end) => {
-            if (windowWrite.commit(editing.id, start, end, { announce: true, ownRefusalAlert: true })) closeDialog(editing.id);
+            if (commit(editing.id, start, end, { announce: true, ownRefusalAlert: true })) closeDialog(editing.id);
           }}
           onClear={() => {
-            if (windowWrite.commit(editing.id, null, null, { announce: true, ownRefusalAlert: true })) closeDialog(editing.id);
+            if (commit(editing.id, null, null, { announce: true, ownRefusalAlert: true })) closeDialog(editing.id);
           }}
           onClose={() => closeDialog(editing.id)}
         />

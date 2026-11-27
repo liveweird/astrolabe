@@ -7,7 +7,7 @@ import type { RoadmapCriticalPath, RoadmapLink, RoadmapProject } from "../api/ro
 import { useHolidays } from "../hooks/useHolidays";
 import { shadowBar } from "../utils/baselineOverlay";
 import type { JiraWindow } from "../utils/jiraBars";
-import { planArrows, projectTrack, withConflicts } from "../utils/planTrack";
+import { planArrows, projectTrack, proposedSpanBar, withConflicts } from "../utils/planTrack";
 import { isNodeRow, type NodeRow, type ProjectTreeRow, type RemovedTreeRow, type TreeRow } from "../utils/programsTree";
 import { criticalIndex } from "../utils/roadmapCritical";
 import { conflictsByProject, conflictsByRow, countFlags, pendingTeamNames, rolledUpLinks } from "../utils/roadmapRows";
@@ -124,7 +124,8 @@ function RemovedLabel({ row }: { row: RemovedTreeRow["removed"] }) {
  * A work stream's or program's summary bar: the span its projects cover, read-only; with a baseline picked the span they had then follows
  * as a thin shadow bar (also where nothing is scheduled any more). `conflicts` = the violated links of the rolled-up arrows that end on the row
  * (1.16), said after the span like a project row's. `holdsCritical` (1.16) = the row is FOLDED over a project on the picked critical path (it stands for
- * it, `arrowAnchors`): the bar is outlined and says so; an expanded node is not (its children are).
+ * it, `arrowAnchors`): the bar is outlined and says so; an expanded node is not (its children are). A node with a `proposedSpan` (1.33, a previewed
+ * schedule proposal) gets the dashed proposal bar `proposal:<key>` over the span its projects would cover.
  */
 function summaryBars(row: NodeRow, t: TFunction, conflicts: number, holdsCritical: boolean): TimelineBarData[] {
   const bars: TimelineBarData[] = [];
@@ -135,6 +136,7 @@ function summaryBars(row: NodeRow, t: TFunction, conflicts: number, holdsCritica
     const bar: TimelineBarData = { id: row.key, start, end, label: row.name, describe, editable: false, tone: "summary" };
     bars.push(holdsCritical ? { ...bar, describe: `${describe}, ${t("programs.barCriticalInside")}`, emphasis: "critical" } : bar);
   }
+  if (row.proposedSpan !== undefined) bars.push(proposedSpanBar(row.key, row.name, row.proposedSpan, t));
   if (row.baseline !== null) bars.push(shadowBar(row.key, row.name, row.baseline.span, row.baseline.movement, t));
   return bars;
 }
@@ -148,7 +150,8 @@ function summaryBars(row: NodeRow, t: TFunction, conflicts: number, holdsCritica
  * writes or decides rights - a project's window bar is editable, its draw surface present and its menu offers the window items by the
  * project's own `can.editTargetWindow`, and the page's write path answers the proposals. The picked critical path (1.16, `criticalPath`, the roadmap's
  * block) outlines the project rows on the chain and the arrows of its pairs, and - where the row of a chain project is folded - the folded program or work
- * stream that stands for it; `critical` is the row menu's "Show / Hide critical path" item.
+ * stream that stands for it; `critical` is the row menu's "Show / Hide critical path" item. `locked` (1.33, a schedule proposal is requested or open)
+ * makes the target windows read-only: no editable band, no draw surface, no window items in the row menu.
  */
 export default function ProgramsTimeline({
   links,
@@ -169,6 +172,7 @@ export default function ProgramsTimeline({
   criticalPath,
   critical,
   own,
+  locked = false,
 }: {
   links: readonly RoadmapLink[];
   /** The view's `teams` (active teams with milestones): the names of a project's Flow-pending teams. */
@@ -199,6 +203,7 @@ export default function ProgramsTimeline({
   critical: { target: number | null; disabled: boolean; toggle: (project: RoadmapProject) => void };
   /** The work stream or program the page is narrowed to, whose own row shows its name as plain text; `null` = none. */
   own: OwnNode | null;
+  locked?: boolean;
 }) {
   const { t } = useTranslation();
   const { holidays, failed: holidaysFailed } = useHolidays();
@@ -235,14 +240,14 @@ export default function ProgramsTimeline({
         (stop: RovingTarget) => (
           <RowActionsMenu label={t("common.table.operationsAria", { name: project.name })} trigger={{ ...stop, "data-operations-for": project.id }} onClosed={() => menuClosed(project)}>
             <CriticalPathItem project={project} target={critical.target} disabled={critical.disabled} onToggle={() => critical.toggle(project)} />
-            <TargetWindowItems project={project} actions={windowActions} />
+            {!locked && <TargetWindowItems project={project} actions={windowActions} />}
             <DependenciesItem project={project} />
             <OpenProjectItem project={project} />
             <OpenEntityItem entity={{ kind: "person", id: project.ownerPersonId }} name={project.ownerName} />
           </RowActionsMenu>
         ),
       ],
-      ...projectTrack(project, t, conflicts, jira, chain.projects.has(project.id)),
+      ...projectTrack(project, t, conflicts, jira, chain.projects.has(project.id), { proposed: row.proposed, locked }),
     };
   }
 

@@ -61,6 +61,42 @@ describe("projectTrack: what the viewer may do with the window", () => {
   });
 });
 
+describe("projectTrack: the previewed schedule proposal (1.33)", () => {
+  const plain = () => projectTrack(project(), t, none, null);
+
+  test("no option, an empty one or nothing proposed: the track exactly as before (the roadmap passes none)", () => {
+    expect(projectTrack(project(), t, none, null, false, {})).toEqual(plain());
+    expect(projectTrack(project(), t, none, null, false, { proposed: null, locked: false })).toEqual(plain());
+    expect(projectTrack(project(), t, none, null, false, undefined)).toEqual(plain());
+  });
+
+  test("a proposed span adds the dashed read-only bar proposal:<id>, named with its dates, after the span bar; the window bar keeps its right", () => {
+    const track = projectTrack(project(), t, none, null, false, { proposed: { start: "2026-03-09", end: "2026-04-17" } });
+    expect(track.bars.map((bar) => [bar.id, bar.editable, bar.tone])).toEqual([
+      ["window:7", true, "window"],
+      [7, false, "summary"],
+      ["proposal:7", false, "proposal"],
+    ]);
+    expect(track.bars[2]).toMatchObject({ start: "2026-03-09", end: "2026-04-17", label: "Invoices", describe: "Proposed: Invoices, 2026-03-09 to 2026-04-17" });
+    expect(track.bands).toEqual(plain().bands);
+  });
+
+  test("a project with no span yet still gets the proposal bar (it would be newly scheduled)", () => {
+    const track = projectTrack(project({ span: null, drift: null }), t, none, null, false, { proposed: { start: "2026-03-09", end: "2026-04-17" } });
+    expect(track.bars.map((bar) => bar.id)).toEqual(["window:7", "proposal:7"]);
+  });
+
+  test("locked: the window bar is read-only and the draw surface of a project without a window is gone", () => {
+    expect(projectTrack(project(), t, none, null, false, { locked: true }).bars.map((bar) => [bar.id, bar.editable])).toEqual([
+      ["window:7", false],
+      [7, false],
+    ]);
+    const open = project({ targetStart: null, targetEnd: null, drift: null });
+    expect(projectTrack(open, t, none, null).draw).toEqual({ barId: "window:7", label: "Invoices" });
+    expect(projectTrack(open, t, none, null, false, { locked: true }).draw).toBeUndefined();
+  });
+});
+
 describe("projectTrack: the critical path (1.7)", () => {
   test("a critical project's span bar is emphasised and says so, after the conflicts and before nothing else", () => {
     const track = projectTrack(project(), t, new Map([[7, 2]]), null, true);

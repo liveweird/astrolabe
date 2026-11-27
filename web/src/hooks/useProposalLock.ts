@@ -1,5 +1,4 @@
 import { useTranslation } from "react-i18next";
-import type { ScheduleProposal } from "../api/teams";
 import { useRefusal } from "./useRefusal";
 
 /**
@@ -7,9 +6,10 @@ import { useRefusal } from "./useRefusal";
  * is closed (`locked`): the request window counts, or a change made while it is in flight would be written under the premise the
  * proposal is about to void. Every entry point of the schedule and the order (menu items, the tray's Schedule, the dialogs, drags,
  * Reset) goes through `guarded(run)` or `refuse()`, which refuse out loud instead of running while locked: `refused` is set (the page's
- * visible note, cleared when the lock ends) and the page's live region says why (`announce`).
+ * visible note, cleared when the lock ends) and the page's live region says why (`announce`). Any open proposal fits (the team page's and, since 1.33,
+ * the cross-team run on the Roadmap overview, whose target windows it locks).
  */
-export function useProposalLock(proposal: { proposal: ScheduleProposal | null; requesting: boolean }, announce: (text: string) => void) {
+export function useProposalLock<P extends object>(proposal: { proposal: P | null; requesting: boolean }, announce: (text: string) => void) {
   const { t } = useTranslation();
   const open = proposal.proposal;
   const locked = open !== null || proposal.requesting;

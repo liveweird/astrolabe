@@ -102,6 +102,7 @@ beforeEach(() => {
   mockFetch = vi.fn(async (url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
     if (method === "GET" && url === "/api/v1/views/programs") return jsonResponse(200, view);
+    if (method === "GET" && url === "/api/v1/schedule-proposals/teams") return jsonResponse(200, { items: [], truncated: false });
     const match = /^\/api\/v1\/projects\/(\d+)\/target-window$/.exec(url);
     if (method === "PUT" && match !== null) {
       await windowGate;

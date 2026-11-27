@@ -18,6 +18,20 @@ export function projectOfWindowBar(barId: number | string): number | null {
   return match === null ? null : Number(match[1]);
 }
 
+/** What a previewed schedule proposal (1.33, the overview) does to a project row: the span it would give the project, and whether the target window is read-only meanwhile. */
+export type ProposalPreview = { proposed?: { start: string; end: string } | null; locked?: boolean };
+
+/** The dashed bar of a span a previewed proposal gives a row (`proposal:<row id>`: a project's id, or `ws:<id>` / `pg:<id>`), named with its dates; read-only. */
+export const proposedSpanBar = (rowId: BarId, name: string, span: { start: string; end: string }, t: TFunction): TimelineBarData => ({
+  id: `proposal:${rowId}`,
+  start: span.start,
+  end: span.end,
+  label: name,
+  describe: t("timeline.bar.proposal", { name, start: span.start, end: span.end }),
+  editable: false,
+  tone: "proposal",
+});
+
 /** The accessible name of a span bar, with the ", N conflicts" suffix when violated links end on its project. */
 export const withConflicts = (t: TFunction, describe: string, count: number) => (count > 0 ? `${describe}, ${t("project.barConflicts", { count })}` : describe);
 
@@ -25,9 +39,10 @@ export const withConflicts = (t: TFunction, describe: string, count: number) => 
  * The bars of a project row: its target window (the band-look bar behind - editable when the viewer may change it) and the span its milestones
  * cover (hollow, read-only, on top: the Timeline lets the pointer through a summary bar, so the window under it is grabbed where they overlap), then,
  * while a baseline is picked, the shadow bar of the span the baseline froze and, while the "Jira dates" toggle is on (`jira`, the page's window), the shadow bar of
- * the dates Jira holds (1.3; only for a project whose link carries both, cut at the window).
+ * the dates Jira holds (1.3; only for a project whose link carries both, cut at the window). With a previewed proposal (`preview.proposed`) a second bar
+ * `proposal:<id>` follows the span bar (dashed, the team page's proposal tone), and `preview.locked` makes the window bar read-only.
  */
-function barsOf(project: RoadmapProject, t: TFunction, conflicts: number, jira: JiraWindow | null, critical: boolean): TimelineBarData[] {
+function barsOf(project: RoadmapProject, t: TFunction, conflicts: number, jira: JiraWindow | null, critical: boolean, preview: ProposalPreview): TimelineBarData[] {
   const { id, name, targetStart, targetEnd, span } = project;
   const bars: TimelineBarData[] = [];
   if (targetStart !== null && targetEnd !== null) {
@@ -37,7 +52,7 @@ function barsOf(project: RoadmapProject, t: TFunction, conflicts: number, jira: 
       end: targetEnd,
       label: name,
       describe: t("timeline.bar.window", { name, start: targetStart, end: targetEnd }),
-      editable: project.can.editTargetWindow,
+      editable: project.can.editTargetWindow && preview.locked !== true,
       tone: "window",
     });
   }
@@ -50,6 +65,7 @@ function barsOf(project: RoadmapProject, t: TFunction, conflicts: number, jira: 
         : { id, start: span.start, end: span.end, label: name, describe, editable: false, tone: "summary" },
     );
   }
+  if (preview.proposed != null) bars.push(proposedSpanBar(id, name, preview.proposed, t));
   // v0.9: with `?baseline=` a project the baseline also froze carries the span it had then - a thin shadow bar under the span bar, named with its dates and movement.
   const frozen = project.baseline;
   if (frozen?.span) bars.push(shadowBar(id, name, frozen.span, frozen.movement, t));
@@ -69,6 +85,8 @@ function bandsOf(project: RoadmapProject, t: TFunction): TimelineBandData[] {
  * none, the draw surface (a drag across the empty row proposes `onSchedule(window:<id>, start, end)`, the same seam as moving the band).
  * `conflicts` = the violated links ending on each project (`conflictsByProject`); `jira` = the page's Jira window while the "Jira dates" toggle is on (`jiraWindow`), else `null`;
  * `critical` (1.7, the roadmap's picked critical path) = the project is the target or on its chain: its span bar gets the critical emphasis.
+ * `preview` (1.33, the overview's schedule proposal; the roadmap passes none, so its rows are as ever): the proposal bar, and while `locked` the window
+ * bar is read-only and no draw surface is offered.
  */
 export function projectTrack(
   project: RoadmapProject,
@@ -76,9 +94,10 @@ export function projectTrack(
   conflicts: ReadonlyMap<number, number>,
   jira: JiraWindow | null,
   critical = false,
+  preview: ProposalPreview = {},
 ): { bars: TimelineBarData[]; bands: TimelineBandData[]; draw?: TimelineDrawData } {
-  const track = { bars: barsOf(project, t, conflicts.get(project.id) ?? 0, jira, critical), bands: bandsOf(project, t) };
-  const drawable = project.can.editTargetWindow && (project.targetStart === null || project.targetEnd === null);
+  const track = { bars: barsOf(project, t, conflicts.get(project.id) ?? 0, jira, critical, preview), bands: bandsOf(project, t) };
+  const drawable = project.can.editTargetWindow && preview.locked !== true && (project.targetStart === null || project.targetEnd === null);
   return drawable ? { ...track, draw: { barId: windowBarId(project.id), label: project.name } } : track;
 }
 

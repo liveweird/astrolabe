@@ -17,7 +17,7 @@ const PARAM = "workStreamId";
 export function useWorkStreamNarrowing(
   view: ProgramsView,
   settled: boolean,
-): { workStream: ProgramsWorkStream | null; unknown: boolean; set: (id: number | null) => void; dismiss: () => void } {
+): { workStream: ProgramsWorkStream | null; unknown: boolean; pending: boolean; set: (id: number | null) => void; dismiss: () => void } {
   const [params, setParams] = useSearchParams();
   const raw = params.get(PARAM);
   const id = idOf(raw);
@@ -44,5 +44,6 @@ export function useWorkStreamNarrowing(
     if (missing) write(null);
   }, [missing, write]);
 
-  return { workStream, unknown, set: write, dismiss: () => setUnknown(false) };
+  // `pending`: the address names a work stream the view does not narrow to (yet: unsettled, or unknown and about to be dropped).
+  return { workStream, unknown, pending: raw !== null && workStream === null, set: write, dismiss: () => setUnknown(false) };
 }
