@@ -15,7 +15,7 @@ Scale assumed: about 15 teams, 5 work streams, 20 programs, 100 projects, 1,000 
 
 ## Roadmap
 
-Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.30.0** (1.31.0 built, not released). Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-visible fix between two increments is a patch bump. One row a version (patches ride their minor's row); the scope only, the detail is in "Release history".
+Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.30.0** (1.31.0 and 1.32.0 built, not released). Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-visible fix between two increments is a patch bump. One row a version (patches ride their minor's row); the scope only, the detail is in "Release history".
 
 ### 0.1 to 0.9: the plan
 
@@ -72,6 +72,7 @@ Each increment gets its own plan (architect) before implementation; only v0.1.0 
 | **1.30.0 The 1.29 follow-ups** | Header sizes, the focus ring, forced colours, the Roadmap's dependency panel outside the timeline, milestones in the picker, Team load's total; `GET /milestones` trimmed |
 | **1.29.0 One Roadmap, Projects, team colours** | Roadmap and Programs in two modes on one page, a Projects view (picker, Milestones table), dependency lists beside the timelines, team colours (V35); the Milestones and Dependencies pages folded in |
 | **1.31.0 Names as links** | Every work stream, program, project, milestone, team and user name links to its page (a milestone to its row on the project page, a work stream or program to the Roadmap overview narrowed to it); the views carry the ids |
+| **1.32.0 Team load folded into Teams** | One Teams table with every team's load (`GET /views/team-load` gains `description`), its filters and "Weeks with a warning"; the Team load page and nav leaf gone, `/team-load` redirects |
 
 ## Domain decisions taken with the user
 
@@ -181,12 +182,12 @@ The standing rules the pages after 1.16 follow; the answers with their rejected 
 
 - **Home.** The Plan and Roadmap cards show the plan's own figures, including two capacity figures (teams with an overloaded week, teams over the WIP limit; the one answer off the recommended option, 1.18 Q1 b). "Yours" is what the person linked to the login owns and the teams that person manages;
   since 1.23 (Q3 b) it lists everything under a work stream or program you own, each row names its owner, and a switch "Only what I own myself" (off by default, remembered in this browser) narrows both tables to the rows you own yourself. A login without a person gets one plain sentence. Home's figures are links to the filtered view behind them; a badge or link shows only when its count is positive (zero is not a claim).
-- **Filters live in the address.** The address always holds the filters shown; a link naming a filter is shown as written and not remembered; opening a page from the menu restores what the user last set; only the user's own change is remembered (Roadmap 1.19 Q1 a, Programs 1.21 Q1; Team load and Dependencies keep theirs in the address only).
+- **Filters live in the address.** The address always holds the filters shown; a link naming a filter is shown as written and not remembered; opening a page from the menu restores what the user last set; only the user's own change is remembered (Roadmap 1.19 Q1 a, Programs 1.21 Q1; Dependencies keep theirs in the address only, as Team load did before 1.32 folded it into Teams, whose filters work the same way).
 - **One staleness rule.** A Jira source is stale when its server-derived state is not `CURRENT` or its mapping does not fit; the chips, the Deviations banner, the dated "no deviations" claim, Flow's section and the plan pages' facts line ("Jira data may be out of date") all use it (1.17 Q1 and Q2).
 - **A deploy notice.** The build writes its commit into `index.html`; the shell compares it with the bundle's own and shows a notice with a Reload button at the top of every page, with no way to dismiss it (1.17 Q4, Q5).
 - **Dependencies page.** One list of every active link, the violated first, at most 1,000 rows, filters in the browser and the address (1.20 Q1); a row says what the caller may do (`can`) and offers "Edit..." and "Delete" only then (1.22 Q3, reversing 1.20 Q2 "read-only"). Since 1.29 the list is the Roadmap's panel; the page is gone.
 - **`GET /milestones` is trimmed (decided 2026-11-26, 1.30).** Removed, not deprecated (the 1.24 Q5 exception to API-VER-002 again; one client, the first-party SPA): the filters `scheduled`, `teamId`, `programId`, `workStreamId`, the sorts `rankPosition`, `projectName`, `teamName`, `startDate`, the row's `rankPosition`. An old tab's removed filter is ignored (API-LIST-004) and lists every milestone; a removed sort is `400`.
-- **Team load.** Per week, "Weeks with a warning" under the table (1.21 Q4); it opens on the weeks from this week on and an "Include past weeks" switch (`?past=true`) brings the earlier ones back (1.22 Q4).
+- **Teams' weeks (Team load until 1.32, then folded into Teams).** Per week, "Weeks with a warning" under the Teams table (1.21 Q4); it opens on the weeks from this week on and an "Include past weeks" switch (`?past=true`) brings the earlier ones back (1.22 Q4).
 - **View validators.** Ten view reads answer a weak `ETag` and `304`; the tag is a hash of the rendered document and the caller's user id, so it cannot go stale; the two Deviations documents are left out (1.22 Q1, Q2).
 - **A database time limit.** One statement limit of 15 seconds on the whole pool, 0 = off (1.23 Q1 a). **Flow capacity on project rows.** One flag per team, only when a SCHEDULED milestone of the project on that team lies in days an OPEN capacity difference covers (1.23 Q2 a; reverses 1.9 Q3 "team view only" in part).
 
@@ -286,6 +287,16 @@ What was ported later, and what was left in Flow on purpose:
 
 Newest first. Each version: its scope, the user's answers, the defaults that still bind and what was not built; the commits, the plans (they live outside the repository) and the test runs are in git. "No migration" means the preceding schema still applies. Every release leaves "nothing is written to Jira or Flow" true.
 
+### v1.32.0 — Team load folded into Teams
+
+The user's question of 2026-11-27, "Does 'Team Load' add any value? We see how teams are loaded in team view", answered "Yes, fold" and, asked how, "One table". Built overnight on top of 1.31.0, a minor bump; the API only gains `description`. No migration. Neither 1.31.0 nor 1.32.0 is released.
+
+- **The user's answers:** Team load is folded into Teams as ONE table (everyone reads, ADMIN writes) with Team load's columns, the warning and past-weeks filters and "Weeks with a warning" below, not tabs; the admin row actions stay; Home's team figures open Teams with the filter; the nav leaf goes; `/team-load` redirects as the 1.29 pages did.
+- **Defaults taken overnight:** D1 the page reads only `GET /views/team-load`, which gains `description`; the paged `GET /teams` stays for pickers. D2 no paging: the view's 200 rows and a "first N teams" line. D3 the name filter is page state, applied as you type, not in the address, not remembered. D4 the description is a dimmed line under the name. D5 only the name sorts, its direction remembered.
+D6 Home's "N not scheduled yet" opens plain Teams. D7 the `teamLoad.*` keys, `api/teamLoad.ts`, `teamLoadFilters.ts` and `TeamLoadWeeks.tsx` keep their names. D8 `team-load.spec.ts` and its scenario stay, retitled. D9 the pending-filter-vs-delete race e2e moves to People. D10 no manager reads a dimmed "No manager". D11 a minor bump, the release commit local only.
+- **Decided while building:** the name filter matches names only (not descriptions or managers); "Showing N of M teams" counts the rows held (at most 200); the Operations column shows for ADMIN only; "Show every team" clears Name and Show and keeps "Include past weeks".
+- Not built (`BACKLOG.md`): a sort by a load figure; a filter for teams not scheduled yet; a server-side search past 200 teams. Gone: the page, its nav leaf, the Teams pager, the remembered name filter (`teams.paging`, `teams.filter.name` linger unused).
+
 ### v1.31.0 — names as links
 
 The user's request of 2026-11-27: wherever a work stream, program, project, milestone, team or user is named, the name links to its details (`web-internals.md` "Entity links"). Built overnight; a minor bump, the API only gains ids. No migration.
@@ -330,24 +341,22 @@ Built overnight and released on the user's word on 2026-11-25; a minor bump, the
 Built 2026-11-23 to 11-24, released overnight on the user's word of 2026-11-23 ("feel free to release and tag"); a minor bump, the API only gains members. It carries the 1.25 review's fixes too.
 
 **Scope:**
-- Saved proposals (V32: `scheduling.md` "Saved proposals"), links and capacity frozen in baselines (V33: `planning-model.md` "Baselines"; older baselines read "not captured") and the paged `GET /work-streams` and `GET /programs` (`planning-model.md` "The picker and milestone lists"), with the bind dialog's program picker searching the server.
+- Saved proposals (V32: `scheduling.md` "Saved proposals"), links and capacity frozen in baselines (V33: `planning-model.md` "Baselines"; older baselines read "not captured") and the paged `GET /work-streams` and `GET /programs` (`planning-model.md` "The picker and milestone lists"; shapes in `documentation.yaml`, `authorization.md` "Schedule proposals"), with the bind dialog's program picker searching the server.
 - **The cross-team run re-places only stale teams:** a team is placed again only when a team with a link into it changed (wire-identical; `scheduling.md`).
-- **Technical, no behaviour change:** every instruction doc under a byte ceiling (`ci.md` "Docs shape"; the new `scheduling.md`); nine main files split below 360 lines; the unit tests' sleeps cut, a guard each side. The CI budget re-baseline (G5) is its own commit.
-
-**On the wire:** `documentation.yaml` is the contract; the shapes are in `planning-model.md` "Baselines", "The roadmap view" and "The picker and milestone lists", `authorization.md` "Schedule proposals", `list-endpoints.md` "Sub-collections and facets", `observability.md` (the audit events) and `flow-sync.md` "Deviations".
+- **Technical:** every instruction doc under a byte ceiling (`ci.md` "Docs shape"); nine main files split below 360 lines; the unit tests' sleeps cut. The CI budget re-baseline (G5) is its own commit.
 
 **Upgrade effect:** V32 and V33 are additive (a table, two frozen tables, two nullable count columns). A baseline taken before 1.26 has null counts and reads "not captured", never "no changes".
 
 **The answers (the user's, 2026-11-23):**
 - Q1 (a) every signed-in user may read a saved proposal. Q2 (a) the newest 20 are kept, the oldest dropped on the 21st save. Q3 (b) the wider option: the comparison page AND the team page's "was" capacity and the project page's "new since the baseline". Q4 (a) the bind dialog's program picker over `GET /programs`; work streams stay API-only.
 - Q5 and Q6 were not asked; defaults: (a) the CI re-baseline runs last on the then-last ten green master runs, (a) the byte ceilings become limit 9.
-- The 1.25 review's calls: an incomplete Flow sprint snapshot stays listed with a neutral marker on the Roadmap and the team page; a disabled connection's consequence is documented in `flow-sync.md`.
+- The 1.25 review's call: an incomplete Flow sprint snapshot stays listed with a neutral marker on the Roadmap and the team page.
 
 **Defaults taken for v1.26.0:**
 - A save is not plan state: no plan lock, no revision bump. Any save removes the globally oldest saved row (Q2); the delete guard (ADMIN or the manager of every stored team) stops a targeted delete only. The save has its own bucket of 10 a minute per user.
 - A saved run is acceptable only while CURRENT, with `can.accept` and `asOf` equal to today; "Propose again" shows with `can.delete`.
 - The team overlay's "was" capacity is `baseline.capacity {captured, periods}` inside the existing overlay; `newSinceBaseline` is absent when links were not captured (unknown, not "all new").
-- Links compare as added, removed or changed (type, lag); capacity as date ranges of the figure in force, so splitting a period in two equal ones is no change. Capacity is team data outside the plan revision: a capacity-only change leaves the comparison's `revision` equal, and the page's "plan has not changed" note says the capacity has.
+- Links compare as added, removed or changed (type, lag); capacity as date ranges of the figure in force, so splitting a period in two equal ones is no change. A capacity-only change (team data, outside the plan revision) leaves the comparison's `revision` equal, and the page's "plan has not changed" note says the capacity has.
 
 ### v1.25.1 — a new logo
 
@@ -369,42 +378,32 @@ Built outside the planned-release workflow (PR #41) and released 2026-11-22, a m
 
 A technical release, built 2026-11-15 and released on the user's word ("release 1.24", 2026-11-15), `1.24.0` (a minor bump: the API removes a member). No feature, migration (V30 stays the last), endpoint, audit event, Jira or Flow call, or dependency.
 
-**Scope:** no behaviour change; the docs layout and its guard are `ci.md` "Docs shape", the two CI forks `ci.md`, the contract is the spec.
+**Scope:** no behaviour change (`ci.md` "Docs shape" and the two CI forks; the contract is the spec).
 
-**On the wire:**
-- **API removal:** the items of `GET /views/deviations` no longer carry the deprecated item-level `acknowledgement` (Q5); each line's own, the filters, the counts and the acknowledge routes are unchanged.
-- The other wire changes (three `409` problem types, the declared `SyncFailureCode` list) are in `authorization.md` and `sync.md`.
+**On the wire:** the items of `GET /views/deviations` no longer carry the deprecated item-level `acknowledgement` (Q5); each line's own, the filters, the counts and the acknowledge routes are unchanged.
 
-**The answers (the user's, 2026-11-15):**
-- Q1 (a) reword the lines that quoted a real installation's figures; history and tags stay in Git.
-- Q2 (b) restructure all nine large docs plus the guard; "Rules first".
-- Q3 (a) two forks in CI, find why vitest is slow, then re-baseline.
-- Q4 (a) no implicit `8086`: an explicit target.
-- Q5 (a) remove the deprecated item-level `acknowledgement` now.
-- Q6 all four refactors. "Build all of it."
+**The answers (the user's, 2026-11-15):** Q1 (a) reword the lines that quoted a real installation's figures; Q2 (b) restructure all nine large docs plus the guard ("Rules first"); Q3 (a) two forks in CI, find why vitest is slow, then re-baseline; Q4 (a) no implicit `8086`; Q5 (a) remove the deprecated item-level `acknowledgement` now; Q6 all four refactors ("Build all of it").
 
 **Defaults that still bind:**
-- Docs: history is deleted, not archived (the guard's limits: `ci.md`); `README.md` and `BACKLOG.md` are outside the guard.
+- Docs: history is deleted, not archived (`ci.md`); `README.md` and `BACKLOG.md` are outside the guard.
 - Spec: a nullable enum used twice is a `Nullable<Name>` twin; `ProblemDetail.type` stays a string listing every slug; `SyncFailureCode` is declared in the spec only, so a stored code is never renamed or removed and a new one is a constant and an enum value in one commit.
 - Code: a split keeps ONE public service; "shared" means identical after renaming the connector, never a registry or a `kind` switch.
 - e2e: all four `E2E_*` URLs required, none defaulted; the flaky list never gates (`retries` stays 2).
 - CI: budgets are re-baselined from the last ten green master runs; two forks stay only if the first five master runs are 20 % under the one-fork time; no vitest shard.
 - A release that changes the API contract is at least a minor bump.
 
-**History kept here:** the item-level summary was deprecated since 1.12 and read by no client; its removal is an accepted exception to API-VER-002 and API-VER-004 (The Jira sync, above), and the release's changelog (EN and PL) MUST name it.
-
-**Not built:** the checkup's lower tiers and leftovers, each a `[new]` BACKLOG line marked (1.24); the CI budgets wait for ten green master runs on the final workflow.
+**History kept here:** the item-level summary was deprecated since 1.12 and read by no client; its removal is an accepted exception to API-VER-002 and API-VER-004 (The Jira sync, above), and the changelog names it. **Not built:** the checkup's lower tiers, each a `[new]` BACKLOG line marked (1.24); the CI budgets wait for ten green master runs.
 
 ### v1.23.0 — what shipped
 
-Released on the user's word (2026-11-15), a minor bump (a new configuration key, a new flag kind, new members on Home's rows; scope: the 1.23.0 row above). The user picked five `BACKLOG.md` items and was PRESENT. No migration, new endpoint, write, audit event, rate bucket, Jira or Flow call, stub data or dependency. The wire members are stated in `persistence.md` (the limit's key), `authorization.md` (the typed `500`) and `planning-model.md` (`FLOW_CAPACITY_MILESTONES`, "The home view").
+Released on the user's word (2026-11-15), a minor bump (a new configuration key, a new flag kind, new members on Home's rows). The user picked five `BACKLOG.md` items and was PRESENT. No migration, endpoint, write, audit event, rate bucket, Jira or Flow call, stub data or dependency. The wire members: `persistence.md` (the limit's key), `authorization.md` (the typed `500`), `planning-model.md` (`FLOW_CAPACITY_MILESTONES`, "The home view").
 
 **The answers:**
-- Q1 (a) one statement limit of 15 seconds on the whole pool, 0 = off, covering the views and everything else (not (b) only the reads that change nothing, 10 s, at two extra round trips a read; not (c) no limit).
-- Q2 (a) a project gets one flag per team, only when a SCHEDULED milestone of it on that team lies in days an OPEN capacity difference of that team covers, naming the team and the number of milestones, a warning when the plan holds more than Flow and an info otherwise (not (b) whatever the dates; not (c) one flag per project without the team). Reverses 1.9 Q3 ("team view only") in part.
-- Q3 (b) "Yours" lists everything under a work stream or program you own, each row names its owner, and a switch "Only what I own myself" (off by default, remembered in this browser) narrows both tables to the rows you own yourself (not (c) a third table). Reverses 1.18 Q2a (direct ownership only) in part.
+- Q1 (a) one statement limit of 15 seconds on the whole pool, 0 = off, covering the views and everything else.
+- Q2 (a) a project gets one flag per team, only when a SCHEDULED milestone of it on that team lies in days an OPEN capacity difference of that team covers, naming the team and the number of milestones, a warning when the plan holds more than Flow and an info otherwise. Reverses 1.9 Q3 ("team view only") in part.
+- Q3 (b) "Yours" lists everything under a work stream or program you own, each row names its owner, and a switch "Only what I own myself" (off by default, remembered in this browser) narrows both tables to the rows you own yourself. Reverses 1.18 Q2a (direct ownership only) in part.
 
-**What binds** is stated where it lives: the limit in `persistence.md`, `security.md` and `web-internals.md`; the flag's rules in `planning-model.md` and `timeline.md`; Home's owner-chain rows in `planning-model.md` "The home view".
+**What binds** is stated where it lives: the limit in `persistence.md` and `security.md`; the flag's rules in `planning-model.md` and `timeline.md`; Home's owner-chain rows in `planning-model.md` "The home view".
 
 **Defaults taken:** the 15 s value is whole seconds, 0..300, boot-validated (the test harness boots with 60 s); the two `sync` readers assign `queryTimeout` only when positive and the telemetry reads keep their own budgets; a cancelled request's EARLIER committed step stays (a create's re-read runs in a second transaction, so a cut re-read leaves the row and a retry may meet a `409`); a cancelled access-check read answers the typed `500`, never a `401`;
 no new e2e for the focus rule (a Playwright walk cannot hit the render gap); days compare as calendar days, both ends inclusive; the Roadmap and Programs show the flag without a "Flow data may be out of date" note.
@@ -417,38 +416,38 @@ Released on the user's word (2026-11-15), a minor bump (new headers, a new page 
 `GET /views/team-load` gains `currentWeekStart`; ten view GETs gained a request header, a response header and a `304`.
 
 **The answers (all (a)):**
-- Q1 the validator is a hash of the rendered document and the caller's user id, so it cannot go stale and needs no list of inputs; a `304` saves the transfer and its compression, NOT the view's work (not (b) Flow's data stamp read before the view, not (c) version counters and a V31).
-- Q2 ten reads (Plan, Home, Team load, Dependencies, Roadmap, Programs, a project, a team, a baseline comparison, the Jira links), not the two Deviations documents (not (b) all thirteen by first making "next poll at" stable, not (c) only the five heaviest).
-- Q3 each Dependencies row says what the caller may do (`can`), the project page's own flags (not (b) the right taken from the Plan document, not (c) the menu on every row).
-- Q4 "Weeks with a warning" starts at the server's current week and an "Include past weeks" switch (`?past=true`) brings the earlier ones back (not (b) the weeks without capacity also listed as ranges, not (c) the page opening on every week).
+- Q1 the validator is a hash of the rendered document and the caller's user id, so it cannot go stale and needs no list of inputs; a `304` saves the transfer and its compression, NOT the view's work.
+- Q2 ten reads (Plan, Home, Team load, Dependencies, Roadmap, Programs, a project, a team, a baseline comparison, the Jira links), not the two Deviations documents.
+- Q3 each Dependencies row says what the caller may do (`can`), the project page's own flags.
+- Q4 "Weeks with a warning" starts at the server's current week and an "Include past weeks" switch (`?past=true`) brings the earlier ones back.
 
-**What binds** is stated where it lives: the validator in `security.md` "Caching", `planning-model.md` "View validators" and `web-internals.md`; the dependency rows' `can` in `planning-model.md` "The dependencies view"; Team load's weeks and the two focus rules in `web-internals.md`.
+**What binds** is stated where it lives: the validator in `security.md` "Caching" and `planning-model.md` "View validators"; the dependency rows' `can` in `planning-model.md` "The dependencies view".
 
 **Not built** (each a `[new]` `BACKLOG.md` line): the pre-check (Q1b, Q1c), validators for the two Deviations documents, a time zone for "this week" and the weeks without capacity as ranges (Q4b), adding a dependency from the list. **Recorded as risks:** the project page's possible focus race, the Dependencies page at its 1,000-row cap in a real browser.
 
 ### v1.21.0 — what shipped
 
-Released on the user's word ("release 1.20 and 1.21", 2026-11-15), right after 1.20.0, a minor bump (new filters, a new table, a changed document): filters, Team load per week and a slimmer Dependencies document. The user picked five `BACKLOG.md` items ("1, 2, 4 on defaults; then 3 & 5") and went away, so **the user was ABSENT** and every question was answered with the recommended option (a), listed here for review. No new endpoint, parameter or migration;
+Released on the user's word ("release 1.20 and 1.21", 2026-11-15), right after 1.20.0, a minor bump: filters, Team load per week and a slimmer Dependencies document. The user picked five `BACKLOG.md` items ("1, 2, 4 on defaults; then 3 & 5") and went away, so **the user was ABSENT** and every question was answered with the recommended option (a), listed here for review. No new endpoint, parameter or migration;
 `GET /views/team-load` gained `warningWeeks` per row and `warningWeeksTruncated` (additive); `GET /views/dependencies` names its ends once (breaking for the page only: the endpoint was unreleased).
 
 **The answers taken (all (a)):**
-- Q1 the Programs pick follows the Roadmap's 1.19 rule unchanged (not (b) the address alone, not (c) a link replacing the memory).
-- Q2 a "Flag severity" select (Any / Warning / Info) and an "Unranked projects only" switch beside "Flagged projects only", in the address and remembered; Home's "N unranked" links to `?unranked=true` and the warnings and infos badges each open their own severity (not (b) one "Flags" select, not (c) the flag panel following the severity).
-- Q3 a Project select fed by the plan document with the chip kept, and the Team select reading every team (100 a page, to the end), shared with the Deviations panel; an id the lists lack shows as "Team N" / "Project N" (not (b) search pickers, not (c) the select replacing the chip).
-- Q4 a second table "Weeks with a warning" under the Team load table: one row per team and overloaded or over-WIP week with the team page's own cells, following the "Show" filter, at most 2,000 weeks in team order, oldest first (not (b) a disclosure per row, not (c) a heat map).
-- Q5 the slimmer document built last (not (b) skipped, not (c) the check's null members dropped).
+- Q1 the Programs pick follows the Roadmap's 1.19 rule unchanged.
+- Q2 a "Flag severity" select (Any / Warning / Info) and an "Unranked projects only" switch beside "Flagged projects only", in the address and remembered; Home's "N unranked" links to `?unranked=true` and the warnings and infos badges each open their own severity.
+- Q3 a Project select fed by the plan document with the chip kept, and the Team select reading every team (100 a page, to the end), shared with the Deviations panel; an id the lists lack shows as "Team N" / "Project N".
+- Q4 a second table "Weeks with a warning" under the Team load table: one row per team and overloaded or over-WIP week with the team page's own cells, following the "Show" filter, at most 2,000 weeks in team order, oldest first.
+- Q5 the slimmer document built last.
 
 **Defaults taken:** the address spellings and the team options (`listEveryTeam`, at most 20 pages) are `web-internals.md`'s ("The URL holds the filters", "The program pick"); the focus helper takes the menu it came from; the dependency list resolves names in its query function, not in `select` (`web-internals.md` "Dependencies"), and a document naming something it does not hold is a `MalformedAnswerError`, never retried (`web/CLAUDE.md` "Query retry").
 **Not built:** the alternatives of Q2b to Q4c, each a `[new]` `BACKLOG.md` line; warning weeks from today and the focus after ranking the last unranked row were built in 1.22.
 
 ### v1.20.0 — what shipped
 
-Released on the user's word ("release 1.20 and 1.21", 2026-11-15), a minor bump (a new page and a new read): Dependencies, plus seven small fixes. The user picked the theme and items 1-8 on 2026-11-14 ("yes, 1-8 on defaults overnight"), so **the user was ABSENT** and every question was answered with the recommended option (a), listed for review. One new read, `GET /views/dependencies`; no migration, write, audit event, rate bucket or Jira/Flow call.
+Released on the user's word ("release 1.20 and 1.21", 2026-11-15), a minor bump: Dependencies, plus seven small fixes. The user picked the theme and items 1-8 on 2026-11-14 ("yes, 1-8 on defaults overnight"), so **the user was ABSENT** and every question was answered with the recommended option (a), listed for review. One new read, `GET /views/dependencies`; no migration, write, audit event, rate bucket or Jira/Flow call.
 
 **The answers taken (all (a)):**
-- Q1 one list of every dependency, the ones that do not hold first, at most 1,000 rows with `truncated`, filtered by status, team and project in the browser, a page "Dependencies" under Planning (not (b) server-side filters, not (c) a paged list).
+- Q1 one list of every dependency, the ones that do not hold first, at most 1,000 rows with `truncated`, filtered by status, team and project in the browser, a page "Dependencies" under Planning.
 - Q2 read-only, each end names its project whose page edits the link (not (b) edit and delete in the list; 1.22 built that).
-- Q3 "Dependencies" in the Roadmap's and Programs page's project row menus, "N dependencies" on the team page's facts line, the red conflicts badge opening the violated ones, no bar renamed (not (b) a per-milestone item and filter, not (c) counts in bars' accessible names).
+- Q3 "Dependencies" in the Roadmap's and Programs page's project row menus, "N dependencies" on the team page's facts line, the red conflicts badge opening the violated ones, no bar renamed.
 - Q4 evidence first for the server gate beside the stack. Q5 the stricter axe sweep fixes a missing name or role and records (does not patch or waive) a contrast finding.
 
 **What it delivers:** the dependency list for everyone (a page until 1.29, then the Roadmap's panel: `planning-model.md` "The dependencies view"), the Jira and Flow writes that mark Home stale (`web-internals.md` "Home") and the deploy check on the login pages ("The deploy check"). The server gate runs beside the compose stack (`testing.md`).
@@ -457,7 +456,7 @@ The `projectId` filter on `GET /milestones` already existed since 1.19 (the pred
 
 ### v1.19.0 — what shipped
 
-Released on the user's word the same day (2026-11-14), a minor bump (two new pages, a new read, linked filters): Home's figures lead somewhere. The user picked five `BACKLOG.md` items and answered Q1 to Q4 with (a), **the user being present**. Three filters and two sorts on `GET /milestones`, one new read `GET /views/team-load`; no migration, write, audit event, rate bucket or Jira/Flow call.
+Released on the user's word the same day (2026-11-14), a minor bump: Home's figures lead somewhere. The user picked five `BACKLOG.md` items and answered Q1 to Q4 with (a), **the user being present**. Three filters and two sorts on `GET /milestones`, one new read `GET /views/team-load`; no migration, write, audit event, rate bucket or Jira/Flow call.
 
 **The answers (all (a)):**
 - Q1 the Roadmap's filters live in the address by Flow's rule (see "Home and the lists").
@@ -474,14 +473,14 @@ Released on the user's word the same day (2026-11-14), a minor bump (a new read 
 
 **The answers (2026-11-14):**
 - Q1 **(b)** the plan figures plus the whole plan's capacity (teams with an overloaded week, teams over the WIP limit): the one answer off the recommended option, and it adds a team loop to every read.
-- Q2 to Q5 **(a)**: "yours" is what the person linked to the login owns directly plus the teams that person manages (widened in 1.23 Q3); a managed team's row carries its capacity warnings, its Jira deviations and its Flow flag; a login without a person gets one plain sentence; worded lines and badges inside the three cards, with "Yours" as a section under them (not stat tiles, Q5b; not counts only, Q2c; not an attention-only view, Q1c; not "everything you may manage", Q2b).
+- Q2 to Q5 **(a)**: "yours" is what the person linked to the login owns directly plus the teams that person manages (widened in 1.23 Q3); a managed team's row carries its capacity warnings, its Jira deviations and its Flow flag; a login without a person gets one plain sentence; worded lines and badges inside the three cards, with "Yours" as a section under them.
 
 **Defaults taken** are stated where they live: who "me" is (an administrator included; the seed administrator has no person on a fresh stack), the caller-independent plan block, the conflicts count and the four capped lists in `planning-model.md` "The home view"; the failed first read and the failed re-read in `web-internals.md` "Home".
-**Not built:** each a `[new]` `BACKLOG.md` line (the alternatives are in the answers above); a page for the overloaded teams, a URL for the Roadmap's filters and a list of every unscheduled milestone came in 1.19, "everything you may manage" in 1.23.
+**Not built:** each a `[new]` `BACKLOG.md` line; a page for the overloaded teams, a URL for the Roadmap's filters and a list of every unscheduled milestone came in 1.19, "everything you may manage" in 1.23.
 
 ### v1.17.0 — what shipped
 
-Released on the user's word the same day (2026-11-14), a minor bump (a new menu item, a new notice and a changed warning rule): follow-ups. The user picked five `BACKLOG.md` items and answered Q1 to Q5 with (a), **the user being present this time**. **Web-only**: no server file, route, spec change or migration; the one write a new path leads into is the existing `PUT /milestones/{id}/schedule`.
+Released on the user's word the same day (2026-11-14), a minor bump (a new menu item, a new notice and a changed warning rule): follow-ups. The user picked five `BACKLOG.md` items and answered Q1 to Q5 with (a), **the user being present**. **Web-only**: no server file, route, spec change or migration; the one write a new path leads into is the existing `PUT /milestones/{id}/schedule`.
 
 **The answers (all (a)):**
 - Q1 the server-derived state is the one staleness rule everywhere (`isStaleSource`: not `CURRENT`, or the mapping does not fit), and the banner keeps skipping a disabled connection while the chips count one; the Deviations banner now also shows under STALE, during a first run and during a retry after a failure, and the dated "no deviations" claim is withheld under STALE.
@@ -495,7 +494,7 @@ Released on the user's word the same day (2026-11-14), a minor bump (a new menu 
 
 ### v1.16.0 — what shipped
 
-Built overnight on 2026-11-14 (the user picked four `BACKLOG.md` items on 2026-11-13 for an unattended night) and released on the user's word the same morning, a minor bump (new timeline rows, chips and a programs-page feature). No migration, new Jira or Flow call, route, rate bucket or audit event. Delivers: an unscheduled milestone whose Jira item holds both dates gets a dashed, read-only timeline row on the project and team pages (or its Jira bar on the baseline's "unscheduled since the baseline" row);
+Built overnight on 2026-11-14 (the user picked four `BACKLOG.md` items on 2026-11-13 for an unattended night) and released on the user's word the same morning, a minor bump. No migration, Jira or Flow call, route, rate bucket or audit event. Delivers: an unscheduled milestone whose Jira item holds both dates gets a dashed, read-only timeline row on the project and team pages (or its Jira bar on the baseline's "unscheduled since the baseline" row);
 the timeline views' `jiraSites[]` carry the connection's `state` and `mappingOk` and the project and team chips add "Jira data may be out of date" while a site behind them is not `CURRENT` or its mapping does not fit; a folded program or work stream on the programs page shows one rolled-up arrow per pair of shown rows (END to START, red when any folded link is violated); the programs page shows the critical path to a picked project (`GET /views/programs?criticalPath=N`).
 
 **Q1 to Q5 were not put to the user before the night: the build ran on the recommended option of each** (Q1 the chip's rule is the server-derived site state, wider than the Deviations banner's, which 1.17 then unified; Q2 the qualifier shows at any count; Q3 every tray milestone with both Jira dates while "Jira dates" is on; Q4 a folded row stands for the chain project, nothing opens on its own; Q5 a rolled-up arrow counts every link, project-to-project ones included).
@@ -504,7 +503,7 @@ the timeline views' `jiraSites[]` carry the connection's `state` and `mappingOk`
 
 ### v1.15.0 — what shipped
 
-More ways into the rooted import and a slimmer Jira payload (the user approved six `BACKLOG.md` items on 2026-11-13; built overnight, released on the user's word), a minor bump. No migration, no new Jira call, JQL or field, no rate bucket, no audit event. Delivers: the rooted import starts from a linked project's row on the Plan page and from the connection page's links list; the Plan page reads the narrow `GET /views/jira-links`; the preview suggests a link for a renamed item;
+More ways into the rooted import and a slimmer Jira payload (six `BACKLOG.md` items approved on 2026-11-13; built overnight, released on the user's word), a minor bump. No migration, no new Jira call, JQL or field, no rate bucket, no audit event. Delivers: the rooted import starts from a linked project's row on the Plan page and from the connection page's links list; the Plan page reads the narrow `GET /views/jira-links`; the preview suggests a link for a renamed item;
 the Jira blocks of the timeline views are slimmer.
 
 **The answers (all four on the recommended option):**
@@ -527,7 +526,7 @@ The import from a linked node (the user's request of 2026-11-12), released 2026-
 
 **Defaults taken** (`jira-sync.md`):
 - An optional `root {level, nodeId}` on the existing import endpoints (no new endpoint); the children are read by numeric id; the root takes no preview row; a rooted import lands under the root and never creates a program; defaults must stay under the root.
-- An unreadable or foreign root answers `409` `jira-root-unusable`; each rooted preview is audited (`jira.import_previewed`); a gone program link says so up front.
+- An unreadable or foreign root answers `409` `jira-root-unusable`; a rooted preview is audited (`jira.import_previewed`); a gone program link says so up front.
 
 **Also in 1.14:**
 - *Coverage summary:* the connection page's table counts, per mapped level, the issues in scope, linked, open and unlinked (`GET …/coverage`, ADMIN, counts only; `jira-sync.md`).
@@ -621,7 +620,7 @@ the team page's Flow section and the Flow stub (host port 8097). The answers Q1a
 
 Coverage and roll-ups, proven against the stub only (walk-through step 9 and ledger A11 to A14: `jira-sync.md` "The census" and the deviation kinds state what was built). **V23** (additive: `persistence.md`); the config key `JIRA_TEST_RATE_LIMIT_PER_MINUTE` is in `security.md`. The answers Q1a-Q6a (the user's "all recommended, go ahead", 2026-11-07) are in "Domain decisions".
 
-**Defaults taken** (any can be reversed; the rules are in `jira-sync.md` "The census"):
+**Defaults taken** (rules: `jira-sync.md` "The census"):
 - Done Jira children are not `UNLINKED_IN_JIRA` (closed work the plan never had is history) but count in roll-ups; coverage pairs a bound node with its DIRECT plan children against the mapping's level ("linked" = an ACTIVE binding on this or another active connection of the same site, D1); a detail lists at most 10 keys or names plus `count`, Jira items by key only.
 - Roll-up points are the discovery's `storyPoints` marker, never converted to man-days, null when absent; a project link's `rollup` is always null; `CHILDREN_DONE` only while the epic is not DONE and the plan's end is after today.
 - A disabled connection's link carries no roll-up and raises no flag; no census without bindings or audit event; a children read past the page ceiling keeps what it read and warns, any other failure leaves the run SUCCEEDED, unstamped, with a WARN. `jira.censusHours` is 24, bounds 1..168. Program-level coverage shows on the Deviations page only.
@@ -632,7 +631,7 @@ Coverage and roll-ups, proven against the stub only (walk-through step 9 and led
 
 Polling, status, acknowledge and the timeline markers, proven against the stub only. **V22** (additive: `persistence.md`; its acknowledgement columns were dropped in 1.13). The scheduler and the five states are `sync.md`; the acknowledge routes, the deviation flags and the markers are `jira-sync.md` and `planning-model.md` "The roadmap view".
 
-**The answers** (the user: "yes, recommendations are fine, feel free to go ahead", 2026-11-07; any can be reversed): (Q1) a per-connection `pollIntervalMinutes`, default 15, 5..1440, `null` = manual only; existing connections start polling at the upgrade. (Q2) Flow's five states derived per read from `sync_runs` and `enabled`, nothing stored. (Q3) an acknowledgement keys on the sha256 of the binding's whole deviation list (replaced per line in 1.12); (Q4) the node's owner chain or ADMIN may acknowledge, like the bind. (Q5) a server-side fold:
+**The answers** (the user: "yes, recommendations are fine", 2026-11-07): (Q1) a per-connection `pollIntervalMinutes`, default 15, 5..1440, `null` = manual only; existing connections start polling at the upgrade. (Q2) Flow's five states derived per read from `sync_runs` and `enabled`, nothing stored. (Q3) an acknowledgement keys on the sha256 of the binding's whole deviation list (replaced per line in 1.12); (Q4) the node's owner chain or ADMIN may acknowledge, like the bind. (Q5) a server-side fold:
 one flag per open deviation on the project's own binding, one roll-up per project for its milestones. (Q6) the Jira shadow bar is on by default with a remembered toggle. (Q7) Flow's back-off from `sync_runs`, capped at six hours. (Q8) a disabled connection is not polled, raises no flag and draws no bar, but its bindings stay visible. (Q9) the poll's run lock and the import's plan lock are independent.
 
 **Rulings while building:** the back-off is `max(interval, min(interval x 2^(n-1), 6 h))`; a run that outlives `sync.maxRunMinutes` without a claim reads FAILED (interrupted); the Jira dates bar is drawn only inside the plan's own dates padded by a year; a binding through a disabled connection stays a link (no dates, no flags) so its owner can still unlink it. **Consequence:** a later release that changes a deviation rule changes every fingerprint and un-acknowledges everything.
@@ -641,7 +640,7 @@ one flag per open deviation on the project's own binding, one roll-up per projec
 
 Import from Jira, proven against the stub only (walk-through and ledger A10: `jira-sync.md` "Import"). **No migration.**
 
-**The decisions** (the user's, on the plan's recommended options): (A) the e2e imports an isolated `IMP` stub project, not `E2E` (program names are globally unique, so `E2E` would collide with the demo import); (B) the modal is on the connection page only (ADMIN; superseded in 1.10 by the work-stream menu); (C) a project's target window is not copied from Jira (reversed in 1.14).
+**The decisions** (the user's, on the plan's recommended options): (A) the e2e imports an isolated `IMP` stub project, not `E2E` (program names are globally unique); (B) the modal is on the connection page only (ADMIN; superseded in 1.10 by the work-stream menu); (C) a project's target window is not copied from Jira (reversed in 1.14).
 
 **Rulings while building:** for a non-admin every skipped row but `ALREADY_BOUND` is redacted and `unmatchedTeams` counts the created rows only; the apply's rights are the ticked rows' targets, narrower than a full preview's (so an owner of one node cannot read every summary in scope); a milestone whose dates cannot be copied is created unscheduled, never skipped. **Consequences:** linking is by name, so an unlinked item renamed in Jira previews as a new one (1.15 suggests a link); the planner reads only the direct Jira parent,
 so an item under an unmapped intermediate level goes to the default parent, else is skipped `NO_PARENT`.

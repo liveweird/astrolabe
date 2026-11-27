@@ -17,6 +17,24 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.32.0",
+    date: "2026-11-27",
+    en: `**Team load is part of Teams**
+
+- Teams shows each team's load in the same table: its manager, its milestones, those not scheduled yet, and the weeks overloaded, over the WIP limit or without capacity, with the team's description under its name. The Show and Include past weeks filters and the "Weeks with a warning" table are on the same page. Administrators keep the row actions (create, edit, delete).
+- The Team load page and its navigation item are gone. Its old address opens Teams with the same filters, and Home's team figures open Teams filtered the same way.
+- The name filter narrows the table (and the weeks) as you type and is no longer remembered. The table is one list of up to 200 teams, without pages; a longer list says it was cut. Only the name sorts, in either direction, remembered in this browser.
+- API (\`/api/v1\`), an addition only: \`description\` on each team of \`GET /views/team-load\`. Nothing is removed.
+- Stored data: nothing changes.`,
+    pl: `**Obciążenie zespołów jest częścią „Zespołów”**
+
+- „Zespoły” pokazują obciążenie każdego zespołu w tej samej tabeli: kierownika/czkę, kamienie milowe, te jeszcze niezaplanowane oraz tygodnie przeciążone, ponad limitem WIP albo bez przepustowości; opis zespołu widać pod jego nazwą. Filtry „Pokaż” i „Pokaż też minione tygodnie” oraz tabela „Tygodnie z ostrzeżeniem” są na tej samej stronie. Administratorzy/rki zachowują akcje w wierszach (tworzenie, edycję, usuwanie).
+- Strona „Obciążenie zespołów” i jej pozycja w menu zniknęły. Jej dawny adres otwiera „Zespoły” z tymi samymi filtrami, a liczby zespołów na stronie głównej otwierają „Zespoły” przefiltrowane tak samo.
+- Filtr nazwy zawęża tabelę (i tygodnie) w trakcie pisania i nie jest już zapamiętywany. Tabela to jedna lista do 200 zespołów, bez stron; dłuższa lista mówi, że została ucięta. Sortować można tylko po nazwie, w obu kierunkach; kierunek jest zapamiętywany w tej przeglądarce.
+- API (\`/api/v1\`), tylko dodatek: \`description\` w każdym zespole z \`GET /views/team-load\`. Nic nie jest usuwane.
+- Zapisane dane: nic się nie zmienia.`,
+  },
+  {
     version: "1.31.0",
     date: "2026-11-27",
     en: `**Every name is a link**

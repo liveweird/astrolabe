@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: astrolabe-api
-  version: 1.31.0
+  version: 1.32.0
   description: |
     REST API of Astrolabe, a planning and roadmapping app: the plan (work streams, programs, projects, milestones, dependencies, baselines),
     the views over it, teams, people, users with their permissions and the Jira and Flow syncs. It serves the Astrolabe web app and is
