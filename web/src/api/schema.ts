@@ -1016,7 +1016,7 @@ export interface paths {
         };
         /**
          * Every team with its milestones and the weeks it flags
-         * @description Answers every active team with its milestone counts and the weeks the team view flags, the same for every caller. Any authenticated user; no parameter (an unknown query name is ignored). Teams come by name (case-insensitive, then id), at most 200 (`truncated`); `totals` always count every team, and `totals.overloadedTeams` and `totals.wipExceededTeams` are `plan.overloadedTeams` and `plan.wipExceededTeams` of `GET /views/home`. Every figure is the team view's own (`GET /views/team/{id}`). Each row lists its `warningWeeks`; the document lists at most 2,000 in all, handed out from `currentWeekStart` on first (`warningWeeksTruncated`), and the counts never change with the cut. `revision` is the plan revision read before the rows; there is no `can`.
+         * @description Answers every active team with its description, milestone counts and the weeks the team view flags, the same for every caller; it backs the Teams page and Home's two capacity badges. Any authenticated user; no parameter (an unknown query name is ignored). Teams come by name (case-insensitive, then id), at most 200 (`truncated`); `totals` always count every team, and `totals.overloadedTeams` and `totals.wipExceededTeams` are `plan.overloadedTeams` and `plan.wipExceededTeams` of `GET /views/home`. Every figure is the team view's own (`GET /views/team/{id}`). Each row lists its `warningWeeks`; the document lists at most 2,000 in all, handed out from `currentWeekStart` on first (`warningWeeksTruncated`), and the counts never change with the cut. `revision` is the plan revision read before the rows; there is no `can`.
          */
         get: operations["getTeamLoadView"];
         put?: never;
@@ -5018,6 +5018,8 @@ export interface components {
             /** Format: int32 */
             id: number;
             name: string;
+            /** @description The team's stored description (`GET /teams`'s own); null when it has none. */
+            description: string | null;
             /**
              * Format: int32
              * @description The id of `managerName`'s person; null with it.

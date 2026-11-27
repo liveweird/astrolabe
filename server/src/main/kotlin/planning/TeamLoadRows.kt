@@ -64,11 +64,17 @@ internal suspend fun activeTeamsWithManagers(): List<TeamLoadTeam> {
     val teams = TeamService.Teams
     val people = PersonService.People
     return teams.join(people, JoinType.LEFT, onColumn = teams.managerPersonId, otherColumn = people.id)
-        .select(teams.id, teams.name, teams.managerPersonId, people.name, people.markedAsDeleted)
+        .select(teams.id, teams.name, teams.description, teams.managerPersonId, people.name, people.markedAsDeleted)
         .where { teams.active() }
         .toList()
         .map { row ->
             val manager = row.getOrNull(people.name)?.takeIf { row.getOrNull(people.markedAsDeleted) == false }
-            TeamLoadTeam(row[teams.id].value, row[teams.name], manager?.let { row[teams.managerPersonId]?.value }, manager)
+            TeamLoadTeam(
+                id = row[teams.id].value,
+                name = row[teams.name],
+                description = row[teams.description],
+                managerPersonId = manager?.let { row[teams.managerPersonId]?.value },
+                managerName = manager,
+            )
         }
 }

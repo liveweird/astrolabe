@@ -77,7 +77,9 @@ class TeamLoadViewTest {
         return if (weekStart >= currentWeek) Rank(0, day, row) else Rank(1, -day, row)
     }
 
-    /** The seeded teams: a (overloaded, over WIP), b (overloaded), c (neither), d (work, no capacity), e (empty). */
+    /**
+     * The seeded teams: a (overloaded, over WIP, with a description), b (overloaded), c (neither), d (work, no capacity), e (empty).
+     */
     private class Seeded(val w: PlanWorld, val manager: UInt, val teams: List<UInt>)
 
     private suspend fun ApplicationTestBuilder.world(prefix: String): PlanWorld {
@@ -88,7 +90,10 @@ class TeamLoadViewTest {
     private suspend fun ApplicationTestBuilder.seeded(prefix: String, w: PlanWorld): Seeded {
         val manager = TestPeople.seed(planName("$prefix-mg"))
         val project = TestPlan.project(w.programId, w.projectOwner.personId!!)
-        val teams = listOf("a", "b", "c", "d", "e").map { TestTeams.seed(planName("$prefix-$it"), manager) }
+        // Team a carries a description, the others none: both shapes reach the row.
+        val teams = listOf("a", "b", "c", "d", "e").map {
+            TestTeams.seed(planName("$prefix-$it"), manager, description = if (it == "a") "Looks after $prefix" else null)
+        }
         suspend fun load(team: UInt, count: Int) = repeat(count) {
             TestPlan.schedule(TestPlan.milestone(project, team, estimate = 3.0), "2044-09-05", "2044-09-09")
         }
@@ -123,7 +128,7 @@ class TeamLoadViewTest {
             val row = root.getValue("teams").jsonArray.first().jsonObject
             assertEquals(
                 setOf(
-                    "id", "name", "managerPersonId", "managerName", "milestones", "unscheduledMilestones", "overloadedWeeks",
+                    "id", "name", "description", "managerPersonId", "managerName", "milestones", "unscheduledMilestones", "overloadedWeeks",
                     "wipExceededWeeks", "weeksWithoutCapacity", "warningWeeks",
                 ),
                 row.keys,
@@ -141,6 +146,7 @@ class TeamLoadViewTest {
             val absent = rows.map { it.jsonObject }.single { it.getValue("id").toString() == managerless.toString() }
             assertEquals(JsonNull, absent.getValue("managerName"), "the member is present and null")
             assertEquals(JsonNull, absent.getValue("managerPersonId"), "the id is present and null with it")
+            assertEquals(JsonNull, absent.getValue("description"), "a team without a description: the member is present and null")
             assertEquals(TestPlan.revision(), s.w.stranger.client.load().revision)
         }
 
@@ -176,6 +182,7 @@ class TeamLoadViewTest {
             assertEquals(manager, row.managerName)
             assertEquals(s.manager, row.managerPersonId, "the id of the person the name is")
             assertEquals(page.team.managerName, row.managerName)
+            assertEquals(page.team.description, row.description, "the stored description, as the team page's header has it")
             assertEquals(page.weeks.count { it.overloaded }, row.overloadedWeeks)
             assertEquals(page.weeks.count { it.wipExceeded }, row.wipExceededWeeks)
             assertEquals(page.weeks.count { it.capacity == null }, row.weeksWithoutCapacity)
@@ -186,6 +193,8 @@ class TeamLoadViewTest {
         fun figures(index: Int) = load.row(s.teams[index]).let {
             listOf(it.overloadedWeeks, it.wipExceededWeeks, it.weeksWithoutCapacity, it.milestones, it.unscheduledMilestones)
         }
+        assertEquals("Looks after tl2", load.row(s.teams[0]).description, "non-vacuous: a set description reaches the row")
+        assertNull(load.row(s.teams[1]).description, "and an unset one stays null")
         assertEquals(listOf(1, 1, 0, 2, 0), figures(0))
         assertEquals(listOf(1, 0, 0, 1, 0), figures(1))
         assertEquals(listOf(0, 0, 0, 2, 1), figures(2))

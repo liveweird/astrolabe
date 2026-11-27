@@ -1872,8 +1872,8 @@ paths:
       operationId: getTeamLoadView
       summary: Every team with its milestones and the weeks it flags
       description: >-
-        Answers every active team with its milestone counts and the weeks the team view flags, the same for every caller. Any
-        authenticated user; no parameter (an unknown query name is ignored). Teams come by name (case-insensitive, then id), at most
+        Answers every active team with its description, milestone counts and the weeks the team view flags, the same for every
+        caller; it backs the Teams page and Home's two capacity badges. Any authenticated user; no parameter (an unknown query name is ignored). Teams come by name (case-insensitive, then id), at most
         200 (`truncated`); `totals` always count every team, and `totals.overloadedTeams` and `totals.wipExceededTeams` are
         `plan.overloadedTeams` and `plan.wipExceededTeams` of `GET /views/home`. Every figure is the team view's own (`GET
         /views/team/{id}`). Each row lists its `warningWeeks`; the document lists at most 2,000 in all, handed out from
@@ -7197,11 +7197,12 @@ components:
         unscheduledMilestones: { type: integer, format: int32, minimum: 0, description: "The active milestones without dates, the rows' `unscheduledMilestones` summed over every active team (Home's `plan.unscheduledMilestones`)." }
     TeamLoadRow:
       type: object
-      required: [id, name, managerPersonId, managerName, milestones, unscheduledMilestones, overloadedWeeks, wipExceededWeeks, weeksWithoutCapacity, warningWeeks]
+      required: [id, name, description, managerPersonId, managerName, milestones, unscheduledMilestones, overloadedWeeks, wipExceededWeeks, weeksWithoutCapacity, warningWeeks]
       description: One team's figures.
       properties:
         id: { type: integer, format: int32, minimum: 0 }
         name: { type: string }
+        description: { type: string, nullable: true, description: 'The team''s stored description (`GET /teams`''s own); null when it has none.' }
         managerPersonId: { type: integer, format: int32, minimum: 0, nullable: true, description: The id of `managerName`'s person; null with it. }
         managerName:
           type: string

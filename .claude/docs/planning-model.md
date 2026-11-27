@@ -567,7 +567,7 @@ Pinned by: `BaselineTest`, `BaselineCopyTest`, `BaselineCaptureTest`, `BaselineC
 | `GET /views/team/{id}` | "The team view" | about 100 milestones, at most 520 weeks; `criticalChain`: 100 members, 500 links |
 | `GET /views/baseline/{id}` | `{revision, baseline, totals{milestones, projects}, projects[], milestones[changed rows], links, capacity}` (`404` if gone; `?against=N`: two baselines) | 100 projects, 1,000 milestones, 1,000 link and 2,000 capacity rows |
 | `GET /views/home` | `{revision (the plan's), plan{…, flags, conflicts, overloadedTeams, wipExceededTeams}, me|null{personId, name, workStreams[], programs[], projects[], teams[], truncated}, jiraSites[]}`; no `can`, no parameter | each `me` list at most 100 |
-| `GET /views/team-load` | `{revision (the plan's), currentWeekStart, totals{teams, overloadedTeams, wipExceededTeams, unscheduledMilestones}, teams[{id, name, managerPersonId|null, managerName|null, milestones, unscheduledMilestones, overloadedWeeks, wipExceededWeeks, weeksWithoutCapacity, warningWeeks[]}], truncated, warningWeeksTruncated}`; the same for every caller, no `can`, no parameter | 200 rows; 2,000 listed weeks in all |
+| `GET /views/team-load` | `{revision (the plan's), currentWeekStart, totals{teams, overloadedTeams, wipExceededTeams, unscheduledMilestones}, teams[{id, name, description|null, managerPersonId|null, managerName|null, milestones, unscheduledMilestones, overloadedWeeks, wipExceededWeeks, weeksWithoutCapacity, warningWeeks[]}], truncated, warningWeeksTruncated}`; the same for every caller, no `can`, no parameter | 200 rows; 2,000 listed weeks in all |
 | `GET /views/dependencies` | `{revision (the plan's), totals{links, violated, unscheduled}, projects[], teams[], milestones[], dependencies[{id, predecessor{kind, id}, successor{kind, id}, type, lagDays, check, can{edit, delete}}], truncated}`; the same for every caller except each row's `can`, no document-level `can`, no parameter | 1,000 rows; each name list at most 2,000, exactly what the listed rows name |
 
 ### Batch commands
@@ -731,7 +731,7 @@ Pinned by: `HomeKernelsTest`, `HomeViewTest`, `HomeViewSizeTest`.
 
 Files: `planning/TeamLoadKernels.kt`, `TeamLoadView.kt`, `TeamLoadViewService.kt`, `TeamLoadRows.kt`.
 
-`GET /views/team-load` (any authenticated user, no parameter: an unknown query name is ignored; `200`/`401`/`500`; no audit, no lock, no bucket, a read) answers the document of "The view documents", behind the Team load page and Home's two capacity badges. The SAME for every caller: no `can`, person id or email.
+`GET /views/team-load` (any authenticated user, no parameter: an unknown query name is ignored; `200`/`401`/`500`; no audit, no lock, no bucket, a read) answers the document of "The view documents", behind the Team load page and Home's two capacity badges. The SAME for every caller: no `can`.
 Nothing is stored; every figure is the team page's own, so the list never disagrees with it or with Home.
 
 - **Capacity figures the caller already sees.** The weeks behind the two warning counts are listed in `warningWeeks` (the team page's `weeks[]` items), which that page shows every login. `currentWeekStart` is the Monday of the SERVER's current week in UTC, the same for every caller.
@@ -742,9 +742,10 @@ Nothing is stored; every figure is the team page's own, so the list never disagr
 | `overloadedWeeks`, `wipExceededWeeks` | `WeekLoad.overloaded` / `.wipExceeded` counted over the team's `teamWeeks` entry | the team page's two orange badges |
 | `warningWeeks` | the team's weeks with `overloaded` or `wipExceeded`, oldest first, each `WeekLoad.toView()` (the team view's `WeekLoadView`, never with `flowCapacity`: no external source); at most 520 a team, 2,000 across the document ("The weeks' budget") | the team page's weekly load table, filtered to its two orange badges |
 | `weeksWithoutCapacity` | the weeks of the team's load whose `capacity` is null (no period in force on any working day) | the team page's weeks with no capacity figure; such a week is never flagged, so without this figure a team with work and no capacity period would look fine |
-| `managerName`, `managerPersonId` | the team's manager when that person is ACTIVE, else both null | the team page's header (a deleted manager's team answers no manager) |
+| `managerName`, `managerPersonId` | the team's manager when that person is ACTIVE, else both null | the team page's header |
+| `description` | the `teams` row as stored, null when unset | the team page's header |
 | `totals.overloadedTeams`, `.wipExceededTeams` | `TeamLoadKernels.totals(teamWeeks)`, the ONE expression `HomeKernels.plan` calls for its two members | Home's `plan.overloadedTeams` and `.wipExceededTeams` (a test pins the equality) |
-| `totals.unscheduledMilestones` | the rows' counts summed over every ACTIVE team in `TeamLoadKernels.view` (the loaded counts, no statement) | Home's `plan.unscheduledMilestones` (a test pins that both move together; raw-SQL soft deletes in the shared test database leave active milestones under deleted ancestors that the two read differently) |
+| `totals.unscheduledMilestones` | the rows' counts summed over every ACTIVE team in `TeamLoadKernels.view` | Home's `plan.unscheduledMilestones` (a test pins that both move together; raw-SQL soft deletes in the shared test database leave active milestones under deleted ancestors that the two read differently) |
 | `totals.teams` | every ACTIVE team, whatever the rows cut | `GET /teams`, active rows |
 
 While nothing is cut, `overloadedWeeks` / `wipExceededWeeks` equal the listed weeks that carry each flag.
@@ -755,7 +756,7 @@ While nothing is cut, `overloadedWeeks` / `wipExceededWeeks` equal the listed we
   **The map must hold EVERY active team with scheduled work, for every caller.** The two team counts are `TeamLoadKernels.totals`, called by `HomeKernels.plan` and by `TeamLoadKernels.view`.
 - **Rows.** Every ACTIVE team, by lowercase name then id, at most `MAX_TEAM_LOAD_ROWS` = 200 (`truncated` says the list was cut; `totals` always count every team). A team with nothing scheduled has zeros. A soft-deleted team is in no row or total; a deleted manager reads `managerName: null` (the team stays listed).
 - **The weeks' budget.** `TeamLoadKernels.view(…, maxRows, maxWarningWeeks, currentWeek)` keeps at most `MAX_TEAM_LOAD_WARNING_WEEKS` = 2,000 weeks across the whole document. `handOutWarningWeeks` (pure) ranks every warning week of every listed row: first the weeks on or after `currentWeek` (a week ON it counts), the nearest first, then the earlier ones, the latest first;
-  a tie on the date goes to the earlier row, whatever the team's place in the name order.
+  a tie on the date goes to the earlier row.
 - **What the cut touches.** Each row lists the weeks it kept oldest first; `warningWeeksTruncated` is true when any listed row left a week out. The three counts and `totals` are never touched by the cut; a team past the 200-row cut is not a row and uses no budget. A week without capacity is not listed (a fact, not a warning; it stays counted).
 - **The clock only decides what a FULL budget keeps.** While nothing is cut the lists are the oldest-first lists whatever `currentWeek` is. A page hiding the earlier weeks cuts at `currentWeekStart`, never the browser's clock; no count moves with the date.
 

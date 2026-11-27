@@ -33,11 +33,11 @@ class TeamLoadKernelsTest {
     )
 
     private val teams = listOf(
-        TeamLoadTeam(1u, "Zulu", 11u, "Zed"),
-        TeamLoadTeam(2u, "alpha", null, null),
-        TeamLoadTeam(3u, "Mike", 13u, "Em"),
-        TeamLoadTeam(4u, "Bravo", null, null),
-        TeamLoadTeam(5u, "bravo", null, null),
+        TeamLoadTeam(1u, "Zulu", "The last one", 11u, "Zed"),
+        TeamLoadTeam(2u, "alpha", null, null, null),
+        TeamLoadTeam(3u, "Mike", "The middle one", 13u, "Em"),
+        TeamLoadTeam(4u, "Bravo", null, null, null),
+        TeamLoadTeam(5u, "bravo", null, null, null),
     )
 
     private val counts = mapOf(1u to TeamMilestoneCount(9, 2), 2u to TeamMilestoneCount(3, 3), 5u to TeamMilestoneCount(4, 0))
@@ -68,6 +68,15 @@ class TeamLoadKernelsTest {
         assertNull(rows.getValue(2u).managerPersonId)
         assertNull(rows.getValue(2u).managerName)
         assertEquals(7L, view.revision)
+    }
+
+    @Test
+    fun `a row carries its team's description as stored, null when unset`() {
+        val view = TeamLoadKernels.view(1, teams, counts, weeks, maxRows = 200, maxWarningWeeks = all, currentWeek)
+        val rows = view.teams.associateBy { it.id }
+        assertEquals("The last one", rows.getValue(1u).description)
+        assertNull(rows.getValue(2u).description)
+        assertEquals("The middle one", rows.getValue(3u).description)
     }
 
     @Test
@@ -133,7 +142,11 @@ class TeamLoadKernelsTest {
         )
 
     private val warningTeams =
-        listOf(TeamLoadTeam(1u, "a", null, null), TeamLoadTeam(2u, "b", null, null), TeamLoadTeam(3u, "c", null, null))
+        listOf(
+            TeamLoadTeam(1u, "a", null, null, null),
+            TeamLoadTeam(2u, "b", null, null, null),
+            TeamLoadTeam(3u, "c", null, null, null),
+        )
     private val warningWeeks = mapOf(
         1u to listOf(
             dated("2027-03-01", "12.5", overloaded = true),

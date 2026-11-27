@@ -99,6 +99,23 @@ class ViewValidatorInputsTest {
     }
 
     @Test
+    fun `a team description edit moves the team load's tag`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("vides", teams = true)
+        val manager = w.requireTeams().manager
+        // A name that sorts first, so the 200-row cut of the team load never hides it among the shared database's other teams.
+        val name = "0vd-${planName("team")}"
+        val teamId = TestTeams.seed(name, manager.personId, description = "before")
+        val described = "Describes ${planName("after")}"
+        w.stranger.client.followsWrite(
+            mapOf("/api/v1/views/team-load" to described),
+            cuttable = setOf("/api/v1/views/team-load"),
+        ) {
+            w.admin.client.putJson("/api/v1/teams/$teamId", TeamUpdateRequest(name, described, manager.personId)).ok("describe the team")
+        }
+    }
+
+    @Test
     fun `a team colour change moves the team view's tag`() = testApplication {
         usePostgresTestcontainer()
         val w = planWorld("vicol", teams = true)
