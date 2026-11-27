@@ -34,10 +34,26 @@ data class CrossTeamProposalTeam(
 )
 
 /**
+ * A project whose derived span the run would change (1.33.0, [SpanKernels.projectSpanChanges]): [before] its span now (null = it has no
+ * scheduled milestone yet), [after] over EVERY milestone of the project (the run teams' proposed dates, the stored ones elsewhere),
+ * [endShiftDays] the change of its end in working days (later positive; null when [before] is).
+ */
+@Serializable
+data class ScheduleProposalProject(
+    val projectId: UInt,
+    val name: String,
+    val before: DateSpan?,
+    val after: DateSpan,
+    val endShiftDays: Int?,
+)
+
+/**
  * The run's answer: a COMPUTATION, nothing is stored. [revision] is the plan revision of the snapshot (the accept's `expectedRevision`),
  * [passes] the passes the kernel made, [settled] whether another pass would reproduce every result (false = the pass limit was hit and
  * the last pass's dates stand), [teams] in PLACEMENT order (the order the kernel placed them: the one list, no separate `order`) and
- * [scopeHash] the fingerprint of the run's inputs the milestones' own schedule revisions do not cover (`ScheduleScope.kt`, [runScope]).
+ * [projects] the projects whose derived span the run would change, ascending by id (no default: a stored row without it is another
+ * format) and [scopeHash] the fingerprint of the run's inputs the milestones' own schedule revisions do not cover (`ScheduleScope.kt`,
+ * [runScope]).
  */
 @Serializable
 data class CrossTeamProposal(
@@ -46,6 +62,7 @@ data class CrossTeamProposal(
     val passes: Int,
     val settled: Boolean,
     val teams: List<CrossTeamProposalTeam>,
+    val projects: List<ScheduleProposalProject>,
     val scopeHash: String,
 )
 

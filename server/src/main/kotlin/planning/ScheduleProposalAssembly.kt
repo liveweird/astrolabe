@@ -1,13 +1,16 @@
 package ch.nokillswit.planning
 
 import ch.nokillswit.infra.time.WorkingCalendar
+import kotlinx.coroutines.flow.toList
+import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.r2dbc.select
 import java.time.LocalDate
 
 /*
  * The assembly of the proposal document from the kernel's answer, shared by the per-team proposal (`ScheduleProposalService`) and the
- * cross-team run (`CrossTeamProposalService`): both load the rows and call this. Nothing here reads a clock, and the only read is the
- * link ends' names ([proposalLinks], inside the caller's transaction). The kernel decides every date; this only names, counts and
- * shifts them.
+ * cross-team run (`CrossTeamProposalService`): both load the rows and call this. Nothing here reads a clock, and the only reads are the
+ * link ends' names ([proposalLinks]) and the names of the projects that move ([proposalProjects]), inside the caller's transaction.
+ * The kernel decides every date; this only names, counts and shifts them.
  */
 
 /** The three lists of the proposal that come from the kernel's placements and verdicts. */
@@ -58,6 +61,28 @@ internal fun proposalLists(
     }
     val pinned = effectiveOrder(rows) { it.key }.filter { it.view.pinned && it.span != null && it.span.start > asOf }.map { it.view.id }
     return ProposalLists(moves, unchanged, unplaced, pinned)
+}
+
+/**
+ * The wire rows of [changes] ([SpanKernels.projectSpanChanges]), each project named by one read of exactly those projects, inside the
+ * caller's transaction (the snapshot's milestone facts carry no project name). Empty changes read nothing.
+ */
+internal suspend fun proposalProjects(changes: List<ProjectSpanChange>): List<ScheduleProposalProject> {
+    if (changes.isEmpty()) return emptyList()
+    val projects = ProjectService.Projects
+    val names = projects.select(projects.id, projects.name)
+        .where { projects.id inList changes.map { it.projectId } }
+        .toList()
+        .associate { it[projects.id].value to it[projects.name] }
+    return changes.map { change ->
+        ScheduleProposalProject(
+            projectId = change.projectId,
+            name = names.getValue(change.projectId),
+            before = change.before?.toDateSpan(),
+            after = change.after.toDateSpan(),
+            endShiftDays = change.endShiftDays,
+        )
+    }
 }
 
 internal fun DaySpan.toDateSpan() = DateSpan(start.toString(), end.toString())

@@ -3,6 +3,7 @@ package ch.nokillswit
 import ch.nokillswit.planning.CrossTeamProposal
 import ch.nokillswit.planning.CrossTeamProposalRequest
 import ch.nokillswit.planning.CrossTeamProposalTeam
+import ch.nokillswit.planning.DateSpan
 import ch.nokillswit.planning.DependencyStatus
 import ch.nokillswit.planning.ProposalTeamList
 import ch.nokillswit.planning.ScheduleProposal
@@ -21,6 +22,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -192,6 +194,68 @@ class CrossTeamProposalTest {
         val alone = w.requireTeams().otherManager.client.perTeam(t.otherTeamId)
         assertEquals("2027-03-03..2027-03-03", alone.moves.single { it.milestoneId == b1 }.to.let { "${it.start}..${it.end}" })
     }
+
+    @Test
+    fun `projects lists the projects whose derived span moves - over every milestone, a team outside the run keeps its dates`() =
+        testApplication {
+            usePostgresTestcontainer()
+            val w = planWorld("ctj", teams = true)
+            val t = w.requireTeams()
+            val outside = TestTeams.seed(planName("ctj-out"), null)
+            val third = TestTeams.seed(planName("ctj-c"), null)
+            for (team in listOf(t.teamId, t.otherTeamId, third)) TestPlan.capacityPeriod(team, "2027-01-04", 10.0)
+            // Project P as the chain world: a1 (A) 03-01..03-02 moves to 02-01..02-02, b1 (B) follows to 02-03, and c1 (a team OUTSIDE
+            // the run) keeps 02-01..02-05. P now spans 02-01..03-02 and would span 02-01..02-05: the end moves 17 working days
+            // earlier (02-08..02-26 is 15, 03-01 and 03-02 two more), and the outside milestone's stored end is not lost.
+            val a1 = TestPlan.milestone(w.projectId, t.teamId, planName("a1"), 4.0)
+            TestPlan.schedule(a1, "2027-03-01", "2027-03-02")
+            val b1 = TestPlan.milestone(w.projectId, t.otherTeamId, planName("b1"), 2.0)
+            TestPlan.dependency(milestoneRef(a1), milestoneRef(b1))
+            TestPlan.schedule(TestPlan.milestone(w.projectId, outside, planName("c1"), 2.0), "2027-02-01", "2027-02-05")
+            // Project Q has only an unscheduled milestone of the third run team: 2 MD at 2 a day is 02-01 alone, so it is newly spanned.
+            val q = TestPlan.project(w.programId, w.projectOwner.personId!!)
+            TestPlan.milestone(q, third, planName("q1"), 2.0)
+            // Project R holds only a dated milestone of the outside team: nothing about it can change.
+            val r = TestPlan.project(w.programId, w.projectOwner.personId!!)
+            TestPlan.schedule(TestPlan.milestone(r, outside, planName("r1")), "2027-02-08", "2027-02-12")
+
+            val run = w.admin.client.run(listOf(t.otherTeamId, third, t.teamId))
+            assertEquals(listOf(w.projectId, q), run.projects.map { it.projectId }, "ascending by id; R is absent")
+            val (p, newly) = run.projects
+            assertEquals(projectName(w.projectId), p.name)
+            assertEquals(DateSpan("2027-02-01", "2027-03-02"), p.before)
+            assertEquals(DateSpan("2027-02-01", "2027-02-05"), p.after)
+            assertEquals(-17, p.endShiftDays)
+            assertEquals(projectName(q), newly.name)
+            assertNull(newly.before)
+            assertEquals(DateSpan("2027-02-01", "2027-02-01"), newly.after)
+            assertNull(newly.endShiftDays)
+            assertEquals(run.projects, w.requireTeams().manager.client.run(listOf(third, t.teamId, t.otherTeamId)).projects)
+        }
+
+    @Test
+    fun `a pinned milestone of a run team keeps its stored span in the project's after`() = testApplication {
+        usePostgresTestcontainer()
+        val w = planWorld("ctq", teams = true)
+        val t = w.requireTeams()
+        TestPlan.capacityPeriod(t.teamId, "2027-01-04", 10.0)
+        // The pinned milestone stays on 03-01..03-02 (fixed in its own team's run); the open one lands on 02-01 (2 MD at 2 a day), so
+        // the project goes from 03-01..03-02 to 02-01..03-02: the end does not move although the pinned span is in no `moves` row.
+        val pinned = TestPlan.milestone(w.projectId, t.teamId, planName("pinned"), 4.0)
+        TestPlan.schedule(pinned, "2027-03-01", "2027-03-02")
+        TestPlan.pin(pinned)
+        TestPlan.milestone(w.projectId, t.teamId, planName("open"), 2.0)
+
+        val run = w.admin.client.run(listOf(t.teamId))
+        assertEquals(listOf(pinned), run.teams.single().pinned)
+        val project = run.projects.single()
+        assertEquals(w.projectId, project.projectId)
+        assertEquals(DateSpan("2027-03-01", "2027-03-02"), project.before)
+        assertEquals(DateSpan("2027-02-01", "2027-03-02"), project.after, "the pinned span is part of after")
+        assertEquals(0, project.endShiftDays)
+    }
+
+    private fun projectName(id: UInt): String = TestPlan.scalar("SELECT name FROM projects WHERE id = $id") { it.getString(1) }
 
     @Test
     fun `a team cycle takes several passes over the wire and still settles - the kernel's contended cycle`() = testApplication {

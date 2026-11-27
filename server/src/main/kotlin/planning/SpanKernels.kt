@@ -19,6 +19,9 @@ internal fun spanOf(start: LocalDate?, end: LocalDate?): DaySpan? = if (start !=
 @Serializable
 data class Drift(val startDays: Long, val endDays: Long)
 
+/** One project whose derived span a run would change ([SpanKernels.projectSpanChanges]); [before] null = it had no scheduled milestone. */
+internal data class ProjectSpanChange(val projectId: UInt, val before: DaySpan?, val after: DaySpan, val endShiftDays: Int?)
+
 /**
  * The span kernels as pure functions (no I/O, no clock), the idiom of `CapacityKernels.kt`: a parent's real span is DERIVED from its
  * children at request time and never stored (`planning-model.md`). The project view derives a project's span from its scheduled
@@ -35,6 +38,35 @@ object SpanKernels {
         }
         return if (start != null && end != null) DaySpan(start, end) else null
     }
+
+    /**
+     * The projects whose DERIVED span a cross-team run would change, ascending by project id (1.33.0). The span is [derivedSpan] over
+     * EVERY milestone of [plan] (the plan-wide facts, stored spans): `before` over the stored ones, `after` over each milestone's span
+     * in [afterByTeam] (run team id -> milestone id -> span, `ScheduleProposalResult.spansAfter`; a run team's milestone absent from
+     * its map has no dates) and, for a team OUTSIDE the run (no entry), its stored span. A project is listed only when `before !=
+     * after`; the end shift is in working days ([endShiftInWorkingDays]) and null when the project had no span before. A project the
+     * run would leave with no span at all is skipped: the kernel keeps every scheduled milestone dated, so it cannot occur. Pure; the
+     * order of [plan] does not matter.
+     */
+    internal fun projectSpanChanges(
+        plan: Collection<PlanMilestoneFact>,
+        afterByTeam: Map<UInt, Map<UInt, DaySpan>>,
+        calendar: WorkingCalendar,
+    ): List<ProjectSpanChange> =
+        plan.groupBy { it.projectId }.toSortedMap().mapNotNull { (projectId, facts) ->
+            val before = derivedSpan(facts.mapNotNull { it.span })
+            val after = derivedSpan(
+                facts.mapNotNull { fact ->
+                    val teamSpans = afterByTeam[fact.teamId]
+                    if (teamSpans == null) fact.span else teamSpans[fact.id]
+                },
+            )
+            if (after == null || after == before) {
+                null
+            } else {
+                ProjectSpanChange(projectId, before, after, before?.let { endShiftInWorkingDays(it, after, calendar) })
+            }
+        }
 
     /** The signed day deltas of [span] against [target]; null unless BOTH exist (with either missing there is nothing to drift from). */
     fun drift(span: DaySpan?, target: DaySpan?): Drift? {

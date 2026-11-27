@@ -5351,6 +5351,21 @@ export interface components {
              */
             shiftDays: number | null;
         };
+        /** @description A project whose derived span a cross-team run would change. */
+        ScheduleProposalProject: {
+            /** Format: int32 */
+            projectId: number;
+            name: string;
+            /** @description The project's span now; null = none of its milestones is scheduled yet. */
+            before: components["schemas"]["DateSpan"] | null;
+            /** @description The span after accepting every move of the run. */
+            after: components["schemas"]["DateSpan"];
+            /**
+             * Format: int32
+             * @description Working days from the current end to the proposed end - positive later, negative earlier; null when `before` is.
+             */
+            endShiftDays: number | null;
+        };
         ScheduleProposalUnplaced: {
             /** Format: int32 */
             milestoneId: number;
@@ -5437,6 +5452,8 @@ export interface components {
             settled: boolean;
             /** @description One block per requested team, in PLACEMENT order. */
             teams: components["schemas"]["CrossTeamProposalTeam"][];
+            /** @description The projects whose derived span the run would change, ascending by id; none when no project's span changes. Computed over every milestone of the project: the run teams' proposed dates, the stored dates of any other team's. */
+            projects: components["schemas"]["ScheduleProposalProject"][];
             /** @description An opaque 64-hex token fingerprinting what the run read beyond the milestones' schedule revisions, over the whole team set ("foreign" means outside the run), the public holidays and `asOf`; send it back unchanged. Stable for one `asOf` while the run teams' plan and the holidays are unchanged. */
             scopeHash: string;
         };

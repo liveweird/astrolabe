@@ -56,6 +56,7 @@ export const RUN: CrossTeamProposal = {
   asOf: "2042-01-05",
   passes: 1,
   settled: true,
+  projects: [],
   scopeHash: "b".repeat(64),
   teams: [
     block(1, "Platform", [move(11, "x1", "2042-01-06", "2042-01-08"), move(12, "x2", "2042-01-09", "2042-01-09")]),

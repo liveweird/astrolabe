@@ -1,6 +1,7 @@
 package ch.nokillswit
 
 import ch.nokillswit.planning.CrossTeamAcceptRequest
+import ch.nokillswit.planning.STORED_PROPOSAL_FORMAT
 import ch.nokillswit.planning.SavedProposalList
 import ch.nokillswit.planning.SavedProposalRecord
 import ch.nokillswit.planning.SavedProposalState
@@ -113,11 +114,33 @@ class SavedProposalStateTest {
 
     @Test
     fun `a stored format this server does not read is UNREADABLE - no documents, no accept, still listed and deleted`() = testApplication {
-        val s = savedWorld("ssu")
+        savedWorld("ssu").assertUnreadableAt(99)
+    }
+
+    @Test
+    fun `a previous format reads UNREADABLE - a row saved before the run listed its projects is never decoded`() = testApplication {
+        assertEquals(3, STORED_PROPOSAL_FORMAT.toInt(), "the run document gained `projects` in format 3: raise this with the next bump")
+        savedWorld("ssp").assertUnreadableAt(STORED_PROPOSAL_FORMAT - 1)
+    }
+
+    @Test
+    fun `a current-format row whose document lacks projects is UNREADABLE, never a 500`() = testApplication {
+        val s = savedWorld("ssq")
         val (id, client) = s.saved()
-        TestSavedProposals.execute("UPDATE saved_schedule_proposals SET format = 99 WHERE id = $id")
+        assertEquals(CURRENT, client.record(id).state)
+        TestSavedProposals.execute("UPDATE saved_schedule_proposals SET document = document - 'projects' WHERE id = $id")
         val record = client.record(id)
         assertEquals(SavedProposalState.UNREADABLE, record.state)
+        assertNull(record.proposal)
+        assertFalse(record.can.accept)
+        assertTrue(client.get(SAVED_PATH).body<SavedProposalList>().items.any { it.id == id })
+    }
+
+    private suspend fun SavedWorld.assertUnreadableAt(format: Int) {
+        val (id, client) = saved()
+        TestSavedProposals.execute("UPDATE saved_schedule_proposals SET format = $format WHERE id = $id")
+        val record = client.record(id)
+        assertEquals(SavedProposalState.UNREADABLE, record.state, "format $format")
         assertNull(record.proposal)
         assertNull(record.check)
         assertFalse(record.can.accept)

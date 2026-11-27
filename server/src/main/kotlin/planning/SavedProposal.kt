@@ -15,7 +15,7 @@ const val MAX_SAVED_PROPOSAL_NAME_LENGTH = 100
  * format reads as [SavedProposalState.UNREADABLE]. A change to either DTO (or anything it nests) bumps this and adds the new
  * fingerprint to `StoredProposalFormatTest`, which fails otherwise: the stored JSON outlives the code that wrote it.
  */
-const val STORED_PROPOSAL_FORMAT: Short = 2
+const val STORED_PROPOSAL_FORMAT: Short = 3
 
 /**
  * `POST /saved-schedule-proposals` (1.26.0): [teamIds], [asOf], [expectedRevision] and [scopeHash] are the run's (the accept's body

@@ -7616,6 +7616,27 @@ components:
           description: >-
             Working days from the current start to the proposed start - positive later, negative earlier; null when newly scheduled. A stored
             span that starts on a weekend or holiday counts from the next working day, so a move can have `shiftDays: 0` while its dates differ.
+    ScheduleProposalProject:
+      type: object
+      required: [projectId, name, before, after, endShiftDays]
+      description: A project whose derived span a cross-team run would change.
+      properties:
+        projectId: { type: integer, format: int32, minimum: 0 }
+        name: { type: string }
+        before:
+          allOf:
+            - $ref: '#/components/schemas/DateSpan'
+          nullable: true
+          description: The project's span now; null = none of its milestones is scheduled yet.
+        after:
+          allOf:
+            - $ref: '#/components/schemas/DateSpan'
+          description: The span after accepting every move of the run.
+        endShiftDays:
+          type: integer
+          format: int32
+          nullable: true
+          description: Working days from the current end to the proposed end - positive later, negative earlier; null when `before` is.
     ScheduleProposalUnplaced:
       type: object
       required: [milestoneId, name, projectId, projectName, reason]
@@ -7723,7 +7744,7 @@ components:
             the current holiday calendar is skipped as `NO_WORKING_DAY`.
     CrossTeamProposal:
       type: object
-      required: [revision, asOf, passes, settled, teams, scopeHash]
+      required: [revision, asOf, passes, settled, teams, projects, scopeHash]
       properties:
         revision:
           type: integer
@@ -7741,6 +7762,12 @@ components:
           maxItems: 50
           description: One block per requested team, in PLACEMENT order.
           items: { $ref: '#/components/schemas/CrossTeamProposalTeam' }
+        projects:
+          type: array
+          description: >-
+            The projects whose derived span the run would change, ascending by id; none when no project's span changes. Computed over
+            every milestone of the project: the run teams' proposed dates, the stored dates of any other team's.
+          items: { $ref: '#/components/schemas/ScheduleProposalProject' }
         scopeHash:
           type: string
           pattern: '^[0-9a-f]{64}$'

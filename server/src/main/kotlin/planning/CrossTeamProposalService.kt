@@ -90,8 +90,8 @@ class CrossTeamProposalService(private val database: R2dbcDatabase) {
 
 /**
  * The run's document over this snapshot as of [asOf] (`revision` is the snapshot's own, read first): [ScheduleKernels.proposeMany], its
- * post-check over the run's final dates, one block per team in placement order and the run's `scopeHash`. Reads only the link ends
- * ([proposalLinks]), inside the caller's transaction; the
+ * post-check over the run's final dates, one block per team in placement order, the projects whose span moves and the run's `scopeHash`.
+ * Reads only the link ends ([proposalLinks]) and the names of those projects ([proposalProjects]), inside the caller's transaction; the
  * run endpoint and the proposal save ([SavedProposalService]) build the document through here, so a saved one is the run's own.
  */
 internal suspend fun CrossTeamSnapshot.assembleProposal(revision: Long, asOf: LocalDate): CrossTeamProposal {
@@ -120,6 +120,9 @@ internal suspend fun CrossTeamSnapshot.assembleProposal(revision: Long, asOf: Lo
                 dependencies = proposalLinks(links, check),
             )
         },
+        projects = proposalProjects(
+            SpanKernels.projectSpanChanges(plan, result.byTeam.mapValues { it.value.spansAfter }, calendar),
+        ),
         scopeHash = scopeDigests().token(asOf),
     )
 }
