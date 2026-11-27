@@ -1,7 +1,7 @@
 import type { Page, Route } from "@playwright/test";
 import { apiAsAdmin, expect, login, openFilters, rowOperation, test, uniqueText } from "./helpers";
 
-type Registry = "users" | "teams";
+type Registry = "users" | "people";
 
 async function verifyPendingListDelete(page: Page, registry: Registry) {
   const { api } = await apiAsAdmin();
@@ -94,7 +94,7 @@ async function verifyPendingListDelete(page: Page, registry: Registry) {
 }
 
 test("a pending Users filter cannot restore a deleted user", async ({ page }) => { await verifyPendingListDelete(page, "users"); });
-test("a pending Teams filter cannot restore a deleted team", async ({ page }) => { await verifyPendingListDelete(page, "teams"); });
+test("a pending People filter cannot restore a deleted person", async ({ page }) => { await verifyPendingListDelete(page, "people"); });
 
 test("a pending Feature Flags filter cannot undo a successful toggle", async ({ page }) => {
   const { api } = await apiAsAdmin();
