@@ -5,6 +5,7 @@ import type { TFunction } from "i18next";
 import type { TeamMilestone, TeamView } from "../api/teams";
 import { useHolidays } from "../hooks/useHolidays";
 import { useTeamColours } from "../hooks/useTeamColours";
+import { useTimelineColumns } from "../hooks/useTimelineColumns";
 import { barList, baselineBars, newSince, removedRows } from "../utils/baselineOverlay";
 import { arrowSpecsFor, conflictsByBarFor, ghostRowId, markCriticalArrows } from "../utils/dependencyArrows";
 import { idleBands } from "../utils/idleGaps";
@@ -23,6 +24,7 @@ import MilestoneMenu, { type TeamActions } from "./TeamTimelineMenu";
 import { baselineAppendedRows, chainGhostRows, estimateText, jiraTrayAppendedRows } from "./TeamTimelineRows";
 import Timeline, { type TimelineHandle } from "./Timeline";
 import TimelineArrows from "./TimelineArrows";
+import TimelineColumnsControl from "./TimelineColumnsControl";
 import TimelineLoadStrip from "./TimelineLoadStrip";
 import TimelineRowHandle from "./TimelineRowHandle";
 import TimelineUnscheduledTray, { type TrayItem } from "./TimelineUnscheduledTray";
@@ -177,12 +179,13 @@ export default function TeamTimeline({
   const proposed = proposalBars(proposal?.moves ?? [], t);
   const columns: TimelineColumn[] = [
     { id: "name", header: t("project.column.milestone"), width: COLUMN_WIDTHS.name },
-    { id: "project", header: t("teams.view.column.project"), width: COLUMN_WIDTHS.project },
-    { id: "estimate", header: t("teams.view.column.estimate"), width: COLUMN_WIDTHS.estimate },
-    ...(flagsColumn ? [{ id: "flags", header: t("roadmap.column.flags"), width: flagsWidth }] : []),
-    ...(criticalPath ? [{ id: "slack", header: t("project.column.slack"), width: COLUMN_WIDTHS.slack }] : []),
+    { id: "project", header: t("teams.view.column.project"), width: COLUMN_WIDTHS.project, hideable: true },
+    { id: "estimate", header: t("teams.view.column.estimate"), width: COLUMN_WIDTHS.estimate, hideable: true },
+    ...(flagsColumn ? [{ id: "flags", header: t("roadmap.column.flags"), width: flagsWidth, hideable: true }] : []),
+    ...(criticalPath ? [{ id: "slack", header: t("project.column.slack"), width: COLUMN_WIDTHS.slack, hideable: true }] : []),
     { id: "actions", header: t("common.table.operations"), width: COLUMN_WIDTHS.actions },
   ];
+  const columnView = useTimelineColumns("team", columns);
   const rowIds = new Set<BarId>(view.scheduled.map((milestone) => milestone.id));
   // The critical chain (1.27, only while the toggle is on): the ghost rows of the other teams' members, so a link to one is an arrow like any other.
   const chain = criticalPath ? view.criticalChain : undefined;
@@ -284,12 +287,13 @@ export default function TeamTimeline({
       onZoomChange={onZoomChange}
       today={today}
       columns={columns}
+      hiddenColumns={columnView.hidden}
       rows={rows}
       bands={previewing ? [] : idleBands(view.idleGaps, t)}
       holidays={holidays}
       holidaysFailed={holidaysFailed}
       busy={busy}
-      toolbar={toolbar}
+      toolbar={<><TimelineColumnsControl view={columnView} />{toolbar}</>}
       strip={{
         label: previewing ? t("timeline.strip.proposedLabel") : t("teams.view.stripLabel"),
         render: (stripScale) => <TimelineLoadStrip weeks={proposal?.weeks ?? view.weeks} scale={stripScale} />,

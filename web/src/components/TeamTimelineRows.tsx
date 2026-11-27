@@ -115,8 +115,8 @@ export function jiraTrayAppendedRows(appended: readonly BaselineRow[], ctx: Appe
 
 /**
  * The critical chain's ghost rows (1.27): another team's milestone, or a whole project a chain link names, that lies on the chain through this team's
- * work - read-only (no handle, no estimate; a milestone's menu holds only "Open milestone"), dimmed, one gray bar that says it is on the chain, "0 critical path" in the Slack column. The way on is the
- * member's team (a link after its name; "Project X" has none), its project and the milestone itself (the name's link, pointer only); ids are the project page's ghost ids (`ghostRowId`). `projectNames` names the
+ * work - read-only (no handle, no estimate; a milestone's menu holds only "Open milestone", a whole project's only "Open project"), dimmed, one gray bar that says it is on the chain, "0 critical path" in the Slack column. The way on is the
+ * member's team (a link after its name; "Project X" has none, so its row menu is its way on), its project and the milestone itself (the name's link, pointer only); ids are the project page's ghost ids (`ghostRowId`). `projectNames` names the
  * team's projects for the bar's "on the critical chain of"; a milestone member's bar takes its own team's colour from `colours` (1.29; a project member, or a team the
  * lookup lacks, stays neutral gray; the team's name is in the same row).
  */
@@ -142,6 +142,12 @@ export function chainGhostRows(
       </Group>
     );
   };
+  // A milestone member's menu is its way to the milestone; a whole project's is its way to the project (the Project cell, now hideable, was the only link: "Hidden columns").
+  const chainMenu = (member: TeamChainMember): TimelineRowData["cells"][number] => {
+    if (member.kind === "PROJECT") return (stop: RovingTarget) => <OpenProjectMenu row={{ name: member.name, projectId: member.projectId }} trigger={stop} />;
+    if (member.teamId === null || member.teamName === null) return null;
+    return (stop: RovingTarget) => <OpenMilestoneMenu name={member.name} projectId={member.projectId} id={member.id} trigger={stop} />;
+  };
   return orderedMembers(chain).map((member) => {
     const id = ghostRowId(member);
     const chains = member.chainOf.flatMap((projectId) => {
@@ -162,9 +168,7 @@ export function chainGhostRows(
             <EntityLink entity={{ kind: "project", id: member.projectId }} name={member.projectName} size="sm" c="dimmed" truncate title={member.projectName} stop={stop} />
           ),
           "",
-          member.kind === "MILESTONE" && member.teamId !== null && member.teamName !== null
-            ? (stop: RovingTarget) => <OpenMilestoneMenu name={member.name} projectId={member.projectId} id={member.id} trigger={stop} />
-            : null,
+          chainMenu(member),
         ],
         null,
         slack,

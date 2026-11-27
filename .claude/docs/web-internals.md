@@ -377,7 +377,7 @@ Files: `components/EntityLink.tsx`, `OpenEntityItem.tsx`, `utils/entityLinks.ts`
   foreign (removed or frozen baseline rows, a deleted login, raw Jira or Flow values); (6) prose or the session (changelog, account menu); (7) an unknown id, never a guessed link.
 - **Keyboard**: a native table gives each link a tab stop. A Timeline grid keeps one stop per cell (`useRovingGrid`): the link takes `stop` where its cell has no other focusable, else it is `secondary`
   (`tabIndex -1`; never both) and the row menu carries its `OpenEntityItem` ("Open program X": Roadmap project rows, the overview's node and project rows).
-  Team page chain ghost rows: the team is the stop, the milestone link pointer-only (`OpenMilestoneMenu`); one without a team stays text.
+  Team page chain ghost rows: the team is the stop, the milestone link pointer-only (`OpenMilestoneMenu`); one without a team stays text; a whole project's menu is `OpenProjectMenu` (its Project cell may be hidden).
   The Plan tree's disclosure button is chevron-only beside the name link. A link sits in a flex item, or `underline="always"`, when text shares its block (axe `link-in-text-block`).
 - **Names in a sentence, "by" cells**: `EntitySentence` translates the sentence once with a mark per name and swaps in the links (EN/PL keep their word order; no `<Trans>`, names unparsed).
   `CreatorName` (the person's page given a `personId`), `AckSentence`, `refOf`. A heading link keeps the heading's name. Frozen sides (anything against another baseline, a saved run whose plan moved, the saved list's teams) are text.
@@ -1922,7 +1922,7 @@ period takes effect on ANY date (no weekday rule: a weekend date applies from th
 
 Both are the shared pieces, fed from the team view alone (`timeline.md` "The baseline overlay" and "The Jira markers" hold the rows, bars, columns and the toggle).
 
-- **Baseline.** The picker sits in the timeline's toolbar (after Today); the query key and the three write hooks (`useTeamSchedule`, `useTeamOrder`, `useScheduleProposal`) take the pick. The Movement
+- **Baseline.** The picker sits in the timeline's toolbar (after Scroll to today); the query key and the three write hooks (`useTeamSchedule`, `useTeamOrder`, `useScheduleProposal`) take the pick. The Movement
   section (`scope="team"`, with a Project column) follows Idle gaps. 1.26: `TeamBaselineCapacity` (inside `TeamCapacity`, under the current periods) lists the capacity the baseline froze
   as ranges (h4, From / To or "no end" / man-days / WIP); `captured: false` is one dimmed note without a heading.
 - **Jira.** The chip's count line is `teamMarks(view)` (the team's linked milestones, scheduled and tray, and their open flags); the "Jira dates" toggle sits after the baseline picker. The Flags

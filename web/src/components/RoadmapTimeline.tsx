@@ -4,6 +4,7 @@ import { IconListNumbers, IconX } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import type { RemovedProject, RoadmapProject, RoadmapView } from "../api/roadmap";
 import { useHolidays } from "../hooks/useHolidays";
+import { useTimelineColumns } from "../hooks/useTimelineColumns";
 import { removedProjectRows } from "../utils/baselineOverlay";
 import type { JiraWindow } from "../utils/jiraBars";
 import { projectTrack, planArrows } from "../utils/planTrack";
@@ -19,6 +20,7 @@ import OpenEntityItem from "./OpenEntityItem";
 import RowActionsMenu from "./RowActionsMenu";
 import Timeline, { type TimelineHandle } from "./Timeline";
 import TimelineArrows from "./TimelineArrows";
+import TimelineColumnsControl from "./TimelineColumnsControl";
 import TimelineRowHandle from "./TimelineRowHandle";
 
 /** What a project row can ask the page to do — the page owns the ranking write path (and binds the visible ranked ids to the moves). */
@@ -182,9 +184,10 @@ export default function RoadmapTimeline({
   const columns: TimelineColumn[] = [
     { id: "rank", header: t("roadmap.column.rank"), width: view.baseline === undefined ? COLUMN_WIDTHS.rank : COLUMN_WIDTHS.rankWithBaseline },
     { id: "project", header: t("roadmap.column.project"), width: COLUMN_WIDTHS.project },
-    { id: "flags", header: t("roadmap.column.flags"), width: COLUMN_WIDTHS.flags },
+    { id: "flags", header: t("roadmap.column.flags"), width: COLUMN_WIDTHS.flags, hideable: true },
     { id: "actions", header: t("common.table.operations"), width: COLUMN_WIDTHS.actions },
   ];
+  const columnView = useTimelineColumns("roadmap", columns);
   const display = displayRows(visible);
   const conflicts = conflictsByProject(view.links);
   const chain = criticalIndex(view);
@@ -249,11 +252,12 @@ export default function RoadmapTimeline({
       onZoomChange={onZoomChange}
       today={today}
       columns={columns}
+      hiddenColumns={columnView.hidden}
       rows={rows}
       holidays={holidays}
       holidaysFailed={holidaysFailed}
       busy={busy}
-      toolbar={toolbar}
+      toolbar={<><TimelineColumnsControl view={columnView} />{toolbar}</>}
       overlay={arrows.length === 0 ? undefined : (geometry) => <TimelineArrows arrows={arrows} geometry={geometry} />}
     />
   );

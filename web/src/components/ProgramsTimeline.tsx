@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import type { RoadmapCriticalPath, RoadmapLink, RoadmapProject } from "../api/roadmap";
 import { useHolidays } from "../hooks/useHolidays";
+import { useTimelineColumns } from "../hooks/useTimelineColumns";
 import { shadowBar } from "../utils/baselineOverlay";
 import type { JiraWindow } from "../utils/jiraBars";
 import { planArrows, projectTrack, proposedSpanBar, withConflicts } from "../utils/planTrack";
@@ -20,6 +21,7 @@ import OpenEntityItem from "./OpenEntityItem";
 import RowActionsMenu from "./RowActionsMenu";
 import Timeline, { type TimelineHandle } from "./Timeline";
 import TimelineArrows from "./TimelineArrows";
+import TimelineColumnsControl from "./TimelineColumnsControl";
 
 /** The sticky left columns: 448 px in all (the roll-up counts of a work stream run to three digits - found on the sample plan - hence the much wider Flags column than the roadmap's 64 px). */
 const COLUMN_WIDTHS = { name: 272, flags: 120, actions: 56 } as const;
@@ -209,9 +211,10 @@ export default function ProgramsTimeline({
   const { holidays, failed: holidaysFailed } = useHolidays();
   const columns: TimelineColumn[] = [
     { id: "name", header: t("programs.column.name"), width: COLUMN_WIDTHS.name },
-    { id: "flags", header: t("roadmap.column.flags"), width: COLUMN_WIDTHS.flags },
+    { id: "flags", header: t("roadmap.column.flags"), width: COLUMN_WIDTHS.flags, hideable: true },
     { id: "actions", header: t("common.table.operations"), width: COLUMN_WIDTHS.actions },
   ];
+  const columnView = useTimelineColumns("programs", columns);
   const projects = treeRows.filter((row): row is ProjectTreeRow => row.kind === "project").map((row) => row.project);
   const conflicts = conflictsByProject(links);
   const teamNames = new Map(teams.map((team) => [team.id, team.name]));
@@ -263,11 +266,12 @@ export default function ProgramsTimeline({
       onZoomChange={onZoomChange}
       today={today}
       columns={columns}
+      hiddenColumns={columnView.hidden}
       rows={treeRows.map(rowOf)}
       holidays={holidays}
       holidaysFailed={holidaysFailed}
       busy={busy}
-      toolbar={toolbar}
+      toolbar={<><TimelineColumnsControl view={columnView} />{toolbar}</>}
       overlay={arrows.length === 0 ? undefined : (geometry) => <TimelineArrows arrows={arrows} geometry={geometry} />}
     />
   );

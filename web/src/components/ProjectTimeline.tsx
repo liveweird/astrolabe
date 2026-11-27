@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { ProjectView } from "../api/milestones";
 import { useHolidays } from "../hooks/useHolidays";
 import { useTeamColours } from "../hooks/useTeamColours";
+import { useTimelineColumns } from "../hooks/useTimelineColumns";
 import { jiraTrayNote } from "../utils/flagSentences";
 import { jiraTrayBars, siteUrls, type JiraWindow } from "../utils/jiraBars";
 import type { ProjectPreview } from "../utils/planProposal";
@@ -17,6 +18,7 @@ import { previewRows } from "./ProjectTimelineProposal";
 import { bandsOf, baselineRows, estimateText, ghostRow, hasMenu, jiraRows, milestoneRows, summaryRow } from "./ProjectTimelineRows";
 import Timeline, { type TimelineHandle } from "./Timeline";
 import TimelineArrows from "./TimelineArrows";
+import TimelineColumnsControl from "./TimelineColumnsControl";
 import TimelineUnscheduledTray, { type TrayItem } from "./TimelineUnscheduledTray";
 
 /** The Flags column grows to `FLAGS_WITH_ROLLUP_WIDTH` while a scheduled row shows a Jira roll-up ("5/12 · 34 pt"). */
@@ -78,12 +80,13 @@ export default function ProjectTimeline({
   const flagsWidth = view.scheduled.some((milestone) => milestone.jira?.rollup != null) ? FLAGS_WITH_ROLLUP_WIDTH : COLUMN_WIDTHS.flags;
   const columns: TimelineColumn[] = [
     { id: "name", header: t("project.column.milestone"), width: COLUMN_WIDTHS.name },
-    { id: "team", header: t("project.column.team"), width: COLUMN_WIDTHS.team },
-    { id: "estimate", header: t("project.column.estimate"), width: COLUMN_WIDTHS.estimate },
-    ...(flagsColumn ? [{ id: "flags", header: t("roadmap.column.flags"), width: flagsWidth }] : []),
-    ...(criticalPath ? [{ id: "slack", header: t("project.column.slack"), width: COLUMN_WIDTHS.slack }] : []),
+    { id: "team", header: t("project.column.team"), width: COLUMN_WIDTHS.team, hideable: true },
+    { id: "estimate", header: t("project.column.estimate"), width: COLUMN_WIDTHS.estimate, hideable: true },
+    ...(flagsColumn ? [{ id: "flags", header: t("roadmap.column.flags"), width: flagsWidth, hideable: true }] : []),
+    ...(criticalPath ? [{ id: "slack", header: t("project.column.slack"), width: COLUMN_WIDTHS.slack, hideable: true }] : []),
     { id: "actions", header: t("common.table.operations"), width: COLUMN_WIDTHS.actions },
   ];
+  const columnView = useTimelineColumns("project", columns);
   const upstream = criticalPath ? upstreamIndex(view) : null;
   const appended = { criticalPath, flagsColumn, trayBars: jiraTrayBars(view.unscheduled, jira, t), scheduleOnJira: actions.scheduleOnJira };
   const built = [
@@ -103,12 +106,13 @@ export default function ProjectTimeline({
       onZoomChange={onZoomChange}
       today={today}
       columns={columns}
+      hiddenColumns={columnView.hidden}
       rows={rows}
       bands={bandsOf(proposal === undefined ? view : { ...view, idleGaps: [] }, t)}
       holidays={holidays}
       holidaysFailed={holidaysFailed}
       busy={busy}
-      toolbar={toolbar}
+      toolbar={<><TimelineColumnsControl view={columnView} />{toolbar}</>}
       overlay={arrows.length === 0 ? undefined : (geometry) => <TimelineArrows arrows={arrows} geometry={geometry} />}
     />
   );
