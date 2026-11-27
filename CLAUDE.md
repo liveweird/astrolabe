@@ -17,7 +17,7 @@ team manager schedules milestones (manual drag/resize, or accept a server propos
 1.17.0 1.16 follow-ups, deploy notice · 1.18.0 Home figures and "Yours" · 1.19.0 Home links, Milestones, Team load · 1.20.0 Dependencies · 1.21.0 filters, Team load by week ·
 1.22.0 view ETags, dependencies edited from their list, Team load from this week on · 1.23.0 database time limit, Flow capacity flag on project rows, Home "Yours" by owner chain ·
 1.24.0 technical checkup: docs, spec, refactors, CI · 1.25.0 reliability fixes, navigation and Home refresh · 1.25.1 a new logo · 1.26.0 saved proposals, baselines of links and capacity · 1.26.1 dependency updates · 1.27.0 adding dependencies from their list, Milestones filters and rank sort, the whole critical chain on the team page · 1.27.1 dependency updates ·
-1.28.0 the Plan page as one tree · 1.29.0 one Roadmap, Projects, team colours · **1.30.0 (current)** the 1.29 follow-ups · 1.31.0 names as links · 1.32.0 Team load folded into Teams · 1.33.0 schedule proposals on the Gantts (all three built, unreleased). Per-version scope, decisions, assumptions: `.claude/docs/product.md`. Open items: `BACKLOG.md`.
+1.28.0 the Plan page as one tree · 1.29.0 one Roadmap, Projects, team colours · **1.30.0 (current)** the 1.29 follow-ups · 1.31.0 names as links · 1.32.0 Team load folded into Teams · 1.33.0 schedule proposals on the Gantts · 1.34.0 collapsible Gantt columns, Scroll to today (all four built, unreleased). Per-version scope, decisions, assumptions: `.claude/docs/product.md`. Open items: `BACKLOG.md`.
 
 Brand: deep cyan (the `astrolabe` colour tuple in `web/src/theme.ts`, `primaryShade: { light: 8, dark: 9 }`); the logo a stylised astrolabe.
 

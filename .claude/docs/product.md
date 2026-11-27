@@ -15,7 +15,7 @@ Scale assumed: about 15 teams, 5 work streams, 20 programs, 100 projects, 1,000 
 
 ## Roadmap
 
-Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.30.0** (1.31.0, 1.32.0 and 1.33.0 built, not released). Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-visible fix between two increments is a patch bump. One row a version (patches ride their minor's row); the scope only, the detail is in "Release history".
+Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.30.0** (1.31.0, 1.32.0, 1.33.0 and 1.34.0 built, not released). Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-visible fix between two increments is a patch bump. One row a version (patches ride their minor's row); the scope only, the detail is in "Release history".
 
 ### 0.1 to 0.9: the plan
 
@@ -74,6 +74,7 @@ Each increment gets its own plan (architect) before implementation; only v0.1.0 
 | **1.31.0 Names as links** | Every work stream, program, project, milestone, team and user name links to its page (a milestone to its row on the project page, a work stream or program to the Roadmap overview narrowed to it); the views carry the ids |
 | **1.32.0 Team load folded into Teams** | One Teams table with every team's load (`GET /views/team-load` gains `description`), its filters and "Weeks with a warning"; the Team load page and nav leaf gone, `/team-load` redirects |
 | **1.33.0 Schedule proposals on the Gantts** | The project page and the Roadmap overview preview a cross-team proposal as dashed bars (everyone previews, a manager accepts only their teams' moves, `projects[]` in the run); saved proposals live on the overview; the Schedule proposals page and nav leaf gone |
+| **1.34.0 Collapsible Gantt columns, Scroll to today** | Every Gantt can hide the columns between the name and Operations (one toggle and a menu per column, remembered per page in the browser); Today reads "Scroll to today"; web and e2e only |
 
 ## Domain decisions taken with the user
 
@@ -159,7 +160,7 @@ Later answers on this topic: Release history 1.2.0, 1.3.0, 1.12.0, 1.13.0 to 1.1
 - **The four items, continued.** (2) **Removed projects on the roadmap and programs overlays.** On the roadmap they are appended after every current row: rank cell "-", dimmed "(removed)", the frozen span as the shadow bar, no flags, no menu; they honour the work-stream filter and the program pick and are hidden while a team or owner filter is active. On programs a removed row sits under its live, shown, expanded program (a gone, hidden or collapsed program draws nothing; the totals line counts it);
   a removed project with no frozen span gets no row.
 - **The four items, continued.** (3) **Import from Jira on the Plan page** (supersedes the 1.2 decision B): "Import from Jira..." on the work-stream row's menu, gated on the stream's `can.edit`, the server staying the authority; the offered connections are enabled with the mapping OK, one preselected, several picked in the scope step, none an inline note; the work stream is preset and read-only.
-  (4) **`DELETED` vs `OUT_OF_SCOPE`** by a per-issue probe of the bindings a run flags gone (at most 100 a run, `GET /issue/{id}?fields=id` through the run's guarded client; 404 `DELETED`, 403 `FORBIDDEN`, 200 `OUT_OF_SCOPE`, any other failure a WARN that never fails the run), no new audit event; the phrase widened to "Deleted in Jira (or no longer visible to the connection's account)".
+  (4) **`DELETED` vs `OUT_OF_SCOPE`** by a per-issue probe of the bindings a run flags gone (at most 100 a run; 404 `DELETED`, 403 `FORBIDDEN`, 200 `OUT_OF_SCOPE`, any other failure a WARN that never fails the run; `jira-sync.md` "The gone probe"), no new audit event; the phrase widened to "Deleted in Jira (or no longer visible to the connection's account)".
 - **Superseded in 1.10 (the user's clause is replaced, not kept).** Two clauses of (4), "rows flagged by earlier versions stay `OUT_OF_SCOPE` until seen again" and "any other failure leaves the row `OUT_OF_SCOPE`" (never retried), gave way to the promoted backlog item that a probe which did not answer is retried (V27 `gone_probed_at`, no backfill; so every row already gone gets its first probe in the first 1.10 run, up to 100 a run until drained).
 - **The item-level acknowledgement summary is removed (decided 2026-11-15, the 1.24 checkup's Q5).** A Jira deviation item no longer carries `acknowledgement`; only its lines do. This is an accepted exception to API-VER-002 (a removed response member stays inside `/api/v1`) and to API-VER-004's headers: the member was `deprecated: true` with a migration note from 1.12 to 1.23, its one client is the first-party SPA, which has read only the lines since 1.12, and no `Deprecation`/`Sunset` header was ever sent. The 1.24.0 changelog names the removal.
 
@@ -181,7 +182,7 @@ Later answers on this topic: Release history 1.6.0, 1.9.0, 1.10.0, 1.11.0 (withd
 The standing rules the pages after 1.16 follow; the answers with their rejected alternatives are in "Release history" 1.17.0 to 1.23.0.
 
 - **Home.** The Plan and Roadmap cards show the plan's own figures, including two capacity figures (teams with an overloaded week, teams over the WIP limit; the one answer off the recommended option, 1.18 Q1 b). "Yours" is what the person linked to the login owns and the teams that person manages;
-  since 1.23 (Q3 b) it lists everything under a work stream or program you own, each row names its owner, and a switch "Only what I own myself" (off by default, remembered in this browser) narrows both tables to the rows you own yourself. A login without a person gets one plain sentence. Home's figures are links to the filtered view behind them; a badge or link shows only when its count is positive (zero is not a claim).
+  since 1.23 (Q3 b) it lists everything under a work stream or program you own, each row naming its owner, and a switch "Only what I own myself" (off by default, remembered in this browser) narrows both tables. A login without a person gets one plain sentence. Home's figures are links to the filtered view behind them; a badge or link shows only when its count is positive (zero is not a claim).
 - **Filters live in the address.** The address always holds the filters shown; a link naming a filter is shown as written and not remembered; opening a page from the menu restores what the user last set; only the user's own change is remembered (Roadmap 1.19 Q1 a, Programs 1.21 Q1; Dependencies keep theirs in the address only, as Team load did before 1.32 folded it into Teams, whose filters work the same way).
 - **One staleness rule.** A Jira source is stale when its server-derived state is not `CURRENT` or its mapping does not fit; the chips, the Deviations banner, the dated "no deviations" claim, Flow's section and the plan pages' facts line ("Jira data may be out of date") all use it (1.17 Q1 and Q2).
 - **A deploy notice.** The build writes its commit into `index.html`; the shell compares it with the bundle's own and shows a notice with a Reload button at the top of every page, with no way to dismiss it (1.17 Q4, Q5).
@@ -189,7 +190,6 @@ The standing rules the pages after 1.16 follow; the answers with their rejected 
 - **`GET /milestones` is trimmed (decided 2026-11-26, 1.30).** Removed, not deprecated (the 1.24 Q5 exception to API-VER-002 again; one client, the first-party SPA): the filters `scheduled`, `teamId`, `programId`, `workStreamId`, the sorts `rankPosition`, `projectName`, `teamName`, `startDate`, the row's `rankPosition`. An old tab's removed filter is ignored (API-LIST-004) and lists every milestone; a removed sort is `400`.
 - **Teams' weeks (Team load until 1.32, then folded into Teams).** Per week, "Weeks with a warning" under the Teams table (1.21 Q4); it opens on the weeks from this week on and an "Include past weeks" switch (`?past=true`) brings the earlier ones back (1.22 Q4).
 - **View validators.** Ten view reads answer a weak `ETag` and `304`; the tag is a hash of the rendered document and the caller's user id, so it cannot go stale; the two Deviations documents are left out (1.22 Q1, Q2).
-- **A database time limit.** One statement limit of 15 seconds on the whole pool, 0 = off (1.23 Q1 a). **Flow capacity on project rows.** One flag per team, only when a SCHEDULED milestone of the project on that team lies in days an OPEN capacity difference covers (1.23 Q2 a; reverses 1.9 Q3 "team view only" in part).
 
 ### Releases
 
@@ -241,12 +241,8 @@ Taken without a question, each a one-place change. Day-precision dates; Monday�
 ### Defaults taken for v1.9.0
 
 All confirmed by the user on 2026-11-10 ("defaults confirmed, all recommended"); D1, D3 and D6 were taken overnight.
-- (D1) **`TEAM_GONE` is acknowledgeable as the team's own row** (`sprintId: null`; the DELETE names it by omitting `sprintId`). (D2) Hard rows: an un-acknowledge deletes, a re-acknowledge rewrites the stamp (1.10 added pruning).
-- (D3) **The fingerprint hashes `{kind, severity, detail minus sprintName}`**: any change of a sprint's dates, held days, working days, either figure, the gap or the severity reopens it; **a rename in Flow does not**.
-- (D4) The write is the Jira acknowledge's protocol with the import's guard; `409 urn:astrolabe:problem:stale-deviations` is the ONE URN of both connectors. (D5) The listing is the Jira view's: OPEN rows by default, `acknowledged=true|false`, `all=true` or `teamId` also lists acknowledged rows; a team with an OPEN WARNING sorts first.
-- (D6) **ONE header flag, `FLOW_CAPACITY`, at the WORST severity of the open rows** (`count` = the open rows; a no-capacity sprint counts as info; a gone team as a warning with no days); the weeks strip marks a week with the worst severity of the open rows whose held days meet it.
-- (D7) A DISABLED connection raises no team flag while its rows list and can be acknowledged. (D9) `can.acknowledge` is ADMIN or the team's active manager. (D10) Audit events `flow.capacity_deviation_acknowledged` and `…_unacknowledged`. (D11) One `CapacityAckCell` on both surfaces; the Deviations page's ONE Status select applies to both lists. (D12) An acknowledge refreshes the deviations and the plan views. (D13) `sprintId` is REQUIRED (nullable) in the POST body, optional in the DELETE query.
-  (D14) Both items ship in ONE release.
+- (D1-D4, D6, D9, D10, D13) The acknowledge's rules are `flow-sync.md` "Acknowledge" (the `TEAM_GONE` row acknowledgeable as the team's own with `sprintId: null`; hard rows; the fingerprint over `{kind, severity, detail}` without the sprint's name, so a rename in Flow does not reopen; the Jira acknowledge's protocol, whose `409 urn:astrolabe:problem:stale-deviations` is the ONE URN of both connectors; `can.acknowledge`; the two audit events; `sprintId` required-nullable in the POST) and "The team view's flag" (ONE `FLOW_CAPACITY` flag at the worst severity of the open rows).
+- (D5) The listing is the Jira view's: OPEN rows by default, `acknowledged=true|false`, `all=true` or `teamId` also lists acknowledged rows; a team with an OPEN WARNING sorts first. (D7) A DISABLED connection raises no team flag while its rows list and can be acknowledged. (D11) One `CapacityAckCell` on both surfaces; the Deviations page's ONE Status select applies to both lists. (D12) An acknowledge refreshes the deviations and the plan views. (D14) Both items ship in ONE release.
 - *Decided while building:* a gone team's acknowledgement does not outlive its absence; the header sentence counts "open differences", not sprints; acknowledged rows' badges are dimmed; a proposal preview's strip shows no Flow marks; the team page's Capacity vs Flow fact counts OPEN rows ("No open difference · N acknowledged", never "In line with Flow", while acknowledged rows remain).
 
 ### Defaults taken for v1.10.0
@@ -254,10 +250,8 @@ All confirmed by the user on 2026-11-10 ("defaults confirmed, all recommended");
 No question round; the user said "go-go".
 - *Jira probe marker.* (D1) A nullable column `jira_observations.gone_probed_at` (V27), not an `UNKNOWN` reason: no enum, spec or UI vocabulary change; NULL = Jira has not answered yet for this vanish. (D2) "Answered" = 200, 404 or 403; a failure, a cut and an over-cap binding stay NULL and are retried by every later run while the sweep still judges the binding gone; at most 100 a run, **the newly flagged first, then the retries, each by binding id**. (D3) No backfill:
   a row flagged gone before 1.10 gets its first probe in the first 1.10 run (supersedes the clause the user confirmed earlier). (D4) An answer is final for that vanish; a clear and a new vanish probe afresh; the column is in no API.
-- *Acknowledgement lifetime.* (D5) **An acknowledgement lives only while its row is listed**: deleted when the sprint is in line, closed, skipped or no longer in Flow's document, when the team is back (the `TEAM_GONE` row), when the binding is unlinked or its team deleted, and with its connection; a stale acknowledgement (its row still listed) stays.
-- (D6) The prune runs at the run's mirror replace (in the replace's transaction), at the acknowledge write (that binding, under its lock) and at the connection delete; the acknowledge's own prune never judges "gone from the document" (the stored document's truncation is not recorded). Residual: a sprint brought in line and back to the same figures by plan-side edits alone, with no run and no acknowledge between, still reads acknowledged.
-- (D7) A team ABSENT from Flow's document keeps its sprint acknowledgements; **a document with `sprintsTruncated` judges no sprint key**; a COMPLETE document listing a team with zero sprints clears that team's sprint rows. (D8) Every write of a binding's acknowledgement rows holds that binding's row lock (`FOR NO KEY UPDATE`, id order, after the connection row). (D9) Audit `flow.capacity_acknowledgements_cleared` and `acknowledgementsDeleted` on `flow.connection_deleted`.
-- *Acknowledge all.* (D10) `POST /integrations/flow/team-bindings/{id}/acknowledge-all` takes `{items[1..2,000] of {sprintId, fingerprint}}` and is **all or nothing**: any named row that is not listed now or has another fingerprint is the shared `409 stale-deviations` (its text names the first offending row); a key named twice is a `400`. (D12) "Acknowledge all (N)" heads a team's list on BOTH surfaces, shown when the caller may acknowledge and at least two listed rows are open; the page's filters apply.
+- *Acknowledgement lifetime.* (D5-D9) **An acknowledgement lives only while its row is listed**; where the prune runs, the `sprintsTruncated` rule, the lock order and the audit (`flow.capacity_acknowledgements_cleared`, `acknowledgementsDeleted` on `flow.connection_deleted`) are `flow-sync.md` "The lifetime of an acknowledgement". D6's residual (a sprint brought in line and back by plan-side edits alone still read acknowledged) ended in 1.13.1 with the capacity write's prune.
+- *Acknowledge all.* (D10) `POST /integrations/flow/team-bindings/{id}/acknowledge-all` is **all or nothing**, a stale or unlisted row the shared `409 stale-deviations`, a key named twice a `400` (`flow-sync.md` "Acknowledge all and withdraw all"). (D12) "Acknowledge all (N)" heads a team's list on BOTH surfaces, shown when the caller may acknowledge and at least two listed rows are open; the page's filters apply.
 - *Home.* (D13) An intro line and three cards, Plan, Roadmap, Deviations, each with a real link. (D14) The only live figures are the OPEN deviation counts: "Open differences from Jira:" and "Open capacity differences from Flow:"; positive counts only; `staleTime` 60 s; a failed read is the inline `ErrorAlert` inside the Deviations card; no new endpoint.
 - *Outbound and release.* (D15) The whole `::/96` is refused for every genuine host through one helper both address predicates call (the SIIT form followed in 1.10.1). (D16) 1.10.0 is a minor bump with ONE changelog entry; the Jira caveat keeps the repo's binding sentence.
 
@@ -286,6 +280,18 @@ What was ported later, and what was left in Flow on purpose:
 ## Release history
 
 Newest first. Each version: its scope, the user's answers, the defaults that still bind and what was not built; the commits, the plans (they live outside the repository) and the test runs are in git. "No migration" means the preceding schema still applies. Every release leaves "nothing is written to Jira or Flow" true.
+
+### v1.34.0 — collapsible Gantt columns, Scroll to today
+
+The user's request of 2026-11-27: "In all Gantt charts, can we: 1. make all the columns on the left (before the Gantt bars), EXCEPT the first (name), and operations (three dots), collapsible/extendable? 2. add a button 'scroll to Today'".
+Built overnight on top of 1.33.0, a minor bump; web and e2e only (the spec changes only in `info.version`); no migration; 1.31.0 to 1.34.0 are not released.
+
+- **The user's answers:** collapse BOTH ways (a toolbar toggle for every extra column and a menu for single columns); remembered per page in this browser, expanded on a first visit; Today renamed "Scroll to today" with a target icon, same place and behaviour.
+- **Defaults taken overnight:** D1 Roadmap Prioritization keeps its rank and project name (the mode's subject and the grid's row header); only Flags hides. D2 a collapsed column is removed and the pane narrows, no stub. D3 the toggle collapses and restores, and the per-column pick survives a collapse. D4 one control on all four Gantts: a "Hide columns" / "Show columns" button (`aria-expanded`, never `aria-pressed`) joined to a "Choose columns" checkbox menu (`timeline.md` "Hidden columns").
+D5 print is what is on screen ("Print and export" in `timeline.md` stays deferred). D6 the project page's Team column hides; its bar still names the team.
+- **Smaller defaults:** nothing is written to the browser until the user acts; a hidden Slack or Flags stays hidden when its column next appears; the control stays enabled during a save or a preview; the trays keep their columns; phones start expanded; Scroll to today is disabled outside the range, with a title; the name, the Roadmap's rank and project, and Operations are never offered, even if a wrapper marks them.
+- **Decided while building:** a hidden column is a hole, never a re-index; a whole-project row of the critical chain on the team page gained "Open project" in its menu, its Project cell having been the only way on; the Roadmap e2e drag centres its rows, because the toolbar now wraps.
+- Not built (`BACKLOG.md`): opening collapsed on a narrow screen, the trays following them, a hint while only some are hidden, a hideable rank, a print with every column, the account menu's language and theme as `Menu.RadioItem`.
 
 ### v1.33.0 — schedule proposals on the Gantts
 
@@ -398,7 +404,7 @@ A technical release, built and released on the user's word 2026-11-15; a minor b
 
 **Defaults that still bind:**
 - Docs: history is deleted, not archived (`ci.md`); `README.md` and `BACKLOG.md` are outside the guard.
-- Spec: a nullable enum used twice is a `Nullable<Name>` twin; `ProblemDetail.type` stays a string listing every slug; `SyncFailureCode` is declared in the spec only, so a stored code is never renamed or removed and a new one is a constant and an enum value in one commit.
+- Spec: a nullable enum used twice is a `Nullable<Name>` twin; `ProblemDetail.type` stays a string listing every slug; `SyncFailureCode` is declared in the spec only (`sync.md` "Failure codes").
 - Code: a split keeps ONE public service; "shared" means identical after renaming the connector, never a registry or a `kind` switch.
 - e2e: all four `E2E_*` URLs required, none defaulted; the flaky list never gates (`retries` stays 2).
 - CI: budgets are re-baselined from the last ten green master runs; two forks stay only if the first five master runs are 20 % under the one-fork time; no vitest shard.
@@ -408,11 +414,11 @@ A technical release, built and released on the user's word 2026-11-15; a minor b
 
 ### v1.23.0 — what shipped
 
-Released on the user's word (2026-11-15), a minor bump (a new configuration key, a new flag kind, new members on Home's rows). The user picked five `BACKLOG.md` items and was PRESENT. No migration, endpoint, write, audit event, rate bucket, Jira or Flow call, stub data or dependency. What binds is stated where it lives: `persistence.md` and `security.md` (the limit), `authorization.md` (the typed `500`), `planning-model.md` and `timeline.md` (`FLOW_CAPACITY_MILESTONES`, the flag's rules, Home's owner-chain rows).
+Released on the user's word (2026-11-15), a minor bump (a new configuration key, a new flag kind, new members on Home's rows). The user picked five `BACKLOG.md` items and was PRESENT. No migration, endpoint, write, audit event, rate bucket, Jira or Flow call, stub data or dependency. What binds: `persistence.md`, `security.md` (the limit), `authorization.md` (the typed `500`), `planning-model.md`, `timeline.md` (the flag, Home's owner-chain rows).
 
 **The answers:**
 - Q1 (a) one statement limit of 15 seconds on the whole pool, 0 = off, covering the views and everything else.
-- Q2 (a) a project gets one flag per team, only when a SCHEDULED milestone of it on that team lies in days an OPEN capacity difference of that team covers, naming the team and the number of milestones, a warning when the plan holds more than Flow and an info otherwise. Reverses 1.9 Q3 ("team view only") in part.
+- Q2 (a) a project gets one flag per team, naming the team and the number of milestones (the rule is "The Flow sync" above). Reverses 1.9 Q3 ("team view only") in part.
 - Q3 (b) "Yours" lists everything under a work stream or program you own, each row names its owner, and a switch "Only what I own myself" (off by default, remembered in this browser) narrows both tables to the rows you own yourself. Reverses 1.18 Q2a (direct ownership only) in part.
 
 **Defaults taken:** the 15 s value is whole seconds, 0..300, boot-validated (the test harness boots with 60 s); the two `sync` readers assign `queryTimeout` only when positive and the telemetry reads keep their own budgets; a cancelled request's EARLIER committed step stays (a create's re-read runs in a second transaction, so a cut re-read leaves the row and a retry may meet a `409`); a cancelled access-check read answers the typed `500`, never a `401`;
@@ -447,7 +453,7 @@ Released on the user's word (2026-11-15) right after 1.20.0, a minor bump: filte
 - Q4 a second table "Weeks with a warning" under the Team load table: one row per team and overloaded or over-WIP week with the team page's own cells, following the "Show" filter, at most 2,000 weeks in team order, oldest first.
 - Q5 the slimmer document built last.
 
-**Defaults taken:** the address spellings and the team options (`listEveryTeam`, at most 20 pages) are `web-internals.md`'s; the dependency list resolves names in its query function, not in `select` (`web-internals.md` "Dependencies"), and a document naming something it does not hold is a `MalformedAnswerError`, never retried (`web/CLAUDE.md` "Query retry").
+**Defaults taken:** the address spellings and the team options (`listEveryTeam`, at most 20 pages) are `web-internals.md`'s; the dependency list resolves names in its query function, not in `select` (`web-internals.md` "Dependencies"), and a document naming something it does not hold is a `MalformedAnswerError` (`web/CLAUDE.md` "Query retry").
 **Not built:** the alternatives of Q2b to Q4c, each a `[new]` `BACKLOG.md` line; warning weeks from today and the focus after ranking the last unranked row were built in 1.22.
 
 ### v1.20.0 — what shipped
@@ -522,9 +528,8 @@ the Jira blocks of the timeline views are slimmer.
 - Q3 a suggestion is confirmed with **"Link instead", then "Preview again"** (the preview stays the exact picture of what Import will do).
 - Q4 **all three cuts** of the Jira blocks: a flag's null members absent, a flag's evidence without the repeated severity, an evidence detail's null members absent (also on `GET /views/deviations`).
 
-**Defaults taken** (`jira-sync.md`):
-- The links view is open to any authenticated user, discloses nothing new, is parameterless and unpaged (2,000 links, `truncated`), has no `revision` and no `can`; the Plan page asks it on every visit (30 s stale, refetch on focus). A project row's entry is gated on the new `can.createMilestone` rather than `can.edit`.
-- A suggestion attaches only to a CREATE row under an existing plan item (or a program under the picked stream); ambiguity means no suggestion. The client confirms with `matches[{jiraId, nodeId}]`; the server honours an entry only when it equals its own suggestion, recomputed under the plan lock (stale: `CHANGED`), and guards it first as the CREATE it replaces and then as the BIND it becomes.
+**Defaults taken** (`jira-sync.md`): the links view is open to any authenticated user, discloses nothing new, is parameterless and unpaged (2,000 links, `truncated`), has no `revision` and no `can`, and the Plan page asks it on every visit; a project row's entry is gated on `can.createMilestone` rather than `can.edit`.
+A suggestion attaches only to a CREATE row under an existing plan item (or a program under the picked stream); ambiguity means none, and the server honours a confirmed `matches[{jiraId, nodeId}]` entry only when it equals its own suggestion recomputed under the plan lock (stale: `CHANGED`).
 
 **Not built:** each a `[new]` `BACKLOG.md` line (a tab left open across a deploy came in 1.17).
 
@@ -630,10 +635,7 @@ the team page's Flow section and the Flow stub (host port 8097). The answers Q1a
 
 Coverage and roll-ups, proven against the stub only (`jira-sync.md` "The census" states what was built). **V23** (additive: `persistence.md`); the config key `JIRA_TEST_RATE_LIMIT_PER_MINUTE` is in `security.md`. The answers Q1a-Q6a (the user's "all recommended, go ahead", 2026-11-07) are in "Domain decisions".
 
-**Defaults taken** (rules: `jira-sync.md` "The census"):
-- Done Jira children are not `UNLINKED_IN_JIRA` (closed work the plan never had is history) but count in roll-ups; coverage pairs a bound node with its DIRECT plan children ("linked" = an ACTIVE binding on the same site, D1); a detail lists at most 10 keys or names plus `count`.
-- Roll-up points are the discovery's `storyPoints` marker, never converted to man-days, null when absent; a project link's `rollup` is always null; `CHILDREN_DONE` only while the epic is not DONE and the plan's end is after today.
-- A disabled connection's link carries no roll-up and raises no flag; no census without bindings or audit event; a children read past the page ceiling keeps what it read and warns, any other failure leaves the run SUCCEEDED, unstamped. `jira.censusHours` is 24, 1..168. Program-level coverage shows on the Deviations page only.
+**Defaults taken** (rules: `jira-sync.md` "The census"): done Jira children are not `UNLINKED_IN_JIRA` (closed work the plan never had is history) but count in roll-ups; "linked" is an ACTIVE binding on the same site (D1); roll-up points are the discovery's `storyPoints` marker, never converted to man-days; a project link's `rollup` is always null; a disabled connection's link carries no roll-up and raises no flag; program-level coverage shows on the Deviations page only; a children read past the page ceiling keeps what it read and warns, any other failure leaves the run SUCCEEDED, unstamped.
 
 **Consequences:** a binding that gains one of the new kinds reopens only that line (a new fingerprint); a story deleted in Jira can inflate a roll-up for up to `censusHours`; a site whose stories point at their epic through Epic Link shows no children (A12); the first run after the upgrade reads every connection in full once. **Not in 1.4:** program and work-stream coverage flags on the timelines, a drill-down from the roll-up.
 

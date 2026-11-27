@@ -423,8 +423,7 @@ follows: `web/CLAUDE.md` "Per-feature rules". What the pages see of the componen
 3. A resize redraws from the context's preview (`PreviewContext`); a move is a CSS translate of the bar wrapper from `useDraggable` (the modifiers hold it to its row and snap it to days); the outside handles keep a constant width, so a resize never re-measures the dragged node.
 4. `useDraggable` results are destructured in `TimelineBar`: the React-compiler lint (`react-hooks/refs`) flags field reads off an object that carries a ref. `useVirtualizer` carries the one justified `react-hooks/incompatible-library` disable.
 5. The track drop zone's droppable `data` carries `visibleBounds()` (the scroller's live rectangle minus the sticky parts) and `zoneLeft()` (its element's live left edge). `outcomeOf` combines them with the
-   pointer `TimelineDndContext` tracks itself during a tray drag, so a tray item released over
-   the tray or the left columns is not scheduled and a scrolled grid gives the right day (`delta` is wrong for it, `timeline.md`).
+   pointer `TimelineDndContext` tracks itself during a tray drag (`delta` is wrong for it, `timeline.md`).
 6. Tests stub the scroller size with `HTMLElement.prototype.clientWidth/clientHeight` (happy-dom lays nothing out; the virtualiser reads them), restore the descriptors in a file-level `afterEach` and
    wait with `waitFor`, never a real sleep (`isolate: false`); the keyboard-sensor test fakes only `setTimeout` (dnd-kit's zero-delay listener attach).
 8. **Arrows.** `TimelineArrows` renders a fragment (`<defs>` with two `<marker>`s of FIXED ids, then one `<path>` per kept arrow) inside the Timeline's own `aria-hidden` svg. The marker colours are CSS classes

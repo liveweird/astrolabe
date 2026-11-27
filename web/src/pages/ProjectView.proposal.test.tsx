@@ -238,6 +238,18 @@ describe("what the open proposal draws", () => {
     expect(proposalBars().join("|")).not.toMatch(/Filing|Audit/);
   });
 
+  test("with its extra columns hidden (1.34), every row of the preview, the (new) row included, has the drawn columns plus the track, and the dashed bars stay", async () => {
+    const user = userEvent.setup();
+    await proposed(user);
+    const cellCounts = () => within(grid()).getAllByRole("row").slice(1).map((row) => row.querySelectorAll('[role="rowheader"], [role="gridcell"]').length);
+    const bars = proposalBars().sort();
+    // the summary row, Discovery, Build and the (new) Rollout: Milestone, Team, Estimate, Operations + the track
+    expect(cellCounts()).toEqual([5, 5, 5, 5]);
+    await user.click(screen.getByRole("button", { name: "Hide columns" }));
+    expect(cellCounts()).toEqual([3, 3, 3, 3]);
+    expect(proposalBars().sort()).toEqual(bars);
+  });
+
   test("the project's end in a sentence: later, earlier, unchanged, newly scheduled, only the start", async () => {
     const user = userEvent.setup();
     await proposed(user);

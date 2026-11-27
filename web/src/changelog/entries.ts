@@ -17,6 +17,24 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.34.0",
+    date: "2026-11-27",
+    en: `**Collapsible Gantt columns, Scroll to today**
+
+- Every Gantt (the project page, the team page and both Roadmap modes) has **Hide columns** beside the zoom and **Scroll to today**. It collapses the columns between the name and Operations, and the arrow beside it, **Choose columns**, opens a menu that shows or hides one column at a time: Team, Estimate, Flags and Slack on the project page; Project, Estimate, Flags and Slack on the team page; Flags on the Roadmap and on its overview. The name, the Roadmap's rank and project, and Operations are never offered.
+- The choice is remembered for each of those pages in this browser, and nothing is hidden on a first visit (nothing is stored until you choose). Slack and Flags appear only while there is something to show; a column you hid stays hidden when it appears again. Bars, arrows, the today line and keyboard movement across the grid are unchanged.
+- **Today** is now **Scroll to today**, with a target icon, in the same place and doing the same; while today lies outside the dates shown it is disabled and says so.
+- On the team page, the row of a whole project on the critical chain now has **Open project** in its menu (its Project column can be hidden).
+- API and stored data: nothing changes (the choice lives in this browser).`,
+    pl: `**Zwijane kolumny wykresów Gantta, Przewiń do dziś**
+
+- Każdy wykres Gantta (strona projektu, strona zespołu i oba tryby Roadmapy) ma obok powiększenia przyciski **Ukryj kolumny** i **Przewiń do dziś**. Pierwszy zwija kolumny między nazwą a Operacjami, a strzałka obok niego, **Wybierz kolumny**, otwiera menu, w którym pokazujesz lub ukrywasz pojedyncze kolumny: Zespół, Szacunek, Flagi i Luz na stronie projektu; Projekt, Szacunek, Flagi i Luz na stronie zespołu; Flagi na Roadmapie i w jej przeglądzie. Nazwa, numer i projekt na Roadmapie oraz Operacje nigdy nie są w menu.
+- Wybór jest zapamiętywany osobno dla każdej z tych stron w tej przeglądarce, a przy pierwszej wizycie nic nie jest ukryte (nic nie jest zapisywane, dopóki czegoś nie wybierzesz). Luz i Flagi pojawiają się tylko wtedy, gdy jest co pokazać; ukryta kolumna pozostaje ukryta, gdy pojawi się ponownie. Paski, strzałki, linia dzisiejszego dnia i poruszanie się po siatce klawiaturą działają jak dotąd.
+- **Dziś** nazywa się teraz **Przewiń do dziś**, ma ikonę celownika, stoi w tym samym miejscu i działa tak samo; gdy dziś leży poza pokazanym zakresem dat, przycisk jest wyłączony i mówi o tym.
+- Na stronie zespołu wiersz całego projektu na ścieżce krytycznej ma teraz w menu **Otwórz projekt** (kolumnę Projekt można ukryć).
+- API i zapisane dane: nic się nie zmienia (wybór jest zapamiętywany w tej przeglądarce).`,
+  },
+  {
     version: "1.33.0",
     date: "2026-11-27",
     en: `**Schedule proposals on the Gantts**
