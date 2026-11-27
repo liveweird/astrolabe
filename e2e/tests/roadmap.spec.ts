@@ -119,7 +119,8 @@ async function dragRow(page: Page, from: string, onto: string, fraction: number)
   // A row menu from the step before is still fading out for ~150 ms and, since 1.31 (its "Open program <name>" item is its widest), reaches over the row handle: a press there lands on
   // the dropdown, not the handle, and no drag starts. Drag only once no menu is left.
   await expect(page.getByRole("menu")).toHaveCount(0);
-  await rowOf(page, from).scrollIntoViewIfNeeded();
+  // Centre the rows in the window: a drop near its bottom edge (the toolbar wraps to two lines since 1.34) is inside the drag's auto-scroll zone, which moves the target away.
+  await rowOf(page, from).evaluate((row) => row.scrollIntoView({ block: "center" }));
   const handle = await rowOf(page, from).locator("[data-row-handle]").boundingBox();
   const target = await rowOf(page, onto).boundingBox();
   if (!handle || !target) throw new Error("the row handle or the target row is not laid out");
