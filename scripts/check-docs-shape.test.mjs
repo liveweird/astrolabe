@@ -75,12 +75,12 @@ describe("limit 2: a section", () => {
 });
 
 describe("limit 3: a release tag in a heading", () => {
-  it("fails in a doc, passes in product.md", () => {
+  it("fails in a doc, passes in product.md and release-history.md", () => {
     const text = "# T\n\n## Home page (1.10)\n\nx\n\n## Release v0.8.0 notes\n\nx\n";
     const r = run(tree({ docs: { "a.md": text } }));
     assert.equal(r.code, 1);
     assert.equal((r.out.match(/\[limit 3\]/g) ?? []).length, 2);
-    assert.equal(run(tree({ docs: { "product.md": text } })).code, 0);
+    for (const name of ["product.md", "release-history.md"]) assert.equal(run(tree({ docs: { [name]: text } })).code, 0);
   });
   it("lets a non-release number through", () => {
     assert.equal(run(tree({ docs: { "a.md": "# T\n\n## Keep it 3.0-compatible\n\nx\n" } })).code, 0);

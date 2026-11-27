@@ -161,6 +161,7 @@ disagree, the doc wins. The always-loaded set (this file plus the two imports) s
 | `.claude/docs/flow-sync.md` | the Flow sync: transport, probes, run, bindings, capacity import, stub, real-Flow walk-through, ledger |
 | `.claude/docs/ci.md` | a CI job (ids, list), Dependabot rule, static-analysis config; the full-stack/Kubernetes notes, the sibling port table |
 | `.claude/docs/product.md` | the per-version roadmap, the user's domain decisions, assumptions; what each donor contributed, what was deliberately not ported |
+| `.claude/docs/release-history.md` | a release (it adds its section); a past version's scope, answers and defaults (read that one section) |
 | `.claude/docs/planning-model.md` | the planning domain: plan structure, lock, guards; milestones … capacity (sketch) |
 | `.claude/docs/plan-tree.md` | the shared order of work streams and of a stream's programs: order tables, the two PUTs, staleness, delete and move hooks |
 | `.claude/docs/team-colours.md` | a team's colour: the palette, assignment, storage, who edits, where it shows |

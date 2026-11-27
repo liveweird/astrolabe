@@ -25,8 +25,8 @@ const MAX_SECTION_BYTES = 8_000;
 // Limit 3. A heading names the thing, never a version (`v?N.N[.N]`): tags rot and break every reference to the heading.
 // Astrolabe's releases are 0.x and 1.x, so another major ("3.0-compatible", an OpenAPI version) is not a release tag.
 const RELEASE_TAG = /(?<![\w./-])v?[01]\.\d+(?:\.\d+)?(?!\d)/;
-//   product.md is the one exception: its release history's headings ARE versions.
-const RELEASE_TAG_EXEMPT = new Set([".claude/docs/product.md"]);
+//   Two exceptions: release-history.md, whose headings ARE versions, and product.md, whose roadmap and defaults are filed by version.
+const RELEASE_TAG_EXEMPT = new Set([".claude/docs/product.md", ".claude/docs/release-history.md"]);
 // Limit 4. A doc under .claude/docs/ over this size opens with `## Rules` (the reading law: the Rules in full, then the sections of what you touch).
 const RULES_REQUIRED_OVER_BYTES = 30_000;
 //   product.md is a record, not an area; web-internals.md's rules are web/CLAUDE.md's, loaded for every web edit.
@@ -36,6 +36,7 @@ const TO_PLACE = /^to place\b/i;
 // Limit 9. A byte ceiling per named instruction doc (`wc -c`, bytes not characters), so none drifts over its size again; a group is ONE ceiling
 // on the members' sum (the always-loaded set's budget). A doc not named has no ceiling; a ceiling that names no file fails. Raising one is a
 // reviewed exception with its reason in the commit; the numbers sit just above the 1.26 sizes.
+//   release-history.md is not named, on purpose: it is the one doc meant to grow (a release adds a section and trims none).
 const CEILINGS = [
   { files: [".claude/docs/web-internals.md"], bytes: 285_000 },
   { files: [".claude/docs/planning-model.md"], bytes: 145_000 },

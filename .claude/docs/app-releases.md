@@ -20,6 +20,9 @@ Regenerating `web/src/api/schema.ts` is not needed for a version-only change.
 Bumping is not releasing: a bump never creates a tag or a GitHub release. Tagging and publishing (below) happen only
 when the user asks for them.
 
+A release commit also writes the release's docs: the version's section at the top of `release-history.md` "Versions", its row in
+`product.md` "Roadmap" (a patch rides its minor's row) and the current version in `CLAUDE.md` "Product".
+
 
 `web/src/changelog/version.ts` is the source of the application version. A release changes
 `APP_VERSION` and adds the matching English and Polish entry to `web/src/changelog/entries.ts` in
