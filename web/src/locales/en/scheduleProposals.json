@@ -29,7 +29,13 @@
     "loadAria": "Proposed weekly load of {{name}}",
     "loadNone": "Tick a move to see the load after accepting it.",
     "showLoad": "Show the weekly figures of {{name}}",
-    "hideLoad": "Hide the weekly figures of {{name}}"
+    "hideLoad": "Hide the weekly figures of {{name}}",
+    "show": "Show the moves of {{name}}",
+    "hide": "Hide the moves of {{name}}",
+    "notYours": "Shown as it would be if this team's manager accepts these moves. You don't manage this team, so the ticks are not yours to set.",
+    "previewOnly": "This is a preview. None of the moves shown is yours to accept — a team's manager or an administrator accepts that team's moves.",
+    "warningWeeks_one": "{{count}} week with a warning",
+    "warningWeeks_other": "{{count}} weeks with a warning"
   },
   "noCapacity": "Nothing could be placed: the chosen teams have no capacity after {{date}} for the milestones to place — add a capacity period first.",
   "rescoped": "The plan of the chosen teams changed since the proposal: here is a fresh one. Your selection was kept for the milestones that still move.",

@@ -4,8 +4,9 @@ import { useTranslation } from "react-i18next";
 import { SAVED_PROPOSALS_KEY } from "../api/savedProposals";
 import { acceptCrossTeamSchedule, proposeCrossTeamSchedule, type CrossTeamProposal } from "../api/scheduleProposals";
 import { isStaleRevision } from "../api/roadmap";
-import { isStaleScope } from "../api/teams";
+import { isStaleScope, type ScheduleProposalMove } from "../api/teams";
 import { localIsoDate } from "../utils/isoDate";
+import { acceptTeamIdsOf, tickableMoveIds } from "../utils/planProposal";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import { acceptItems, noteOf, outcomeOf, outcomeSentence, type ProposalNote, type ProposalOutcome, type ProposalWords } from "../utils/scheduleProposal";
@@ -22,7 +23,17 @@ const ERROR_KEYS = {
 /** The write key of the page's one write, the accept (a propose is a computation). */
 const ACCEPT_KEY = ["schedule-proposals", "accept"] as const;
 
-type AcceptVariables = { expectedRevision: number; scopeHash: string; teamIds: number[]; items: ReturnType<typeof acceptItems> };
+type AcceptVariables = { expectedRevision: number; scopeHash: string; teamIds: number[]; acceptTeamIds?: number[]; items: ReturnType<typeof acceptItems> };
+
+/** What a host beside the plan tells the hook about the viewer and the slice of the run it shows (all optional: absent = the pages that only offer a run to its managers). */
+export type CrossTeamProposalOptions = {
+  /** The ids of the teams whose moves the viewer may accept (`useProposalRights`): only their moves are tickable, and the accept names exactly the teams of the ticked ones (`acceptTeamIds`). */
+  acceptable?: ReadonlySet<number>;
+  /** Only this project's moves are offered (tickable, ticked, selected all/none): the project page's slice. */
+  projectId?: number;
+  /** Which of the tickable moves start ticked on a fresh run (default: all of them); a kept selection after a stale scope wins. */
+  initialTicks?: (move: ScheduleProposalMove) => boolean;
+};
 
 /** Every move of every team of a run, in placement order (milestone ids are global, so one selection covers all the sections). */
 export const movesOf = (run: Pick<CrossTeamProposal, "teams"> | null) => run?.teams.flatMap((team) => team.moves) ?? [];
@@ -45,11 +56,18 @@ export const movesOf = (run: Pick<CrossTeamProposal, "teams"> | null) => run?.te
  * of the moves that still exist (`rescoped` says so); any other failure stays inline in `error` (already words) with the preview open.
  * Every taken step is said through `announce`, the page's polite status region.
  *
+ * With `options` (1.33) the viewer is not necessarily a manager of the run's teams: only the moves of `acceptable` teams (and of `projectId`) are
+ * TICKABLE, the default ticks are those, select all/none and the "n of N selected" speak of them, `canAccept` says whether there is anything to
+ * accept, and the accept body names the teams of the ticked moves (`acceptTeamIds`; without `acceptable` it is the run's `teamIds`, as before).
+ *
  * Saved proposals (1.26): `open(run, ticked)` takes a run the SERVER stored as the open one (no request: the accept's own `revision`/`scopeHash`
  * checks stay the guard), and `proposeAgain(teamIds, ticks)` closes the open run and asks for the same teams again, keeping the ticks of the
  * moves that still exist (the stale-scope path's own mechanism). An accept refreshes the saved list too: what it read is now `CHANGED`.
  */
-export function useCrossTeamProposal(announce: (text: string) => void) {
+export function useCrossTeamProposal(announce: (text: string) => void, options: CrossTeamProposalOptions = {}) {
+  const { acceptable, projectId, initialTicks } = options;
+  // With rights or a slice given, the run's moves are not all the viewer's: the counts and the accept speak of the tickable ones.
+  const restricted = acceptable !== undefined || projectId !== undefined;
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [proposal, setProposal] = useState<CrossTeamProposal | null>(null);
@@ -92,11 +110,12 @@ export function useCrossTeamProposal(announce: (text: string) => void) {
         return;
       }
       const moves = movesOf(result);
+      const tickableNow = tickableMoveIds(result, acceptable, projectId);
       setProposal(result);
-      setSelected(new Set(moves.map((move) => move.milestoneId).filter((id) => kept === null || kept.has(id))));
+      setSelected(new Set(moves.filter((move) => tickableNow.has(move.milestoneId) && (kept === null ? (initialTicks?.(move) ?? true) : kept.has(move.milestoneId))).map((move) => move.milestoneId)));
       setRescoped(kept !== null && sayRescoped.current);
       // ONE sentence: two announcements in one batch would keep only the last. A run that did not settle says so after the ready sentence.
-      const ready = t("teams.proposal.ready", { count: moves.length });
+      const ready = t("teams.proposal.ready", { count: restricted ? tickableNow.size : moves.length });
       announce(result.settled ? ready : `${ready}. ${t("scheduleProposals.facts.unsettled", { count: result.passes })}`);
     },
     onError: () => {
@@ -153,8 +172,9 @@ export function useCrossTeamProposal(announce: (text: string) => void) {
   };
 
   const moves = movesOf(proposal);
-  const say = (count: number) => announce(t("teams.proposal.selectedOf", { selected: count, total: moves.length }));
-  const idsOf = (teamId: number) => proposal?.teams.find((team) => team.teamId === teamId)?.moves.map((move) => move.milestoneId) ?? [];
+  const tickable = tickableMoveIds(proposal, acceptable, projectId);
+  const say = (count: number) => announce(t("teams.proposal.selectedOf", { selected: count, total: tickable.size }));
+  const idsOf = (teamId: number) => proposal?.teams.find((team) => team.teamId === teamId)?.moves.map((move) => move.milestoneId).filter((id) => tickable.has(id)) ?? [];
 
   const failure = request.isError
     ? request.error
@@ -192,8 +212,9 @@ export function useCrossTeamProposal(announce: (text: string) => void) {
     /** Open a stored run with its ticks as the preview (no request). Not while one is open or a write runs. */
     open: (run: CrossTeamProposal, ticked: ReadonlySet<number>): boolean => {
       if (proposal !== null || writing || request.isPending) return false;
+      const mine = tickableMoveIds(run, acceptable, projectId);
       setProposal(run);
-      setSelected(new Set(ticked));
+      setSelected(new Set(restricted ? [...ticked].filter((id) => mine.has(id)) : ticked));
       return true;
     },
     /** Close the open run (if any) and ask for the same `teamIds` again at once, keeping `ticks` for the moves that still exist; `rescoped` false = no "the plan changed" note. */
@@ -206,10 +227,17 @@ export function useCrossTeamProposal(announce: (text: string) => void) {
       request.mutate(teamIds);
       return true;
     },
+    /** The milestone ids the viewer may tick (a move of an acceptable team, of the project slice). */
+    tickable,
+    /** Whether the run holds anything the viewer may accept; false = a preview only (no Accept, no check to ask). */
+    canAccept: tickable.size > 0,
     toggle: (milestoneId: number) =>
       setSelected((current) => {
         const next = new Set(current);
-        if (!next.delete(milestoneId)) next.add(milestoneId);
+        if (!next.delete(milestoneId)) {
+          if (!tickable.has(milestoneId)) return current;
+          next.add(milestoneId);
+        }
         return next;
       }),
     /** Tick every move of ONE team (the others keep their ticks). */
@@ -239,6 +267,9 @@ export function useCrossTeamProposal(announce: (text: string) => void) {
     /** Send the ticked moves of all teams as one request. Answers whether it was sent (not at zero ticked; refused out loud while a write runs). */
     accept: (): boolean => {
       if (proposal === null || selected.size === 0) return false;
+      // Rights may have shrunk since the ticks were set (the list refetches): only what is still tickable goes out.
+      const ticked = restricted ? new Set([...selected].filter((id) => tickable.has(id))) : selected;
+      if (ticked.size === 0) return false;
       if (inFlight.current || writing || request.isPending) {
         setRefused(true);
         announce(t("project.busy"));
@@ -252,7 +283,8 @@ export function useCrossTeamProposal(announce: (text: string) => void) {
         expectedRevision: proposal.revision,
         scopeHash: proposal.scopeHash,
         teamIds: proposal.teams.map((team) => team.teamId),
-        items: acceptItems({ moves }, selected),
+        ...(acceptable === undefined ? {} : { acceptTeamIds: acceptTeamIdsOf(proposal, ticked) }),
+        items: acceptItems({ moves }, ticked),
       });
       return true;
     },

@@ -1378,72 +1378,64 @@ The co-located `Baseline*.test.tsx`, `useBaselines.test.tsx` and the `baseline*`
 ## Schedule proposals
 
 Files: `pages/ScheduleProposals.tsx`; `utils/scheduleProposalLinks.ts`; `api/scheduleProposals.ts` (`listProposalTeams`, `proposeCrossTeamSchedule`, `acceptCrossTeamSchedule`,
-`checkSchedule`); `hooks/useCrossTeamProposal.ts`; `components/CrossTeamFacts.tsx`; `components/CrossTeamProposalSection.tsx`; `components/CrossTeamRunView.tsx`; saved (1.26): `pages/SavedScheduleProposal.tsx`,
-`api/savedProposals.ts`, `utils/savedProposal.ts`, `components/Saved{ProposalsTable,ProposalState}.tsx`, `components/SaveProposalModal.tsx`, `hooks/useStatusAnnouncer.ts`.
+`checkSchedule`); `hooks/use{CrossTeamProposal,ProposalRights}.ts`, `utils/planProposal.ts`; `components/CrossTeam{Facts,ProposalSection,RunView}.tsx`; saved (1.26): `pages/SavedScheduleProposal.tsx`,
+`api/savedProposals.ts`, `utils/savedProposal.ts`, `components/Saved{ProposalsTable,ProposalState}.tsx`, `SaveProposalModal.tsx`, `hooks/useStatusAnnouncer.ts`.
 
 ### Route and data
 
-`/schedule-proposals` (nav: Planning after Baselines, `IconCalendarStats`, **everyone**) runs ONE proposal over several teams (`POST /schedule-proposals`: the teams in dependency order to a
-fixed point, `scheduling.md` "The cross-team run") and accepts the ticked moves of every team in ONE plan write.
+`/schedule-proposals` (nav: Planning after Baselines, `IconCalendarStats`, **everyone**) runs ONE proposal over several teams (`scheduling.md` "The cross-team run") and accepts the ticked moves in ONE plan write.
 
-**What it offers comes from the server.** The `MultiSelect` (`maxValues` 50, searchable, disabled while a run is requested or open, picks the server no longer lists are dropped at Propose) is
-filled from `GET /schedule-proposals/teams` under `["schedule-proposals","teams"]`.
+**What it offers comes from the server.** The `MultiSelect` (`maxValues` 50, locked while a run is requested or open; picks the server no longer lists are dropped at Propose) is filled from `GET /schedule-proposals/teams`.
 
-- An ADMIN gets every active team, anyone else the teams the caller manages; an ADMIN also gets an **"All teams"** button beside the select that ticks the first 50 listed at once (the run's
-  `teamIds` ceiling), disabled while a run is requested or open.
-- An empty list is the `EmptyState` "You manage no team" with no multi-select and no Propose; an administrator with no team at all reads "No team to propose for yet" (the words only:
-  `useAdmin()` gates nothing).
-- The server's 403/404/400 on the run reach the page inline (`scheduleProposals.forbidden/gone/invalid`, then the generic action words).
+- An ADMIN gets every active team (and an **"All teams"** button ticking the first 50, the run's ceiling), anyone else the teams they manage. An empty list is the `EmptyState` "You manage no team" ("No team to propose for yet" for an administrator; `useAdmin()` gates only the words).
+- The server's 403/404/400 reach the page inline.
 
 ### The run
 
-Page state in `hooks/useCrossTeamProposal.ts`, the team page's `useScheduleProposal` state machine over a run.
+`useCrossTeamProposal` is the team page's `useScheduleProposal` state machine over a run.
 
-- `propose(teamIds)` (local `asOf`; a run with no move in ANY team opens nothing and leaves the same two notes as the team page), ONE `selected` set over every team's move ids (milestone ids are
-  global), `toggle`, `selectAll(teamId)` / `selectNone(teamId)` (a section's header checkbox acts on THAT team's moves; the status region says the run-wide "n of N selected"), `discard()` (not
-  while the accept runs), `dismiss()`.
-- `accept()` posts `{expectedRevision, scopeHash, teamIds (the run's blocks), items}` for the ticked moves of all sections on the write key `["schedule-proposals","accept"]`. It sets a
-  synchronous in-flight ref (cleared in `onSettled`), so a double click sends ONE request; while it runs a second accept or Propose is refused out loud (`refused`, the `role="note"` "A save is
-  still running", `project.busy` announced; Discard answers `false`).
-- On success the preview closes, `["plan"]` and `["roadmap"]` refresh in the background (no cache patch: the page holds no view) and `outcome` is the inline note ("N scheduled · M skipped:
-  reasons", the fixed `teams.proposal.reason.*` vocabulary; no toast).
-- `409 stale-revision` closes the run with the reload note; **`409 stale-scope`** closes it, re-proposes the SAME teams at once and keeps the ticks of the moves that still exist (`rescoped`,
-  orange note); any other failure is the inline `FormErrorAlert` above the buttons, which takes the focus, with the run open.
-- The page owns the ONE polite status region (`VisuallyHidden role="status"`, the zero-width-space re-read flip) the hook announces into; `useProposalFocus` (structural, `{applying, rescoped}`)
-  hands Discard the focus when a run opens and Propose gets it back. A run that did not settle is announced in the SAME sentence as the ready one (two announcements in one batch keep only the
-  last).
-- The hook returns `words` (`ProposalWords`, an optional override of `ProposalFlow`): the no-capacity, stale and re-proposed notes and their announcements speak of "the chosen teams"
-  (`scheduleProposals.noCapacity/stale/rescoped`), not of one team or a schedule to reload.
+- `propose(teamIds)` (local `asOf`; a run with no move anywhere opens nothing and leaves the team page's two notes), ONE `selected` set over every team's move ids (milestone ids are
+  global), `toggle`, `selectAll/selectNone(teamId)` (a header checkbox acts on THAT team; the status region says "n of N selected"), `discard()` (not while the accept runs), `dismiss()`.
+- `accept()` posts `{expectedRevision, scopeHash, teamIds (the run's blocks), items}` for the ticked moves of all sections on the write key `["schedule-proposals","accept"]`. A synchronous in-flight ref makes a double click ONE request; a second accept or Propose while it runs is refused out loud (`refused`, the `role="note"` "A save is still running", `project.busy` announced; Discard answers `false`).
+- On success the preview closes, `["plan"]` and `["roadmap"]` refresh in the background and `outcome` is the inline note ("N scheduled · M skipped: reasons", the fixed `teams.proposal.reason.*` vocabulary; no toast).
+- `409 stale-revision` closes the run (reload note); **`409 stale-scope`** closes it, re-proposes the SAME teams once and keeps the ticks of the moves that still exist (`rescoped`, orange note); any other failure is the inline `FormErrorAlert` (focused), the run open.
+- The page owns the ONE polite status region the hook announces into; `useProposalFocus` hands Discard the focus when a run opens and Propose gets it back.
+- `words` (`ProposalWords`, an optional override of `ProposalFlow`): the no-capacity, stale and re-proposed notes speak of "the chosen teams" (`scheduleProposals.noCapacity/stale/rescoped`).
+
+### What the viewer may accept
+
+Every login previews a run; only the teams of `GET /schedule-proposals/teams` have moves to tick.
+- `useProposalRights()` over `["schedule-proposals","teams"]` → `{acceptable: Set<teamId>, ready, error}`; a host asks for no run before `ready`; a first load that fails is `ready` and empty (a preview) with `error` set.
+- `useCrossTeamProposal(announce, {acceptable, projectId, initialTicks})`: only the moves of acceptable teams (of `projectId`) are TICKABLE (`tickableMoveIds`): default ticks
+  (`initialTicks` narrows them), `toggle`, select all/none and "n of N" follow; `accept()` adds `acceptTeamIds` (`acceptTeamIdsOf`; none without `acceptable`). `canAccept` false =
+  a preview: no Accept, `enabled: false` for `useScheduleCheck` (no check request). The run and accept share a 30/min per-user bucket (a 429 = the too-many-requests message, `common.error.tooManyRequests`).
+- `CrossTeamRunView acceptable projectId`: other teams' sections are collapsed (`TableDisclosure`: no table while closed), read-only ("Shown as it would be if this team's manager
+  accepts…", checkboxes disabled) and keep the run's own verdicts (`overlayCheck` and the check state reach acceptable sections only); an orange badge counts a section's
+  overloaded or over-WIP weeks (`warningWeekCount`); with none acceptable ONE "This is a preview" sentence replaces the per-section ones. `projectSlice` keeps a project's moves and
+  unplaced rows (`unchanged`/`pinned` only for `projectMilestoneIds`) and the run view the links touching them.
 
 ### The page
 
-A `Stack`, h2 `PageHeader` with Propose in `actions`: the multi-select, `ProposalNotes` (its prop is the structural `ProposalFlow`), then with a run open:
+h2 `PageHeader` with Propose in `actions`, the multi-select, `ProposalNotes` (prop: the structural `ProposalFlow`), then with a run open:
 
-- `CrossTeamFacts` (`role="note"`): gray "Placed in N pass(es) · settled"; an ORANGE Alert when `!settled` (`scheduleProposals.facts.unsettled_*`: the teams depend on each other in a loop, so every
-  pass moved something again; the dates shown are the last pass's).
-- One `CrossTeamProposalSection` per block of `teams[]` in PLACEMENT order: an h3 (the team's name, a dimmed "placed n of N") holding the team page's `ProposalTable` (named per team through
-  its `label` prop, so no two tables share a name; "Accept all" in its header acts on that team) and, collapsed, `TeamWeeklyLoad` with `labels` (an h4 "Proposed load", the table named per
-  team). With no move ticked anywhere there are no `weeks` and the section says "Tick a move to see the load after accepting it".
-- The accept's alert and ONE **Accept selected across teams (N)** (primary) with Discard.
+- `CrossTeamFacts` (`role="note"`): gray "Placed in N pass(es) · settled"; an ORANGE Alert when `!settled` (`scheduleProposals.facts.unsettled_*`: the teams depend on each other in a loop; the dates shown are the last pass's).
+- One `CrossTeamProposalSection` per block of `teams[]` in PLACEMENT order: an h3 (the team's name, a dimmed "placed n of N"), the team page's `ProposalTable` (named per team through `label`) and, collapsed, `TeamWeeklyLoad` with `labels` (an h4 "Proposed load"). No move ticked anywhere = no `weeks`: "Tick a move to see the load after accepting it".
+- The accept's alert and ONE **Accept selected across teams (N)** (primary) with Discard. The accept/discard/outcome words reuse `teams.proposal.*`.
 
-**The ticked-subset check is `useScheduleCheck`** with ALL the run's team ids and every team's moves; `overlayCheck(block, check, block.teamId)` gives each section the verdicts and load of the
-ticked moves (all ticked = the run's own, none = no new warnings, some = the check's answer once in), and `ProposalTable` words "Checking the ticked moves..." / the failure under each summary.
-Closing the run drops the `["plan","schedule-check"]` queries.
-
-The accept/discard/outcome words reuse `teams.proposal.*`.
+**The ticked-subset check is `useScheduleCheck`** over ALL the run's team ids and moves; `overlayCheck(block, check, teamId)` gives a section the verdicts and load of the ticked moves (all = the run's own, none = no new warnings, some = the check's answer). Closing the run drops the `["plan","schedule-check"]` queries.
 
 ### Saved proposals
 
-A saved run is the SERVER's own re-computation (`scheduling.md` "Saved proposals"): no document is sent, none recomputed. Keys: `SAVED_PROPOSALS_KEY` `["schedule-proposals","saved"]`; an accept, a stale refusal and a delete refresh it, a delete or a 404 drops the record's copy.
+A saved run is the SERVER's own re-computation (`scheduling.md` "Saved proposals"): no document is sent, none recomputed. `SAVED_PROPOSALS_KEY`: an accept, a stale refusal and a delete refresh it; a delete or a 404 drops the record's copy.
 
-- **Save proposal** (beside Accept, one move ticked): `SaveProposalModal` posts the name, the run's `asOf`, teams, `revision`, `scopeHash` and the ticks. A `409` is inline (focus on **Propose again**) = hook `proposeAgain(teamIds, ticks, rescoped?)`: same teams, ticks kept. `open(run, ticks)` takes a stored run, no request.
-- **Saved proposals** h3 (`SavedProposalsTable`, every user): the newest 20, the name links, Delete by the row's `can.delete` (`useDeleteConfirm`).
-- **`/schedule-proposals/saved/:id`**: h2 the name, a state badge (`data-state`; green CURRENT, else gray), the facts, `CrossTeamRunView`. While CURRENT, `can.accept` AND `asOf` = today (the server ignores the day) the stored run opens as the hook's preview: ticks editable, the ONE accept, the stored `check` for the stored ticks, the live one for any other. Else read-only (an earlier day says so; a refetch that turns it CHANGED ends the preview).
-- **Propose again** (by `can.delete`) opens a FRESH run (`sameRun`), a neutral note (the "plan changed" one only when CHANGED) and Discard back to the saved one; a stale-scope accept lands there too. `UNREADABLE` shows no run.
+- **Save proposal** (beside Accept, one move ticked): `SaveProposalModal` posts the name, `asOf`, teams, `revision`, `scopeHash` and the ticks. A `409` is inline (focus on **Propose again**) = `proposeAgain(teamIds, ticks, rescoped?)`: same teams, ticks kept. `open(run, ticks)` takes a stored run, no request.
+- **Saved proposals** h3 (`SavedProposalsTable`): the newest 20, the name links, Delete by the row's `can.delete`.
+- **`/schedule-proposals/saved/:id`**: h2 the name, a state badge (`data-state`; green CURRENT, else gray), the facts, `CrossTeamRunView`. While CURRENT, `can.accept` AND `asOf` = today the stored run opens as the hook's preview: ticks editable, the ONE accept, the stored `check` for the stored ticks, the live one for any other. Else read-only (an earlier day says so; a refetch that turns it CHANGED ends the preview).
+- **Propose again** (by `can.delete`) opens a FRESH run (`sameRun`), a neutral note ("plan changed" only when CHANGED) and Discard back to the saved one; a stale-scope accept lands there too. `UNREADABLE` shows no run.
 
 ### Tests
 
-Co-located: `ScheduleProposals*.test.tsx`, `Saved*.test.tsx`, `SaveProposalModal.test.tsx`, `CrossTeamProposalSection.test.tsx`, `useCrossTeamProposal.test.tsx` (fixtures `test/crossTeamRun.ts`).
+Co-located: `ScheduleProposals*`, `Saved*`, `SaveProposalModal`, `CrossTeam*`, `useCrossTeamProposal*`, `useProposalRights`, `planProposal` (fixtures `test/crossTeamRun.ts`).
 
 ## Deviations, bindings and the Jira chips
 

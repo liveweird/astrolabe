@@ -186,7 +186,7 @@ export function linkTotals(links: readonly Pick<ScheduleProposalLink, "before" |
 /** A link at a moved milestone: the other end, and whether THIS milestone is the link's predecessor (else its successor). */
 export type LinkAtMove = { link: ScheduleProposalLink; other: ScheduleProposalEnd; thisIsPredecessor: boolean };
 
-const isMoveEnd = (end: ScheduleProposalEnd, move: Pick<ScheduleProposalMove, "milestoneId" | "projectId">) =>
+export const isMoveEnd = (end: ScheduleProposalEnd, move: Pick<ScheduleProposalMove, "milestoneId" | "projectId">) =>
   end.kind === "MILESTONE" ? end.id === move.milestoneId : end.id === move.projectId;
 
 /**

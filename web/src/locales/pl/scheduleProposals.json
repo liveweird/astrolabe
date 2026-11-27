@@ -33,7 +33,15 @@
     "loadAria": "Proponowane tygodniowe obciążenie zespołu {{name}}",
     "loadNone": "Zaznacz zmianę, aby zobaczyć obciążenie po jej zaakceptowaniu.",
     "showLoad": "Pokaż tygodniowe wartości zespołu {{name}}",
-    "hideLoad": "Ukryj tygodniowe wartości zespołu {{name}}"
+    "hideLoad": "Ukryj tygodniowe wartości zespołu {{name}}",
+    "show": "Pokaż zmiany zespołu {{name}}",
+    "hide": "Ukryj zmiany zespołu {{name}}",
+    "notYours": "Tak wyglądałby plan, gdyby kierownik/czka tego zespołu zaakceptował/a te zmiany. Nie zarządzasz tym zespołem, więc nie ustawiasz jego zaznaczeń.",
+    "previewOnly": "To tylko podgląd. Żadnej z pokazanych zmian nie możesz zaakceptować — zmiany zespołu akceptuje jego kierownik/czka albo administrator/ka.",
+    "warningWeeks_one": "{{count}} tydzień z ostrzeżeniem",
+    "warningWeeks_few": "{{count}} tygodnie z ostrzeżeniem",
+    "warningWeeks_many": "{{count}} tygodni z ostrzeżeniem",
+    "warningWeeks_other": "{{count}} tygodnia z ostrzeżeniem"
   },
   "noCapacity": "Nic nie udało się umieścić: wybrane zespoły nie mają przepustowości po {{date}} dla kamieni milowych do ułożenia — najpierw dodaj okres przepustowości.",
   "rescoped": "Plan wybranych zespołów zmienił się od czasu propozycji: oto nowa. Zachowaliśmy zaznaczenie dla kamieni milowych, które nadal się przesuwają.",
