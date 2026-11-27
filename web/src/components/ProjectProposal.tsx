@@ -10,6 +10,7 @@ import CrossTeamRunView from "./CrossTeamRunView";
 import EntityLink from "./EntityLink";
 import FormErrorAlert from "./FormErrorAlert";
 import ProposalNotes from "./TeamProposalNotes";
+import { TOOLBAR_CONTROL_SIZE } from "../utils/timelineModel";
 
 /** What the run does to the project's own span, in one sentence (the server's `projects[]` entry, absent = its span stays). */
 function projectSentence(entry: CrossTeamProposal["projects"][number] | undefined, t: TFunction): string {
@@ -48,7 +49,7 @@ export default function ProjectProposal({ proposal, announce }: { proposal: Proj
   return (
     <Stack gap="sm">
       <Group gap="sm" align="center" wrap="wrap" data-print="hide">
-        <Button ref={proposeRef} variant="default" size="xs" leftSection={<IconWand size={14} />} loading={flow.requesting} disabled={!proposable} aria-describedby={!proposable && run === null ? hintId : undefined} onClick={proposal.propose}>
+        <Button ref={proposeRef} variant="default" size={TOOLBAR_CONTROL_SIZE} leftSection={<IconWand size={14} />} loading={flow.requesting} disabled={!proposable} aria-describedby={!proposable && run === null ? hintId : undefined} onClick={proposal.propose}>
           {t("programs.proposal.propose")}
         </Button>
         {run === null && (

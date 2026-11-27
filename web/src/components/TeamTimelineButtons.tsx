@@ -4,6 +4,7 @@ import { IconRestore, IconWand } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import type { TeamView } from "../api/teams";
 import type { useScheduleProposal } from "../hooks/useScheduleProposal";
+import { TOOLBAR_CONTROL_SIZE } from "../utils/timelineModel";
 
 type Proposal = ReturnType<typeof useScheduleProposal>;
 
@@ -34,8 +35,8 @@ export default function TeamTimelineButtons({
         <Button
           ref={proposeRef}
           variant="default"
-          size="compact-md"
-          leftSection={<IconWand size={16} />}
+          size={TOOLBAR_CONTROL_SIZE}
+          leftSection={<IconWand size={14} />}
           loading={proposal.requesting}
           disabled={open !== null || busy}
           onClick={proposal.propose}
@@ -44,7 +45,7 @@ export default function TeamTimelineButtons({
         </Button>
       )}
       {can.editOrder && open === null && (
-        <Button variant="default" size="compact-md" leftSection={<IconRestore size={16} />} disabled={!view.order.custom || busy} onClick={onReset}>
+        <Button variant="default" size={TOOLBAR_CONTROL_SIZE} leftSection={<IconRestore size={14} />} disabled={!view.order.custom || busy} onClick={onReset}>
           {t("teams.view.action.resetOrder")}
         </Button>
       )}

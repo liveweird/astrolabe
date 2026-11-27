@@ -16,6 +16,7 @@ import OverviewProposalProjects from "./OverviewProposalProjects";
 import SavedRunHeader from "./SavedRunHeader";
 import SaveProposalModal from "./SaveProposalModal";
 import ProposalNotes from "./TeamProposalNotes";
+import { TOOLBAR_CONTROL_SIZE } from "../utils/timelineModel";
 
 /**
  * The Roadmap overview's schedule proposal under the timeline (1.33; `useOverviewProposal` holds the state; `onShowAll` clears the program pick, or `null` when none is set): a row with Propose (never automatic) and what it would
@@ -60,7 +61,7 @@ export default function OverviewProposalSection({ proposal, announce, onShowAll 
   return (
     <Stack gap="sm">
       <Group gap="sm" align="center" wrap="wrap" data-print="hide">
-        <Button ref={proposeRef} variant="default" size="xs" leftSection={<IconWand size={14} />} loading={flow.requesting} disabled={!proposable} aria-describedby={!proposable && run === null ? hintId : undefined} onClick={proposal.propose}>
+        <Button ref={proposeRef} variant="default" size={TOOLBAR_CONTROL_SIZE} leftSection={<IconWand size={14} />} loading={flow.requesting} disabled={!proposable} aria-describedby={!proposable && run === null ? hintId : undefined} onClick={proposal.propose}>
           {t("programs.proposal.propose")}
         </Button>
         {run === null && (

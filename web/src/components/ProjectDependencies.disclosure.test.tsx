@@ -62,7 +62,8 @@ describe("ProjectDependencies: show or hide (1.29)", () => {
     expect(toggle()).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("3 dependencies")).toBeInTheDocument();
     expect(screen.getByText("2 violated")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add dependency" })).toBeInTheDocument();
+    // The Gantt toolbar's small size (`TOOLBAR_CONTROL_SIZE`).
+    expect(screen.getByRole("button", { name: "Add dependency" })).toHaveAttribute("data-size", "xs");
   });
 
   test("hiding removes the table and the Add button, keeps the heading, the focus and the words, and is remembered", async () => {

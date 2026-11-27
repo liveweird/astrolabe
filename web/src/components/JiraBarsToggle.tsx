@@ -1,5 +1,6 @@
 import { Button } from "@mantine/core";
 import { useTranslation } from "react-i18next";
+import { TOOLBAR_CONTROL_SIZE } from "../utils/timelineModel";
 
 /**
  * The "Jira dates" toggle of the timelines' `toolbar` slot (1.3): a button (`aria-pressed`, filled while on) like the Critical-path toggle, switching
@@ -8,7 +9,7 @@ import { useTranslation } from "react-i18next";
 export default function JiraBarsToggle({ shown, onChange }: { shown: boolean; onChange: (next: boolean) => void }) {
   const { t } = useTranslation();
   return (
-    <Button size="compact-sm" variant={shown ? "filled" : "default"} aria-pressed={shown} onClick={() => onChange(!shown)}>
+    <Button size={TOOLBAR_CONTROL_SIZE} variant={shown ? "filled" : "default"} aria-pressed={shown} onClick={() => onChange(!shown)}>
       {t("timeline.jiraToggle")}
     </Button>
   );

@@ -15,6 +15,7 @@ import EmptyState from "./EmptyState";
 import RowActionsMenu from "./RowActionsMenu";
 import ScrollRegion from "./ScrollRegion";
 import TeamBaselineCapacity from "./TeamBaselineCapacity";
+import { TOOLBAR_CONTROL_SIZE } from "../utils/timelineModel";
 
 type Editor = { kind: "create" } | { kind: "edit"; period: CapacityPeriod };
 
@@ -54,7 +55,7 @@ export default function TeamCapacity({ view, readOnly = false }: { view: TeamVie
           {t("teams.view.capacityTitle")}
         </Title>
         {canEdit && !readOnly && (
-          <Button variant="default" size="compact-md" leftSection={<IconPlus size={16} />} onClick={() => setEditor({ kind: "create" })}>
+          <Button variant="default" size={TOOLBAR_CONTROL_SIZE} leftSection={<IconPlus size={14} />} onClick={() => setEditor({ kind: "create" })}>
             {t("teams.view.action.addPeriod")}
           </Button>
         )}

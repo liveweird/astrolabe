@@ -1,5 +1,6 @@
 import { Button } from "@mantine/core";
 import { useTranslation } from "react-i18next";
+import { TOOLBAR_CONTROL_SIZE } from "../utils/timelineModel";
 
 /**
  * The "Critical path" toggle of the timelines' `toolbar` slot: a button (`aria-pressed`, filled while on) switching the page's critical-path
@@ -10,7 +11,7 @@ import { useTranslation } from "react-i18next";
 export default function CriticalPathToggle({ shown, onChange, describedBy, disabled = false }: { shown: boolean; onChange: (next: boolean) => void; describedBy?: string; disabled?: boolean }) {
   const { t } = useTranslation();
   return (
-    <Button size="compact-sm" variant={shown ? "filled" : "default"} aria-pressed={shown} aria-describedby={shown ? describedBy : undefined} disabled={disabled} onClick={() => onChange(!shown)}>
+    <Button size={TOOLBAR_CONTROL_SIZE} variant={shown ? "filled" : "default"} aria-pressed={shown} aria-describedby={shown ? describedBy : undefined} disabled={disabled} onClick={() => onChange(!shown)}>
       {t("timeline.criticalToggle")}
     </Button>
   );

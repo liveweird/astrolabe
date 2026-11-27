@@ -3,6 +3,7 @@ import { IconChevronDown } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { useMenuTabExit } from "../hooks/useMenuTabExit";
 import type { TimelineColumnView } from "../utils/timelineColumns";
+import { TOOLBAR_CONTROL_SIZE } from "../utils/timelineModel";
 
 /**
  * The Gantt's "Hide columns" control (`timeline.md` "Hidden columns"), the page's `toolbar` slot: a disclosure button that collapses every column
@@ -20,12 +21,12 @@ export default function TimelineColumnsControl({ view }: { view: TimelineColumnV
   const chooseLabel = hiddenCount > 0 ? t("timeline.columns.chooseHidden", { count: hiddenCount }) : t("timeline.columns.choose");
   return (
     <Button.Group aria-label={t("timeline.columns.aria")}>
-      <Button size="compact-sm" variant="default" aria-expanded={!view.allHidden} onClick={view.toggleAll}>
+      <Button size={TOOLBAR_CONTROL_SIZE} variant="default" aria-expanded={!view.allHidden} onClick={view.toggleAll}>
         {view.allHidden ? t("timeline.columns.show") : t("timeline.columns.hide")}
       </Button>
       <Menu {...tabExit.menu}>
         <Menu.Target>
-          <Button size="compact-sm" variant="default" aria-label={chooseLabel} leftSection={hiddenText}>
+          <Button size={TOOLBAR_CONTROL_SIZE} variant="default" aria-label={chooseLabel} leftSection={hiddenText}>
             <IconChevronDown size={14} />
           </Button>
         </Menu.Target>

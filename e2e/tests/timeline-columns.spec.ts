@@ -140,6 +140,10 @@ test("the project page hides its extra columns, brings one back from the menu an
   await expect(hideColumns(page)).toHaveAttribute("aria-expanded", "true");
 
   // Hide columns: the two extra headers go, and the Operations header and the bar move left by exactly the width the two had (the scroll position is kept).
+  // The grid opens at the milestone, near the range's right end (1.37); moved 600 px back first, so the narrower pane's smaller maximum cannot clamp the position.
+  await scroller(page, "Milestone timeline").evaluate((element) => {
+    element.scrollLeft = Math.max(0, element.scrollWidth - element.clientWidth - 600);
+  });
   const hiddenWidth = (await widthOf(team)) + (await widthOf(estimate));
   const operationsRight = await rightOf(operations);
   const barLeft = await leftOf(bar);

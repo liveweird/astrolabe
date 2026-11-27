@@ -2,6 +2,7 @@ import { useId } from "react";
 import { Group, Select, Text } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import type { RoadmapProject } from "../api/roadmap";
+import { TOOLBAR_CONTROL_SIZE } from "../utils/timelineModel";
 
 /** The "no target" option's value (a project's value is its id in digits, which this can never be). */
 const NONE = "none";
@@ -21,12 +22,12 @@ export default function RoadmapCriticalPicker({ projects, target, onPick, disabl
     .map((project) => ({ value: String(project.id), label: project.name }));
   return (
     <Group gap={6} wrap="nowrap" data-print="hide">
-      <Text component="label" htmlFor={id} size="xs" fw={500}>
+      <Text component="label" htmlFor={id} size={TOOLBAR_CONTROL_SIZE} fw={500}>
         {t("roadmap.critical.pickerLabel")}
       </Text>
       <Select
         id={id}
-        size="xs"
+        size={TOOLBAR_CONTROL_SIZE}
         w={{ base: 160, sm: 220 }}
         searchable
         allowDeselect={false}

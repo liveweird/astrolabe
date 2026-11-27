@@ -5,7 +5,7 @@ Owns: the `Timeline*` component's contract (coordinates, data, overlay, gestures
 One component serves every Gantt-like page: the project view (milestones of one project), the team view (milestones against capacity), the roadmap and the programs view. Pages differ in their rows and bar sources, not in the mechanics.
 
 Files: all flat under `web/src/`.
-- `utils/timelineScale.ts` (pure coordinate model, header, hatch, default range), `utils/timelineDrag.ts` (pure drag arithmetic, dnd-kit keyboard getter and modifiers), `utils/timelineModel.ts` (the data contract types and layout constants, `headerHeight()`).
+- `utils/timelineScale.ts` (pure coordinate model, header, hatch, default range), `utils/timelineDrag.ts` (pure drag arithmetic, dnd-kit keyboard getter and modifiers), `utils/timelineModel.ts` (the data contract types and layout constants, `headerHeight()`, `TOOLBAR_CONTROL_SIZE`), `utils/timelineOpen.ts` (the pure open rule) with `hooks/useTimelineOpen.ts` (its one application).
 - `hooks/useTimelinePreview.ts` (drag data and preview context).
 - `components/Timeline.tsx` (the frame; its drop zones are `hooks/useTimelineDropZones.ts`, the pending row-focus wish `hooks/useTimelinePendingFocus.ts`, `revealFocused` `utils/timelineReveal.ts`, the overlay's geometry `utils/timelineGeometry.ts`).
 - `TimelineHeader.tsx`, `TimelineRow.tsx` (and `TimelineBand`), `TimelineBar.tsx`, `TimelineToolbar.tsx`, `TimelineUnscheduledTray.tsx`.
@@ -51,9 +51,27 @@ of its first day to the RIGHT edge of its last: `left = xOf(start)`, `width = (e
 **Which zooms a page offers** is its own list: `MILESTONE_ZOOMS` (`week`, `month`, `quarter` — the project and team pages, the `Timeline`'s default `zooms`) and `PLAN_ZOOMS` (`month`, `quarter`, `year` — the Roadmap's modes). The toolbar renders exactly the `zooms` prop, and a page validates its stored zoom against its own list (`isOneOf(MILESTONE_ZOOMS)`), so a `year` stored by a plan page never reaches a milestone page. The load strip treats `year` like `quarter` (type-complete; the strip is never shown there).
 Labels are language-neutral (`formatDate.ts` rule). Groups and cells each PARTITION the range and are clipped to it (a week or month crossing the range edge is a shorter cell, never dropped); a cell may straddle two groups (a week across a month boundary).
 An ordinary track renders that whole partition exactly as before. A track wider than 12,000 px renders `headerWindow(...)`: the visible track dates plus at least 800 px (or one visible track width) on each side. Cells still use `scale.xOf` against the FULL range, so bars, labels, today and drop arithmetic keep one coordinate system. `TimelineHeader` alone observes horizontal scroll and resize on this wide path; rows and the parent Timeline do not re-render for a header scroll.
-`defaultRange(dates, today, zoom)` is the range a page opens with: min/max of the dates ∪ today, padded and snapped as above. A date the page does not own never stretches it: the Jira dates (1900 to 2999 accepted) join the range only inside `jiraWindow` ("The Jira markers").
+`defaultRange(dates, today, zoom)` is the range a page opens with (where the scroller starts in it: "Where a Gantt opens"): min/max of the dates ∪ today, padded and snapped as above. A date the page does not own never stretches it: the Jira dates (1900 to 2999 accepted) join the range only inside `jiraWindow` ("The Jira markers").
 `scrollLeftToCenter` backs the toolbar's "Scroll to today" (target icon; a `title` says why it is disabled).
 `hooks/useLocalToday.ts` owns the browser-local day used by every timeline: one timeout rolls it over at the next LOCAL midnight, and focus / return to a visible tab catches up after browser timer throttling. Project and team Schedule buttons read `localIsoDate()` again at the click, so a page cannot submit yesterday; `usePlanScale` uses it for Roadmap and Programs.
+
+## Where a Gantt opens
+
+ONE rule for every Gantt (the project page, the team page, the Roadmap's two modes, the programs view), in the shared `Timeline`: `openScrollLeft` (`utils/timelineOpen.ts`, pure) decides, `useTimelineOpen` applies it. The page's range is unchanged (data and today, padded); only where the scroller starts differs.
+- **The rule.** Today sits `OPEN_TODAY_SHARE` (a quarter) of the VISIBLE grid from its left edge (the track part of the scroller, the sticky pane excluded; on a phone below 600 px the fitted pane's, so the quarter is of what is left). If no bar touches that first screen, the grid opens `OPEN_LEAD_PX` (40 px) before the first bar: the earliest bar AFTER the screen, or, when none lies ahead (all the work is past), the earliest bar of all. No bars at all: today's rule. With bars both past and ahead and none on the screen, it opens at the first bar AHEAD.
+  On month or year zoom on a wide screen the range's padding can clamp today below the quarter (the range cannot scroll further left).
+  The result is clamped to the track, and the header's Today pill (`TODAY_PILL_HALF_PX` either side of today) is never left cut at the right edge: a pill straddling it is brought in (opening at a past bar can put today there; the range's padding keeps today clear of both ends).
+- **Which bars.** Every drawn bar of every tone (milestone, project span, window, baseline, Jira, proposal) of the first `OPEN_ROWS` rows, the rows a default-height body shows (`openSpans`).
+- **When.** In a layout effect before the first paint, when the scroller has a width (`clientWidth` 0 in a test DOM or a hidden tab: nothing). The pane is fitted to a narrow scroller in the page's own layout effect, so that synchronous re-render re-applies the rule once;
+  the grid is settled a microtask after the first apply, so a later pane change (Hide columns, a resize across 600 px), a refetch, a growing range or a zoom change never moves it (a zoom keeps its pixel offset, as before),
+  and nothing is applied over a grid the viewer or an address has scrolled (the check allows for the browser's clamp to a narrower pane).
+- **An explicit target wins.** `scrollToDay` (Scroll to today, `useMilestoneArrival`'s bar) and `focusRow` settle the rule first, whichever runs first, so `?milestone=` and "Show in timeline" always beat the default.
+- **Tests.** `utils/timelineOpen.test.ts` (the rule: today in range, all future, all past, a gap, no bars, narrow, the pill), `Timeline.open.test.tsx` (the application: the pane fit, settling, an arrival target), `ProjectView.open.test.tsx` and `GanttOpen.test.tsx` (each page's own scale), `e2e/tests/timeline-open.spec.ts`.
+
+## The toolbar
+
+Every control the Gantt toolbar holds uses ONE size, `TOOLBAR_CONTROL_SIZE` (`xs`, `utils/timelineModel.ts`), the small of the Week / Month / Quarter switch (12 px text, a 30 px target, above WCAG 2.5.8's 24 px): Scroll to today, Hide / Show columns and its menu, the baseline label and picker, Critical path (and the Roadmap's "Critical path to…" picker), Jira dates. The section buttons of the same pages (Add dependency, Add period) take it too,
+  as do the page buttons directly above a Gantt (the team page's Propose schedule and Reset order, the proposal sections' Propose schedule) and the dependency panels' Add dependency, with 14 px icons; a new toolbar control imports the constant, never a literal.
 
 ## Data contract
 

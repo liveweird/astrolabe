@@ -5,8 +5,10 @@ import { useDndContext } from "@dnd-kit/core";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useRovingGrid } from "../hooks/useRovingGrid";
 import { useTimelineDropZones } from "../hooks/useTimelineDropZones";
+import { useTimelineOpen } from "../hooks/useTimelineOpen";
 import { useTimelinePendingFocus } from "../hooks/useTimelinePendingFocus";
 import {
+  DEFAULT_MAX_HEIGHT,
   DEFAULT_VIRTUALIZE_FROM,
   hasColumn,
   headerHeight,
@@ -131,7 +133,7 @@ export default function Timeline({
   holidaysFailed = false,
   toolbar,
   virtualizeFrom = DEFAULT_VIRTUALIZE_FROM,
-  maxHeight = 640,
+  maxHeight = DEFAULT_MAX_HEIGHT,
   busy = false,
   ref,
   scrollRef: pageScrollRef,
@@ -200,7 +202,10 @@ export default function Timeline({
 
   const reveal = (target: HTMLElement, force = false) => revealFocused(scrollRef.current, target, head, leftWidth, force);
 
+  const settleOpen = useTimelineOpen(scrollRef, scale, today, leftWidth, rows);
+
   const scrollToDay = (iso: string) => {
+    settleOpen();
     const scroller = scrollRef.current;
     if (scroller !== null) scroller.scrollLeft = scrollLeftToCenter(scale, toEpochDay(iso), scroller.clientWidth, leftWidth);
   };
@@ -212,6 +217,7 @@ export default function Timeline({
       focusRow: (rowId) => {
         const index = rows.findIndex((candidate) => candidate.id === rowId);
         if (index < 0) return false;
+        settleOpen();
         if (index >= first && index <= last) {
           const cell = grid.ref.current?.querySelector<HTMLElement>(`[data-grid-pos="${index + 1},0"]`);
           if (cell === null || cell === undefined) return false;

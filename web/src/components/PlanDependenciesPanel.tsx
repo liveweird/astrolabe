@@ -10,6 +10,7 @@ import { asksForDependenciesFocus } from "../utils/dependencyListLinks";
 import { ANCHORED_HEADING_STYLE } from "../utils/layout";
 import PlanDependenciesContent from "./PlanDependenciesContent";
 import TableDisclosure from "./TableDisclosure";
+import { TOOLBAR_CONTROL_SIZE } from "../utils/timelineModel";
 
 /** The view-settings key of the show/hide choice (`astrolabe.viewSettings.roadmap.dependenciesOpen`), one for the Roadmap and the Programs page. */
 const OPEN_KEY = "roadmap.dependenciesOpen";
@@ -73,7 +74,7 @@ export default function PlanDependenciesPanel({ ready = true }: { ready?: boolea
           {t("dependencyList.panel.title")}
         </Title>
         {open && state.canAdd && (
-          <Button variant="default" size="compact-md" data-print="hide" leftSection={<IconPlus size={16} />} onClick={() => state.setAdding(true)}>
+          <Button variant="default" size={TOOLBAR_CONTROL_SIZE} data-print="hide" leftSection={<IconPlus size={14} />} onClick={() => state.setAdding(true)}>
             {t("project.dependency.add")}
           </Button>
         )}

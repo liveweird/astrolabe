@@ -2,6 +2,7 @@ import { useId } from "react";
 import { Group, Select, Text } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import { useBaselines } from "../hooks/useBaselines";
+import { TOOLBAR_CONTROL_SIZE } from "../utils/timelineModel";
 
 /** The "no baseline" option's value (a baseline's value is its id in digits, which this can never be). */
 const NONE = "none";
@@ -37,12 +38,12 @@ export default function BaselinePicker({
   }
   return (
     <Group gap={6} wrap="nowrap" data-print="hide">
-      <Text component="label" htmlFor={id} size="xs" fw={500}>
+      <Text component="label" htmlFor={id} size={TOOLBAR_CONTROL_SIZE} fw={500}>
         {t("timeline.baseline.pickerLabel")}
       </Text>
       <Select
         id={id}
-        size="xs"
+        size={TOOLBAR_CONTROL_SIZE}
         w={220}
         searchable
         allowDeselect={false}

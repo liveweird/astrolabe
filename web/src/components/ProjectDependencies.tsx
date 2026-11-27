@@ -21,6 +21,7 @@ import RowActionsMenu from "./RowActionsMenu";
 import ScrollRegion from "./ScrollRegion";
 import SlackCell from "./SlackCell";
 import TableDisclosure from "./TableDisclosure";
+import { TOOLBAR_CONTROL_SIZE } from "../utils/timelineModel";
 
 const NO_WRAP = { whiteSpace: "nowrap" } as const;
 
@@ -187,7 +188,7 @@ export default function ProjectDependencies({
           )}
         </Group>
         {open && project.can.createDependency && (
-          <Button variant="default" size="compact-md" data-print="hide" leftSection={<IconPlus size={16} />} onClick={onAdd}>
+          <Button variant="default" size={TOOLBAR_CONTROL_SIZE} data-print="hide" leftSection={<IconPlus size={14} />} onClick={onAdd}>
             {t("project.dependency.add")}
           </Button>
         )}

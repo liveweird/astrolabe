@@ -775,6 +775,7 @@ column, the ghost-row lookup (by kind + id, never by `hops`) and the Critical ch
 
 - `ProjectPage` holds `useCriticalPathPick()` (the one `timeline.criticalPath` key, shared with the team page; called before the early return: hooks stay unconditional) and passes
   `criticalPath` and `<CriticalPathToggle>` (as `toolbar`) to `ProjectTimeline`, `showCritical` to `ProjectDependencies`.
+  Every Gantt page opens by the shared rule (today a quarter of the visible grid in, else the first bar: `timeline.md` "Where a Gantt opens"); the toolbar's controls and "Add dependency" (and the team page's "Add period") share `TOOLBAR_CONTROL_SIZE`.
 - `ProjectTimeline` (rows in `ProjectTimelineRows.tsx`, cell in `SlackCell.tsx`) adds the `slack` column; `withOptional` inserts the cell before the actions cell, so a bar's roving
   columns shift by one. `emphasized(t, critical, describe)` applies the outline to the bar fields, `arrowSpecs(view, criticalPath)` flags the arrows, and the ghost rows' slack and
   emphasis come from `upstreamIndex(view)` by kind + id.

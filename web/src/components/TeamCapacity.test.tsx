@@ -45,6 +45,11 @@ describe("TeamCapacity and Flow-imported periods", () => {
     expect(within(await screen.findByRole("dialog", { name: "Edit the capacity period" })).queryByRole("note")).not.toBeInTheDocument();
   });
 
+  test("Add period takes the Gantt toolbar's small size", () => {
+    renderWithProviders(<TeamCapacity view={view([MANUAL])} />);
+    expect(screen.getByRole("button", { name: "Add period" })).toHaveAttribute("data-size", "xs");
+  });
+
   test("adding a period shows no Flow hint", async () => {
     renderWithProviders(<TeamCapacity view={view([FLOW])} />);
     await userEvent.click(screen.getByRole("button", { name: "Add period" }));

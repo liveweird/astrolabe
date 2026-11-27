@@ -20,6 +20,14 @@ export const DEFAULT_VIRTUALIZE_FROM = 80;
 export const OVERSCAN_ROWS = 8;
 /** The body is at least this many rows tall, so an empty (or nearly empty) timeline still has a visible area to drop an Unscheduled item on. */
 export const MIN_BODY_ROWS = 3;
+/** The body's default `maxHeight` in px (the Timeline's own default; no page passes another). */
+export const DEFAULT_MAX_HEIGHT = 640;
+
+/**
+ * The ONE size of every Gantt toolbar control, the "small" of the Week / Month / Quarter switch (Mantine `xs`: 12 px text, a 30 px target, above
+ * WCAG 2.5.8's 24 px): the buttons, the pickers' selects and, beside the toolbar, the section buttons of the same pages (Add dependency, Add period).
+ */
+export const TOOLBAR_CONTROL_SIZE = "xs";
 
 /** A bar owns up to three roving columns after the row's left cells: the bar, then (editable only) its start and end handles. */
 export const COLUMNS_PER_BAR = 3;

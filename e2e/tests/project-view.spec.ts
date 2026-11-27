@@ -180,9 +180,25 @@ async function focusRevealed(target: Locator): Promise<void> {
     .toBe(true);
 }
 
+/**
+ * Scroll the timeline sideways until `target` lies 60 px right of the sticky columns, so a gesture that moves right from it stays on the visible track whatever
+ * position the grid opened at (the open rule puts today, or the first bar, a quarter of the way in) and wherever a reveal left the target.
+ */
+async function bringToLeftOfTrack(page: Page, target: Locator): Promise<void> {
+  const paneEdge = await page.getByRole("grid", { name: "Milestone timeline" }).getByRole("columnheader", { name: "Operations" }).boundingBox();
+  const at = await target.boundingBox();
+  if (!paneEdge || !at) throw new Error("the timeline is not laid out");
+  const edge = paneEdge.x + paneEdge.width;
+  await page.getByRole("region", { name: "Milestone timeline" }).evaluate((element, by) => {
+    element.scrollLeft += by;
+  }, at.x - (edge + 60));
+  await expect.poll(async () => ((await target.boundingBox())?.x ?? Number.POSITIVE_INFINITY) - edge).toBeLessThan(64);
+}
+
 /** Press on `from`'s centre and drag the pointer `dx` pixels along the row, in steps (dnd-kit's 5 px activation first). */
 async function dragBy(page: Page, from: Locator, dx: number): Promise<void> {
   await focusRevealed(from);
+  await bringToLeftOfTrack(page, from);
   const box = await from.boundingBox();
   if (!box) throw new Error("the drag source is not laid out");
   const x = box.x + box.width / 2;
@@ -293,6 +309,8 @@ test("the team's manager schedules a milestone by button, by keyboard, by pointe
   // under the pointer is only right if the drop zone is measured in the scrolled frame: three and a half day cells right of the ruler's
   // last day (2027-02-19) is the 23rd, and the milestone gets one calendar week from there.
   await focusRevealed(bar(page, ruler));
+  // Wherever the grid opened and the reveal left it, the drop point three and a half day cells right of the ruler must be on screen.
+  await bringToLeftOfTrack(page, bar(page, ruler));
   const rulerBox = await bar(page, ruler).boundingBox();
   const handle = await tray(page).getByRole("row", { name: new RegExp(name) }).locator('[class*="timelineTrayHandle"]').boundingBox();
   if (!rulerBox || !handle) throw new Error("the ruler bar or the tray handle is not laid out");

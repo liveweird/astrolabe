@@ -3,6 +3,7 @@ import { Button, Group, SegmentedControl } from "@mantine/core";
 import { IconTarget } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import type { Zoom } from "../utils/timelineScale";
+import { TOOLBAR_CONTROL_SIZE } from "../utils/timelineModel";
 
 /** The Timeline's controls: the zoom (the page's `zooms`), "Scroll to today" (scrolls today into the middle of the track) and the page's own `children` after them. */
 export default function TimelineToolbar({
@@ -26,7 +27,7 @@ export default function TimelineToolbar({
   return (
     <Group gap="sm" role="group" aria-label={t("timeline.toolbarAria")}>
       <SegmentedControl
-        size="xs"
+        size={TOOLBAR_CONTROL_SIZE}
         // Mantine eases the labels' colour and the indicator over 200 ms; with 0 a light/dark switch recolours them in the same frame as the
         // rest of the (instantly re-themed) toolbar instead of leaving the labels one fade behind.
         transitionDuration={0}
@@ -36,7 +37,7 @@ export default function TimelineToolbar({
         data={zooms.map((value) => ({ value, label: t(`timeline.zoom.${value}`) }))}
       />
       <Button
-        size="compact-sm"
+        size={TOOLBAR_CONTROL_SIZE}
         variant="default"
         leftSection={<IconTarget size={14} />}
         onClick={onToday}
