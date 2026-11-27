@@ -9,12 +9,13 @@ import { consumeSignedOut } from "./auth";
 import { APP_VERSION } from "./changelog/version";
 import { emptyHomeView } from "./test/home";
 import { jsonResponse } from "./test/http";
+import { teamLoadRow, teamLoadView } from "./test/teamLoad";
 import { currentFixture, historyFixture } from "./test/telemetryFixtures";
 
 const TOKEN_KEY = "astrolabe.auth.token";
 
 /**
- * The three reads the Home page makes at `/` (the open deviation counts and, since 1.18, the plan's figures). A paged envelope or any other blanket body is
+ * The three reads the Home page makes at `/` (the open deviation counts and, since 1.18, the plan's figures), and the Teams page's document. A paged envelope or any other blanket body is
  * not one of these documents, so the stubs answer the three URLs with their own empty documents (no connection, a plan of zeros, no person) and leave
  * every other URL to the test. `undefined` = not a Home read.
  */
@@ -28,6 +29,10 @@ function homeViews(input: RequestInfo | URL): Promise<Response> | undefined {
   }
   if (url === "/api/v1/views/home") {
     return Promise.resolve(jsonResponse(200, emptyHomeView()));
+  }
+  // The Teams page's one read (1.32), an empty plan's document.
+  if (url === "/api/v1/views/team-load") {
+    return Promise.resolve(jsonResponse(200, teamLoadView([])));
   }
   return undefined;
 }
@@ -94,7 +99,8 @@ describe("App shell", () => {
       expect(within(planning).queryByRole("link", { name: "Dependencies" })).not.toBeInTheDocument();
       expect(within(planning).getByRole("link", { name: "Baselines" })).toHaveAttribute("href", "/baselines");
       const teams = screen.getByRole("group", { name: "Teams and capacity" });
-      expect(within(teams).getByRole("link", { name: "Team load" })).toHaveAttribute("href", "/team-load");
+      // Team load is part of Teams (1.32): no leaf of its own.
+      expect(within(teams).queryByRole("link", { name: "Team load" })).not.toBeInTheDocument();
       expect(within(teams).getByRole("link", { name: "Schedule proposals" })).toHaveAttribute("href", "/schedule-proposals");
       expect(within(teams).getByRole("link", { name: "Teams" })).toHaveAttribute("href", "/teams");
       expect(within(teams).getByRole("link", { name: "People" })).toHaveAttribute("href", "/people");
@@ -291,6 +297,24 @@ describe("App shell", () => {
       renderApp("/");
       await screen.findByRole("heading", { level: 2, name: "Astrolabe" });
       expect(screen.queryByTitle("What's new")).not.toBeInTheDocument();
+    });
+
+    test("the old Team load address opens Teams with its filters kept (1.32)", async () => {
+      vi.mocked(fetch).mockImplementation((input) =>
+        String(input) === "/api/v1/views/team-load"
+          ? Promise.resolve(jsonResponse(200, teamLoadView([teamLoadRow({ id: 3, name: "Backend", overloadedWeeks: 1 }), teamLoadRow({ id: 4, name: "Data" })])))
+          : (homeViews(input) ?? emptyPage()),
+      );
+      renderApp("/team-load?warning=overloaded&past=true");
+      expect(await screen.findByRole("heading", { level: 2, name: "Teams" })).toBeInTheDocument();
+      const table = await screen.findByRole("table", { name: "Teams" });
+      expect(within(table).getByRole("link", { name: "Open team Backend" })).toBeInTheDocument();
+      expect(within(table).queryByRole("link", { name: "Open team Data" })).not.toBeInTheDocument();
+      // Both parameters survived the redirect: the Show select and the switch carry them.
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: /Filters/ }));
+      expect(screen.getByRole("switch", { name: "Include past weeks" })).toBeChecked();
+      expect(screen.getByRole("combobox", { name: "Show" })).toHaveValue("With an overloaded week");
     });
 
     test("an unmatched URL renders the not-found page inside the shell", async () => {

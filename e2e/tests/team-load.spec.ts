@@ -1,4 +1,4 @@
-// The Team load page (/team-load, 1.19): every team with its overloaded and over-WIP weeks, the "Show" filter in the URL. The plan is shared by four
+// The Teams page's load figures (1.19 as the Team load page; folded into /teams in 1.32, whose old address /team-load redirects): every team with its overloaded and over-WIP weeks, the "Show" filter in the URL. The plan is shared by four
 // workers, so the plan-wide figures (the facts line's team counts) are only ever asserted PRESENT, never as values; the row asserted exactly is
 // this spec's own team. Owns: its throwaway person, one team (no manager) with one capacity period from Monday 2027-04-05 of 1 man-day a week, a work
 // stream, program, project and ONE milestone of 10 man-days on that team scheduled 2027-04-05..09 (unique `e2e-load-*` names), all seeded through the
@@ -62,19 +62,21 @@ function mondayFromNow(weeksFromNow: number): string {
   return addDays(today, weeksFromNow * 7 - weekday);
 }
 
-test("the Team load page lists a team with an overloaded week, and its name opens the team page that says the same", async ({ page }) => {
+test("the Teams page lists a team with an overloaded week, and its name opens the team page that says the same", async ({ page }) => {
   const team = await seedOverloadedTeam("2027-04-05", ["2027-04-05"]);
   await login(page);
 
-  // Narrowed to the teams with an overloaded week (the link Home's badge uses): this spec's team is a row with its worded badge, and the facts line
-  // shows a count of teams with an overloaded week and the plan-wide not-scheduled total (present, never a value).
+  // The retired address (an old bookmark) lands on Teams with the filter kept: this spec's team is a row with its worded badge and, for an ADMIN, its
+  // row menu; the facts line shows a count of teams with an overloaded week and the plan-wide not-scheduled total (present, never a value).
   await page.goto("/team-load?warning=overloaded");
-  await expect(page.getByRole("heading", { level: 2, name: "Team load", exact: true })).toBeVisible();
-  const rows = page.getByRole("table", { name: "Load of every team", exact: true }).locator("tbody tr");
+  await expect(page).toHaveURL(/\/teams\?warning=overloaded$/);
+  await expect(page.getByRole("heading", { level: 2, name: "Teams", exact: true })).toBeVisible();
+  const rows = page.getByRole("table", { name: "Teams", exact: true }).locator("tbody tr");
   const mine = rows.filter({ has: page.getByRole("link", { name: `Open team ${team}`, exact: true }) });
   await expect(mine).toHaveCount(1);
   await expect(mine).toContainText("1 week overloaded");
-  const facts = page.getByRole("group", { name: "Team load in figures", exact: true });
+  await expect(mine.getByRole("button", { name: `Operations for ${team}`, exact: true })).toBeVisible();
+  const facts = page.getByRole("group", { name: "The teams in figures", exact: true });
   await expect(facts.getByText(/^\d+ teams?$/)).toBeVisible();
   await expect(facts.getByText(/^\d+ teams? with an overloaded week$/)).toBeVisible();
   await expect(facts.getByText(/^\d+ not scheduled yet$/)).toBeVisible();
@@ -86,14 +88,14 @@ test("the Team load page lists a team with an overloaded week, and its name open
   await expect(page).not.toHaveURL(/warning=/);
   // Scoped to the teams table: since 1.21 the "Weeks with a warning" table names the team again (strict mode refuses a page-wide match).
   await page
-    .getByRole("table", { name: "Load of every team", exact: true })
+    .getByRole("table", { name: "Teams", exact: true })
     .getByRole("link", { name: `Open team ${team}`, exact: true })
     .click();
   await expect(page.getByRole("heading", { level: 2, name: team, exact: true })).toBeVisible();
   await expect(page.getByRole("group", { name: "Team facts", exact: true })).toContainText("1 week overloaded");
 });
 
-test("the Team load page lists the team's overloaded week with how far it is over, and the team's page shows the same week", async ({ page }) => {
+test("the Teams page lists the team's overloaded week with how far it is over, and the team's page shows the same week", async ({ page }) => {
   const team = await seedOverloadedTeam("2027-04-05", ["2027-04-05"]);
   await login(page);
 
@@ -101,8 +103,8 @@ test("the Team load page lists the team's overloaded week with how far it is ove
   // link to its team (four workers share the plan: nothing here is a plan-wide figure). A holiday in the week would change the capacity, never
   // the week or the load, so the shortfall is a pattern. Since 1.22 the page lists the weeks from this week on, so the fixed April 2027 week is
   // asked for with past=true: it never expires once that April is behind the run.
-  await page.goto("/team-load?warning=overloaded&past=true");
-  await expect(page.getByRole("heading", { level: 2, name: "Team load", exact: true })).toBeVisible();
+  await page.goto("/teams?warning=overloaded&past=true");
+  await expect(page.getByRole("heading", { level: 2, name: "Teams", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { level: 3, name: "Weeks with a warning", exact: true })).toBeVisible();
   const weeks = page.getByRole("table", { name: "Weeks with a warning, by team", exact: true });
   const mine = weeks.locator("tbody tr").filter({ has: page.getByRole("link", { name: `Open team ${team}`, exact: true }) });
@@ -123,7 +125,7 @@ test("the Team load page lists the team's overloaded week with how far it is ove
   await expect(week).toContainText(verdict);
 });
 
-test("the Team load page lists the weeks from this week on, and Include past weeks brings an earlier one back", async ({ page }) => {
+test("the Teams page lists the weeks from this week on, and Include past weeks brings an earlier one back", async ({ page }) => {
   // Dated from the run: capacity from four weeks before this week, one overloaded week three weeks before and one three weeks after, so neither
   // week can be "this week" whatever day or time zone the run starts in.
   const earlier = mondayFromNow(-3);
@@ -133,9 +135,9 @@ test("the Team load page lists the weeks from this week on, and Include past wee
 
   // From this week on by default: the teams table counts both weeks, the weeks table lists the later one only, and one line says that earlier
   // weeks are left out (the plan is shared, so its count is not asserted).
-  await page.goto("/team-load?warning=overloaded");
-  await expect(page.getByRole("heading", { level: 2, name: "Team load", exact: true })).toBeVisible();
-  const teams = page.getByRole("table", { name: "Load of every team", exact: true });
+  await page.goto("/teams?warning=overloaded");
+  await expect(page.getByRole("heading", { level: 2, name: "Teams", exact: true })).toBeVisible();
+  const teams = page.getByRole("table", { name: "Teams", exact: true });
   const teamRow = teams.locator("tbody tr").filter({ has: page.getByRole("link", { name: `Open team ${team}`, exact: true }) });
   await expect(teamRow).toHaveCount(1);
   await expect(teamRow).toContainText("2 weeks overloaded");

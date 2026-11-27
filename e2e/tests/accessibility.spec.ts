@@ -166,18 +166,15 @@ const AUTHED_PAGES: { path: string; heading: string; settled?: Settled }[] = [
       await expect(page.getByText(/^(No project picked|No projects yet)$/)).toBeVisible();
     },
   },
+  { path: "/schedule-proposals", heading: "Schedule proposals" },
   {
-    path: "/team-load",
-    heading: "Team load",
-    // The table, or the sentence a page without rows says (no team, or none with the chosen warning).
+    path: "/teams",
+    heading: "Teams",
+    // 1.32 (Team load folded in): the table, or the sentence a plan without teams says; the weeks table below it is not waited for.
     settled: async (page) => {
-      await expect(
-        page.getByRole("table", { name: "Load of every team", exact: true }).or(page.getByText(/^(There are no teams yet|No team has this warning)$/)),
-      ).toBeVisible();
+      await expect(page.getByRole("table", { name: "Teams", exact: true }).or(page.getByText("No teams yet", { exact: true }))).toBeVisible();
     },
   },
-  { path: "/schedule-proposals", heading: "Schedule proposals" },
-  { path: "/teams", heading: "Teams", settled: tableRow("Teams") },
   { path: "/people", heading: "People", settled: tableRow("People") },
   {
     path: "/public-holidays",
@@ -985,7 +982,7 @@ test.describe("a baseline on the plan", () => {
         await expect(page.getByRole("heading", { level: 2, name: "Teams" })).toBeVisible();
         await openFilters(page);
         await page.getByLabel("Name", { exact: true }).fill(teamName); // the filter narrows a stack of many rows to the fixture
-        await expect(page.getByRole("link", { name: `Open team ${teamName}` })).toBeVisible();
+        await expect(page.getByRole("table", { name: "Teams", exact: true }).getByRole("link", { name: `Open team ${teamName}` })).toBeVisible();
         await expectScheme(page, scheme);
         await scanOpenMenu(teamName);
 

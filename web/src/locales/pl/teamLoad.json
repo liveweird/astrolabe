@@ -1,6 +1,4 @@
 {
-  "title": "Obciążenie zespołów",
-  "intro": "Zaplanowana praca każdego zespołu na tle jego przepustowości: tygodnie, które strona zespołu oznacza jako przeciążone albo ponad limitem WIP. Przeciążenie i WIP tylko ostrzegają — nic się nie przesuwa.",
   "filter": {
     "warning": "Pokaż",
     "past": "Pokaż też minione tygodnie"
@@ -17,8 +15,6 @@
     "teams_many": "{{count}} zespołów",
     "teams_other": "{{count}} zespołu"
   },
-  "factsAria": "Obciążenie zespołów w liczbach",
-  "tableAria": "Obciążenie każdego zespołu",
   "column": {
     "overloaded": "Przeciążenie",
     "wip": "WIP",
@@ -28,11 +24,8 @@
   "withoutCapacity_few": "{{count}} tygodnie bez przepustowości",
   "withoutCapacity_many": "{{count}} tygodni bez przepustowości",
   "withoutCapacity_other": "{{count}} tygodnia bez przepustowości",
-  "empty": "Nie ma jeszcze zespołów",
-  "noMatch": "Żaden zespół nie ma tego ostrzeżenia",
   "showAll": "Pokaż wszystkie zespoły",
   "truncated": "Lista pokazuje pierwsze {{count}} zespołów.",
-  "loadFailed": "Nie udało się wczytać obciążenia zespołów",
   "notScheduledAria": "Niezaplanowane ({{count}}): zespół {{name}}",
   "weeks": {
     "title": "Tygodnie z ostrzeżeniem",

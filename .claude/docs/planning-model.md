@@ -731,7 +731,7 @@ Pinned by: `HomeKernelsTest`, `HomeViewTest`, `HomeViewSizeTest`.
 
 Files: `planning/TeamLoadKernels.kt`, `TeamLoadView.kt`, `TeamLoadViewService.kt`, `TeamLoadRows.kt`.
 
-`GET /views/team-load` (any authenticated user, no parameter: an unknown query name is ignored; `200`/`401`/`500`; no audit, no lock, no bucket, a read) answers the document of "The view documents", behind the Team load page and Home's two capacity badges. The SAME for every caller: no `can`.
+`GET /views/team-load` (any authenticated user, no parameter: an unknown query name is ignored; `200`/`401`/`500`; no audit, no lock, no bucket, a read) answers the document of "The view documents", behind the Teams page and Home's two capacity badges. The SAME for every caller: no `can`.
 Nothing is stored; every figure is the team page's own, so the list never disagrees with it or with Home.
 
 - **Capacity figures the caller already sees.** The weeks behind the two warning counts are listed in `warningWeeks` (the team page's `weeks[]` items), which that page shows every login. `currentWeekStart` is the Monday of the SERVER's current week in UTC, the same for every caller.

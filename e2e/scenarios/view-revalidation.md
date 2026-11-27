@@ -18,5 +18,5 @@ The SPA keeps the last answer of each view read and its `ETag` in the page's mem
 ## Not covered here (and why)
 
 - The other nine reads that answer through a validator: the server's sweep (`ViewValidatorsTest`) and the SPA's table-driven wrapper test cover them.
-- The session boundary (a sign-out or another tab's sign-in forgetting the kept documents) and a `304` after a failed write: vitest (`api/revalidate.test.ts`, `utils/sessionQueryCache.test.ts`, `pages/TeamLoad.test.tsx`).
+- The session boundary (a sign-out or another tab's sign-in forgetting the kept documents) and a `304` after a failed write: vitest (`api/revalidate.test.ts`, `utils/sessionQueryCache.test.ts`, `pages/Teams.load.test.tsx`).
 - A cross-origin deployment (`If-None-Match` allowed and `ETag` exposed): `ServerTest`.

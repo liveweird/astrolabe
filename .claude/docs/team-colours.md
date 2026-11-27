@@ -38,10 +38,10 @@ Owns: a team's colour: the palette, how a colour is assigned and stored, who edi
   `teamColours.test.ts` recomputes from the theme: every shade >= 3:1 (WCAG 1.4.11) on the row, the canvas and the table hover in its scheme; the first eight keys >= 15 and all twelve >= 9 ΔE2000 apart; the keys equal `schema.ts`' `TeamColour`, in order.
 - **The mark.** `components/TeamSwatch.tsx`: a small square, `aria-hidden`, `data-team-colour="<KEY>"` (tests read it, never the colour), no text on it, `forced-color-adjust: none` (the colour IS the information) with a `CanvasText` border under `forced-colors`.  The name always stands beside it.
 - **The lookup.** `hooks/useTeamColours.ts`: team id to key over the one cached `["teams","options"]` read (`useTeamOptions` carries `colour`; a team write refreshes it).
-  A team the map lacks (deleted, or the read not answered) gets a hidden placeholder of the swatch's size. The Teams rows read their own `colour`; the team page its `team.colour` (`PageHeader`'s `titleLead`).
+  A team the map lacks (deleted, or the read not answered) gets a hidden placeholder of the swatch's size. The Teams table reads this map; the team page its `team.colour` (`PageHeader`'s `titleLead`).
 - **The editor.** `components/TeamColourField.tsx`: a `Radio.Group` of the twelve, each a swatch with its visible name (`teams.colour.name.<KEY>`, EN and PL); under it, dimmed in a polite live region, "Also used by: A, B" (`teams.colour.sharedWith`) while another team holds the pick.
   A new team preselects `leastUsedColour` of the read teams (the server's rule) once the read has settled, and sends it; before that nothing is preselected and the body omits `colour`, so the server picks. A POST carries `colour`; a PUT only when the user changed it (the prefill is a cached read, so an untouched colour must not overwrite another admin's recolour).
-- **Where it shows (C2).** A swatch before the name on the Teams registry, the team page title, Team load's teams table and Home "Your teams" (not Team load's weeks table, deliberately).
+- **Where it shows (C2).** A swatch before the name in the Teams table, the team page title and Home "Your teams" (not the weeks table under the Teams table, deliberately).
   A swatch whose colour is not read yet keeps its box, hidden, so the name does not shift.
 
 ## Web: the timelines (C3)

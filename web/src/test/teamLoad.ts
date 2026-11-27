@@ -1,4 +1,4 @@
-// Shared fixtures for the Team load page: a row and a document as GET /views/team-load answers them.
+// Shared fixtures for the Teams page: a row and a document as GET /views/team-load answers them.
 import type { components } from "../api/schema";
 
 type Row = components["schemas"]["TeamLoadRow"];

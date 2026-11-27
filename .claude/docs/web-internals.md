@@ -459,7 +459,6 @@ Home writes nothing. The user's own write re-reads Home on its next visit becaus
 - Every plan write refreshes `["plan"]` (the key's prefix).
 - A write that moves a figure WITHOUT refreshing `["plan"]` names `HOME_VIEW_KEY` in its `refreshQueriesAfterMutation` call:
   - the ranking (`hooks/useRoadmapRanking.ts`: ranked, unranked, rank);
-  - the Teams registry (`pages/Teams.tsx`: a team's name, manager, deletion);
   - the People pages (`People.tsx`, `PersonDetails.tsx`: the person line and what is owned) and the login-person link (`Users.tsx` "Create a person", `CreateUser.tsx`);
   - Jira connection settings, tests, Refresh now, run completion, mapping saves and refused acknowledgements that only refresh Jira keys.
 - Flow link changes, capacity writes, acknowledgements, connection lifecycle and completed runs refresh `["plan"]` and `["roadmap"]`
@@ -514,17 +513,17 @@ linked person may manage through the owner chain (what they own and everything u
 
 A figure that leads somewhere is itself the link: a real `RouterLink` (`components/BadgeLink.tsx`, a light `Badge` as a link, the `DeviationCount` idiom; a text line is an `Anchor`),
 shown only when positive (zero is no claim and no link). What it says is still the document's own figure - a link changes where it leads, never what it says. Every URL comes from a
-builder (`roadmapFilteredPath`, `projectUnscheduledPath`, `teamLoadWarningPath`); none is assembled by hand.
+builder (`roadmapFilteredPath`, `projectUnscheduledPath`, `teamsWarningPath`); none is assembled by hand.
 
 | Figure on Home | Leads to | Why the two agree |
 |---|---|---|
-| Plan: "N not scheduled yet" | `/team-load` | the rows count each team's `unscheduledMilestones`, whose sum is `plan.unscheduledMilestones` and the page's facts-line `totals.unscheduledMilestones` |
+| Plan: "N not scheduled yet" | `/teams` | the rows count each team's `unscheduledMilestones`, whose sum is `plan.unscheduledMilestones` and the page's facts-line `totals.unscheduledMilestones` |
 | Roadmap: "N unranked" (a link when positive, text at zero) | `/roadmap?mode=prioritization&unranked=true` | `plan.unrankedProjects` and the Roadmap's "N unranked" count the same rows; a link is shown as written, so no remembered filter or pick narrows it; "N ranked" stays text (no "ranked only" filter) |
 | Roadmap: "N warnings" / "N infos" (each opens its own severity) | `/roadmap?mode=prioritization&severity=WARNING` / `…&severity=INFO` | every warning sits on a project that has one, so the facts line's warnings figure under the filter is Home's; the infos figure there counts the infos of those rows (fewer than Home's, as every filter narrows a count) |
-| Roadmap: "N teams with an overloaded week" / "over the WIP limit" | `/team-load?warning=overloaded` / `wip` | the page's rows and Home's count fold the same `teamWeeks` |
+| Roadmap: "N teams with an overloaded week" / "over the WIP limit" | `/teams?warning=overloaded` / `wip` | the page's rows and Home's count fold the same `teamWeeks` |
 | Roadmap: "N violated dependencies" | `/roadmap?dependencies=violated` (`violatedDependenciesPath()`; no mode: the panel is the same in both) | `totals.violated` of the dependencies view and `plan.conflicts` are one server function over one kernel's output |
 | Yours, a project's / a team's red "N conflicts" | `/roadmap?dependencies=violated&dependencyProjectId=N` / `&dependencyTeamId=N` | the violated links with an end in the project / a milestone end in the team: the subsets Home counts; the page's filter keeps the same rows |
-| Yours, a project's "Not scheduled" / a team's (Team load's too) | `/projects/N?milestones=unscheduled` / `/teams/N` | the project page's Milestones table narrowed to its unscheduled rows / the team page's Unscheduled tray: the same subset |
+| Yours, a project's "Not scheduled" / a team's (the Teams table's too) | `/projects/N?milestones=unscheduled` / `/teams/N` | the project page's Milestones table narrowed to its unscheduled rows / the team page's Unscheduled tray: the same subset |
 | Yours, "Open the projects you own yourself on the roadmap" (under the projects table, only while a listed project is `direct`) | `/roadmap?mode=prioritization&ownerPersonId=<me.personId>` | the Roadmap's Owner filter; direct ownership on both sides (the table may list more: the projects under a work stream or program the person owns) |
 | Yours, a work stream's / a program's projects figure (positive) | `/roadmap?mode=prioritization&workStreamId=N` / `…&programId=N` | the Work stream filter / the program pick with one program; a node with no project has a plain zero (no filter option); the NAME leads to the overview |
 | Yours, a project's and a team's name; a team's Jira badge | their pages; the Deviations page | existing links, not figure-links |
@@ -1267,57 +1266,49 @@ The panel's co-located tests (`PlanDependenciesPanel*.test.tsx`: the list, `.add
 
 ## Team load
 
-Files: `pages/TeamLoad.tsx`; `api/teamLoad.ts` (`getTeamLoadView`); `utils/teamLoadFilters.ts` (`parseTeamLoadFilter`, `teamLoadFilterParams`, `matchesWarning`, `matchesWeek`);
-`utils/teamLoadLinks.ts` (`teamLoadPath`, `teamLoadWarningPath(warning)`, the builder Home's two capacity badges use); `components/TeamLoadWeeks.tsx`; `components/WeekLoadCells.tsx`
-(`WeekStatus`; `weekLabel` and `mdText` live in `utils/weekLoadText.ts`, imported by `TeamWeeklyLoad.tsx` too).
+Since 1.32 Team load is the Teams page (`/teams`): ONE table over the one `GET /views/team-load`. Files: `pages/Teams.tsx`; `components/TeamsTable.tsx` (`TeamsTable`, `TeamsFacts`); `api/teamLoad.ts`
+(`getTeamLoadView`); `utils/teamLoadFilters.ts` (`parseTeamLoadFilter`, `teamLoadFilterParams`, `teamsKept`, `isNarrowing`, `matchesWarning`, `matchesWeek`, `earlierWeekCount`); `utils/teamLinks.ts`
+(`teamsWarningPath(warning)`, Home's two capacity badges); `components/TeamLoadWeeks.tsx`; `components/WeekLoadCells.tsx` (`WeekStatus`; `weekLabel`, `mdText`: `utils/weekLoadText.ts`).
 
 ### Route and data
 
-`/team-load` (nav: Teams and capacity, `IconGauge`, **everyone**, read-only) lists every team against its capacity from the ONE unpaged `GET /views/team-load`
-(`getTeamLoadView`, key `TEAM_LOAD_KEY = ["plan","teamLoad"]`, under `["plan"]` so a schedule or capacity write refreshes it; at most 200 rows with `truncated`, the same document for every
-caller, no `can`). The figures are the team page's own and are shown as they arrive, never recounted.
+`/teams` (nav: Teams and capacity, **everyone**; the leaf's palette keywords "team load", "load", "overload", "wip", "obciążenie") reads ONLY `GET /views/team-load` (`TEAM_LOAD_KEY =
+["plan","teamLoad"]`: a schedule or capacity write refreshes it; at most 200 rows + `truncated`, the same document for every caller, no `can`; `description` per row) and the colours from `useTeamColours()`.
+`/team-load` is `LegacyRedirect to={teamsPath}` (query and hash kept: an old bookmark lands filtered); there is no nav leaf. No paging; the paged `GET /teams` serves the pickers only.
+Team writes (the editor's save, a delete) refresh `["teams"]` and `["plan"]`; an ADMIN's New team, row kebab (Edit, Delete) and modals are `Teams and the team page`'s.
 
-- The facts line (`role="group"`, "N teams", "N not scheduled yet" (`home.plan.notScheduled`, always shown, a 0 included: the server's `totals.unscheduledMilestones`, never a sum of the rows) and the two orange badges in Home's own
-  strings `home.roadmap.overloadedTeams|wipTeams`, each only when positive) reads the document's `totals` over EVERY team, so a filter or the 200-row cap never changes it.
-- Columns: Team (a link), Manager (the person's page, `managerPersonId`; dimmed "No manager" when none), Milestones, Not scheduled (a link to the team's page named by
-  its row, `teamLoad.notScheduledAria`, only when positive; a plain 0 otherwise), Overloaded and WIP (the team page's two orange badges, only when positive) and Capacity (a gray "N weeks
-  without capacity" badge, only when positive: a team with scheduled work and no capacity period can never be overloaded, and the page says so instead of looking fine). No row or page ever
-  says "fits"; no chart; every figure is worded.
-- States: loading (`LoadingBlock`, no facts line and no claim until the read answers), a failed read (`ErrorAlert`, no empty claim), no team at all (`totals.teams === 0`), nothing matches
-  the filter (with "Show every team"), `truncated` (one dimmed line with the rows shown).
+- The facts line (`role="group"`, "The teams in figures"): "N teams", "N not scheduled yet" (`home.plan.notScheduled`, a 0 included) and two orange badges (`home.roadmap.overloadedTeams|wipTeams`, only
+  when positive), all from the document's `totals` over EVERY team, so no filter or the cap changes it. Under it a dimmed `role="status"` line, "Showing N of M teams" (`teams.shownOf`; M the rows
+  read), only while Name or Show narrows; its count waits `FILTER_DEBOUNCE_MS` (the rows follow every key).
+- Columns: Name (`SortHeader`: asc = the document's order, desc reversed, `viewSettings.teams.sortDir`; swatch, team `EntityLink`, the description dimmed under it, one line), Manager (person link; dimmed
+  "No manager"), Milestones, Not scheduled (a link to the team's page named by its row, `teamLoad.notScheduledAria`, only when positive), Overloaded and WIP (orange, only when positive), Capacity (a gray "N weeks
+  without capacity": a team with work and no capacity can never be overloaded) and, for an ADMIN, Operations. No row says "fits"; every figure is worded; the table is a 960 px `ScrollRegion`.
+- States: loading (`LoadingBlock`, no facts and no claim), a failed first read (`ErrorAlert` "Could not load the teams", no claim; a failed re-read keeps the rows under it), no team (`totals.teams === 0`),
+  nothing matches (not truncated; "Show every team" clears Name and Show, keeps past) and `truncated` (one dimmed line with the rows shown).
 
 ### Filters
 
-Both are in the URL like the Deviations page's (a change `replace`s the entry; no remembered filter) and applied in the browser over the rows, so changing one makes no second read.
+Name, Show and Include past weeks sit in the `FilterPanel` (its badge counts all three), applied in the browser over the rows read, so none makes a second read.
 
-- `warning` = `overloaded` | `wip` | `any` (absent or unknown = every team). `any` means an overloaded week or a week over the WIP limit; weeks without capacity are a fact, not a warning.
-- `past` (`?past=true`, the exact word; anything else reads as off) is the "Include past weeks" `Switch` after the Show select (`teamLoad.filter.past`; the filter badge counts it). Each
-  control's change keeps the other's parameter (`replace`).
+- **Name** is page state: a folded (case and accents) substring of the team's name as you type, not in the URL, not remembered; it narrows the table AND the weeks (`teamsKept`).
+- `warning` = `overloaded` | `wip` | `any` (absent or unknown = every team; `any`: an overloaded week or one over the WIP limit; weeks without capacity are a fact), `?warning=`, `replace`.
+- `past` (`?past=true`, the exact word) is the "Include past weeks" `Switch` (`teamLoad.filter.past`). Each change keeps the others.
 
 ### Weeks with a warning
 
-Under the teams table an h3 "Weeks with a warning", one dimmed sentence and the table "Weeks with a warning, by team" (a `ScrollRegion`, min width 720, max height 420, sticky header): one row
-per team and week, in the document's order (team by team, oldest week first) - Team (the same link as the teams table; tests and e2e scope by table), Week, Load, Capacity, In
-progress (peak) and Status. The weeks are the document's `warningWeeks` (the team page's own `WeekLoad`, no `flowCapacity`), shown as they arrive.
+Under the table an h3, one dimmed sentence and the table "Weeks with a warning, by team" (`ScrollRegion`, min width 720, max height 420, sticky header): one row per team and week, in the document's order -
+Team (the same link; tests and e2e scope by table), Week, Load, Capacity, In progress (peak), Status. The weeks are the document's `warningWeeks` (the team page's `WeekLoad`, no `flowCapacity`), as they arrive.
 
-- **From this week on.** The section lists the weeks from the document's `currentWeekStart` on (the server's Monday in UTC; the page never reads the browser's clock; a week ON it stays; ISO
-  dates compare as text in `matchesWeek`'s third argument) unless `past=true`, which lists every listed week with the sentence without a week (`teamLoad.weeks.intro`); the default sentence
-  (`teamLoad.weeks.introFrom`) names the week with `weekLabel`.
-- **The hidden count.** A dimmed line, `teamLoad.weeks.earlier`, counts what the date hides (`earlierWeekCount`: the listed weeks of the rows the Show filter keeps that its warning keeps and
-  the date hides) and shows whether or not the section does, so a team with "3 weeks overloaded" and no week below is never a riddle; it is absent with `past=true`, when nothing is hidden and
-  while there is no answer.
-- The date only HIDES listed weeks: the teams table's three counts, the facts line and Home's two team figures still count every week (as the team page's badges do), so no figure moves with
-  the switch, and it makes no second read.
-- The "Show" filter keeps the teams the table above keeps AND narrows their weeks (`matchesWeek`: `overloaded` the overloaded weeks, `wip` the weeks over the limit, `any` or none every
-  listed week), from the same one read.
-- The section is ABSENT when no week is left (zero is no claim, and no sentence says "no warnings"), while the first read runs and after a failed first read; a failed re-read keeps the kept
-  document's weeks under the alert. The weeks without capacity stay a count.
-- `warningWeeksTruncated` shows one dimmed line, `teamLoad.weeks.truncated` (N = the weeks the document lists, from this week on first), under the section or alone when it is absent, so a
-  short or missing list is never read as "none".
+- **From this week on.** The weeks from `currentWeekStart` on (the server's UTC Monday, never the browser's clock; a week ON it stays; ISO dates compare as text) unless `past=true`, which lists every listed
+  week (`teamLoad.weeks.intro`; the default `introFrom` names the week with `weekLabel`).
+- **The hidden count.** A dimmed `teamLoad.weeks.earlier` line counts what the date hides (`earlierWeekCount`, over the teams Name and Show keep), shown whether or not the section is; absent with `past=true`,
+  when nothing is hidden and while there is no answer. The date only HIDES weeks: the table's counts, the facts and Home still count every week.
+- The weeks follow Name and Show (`matchesWeek`) from the same read. The section is ABSENT when no week is left (no "no warnings" claim), while the read runs and after a failed first read; a failed re-read keeps it.
+- `warningWeeksTruncated` shows one dimmed `teamLoad.weeks.truncated` line (N = the weeks listed), under the section or alone, so a short list is never read as "none".
 
 ### Tests
 
-The page's co-located tests and the fixtures `test/teamLoad.ts`.
+`Teams.test.tsx` (registry), `Teams.focus.test.tsx`, `Teams.load.test.tsx`, `Teams.weeks.test.tsx` (helpers `test/teamsPage.tsx`, `test/teamsRegistry.tsx`; fixtures `test/teamLoad.ts`).
 
 ## Baselines
 
@@ -1327,7 +1318,7 @@ Files: `pages/Baselines.tsx`; `pages/BaselineCompare.tsx`; `hooks/useBaselines.t
 
 ### The registry
 
-`/baselines` (nav: Planning after Team load, `IconCamera`, **everyone**) is the registry of the named, frozen copies of the plan, `GET /baselines` under `["baselines","list"]` through
+`/baselines` (nav: Planning, last, `IconCamera`, **everyone**) is the registry of the named, frozen copies of the plan, `GET /baselines` under `["baselines","list"]` through
 `hooks/useBaselines.ts` (`{items, can, loading, failed, error}`, `staleTime` 1 minute, the `useHolidays.ts` shape - the timelines' picker reads the same cache).
 
 - The list is a BOUNDED set (cap 100, newest first): ONE unpaged table in a `ScrollRegion` (no `RegistryListTable`: it carries a pager):
@@ -1854,7 +1845,7 @@ The co-located tests of the page and its parts (`Deviations*`, `JiraBind*`, `Jir
 
 ## Teams and the team page
 
-`/teams` is the flat teams registry (the Registries template of `web/CLAUDE.md`: everyone reads, ADMIN writes). Its name link opens `/teams/:id`, the team view (lazy; `TeamDetails` is
+`/teams` is the Teams page, the one table of "Team load" (everyone reads, ADMIN writes: New team, a row menu with Edit and Delete). Its name link opens `/teams/:id`, the team view (lazy; `TeamDetails` is
 `<TeamPage key={id}>`). Team colours: `team-colours.md`.
 
 Files: `api/teams.ts` (`listCapacityPeriods` is deliberately NOT wrapped: the view carries the periods); `hooks/useScheduleWritePath.ts` (the project view's write path, generic over the view document:

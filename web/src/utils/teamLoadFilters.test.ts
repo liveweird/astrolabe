@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { teamLoadRow, teamLoadWeek } from "../test/teamLoad";
-import { earlierWeekCount, matchesWarning, matchesWeek, parseTeamLoadFilter, teamLoadFilterParams } from "./teamLoadFilters";
+import { earlierWeekCount, isNarrowing, matchesWarning, matchesWeek, parseTeamLoadFilter, teamLoadFilterParams, teamsKept } from "./teamLoadFilters";
 
 const parse = (query: string) => parseTeamLoadFilter(new URLSearchParams(query));
 
@@ -113,5 +113,37 @@ describe("earlierWeekCount", () => {
   test("a week ON from is not earlier, and nothing before it is zero", () => {
     expect(earlierWeekCount(rows, undefined, "2027-03-22")).toBe(0);
     expect(earlierWeekCount([], undefined, "2027-04-05")).toBe(0);
+  });
+});
+
+describe("isNarrowing / teamsKept", () => {
+  const backend = teamLoadRow({ id: 3, name: "Backend", overloadedWeeks: 2 });
+  const data = teamLoadRow({ id: 5, name: "Data", wipExceededWeeks: 1 });
+  const lodz = teamLoadRow({ id: 7, name: "Łódź Ops" });
+  const rows = [backend, data, lodz];
+
+  test("a warning or a name that is not blank narrows; blanks do not", () => {
+    expect(isNarrowing({ name: "" })).toBe(false);
+    expect(isNarrowing({ name: "   " })).toBe(false);
+    expect(isNarrowing({ name: " a " })).toBe(true);
+    expect(isNarrowing({ warning: "any", name: "" })).toBe(true);
+  });
+
+  test("no control keeps every row in the order given", () => {
+    expect(teamsKept(rows, { name: "" })).toEqual(rows);
+    expect(teamsKept(rows, { name: "  " })).toEqual(rows);
+  });
+
+  test("the name is a case- and accent-insensitive substring of the team's name", () => {
+    expect(teamsKept(rows, { name: "ATA" })).toEqual([data]);
+    expect(teamsKept(rows, { name: "lodz" })).toEqual([lodz]);
+    expect(teamsKept(rows, { name: "Łó" })).toEqual([lodz]);
+    expect(teamsKept(rows, { name: "zzz" })).toEqual([]);
+  });
+
+  test("the warning and the name both have to match", () => {
+    expect(teamsKept(rows, { warning: "any", name: "" })).toEqual([backend, data]);
+    expect(teamsKept(rows, { warning: "wip", name: "a" })).toEqual([data]);
+    expect(teamsKept(rows, { warning: "overloaded", name: "data" })).toEqual([]);
   });
 });

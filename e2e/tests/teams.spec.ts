@@ -1,7 +1,11 @@
 // The flat-teams registry: an admin creates a team, renames it, assigns its manager (a person of the people directory) and
 // deletes it; a regular user sees the read-only list. Owns: its throwaway team(s), person and user (unique names, deleted by
 // the end of the test and, if a step fails first, by the afterEach below).
+import type { Page } from "@playwright/test";
 import { apiAsAdmin, createUserViaUi, deleteUserRow, deleteViaApi, expect, login, openFilters, rowOperation, signOut, test, uniqueText } from "./helpers";
+
+/** A team's name link in the Teams table (since 1.32 the weeks table below names a team with a warning again, so a page-wide match could be two). */
+const teamLink = (page: Page, name: string) => page.getByRole("table", { name: "Teams", exact: true }).getByRole("link", { name: `Open team ${name}`, exact: true });
 
 // Rows the first test seeds through the API, deleted in reverse order (the team before the person who manages it).
 const teardown: string[] = [];
@@ -59,13 +63,13 @@ test("admin creates a team, renames it, assigns its manager, and deletes it", as
   await page.goto("/teams");
   await openFilters(page);
   await page.getByLabel("Name", { exact: true }).fill(renamed);
-  await expect(page.getByRole("link", { name: `Open team ${renamed}` })).toBeVisible();
+  await expect(teamLink(page, renamed)).toBeVisible();
   await rowOperation(page, renamed, `Delete ${renamed}`);
   await Promise.all([
     page.waitForResponse((r) => r.request().method() === "DELETE" && /\/api\/v1\/teams\/\d+$/.test(r.url()) && r.ok()),
     page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click(),
   ]);
-  await expect(page.getByRole("link", { name: `Open team ${renamed}` })).toHaveCount(0);
+  await expect(teamLink(page, renamed)).toHaveCount(0);
   // The row (and the kebab that had the focus) is gone: the focus moves to the page heading, not to the start of the document.
   await expect(page.getByRole("heading", { level: 2, name: "Teams" })).toBeFocused();
 });
@@ -81,13 +85,10 @@ test("dismissing a delete, edit or new-team dialog with Escape returns the focus
 
   await page.goto("/teams");
   await openFilters(page);
-  // Wait for the debounced filter's own answer: in three CI failures it landed while the Delete dialog was closing and the kebab never got
-  // the focus back. That hole is fixed in 1.13.1 (a focus parked in the closing menu no longer ends the focus return; unit-tested); the wait
-  // stays because this test is about Escape, so the list is settled first.
-  const filtered = page.waitForResponse((r) => /\/api\/v1\/teams\?/.test(r.url()) && new URL(r.url()).searchParams.get("name") === teamName && r.ok());
+  // Since 1.32 the Name filter narrows the rows already read (no request to wait for): the list is settled once the one row is there.
   await page.getByLabel("Name", { exact: true }).fill(teamName);
-  await filtered;
   const kebab = page.getByRole("button", { name: `Operations for ${teamName}` });
+  await expect(kebab).toBeVisible();
   // By keyboard end to end: the menu item that opens the dialog is unmounted with its menu, so Mantine's own return-focus has nowhere to go.
   await kebab.focus();
   await page.keyboard.press("Enter");
@@ -176,10 +177,10 @@ test("a regular user sees the read-only teams list", async ({ page }) => {
   await page.goto("/teams");
   await openFilters(page);
   await page.getByLabel("Name", { exact: true }).fill(teamName);
-  await expect(page.getByRole("link", { name: `Open team ${teamName}` })).toBeVisible();
+  await expect(teamLink(page, teamName)).toBeVisible();
   await expect(page.getByRole("button", { name: "New team" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: `Operations for ${teamName}` })).toHaveCount(0);
-  await page.getByRole("link", { name: `Open team ${teamName}` }).click();
+  await teamLink(page, teamName).click();
   await expect(page.getByRole("heading", { name: teamName })).toBeVisible();
   await expect(page.getByRole("button", { name: "Edit", exact: true })).toHaveCount(0);
   await signOut(page);

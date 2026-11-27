@@ -1,11 +1,15 @@
 {
   "title": "Teams",
-  "intro": "The teams of your organization. Everyone can see them and who manages each; administrators create, edit and delete teams.",
+  "intro": "The teams of your organization with their load: milestones, those not scheduled yet, and the weeks overloaded, over the WIP limit or without capacity. Everyone can see them and who manages each; administrators create, edit and delete teams. Overload and WIP only warn — nothing moves.",
   "newTeam": "New team",
   "createTitle": "New team",
   "editTitle": "Edit team",
   "empty": "No teams yet",
   "loadFailed": "Could not load the teams",
+  "factsAria": "The teams in figures",
+  "noMatch": "No team matches the filters",
+  "shownOf_one": "Showing {{shown}} of {{count}} team",
+  "shownOf_other": "Showing {{shown}} of {{count}} teams",
   "notFound": "This team does not exist (or was deleted).",
   "backToTeams": "Back to teams",
   "column": {

@@ -1,11 +1,12 @@
 import type { TeamLoadRow } from "../api/teamLoad";
 import type { WeekLoad } from "../api/teams";
+import { foldDiacritics } from "./text";
 
-/** Which teams the Team load page lists: those with an overloaded week, those over the WIP limit, or those with either. Unset = every team. */
+/** Which teams the Teams page lists: those with an overloaded week, those over the WIP limit, or those with either. Unset = every team. */
 export type TeamLoadWarning = "overloaded" | "wip" | "any";
 
 /**
- * The Team load page's filter, as the URL holds it: `warning` narrows the teams and their weeks; `past` (`?past=true`, 1.22) brings the listed weeks
+ * The Teams page's load filter, as the URL holds it: `warning` narrows the teams and their weeks; `past` (`?past=true`, 1.22) brings the listed weeks
  * BEFORE the document's current week back (unset = the weeks from the current week on).
  */
 export type TeamLoadFilter = { warning?: TeamLoadWarning; past?: true };
@@ -41,6 +42,23 @@ export function matchesWarning(row: TeamLoadRow, warning: TeamLoadWarning | unde
     case "any":
       return row.overloadedWeeks > 0 || row.wipExceededWeeks > 0;
   }
+}
+
+/** What narrows the Teams table besides the URL's `past`: the warning (URL) and the name typed in the filter panel (page state, never stored). */
+export type TeamNarrowing = { warning?: TeamLoadWarning; name: string };
+
+/** Whether any of the two controls narrows the table (a name of blanks does not). */
+export function isNarrowing({ warning, name }: TeamNarrowing): boolean {
+  return warning !== undefined || name.trim() !== "";
+}
+
+/**
+ * The rows both controls keep, in the order given: the warning as {@link matchesWarning}, the name as a case- and accent-insensitive substring of the
+ * team's name. The ONE function the table, the weeks table and the "Showing N of M" line all read.
+ */
+export function teamsKept(rows: readonly TeamLoadRow[], { warning, name }: TeamNarrowing): TeamLoadRow[] {
+  const needle = foldDiacritics(name.trim());
+  return rows.filter((row) => matchesWarning(row, warning) && (needle === "" || foldDiacritics(row.name).includes(needle)));
 }
 
 /**

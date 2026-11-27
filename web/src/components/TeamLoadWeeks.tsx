@@ -11,8 +11,8 @@ const NO_WRAP = { whiteSpace: "nowrap" } as const;
 const TABLE_MAX_HEIGHT = 420;
 
 /**
- * The Team load page's second table: the weeks BEHIND the two warning figures, one row per team and week the team's page marks overloaded or over
- * the WIP limit, in the document's order (team by team, oldest week first). `rows` are the teams the page's "Show" filter keeps; `warning` narrows
+ * The Teams page's second table ("Weeks with a warning"): the weeks BEHIND the two warning figures, one row per team and week the team's page marks overloaded or over
+ * the WIP limit, in the document's order (team by team, oldest week first). `rows` are the teams the page's Name and "Show" filters keep; `warning` narrows
  * their listed weeks the same way. The cells are the team page's own (`WeekLoadCells.tsx`), shown as they arrive. Nothing renders when no week is
  * left (zero is no claim: the document lists only warning weeks, and a cut list is the page's own line). `from` (1.22) is the document's current week:
  * the weeks before it are not listed and the sentence says from which week the list runs; unset, every listed week shows.

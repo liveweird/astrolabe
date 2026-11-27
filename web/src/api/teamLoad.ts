@@ -1,4 +1,4 @@
-// Team load API (`/api/v1/views/team-load`, 1.19) - every team's milestones and flagged weeks in one read. A read for everyone signed in; nothing is
+// Team load API (`/api/v1/views/team-load`, 1.19; the Teams page's one read since 1.32) - every team's milestones and flagged weeks in one read. A read for everyone signed in; nothing is
 // written through it. Thin endpoint wrapper: transport in ./http, types from ./schema.
 
 import { revalidatedRequest } from "./revalidate";

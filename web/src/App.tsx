@@ -18,6 +18,7 @@ import VersionStamp from "./components/VersionStamp";
 import ErrorBoundary, { RouteErrorBoundary } from "./components/ErrorBoundary";
 import { activeNavPath, visibleSections, type NavLeaf } from "./utils/navigation";
 import { roadmapPath } from "./utils/planLinks";
+import { teamsPath } from "./utils/teamLinks";
 import { useFocusMainOnNavigation } from "./hooks/useFocusMainOnNavigation";
 import { usePrintLifecycle } from "./hooks/usePrintLifecycle";
 import { isBoolean, useStoredState } from "./hooks/useStoredState";
@@ -38,7 +39,6 @@ const PersonDetails = lazy(() => import("./pages/PersonDetails"));
 const Plan = lazy(() => import("./pages/Plan"));
 const ProjectView = lazy(() => import("./pages/ProjectView"));
 const RoadmapModes = lazy(() => import("./pages/RoadmapModes"));
-const TeamLoad = lazy(() => import("./pages/TeamLoad"));
 const Baselines = lazy(() => import("./pages/Baselines"));
 const ScheduleProposals = lazy(() => import("./pages/ScheduleProposals"));
 const SavedScheduleProposal = lazy(() => import("./pages/SavedScheduleProposal"));
@@ -266,7 +266,8 @@ export default function App() {
             <Route path="milestones" element={<LegacyMilestonesRedirect />} />
             {/* 1.29: the Dependencies page is the Roadmap's dependency panel; an old link or bookmark opens it with its filters. */}
             <Route path="dependencies" element={<LegacyDependenciesRedirect />} />
-            <Route path="team-load" element={<TeamLoad />} />
+            {/* 1.32: Team load is folded into the Teams page; an old link or bookmark keeps its ?warning= and ?past= filters. */}
+            <Route path="team-load" element={<LegacyRedirect to={teamsPath} />} />
             <Route path="baselines" element={<Baselines />} />
             <Route path="baselines/:id" element={<BaselineCompare />} />
             <Route path="schedule-proposals" element={<ScheduleProposals />} />

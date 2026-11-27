@@ -1,84 +1,13 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { act, screen, waitFor, within } from "@testing-library/react";
-import { Route, Routes, useLocation } from "react-router-dom";
-import Teams from "./Teams";
+import { forgetRevalidated } from "../api/revalidate";
+import { TEAM_LOAD_KEY } from "../api/teamLoad";
 import { deferred } from "../test/deferred";
 import { jsonResponse } from "../test/http";
-import { renderWithProviders } from "../test/render";
 import { clientWithKeptHome, homeReadIsStale } from "../test/home";
-import type { QueryClient } from "@tanstack/react-query";
-
-const TOKEN_KEY = "astrolabe.auth.token";
-const ROLES_KEY = "astrolabe.auth.roles";
-
-type FetchMock = ReturnType<typeof vi.fn>;
-
-const PAGE = {
-  items: [
-    { id: 1, name: "Payments", description: "Money movers", managerPersonId: 7, managerName: "Mia Manager", colour: "INDIGO", createdAt: 1, updatedAt: 2 },
-    { id: 2, name: "Identity", description: null, managerPersonId: null, managerName: null, colour: "INDIGO", createdAt: 1, updatedAt: 2 },
-  ],
-  page: 1,
-  pageSize: 20,
-  total: 2,
-};
-const DETAIL = {
-  id: 1,
-  name: "Payments",
-  description: "Money movers",
-  managerPersonId: 7,
-  managerName: "Mia Manager",
-  colour: "INDIGO",
-  createdAt: 1,
-  updatedAt: 2,
-};
-const PEOPLE = {
-  items: [
-    { id: 7, name: "Mia Manager", email: "mia@example.com", userId: null, userEmail: null, createdAt: 1, updatedAt: 2 },
-    { id: 12, name: "Cara New", email: "cara@example.com", userId: null, userEmail: null, createdAt: 1, updatedAt: 2 },
-  ],
-  page: 1,
-  pageSize: 50,
-  total: 2,
-};
-
-function serve(mockFetch: FetchMock, mutations: Record<string, { status: number; body?: unknown }> = {}) {
-  mockFetch.mockImplementation((url: string, init?: RequestInit) => {
-    const method = init?.method ?? "GET";
-    const key = `${method} ${url}`;
-    if (mutations[key]) {
-      const m = mutations[key];
-      return Promise.resolve(m.body === undefined ? new Response(null, { status: m.status }) : jsonResponse(m.status, m.body));
-    }
-    if (method === "GET" && url.startsWith("/api/v1/teams?")) return Promise.resolve(jsonResponse(200, PAGE));
-    if (method === "GET" && url === "/api/v1/teams/1") return Promise.resolve(jsonResponse(200, DETAIL));
-    if (method === "GET" && url.startsWith("/api/v1/people?")) return Promise.resolve(jsonResponse(200, PEOPLE));
-    return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
-  });
-}
-
-function findCall(mockFetch: FetchMock, method: string, url: string) {
-  return mockFetch.mock.calls.find(([u, init]) => ((init as RequestInit | undefined)?.method ?? "GET") === method && u === url);
-}
-
-function Probe() {
-  const { pathname } = useLocation();
-  return <p>at {pathname}</p>;
-}
-
-function renderPage(queryClient?: QueryClient) {
-  // The shell's focus target (`useFocusMainOnNavigation`, and where `useDialogFocus` sends a focus whose opener has gone).
-  return renderWithProviders(
-    <main id="main-content" tabIndex={-1}>
-      <Routes>
-        <Route path="/teams" element={<Teams />} />
-        <Route path="/teams/:id" element={<Probe />} />
-      </Routes>
-    </main>,
-    { route: "/teams", queryClient },
-  );
-}
+import { teamLoadView } from "../test/teamLoad";
+import { type FetchMock, DETAIL, PAGE, ROLES_KEY, ROWS, TOKEN_KEY, findCall, renderPage, serve } from "../test/teamsRegistry";
 
 describe("Teams page", () => {
   let mockFetch: FetchMock;
@@ -94,14 +23,18 @@ describe("Teams page", () => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
     localStorage.clear();
+    forgetRevalidated();
   });
 
-  test("a regular user gets the read-only list with the team names as links", async () => {
+  test("a regular user gets the read-only table with the team names as links and the description under the name", async () => {
     localStorage.setItem(ROLES_KEY, "[]");
     serve(mockFetch);
     renderPage();
     expect(await screen.findByRole("link", { name: "Open team Payments" })).toHaveAttribute("href", "/teams/1");
-    expect(screen.getByText("Money movers")).toBeInTheDocument();
+    const payments = screen.getByRole("link", { name: "Open team Payments" }).closest("tr")!;
+    expect(within(payments).getByText("Money movers")).toBeInTheDocument();
+    // A team without a description shows no placeholder line at all.
+    expect(within(screen.getByRole("link", { name: "Open team Identity" }).closest("tr")!).queryByText("—")).toBeNull();
     expect(screen.getByRole("columnheader", { name: "Manager" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open person Mia Manager" })).toHaveAttribute("href", "/people/7"); // the manager is a person
     expect(screen.queryByRole("columnheader", { name: "Members" })).not.toBeInTheDocument();
@@ -109,14 +42,51 @@ describe("Teams page", () => {
     // The read-only list never opens the editor, so it never runs the people search either.
     expect(mockFetch.mock.calls.some(([url]) => typeof url === "string" && url.startsWith("/api/v1/people"))).toBe(false);
     expect(screen.queryByRole("button", { name: /operations for/i })).not.toBeInTheDocument();
+    // No empty Operations column either: the figures and the names are all there is.
+    expect(screen.getAllByRole("columnheader")).toHaveLength(7);
   });
 
-  test("the empty state spans every column", async () => {
+  test("an admin's rows carry the kebab beside the load figures, in an Operations column", async () => {
     serve(mockFetch);
-    mockFetch.mockImplementation(() => Promise.resolve(jsonResponse(200, { ...PAGE, items: [], total: 0 })));
     renderPage();
-    const empty = await screen.findByText("No teams yet");
-    expect(empty.closest("td")).toHaveAttribute("colspan", String(screen.getAllByRole("columnheader").length));
+    const payments = (await screen.findByRole("link", { name: "Open team Payments" })).closest("tr")!;
+    expect(within(payments).getByText("1 week overloaded")).toBeInTheDocument();
+    expect(within(payments).getByRole("link", { name: "2 not scheduled: team Payments" })).toHaveAttribute("href", "/teams/1");
+    expect(within(payments).getByRole("button", { name: "Operations for Payments" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Operations" })).toBeInTheDocument();
+  });
+
+  test("no team at all says so, with the New team button still there", async () => {
+    serve(mockFetch);
+    mockFetch.mockImplementation((url: string) => Promise.resolve(url === "/api/v1/views/team-load" ? jsonResponse(200, teamLoadView([])) : jsonResponse(200, { ...PAGE, items: [], total: 0 })));
+    renderPage();
+    expect(await screen.findByText("No teams yet")).toBeInTheDocument();
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.getByRole("button", { name: /new team/i })).toBeInTheDocument();
+  });
+
+  test("the name column sorts: a click reverses the document's order, remembers the direction and says so in aria-sort", async () => {
+    serve(mockFetch);
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("link", { name: "Open team Payments" });
+    const names = () => screen.getAllByRole("link", { name: /^Open team / }).map((link) => link.textContent);
+    expect(names()).toEqual(["Payments", "Identity"]);
+    expect(screen.getByRole("columnheader", { name: "Name" })).toHaveAttribute("aria-sort", "ascending");
+    await user.click(screen.getByRole("button", { name: "Name" }));
+    expect(names()).toEqual(["Identity", "Payments"]);
+    expect(screen.getByRole("columnheader", { name: "Name" })).toHaveAttribute("aria-sort", "descending");
+    expect(JSON.parse(localStorage.getItem("astrolabe.viewSettings.teams.sortDir")!)).toBe("desc");
+    await user.click(screen.getByRole("button", { name: "Name" }));
+    expect(names()).toEqual(["Payments", "Identity"]);
+  });
+
+  test("a remembered descending order is read back", async () => {
+    localStorage.setItem("astrolabe.viewSettings.teams.sortDir", JSON.stringify("desc"));
+    serve(mockFetch);
+    renderPage();
+    await screen.findByRole("link", { name: "Open team Payments" });
+    expect(screen.getAllByRole("link", { name: /^Open team / }).map((link) => link.textContent)).toEqual(["Identity", "Payments"]);
   });
 
   test("an admin creates a team through the modal and lands on its page", async () => {
@@ -159,8 +129,9 @@ describe("Teams page", () => {
     await user.click(within(modal).getByRole("button", { name: /^save$/i }));
     await waitFor(() => expect(findCall(mockFetch, "PUT", "/api/v1/teams/1")).toBeDefined());
     const body = JSON.parse((findCall(mockFetch, "PUT", "/api/v1/teams/1")![1] as RequestInit).body as string);
-    // The manager and the name are on Home ("Yours"), which keeps its read for a minute: the save marks it stale.
+    // The manager and the name are on Home ("Yours"), which keeps its read for a minute: the save marks it stale, and re-reads this page's document.
     await waitFor(() => expect(homeReadIsStale(queryClient)).toBe(true));
+    await waitFor(() => expect(mockFetch.mock.calls.filter(([url]) => url === "/api/v1/views/team-load")).toHaveLength(2));
     // Edit keeps the stored manager (a PUT is a full replace).
     // The colour was not touched, so the PUT omits it and keeps the stored one.
     expect(body).toEqual({ name: "Payments", description: null, managerPersonId: 7 });
@@ -309,175 +280,60 @@ describe("Teams page", () => {
     expect(await screen.findByText(/still referenced elsewhere/)).toBeInTheDocument();
   });
 
-  test("after a successful delete the focus moves to the page heading, the row's kebab and the dialog being gone", async () => {
-    // Fake clock (real time still flows for waitFor): Mantine's 10 ms focus return is advanced by hand while the DELETE is held at a gate.
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
-    const deleteGate = deferred<Response>();
+  test("deleting while a re-read of the document is in flight cannot bring the deleted row back", async () => {
+    const stale = deferred<Response>();
     let deleted = false;
+    let reads = 0;
     mockFetch.mockImplementation((url: string, init?: RequestInit) => {
       const method = init?.method ?? "GET";
       if (method === "DELETE" && url === "/api/v1/teams/2") {
         deleted = true;
-        // The DELETE is held at a gate across Mantine's return-focus timer (`useFocusReturn`, 10 ms after the row menu closes), which may put
-        // the focus on the kebab if the body holds it then; a synchronous mock lets the confirm click land inside that window, which no person can.
-        return deleteGate.promise;
-      }
-      if (method === "GET" && url.startsWith("/api/v1/teams?")) {
-        return Promise.resolve(jsonResponse(200, deleted ? { ...PAGE, items: PAGE.items.slice(0, 1), total: 1 } : PAGE));
-      }
-      return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
-    });
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    renderPage();
-    await user.click(await screen.findByRole("button", { name: "Operations for Identity" }));
-    await user.click(await screen.findByRole("menuitem", { name: "Delete Identity" }));
-    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: /^delete$/i }));
-    await act(() => vi.advanceTimersByTimeAsync(30));
-    deleteGate.resolve(new Response(null, { status: 204 }));
-    await waitFor(() => expect(screen.queryByRole("button", { name: "Operations for Identity" })).not.toBeInTheDocument());
-    await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: "Teams" })).toHaveFocus());
-    // Mantine's own focus return (10 ms after the close) finds the focus taken and leaves it.
-    await act(() => vi.advanceTimersByTimeAsync(60));
-    expect(screen.getByRole("heading", { level: 2, name: "Teams" })).toHaveFocus();
-    expect(screen.getByRole("heading", { level: 2, name: "Teams" })).toHaveAttribute("tabindex", "-1");
-  });
-
-  test("a delete right after an edit of the same team ends with the focus on the page heading (1.23)", async () => {
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
-    let deleted = false;
-    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
-      const method = init?.method ?? "GET";
-      if (method === "PUT" && url === "/api/v1/teams/1") return Promise.resolve(new Response(null, { status: 204 }));
-      if (method === "DELETE" && url === "/api/v1/teams/1") {
-        deleted = true;
         return Promise.resolve(new Response(null, { status: 204 }));
       }
-      if (method === "GET" && url.startsWith("/api/v1/teams?")) {
-        return Promise.resolve(jsonResponse(200, deleted ? { ...PAGE, items: PAGE.items.slice(1), total: 1 } : PAGE));
+      if (method === "GET" && url === "/api/v1/views/team-load") {
+        reads++;
+        // The second read (the re-read) is held, and answers with the document as it was BEFORE the delete.
+        if (reads === 2) return stale.promise;
+        return Promise.resolve(jsonResponse(200, teamLoadView(deleted ? ROWS.slice(0, 1) : ROWS)));
       }
-      if (method === "GET" && url === "/api/v1/teams/1") return Promise.resolve(jsonResponse(200, DETAIL));
-      if (method === "GET" && url.startsWith("/api/v1/people?")) return Promise.resolve(jsonResponse(200, PEOPLE));
-      return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
-    });
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    renderPage();
-    await user.click(await screen.findByRole("button", { name: "Operations for Payments" }));
-    await user.click(await screen.findByRole("menuitem", { name: "Edit Payments" }));
-    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: /^save$/i }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    await waitFor(() => expect(screen.getByRole("button", { name: "Operations for Payments" })).toHaveFocus());
-    await user.click(screen.getByRole("button", { name: "Operations for Payments" }));
-    await user.click(await screen.findByRole("menuitem", { name: "Delete Payments" }));
-    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: /^delete$/i }));
-    await waitFor(() => expect(screen.queryByRole("button", { name: "Operations for Payments" })).not.toBeInTheDocument());
-    await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: "Teams" })).toHaveFocus());
-    await act(() => vi.advanceTimersByTimeAsync(60));
-    expect(screen.getByRole("heading", { level: 2, name: "Teams" })).toHaveFocus();
-  });
-
-  test("a failed delete keeps the focus in the open dialog; Cancel then returns it to the row's menu button", async () => {
-    serve(mockFetch, { "DELETE /api/v1/teams/1": { status: 409, body: { title: "Conflict", status: 409 } } });
-    const user = userEvent.setup();
-    renderPage();
-    const kebab = await screen.findByRole("button", { name: "Operations for Payments" });
-    await user.click(kebab);
-    await user.click(await screen.findByRole("menuitem", { name: "Delete Payments" }));
-    const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("button", { name: /^delete$/i }));
-    expect(await screen.findByText(/still referenced elsewhere/)).toBeInTheDocument();
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "Teams" })).not.toHaveFocus();
-    expect(screen.getByRole("dialog").contains(document.activeElement)).toBe(true);
-
-    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^cancel$/i }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    await waitFor(() => expect(kebab).toHaveFocus());
-    expect(screen.getByRole("heading", { level: 2, name: "Teams" })).not.toHaveFocus();
-  });
-
-  test("a delete dialog opened from the keyboard and dismissed with Escape returns the focus to the row's menu button", async () => {
-    serve(mockFetch);
-    const user = userEvent.setup();
-    renderPage();
-    const kebab = await screen.findByRole("button", { name: "Operations for Payments" });
-    kebab.focus();
-    await user.keyboard("{Enter}");
-    (await screen.findByRole("menuitem", { name: "Delete Payments" })).focus();
-    await user.keyboard("{Enter}");
-    expect(await screen.findByText(/"Payments" will be deleted/)).toBeInTheDocument();
-    await user.keyboard("{Escape}");
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    await waitFor(() => expect(kebab).toHaveFocus());
-  });
-
-  test("an edit dialog (opened after a fetch) dismissed with Escape returns the focus to the row's menu button; the New button's dialog returns it to that button", async () => {
-    serve(mockFetch);
-    const user = userEvent.setup();
-    renderPage();
-    const kebab = await screen.findByRole("button", { name: "Operations for Payments" });
-    kebab.focus();
-    await user.keyboard("{Enter}");
-    (await screen.findByRole("menuitem", { name: "Edit Payments" })).focus();
-    await user.keyboard("{Enter}");
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
-    await user.keyboard("{Escape}");
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    await waitFor(() => expect(kebab).toHaveFocus());
-
-    // A later dialog from a plain button returns to that button, not to the old kebab.
-    const newTeam = screen.getByRole("button", { name: /new team/i });
-    await user.click(newTeam);
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
-    await user.keyboard("{Escape}");
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    await waitFor(() => expect(newTeam).toHaveFocus());
-  });
-
-  test("deleting while the first filtered request is pending cannot restore its stale row", async () => {
-    const filtered = deferred<Response>();
-    let filteredReads = 0;
-    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
-      const method = init?.method ?? "GET";
-      if (method === "DELETE" && url === "/api/v1/teams/2") {
-        return Promise.resolve(new Response(null, { status: 204 }));
-      }
-      if (method === "GET" && url.startsWith("/api/v1/teams?")) {
-        const name = new URL(url, "http://test").searchParams.get("name");
-        if (name === "Identity") {
-          filteredReads++;
-          if (filteredReads === 1) return filtered.promise;
-          return Promise.resolve(jsonResponse(200, { ...PAGE, items: [], total: 0 }));
-        }
-        return Promise.resolve(jsonResponse(200, PAGE));
-      }
+      if (method === "GET" && url.startsWith("/api/v1/teams?")) return Promise.resolve(jsonResponse(200, PAGE));
       return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
     });
     const user = userEvent.setup();
-    renderPage();
-
+    const queryClient = clientWithKeptHome();
+    renderPage(queryClient);
     await screen.findByText("Identity");
-    await user.click(screen.getByRole("button", { name: /filters/i }));
-    await user.type(screen.getByLabelText("Name"), "Identity");
-    await waitFor(() => expect(filteredReads).toBe(1));
+    void queryClient.refetchQueries({ queryKey: TEAM_LOAD_KEY });
+    await waitFor(() => expect(reads).toBe(2));
 
     await user.click(screen.getByRole("button", { name: "Operations for Identity" }));
     await user.click(await screen.findByRole("menuitem", { name: "Delete Identity" }));
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^delete$/i }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-
-    filtered.resolve(jsonResponse(200, PAGE));
-    await waitFor(() => expect(filteredReads).toBe(2));
+    await waitFor(() => expect(reads).toBe(3));
     await waitFor(() => expect(screen.queryByText("Identity")).not.toBeInTheDocument());
+
+    stale.resolve(jsonResponse(200, teamLoadView(ROWS)));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.queryByText("Identity")).not.toBeInTheDocument();
+    expect(screen.getByText("Payments")).toBeInTheDocument();
   });
 
-  test("the name filter refetches with name=", async () => {
+  test("the Name filter works on the rows already read: no request, and the editor still opens on a filtered row", async () => {
     serve(mockFetch);
     const user = userEvent.setup();
     renderPage();
     await screen.findByText("Money movers");
+    const before = mockFetch.mock.calls.length;
     await user.click(screen.getByRole("button", { name: /filters/i }));
     await user.type(screen.getByLabelText("Name"), "pay");
-    await waitFor(() => expect(mockFetch.mock.calls.some(([url]) => typeof url === "string" && url.includes("name=pay"))).toBe(true));
+    expect(screen.queryByRole("link", { name: "Open team Identity" })).not.toBeInTheDocument();
+    expect(mockFetch.mock.calls.slice(before).some(([url]) => typeof url === "string" && url.includes("name="))).toBe(false);
+    await user.click(screen.getByRole("button", { name: "Operations for Payments" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Edit Payments" }));
+    expect(within(await screen.findByRole("dialog")).getByLabelText("Name")).toHaveValue("Payments");
   });
 
   test("shows the load-failure alert", async () => {

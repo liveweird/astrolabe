@@ -1,11 +1,17 @@
 {
   "title": "Zespoły",
-  "intro": "Zespoły Twojej organizacji. Każdy widzi je i ich kierowników/czki; administratorzy/rki tworzą, edytują i usuwają zespoły.",
+  "intro": "Zespoły Twojej organizacji razem z ich obciążeniem: kamienie milowe, te jeszcze niezaplanowane oraz tygodnie przeciążone, ponad limitem WIP albo bez przepustowości. Każdy widzi je i ich kierowników/czki; administratorzy/rki tworzą, edytują i usuwają zespoły. Przeciążenie i WIP tylko ostrzegają — nic się nie przesuwa.",
   "newTeam": "Nowy zespół",
   "createTitle": "Nowy zespół",
   "editTitle": "Edytuj zespół",
   "empty": "Nie ma jeszcze zespołów",
   "loadFailed": "Nie udało się wczytać zespołów",
+  "factsAria": "Zespoły w liczbach",
+  "noMatch": "Żaden zespół nie pasuje do filtrów",
+  "shownOf_one": "Widoczne: {{shown}} z {{count}} zespołu",
+  "shownOf_few": "Widoczne: {{shown}} z {{count}} zespołów",
+  "shownOf_many": "Widoczne: {{shown}} z {{count}} zespołów",
+  "shownOf_other": "Widoczne: {{shown}} z {{count}} zespołu",
   "notFound": "Ten zespół nie istnieje (albo ktoś go usunął).",
   "backToTeams": "Wróć do zespołów",
   "column": {

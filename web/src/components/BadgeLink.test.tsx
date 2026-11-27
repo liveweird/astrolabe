@@ -14,7 +14,7 @@ describe("BadgeLink", () => {
 
   test("takes the accessible name it is given, which starts with the visible text", () => {
     renderWithProviders(
-      <BadgeLink to="/team-load?warning=wip" color="gray" ariaLabel="3 warnings: elsewhere">
+      <BadgeLink to="/teams?warning=wip" color="gray" ariaLabel="3 warnings: elsewhere">
         3 warnings
       </BadgeLink>,
     );

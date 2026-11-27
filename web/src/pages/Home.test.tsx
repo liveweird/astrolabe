@@ -246,7 +246,7 @@ describe("Home", () => {
       const roadmap = within(await screen.findByRole("group", { name: "The roadmap in figures" }));
       const plan = within(screen.getByRole("group", { name: "The plan in figures" }));
       const notScheduled = await plan.findByRole("link", { name: "100 not scheduled yet" });
-      expect(notScheduled).toHaveAttribute("href", "/team-load");
+      expect(notScheduled).toHaveAttribute("href", "/teams");
       const unranked = await roadmap.findByRole("link", { name: "20 unranked" });
       expect(unranked).toHaveAttribute("href", "/roadmap?mode=prioritization&unranked=true");
       expect(unranked).toHaveTextContent("20 unranked");
@@ -256,8 +256,8 @@ describe("Home", () => {
       const infos = roadmap.getByRole("link", { name: "52 infos: the projects with an info on the roadmap" });
       expect(infos).toHaveAttribute("href", "/roadmap?mode=prioritization&severity=INFO");
       expect(infos).toHaveTextContent("52 infos");
-      expect(roadmap.getByRole("link", { name: "3 teams with an overloaded week" })).toHaveAttribute("href", "/team-load?warning=overloaded");
-      expect(roadmap.getByRole("link", { name: "1 team over the WIP limit" })).toHaveAttribute("href", "/team-load?warning=wip");
+      expect(roadmap.getByRole("link", { name: "3 teams with an overloaded week" })).toHaveAttribute("href", "/teams?warning=overloaded");
+      expect(roadmap.getByRole("link", { name: "1 team over the WIP limit" })).toHaveAttribute("href", "/teams?warning=wip");
       const violated = roadmap.getByRole("link", { name: "9 violated dependencies" });
       expect(violated).toHaveAttribute("href", "/roadmap?dependencies=violated");
       expect(violated).toHaveTextContent("9 violated dependencies");

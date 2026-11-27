@@ -1,5 +1,5 @@
 import type { ParseKeys } from "i18next";
-import { IconActivity, IconAddressBook, IconCalendarOff, IconCalendarStats, IconCamera, IconGauge, IconGitCompare, IconHistory, IconHome2, IconKey, IconListNumbers, IconPlugConnected, IconSitemap, IconTimelineEvent, IconToggleLeft, IconUsers, IconUsersGroup, type Icon } from "@tabler/icons-react";
+import { IconActivity, IconAddressBook, IconCalendarOff, IconCalendarStats, IconCamera, IconGitCompare, IconHistory, IconHome2, IconKey, IconListNumbers, IconPlugConnected, IconSitemap, IconTimelineEvent, IconToggleLeft, IconUsers, IconUsersGroup, type Icon } from "@tabler/icons-react";
 import { baselinesPath } from "./baselineLinks";
 import { deviationsPath } from "./deviationLinks";
 import { publicHolidaysPath } from "./calendarLinks";
@@ -8,7 +8,6 @@ import { jiraConnectionsPath } from "./jiraLinks";
 import { peoplePath } from "./peopleLinks";
 import { planPath, projectsPath, roadmapPath } from "./planLinks";
 import { scheduleProposalsPath } from "./scheduleProposalLinks";
-import { teamLoadPath } from "./teamLoadLinks";
 import { teamsPath } from "./teamLinks";
 import { usersPath } from "./userLinks";
 
@@ -60,8 +59,7 @@ const NAV_SECTIONS: ReadonlyArray<NavSection> = [
   {
     label: "appShell.section.teams",
     items: [
-      { to: teamsPath, label: "appShell.nav.teams", icon: IconUsersGroup },
-      { to: teamLoadPath, label: "appShell.nav.teamLoad", icon: IconGauge },
+      { to: teamsPath, label: "appShell.nav.teams", icon: IconUsersGroup, keywords: ["team load", "load", "overload", "wip", "obciążenie"] },
       { to: scheduleProposalsPath, label: "appShell.nav.scheduleProposals", icon: IconCalendarStats, keywords: ["proposal", "schedule", "cross-team"] },
       { to: peoplePath, label: "appShell.nav.people", icon: IconAddressBook },
       { to: publicHolidaysPath, label: "appShell.nav.publicHolidays", icon: IconCalendarOff },

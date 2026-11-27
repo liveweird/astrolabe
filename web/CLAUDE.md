@@ -107,9 +107,9 @@ Every list page composes the same ported Lettuce blocks — copy `pages/Users.ts
   dialog mounted with `opened` already true (`{editor && <XModal ... />}`) calls `useDialogFocus(open)`** in its owner. Focus mechanics: web-internals "Shared
   list-page and dialog mechanics".
 
-## Registries (the Teams.tsx template)
+## Registries (the People.tsx template)
 
-Small ADMIN-curated registries (Teams, People) compose `useRegistryListControls` (persisted name filter, debounce, paged sort) and `RegistryListTable`
+Small ADMIN-curated registries (People; Teams reads its own view since 1.32) compose `useRegistryListControls` (persisted name filter, debounce, paged sort) and `RegistryListTable`
 (load/error/empty/pagination); each page owns its query key, extra filters, columns, row actions and refresh prefixes. Editors share `RegistryMetadataFields`
 and `RegistryEditorActions`; form rules (`utils/formRules.ts` `nameRule`/`descriptionRule`), submit/conflict handling and parent fields stay local. Keep each
 registry's field limits explicit and mirrored from the server's validation (`infra/validation/Text.kt`).
@@ -133,8 +133,7 @@ Everything is lazy under `RequireAuth` unless noted.
 - `/roadmap` — Planning, everyone, ONE page in two modes (`?mode=prioritization|overview`, the last one remembered; `/programs` and `/dependencies` redirect): Prioritization (`can.editRank`, `can.editTargetWindow`; filters in the URL, remembered) and the overview tree (the target window by `can`; the program pick in the URL, remembered; a work stream narrowing in the URL only); both with the dependency panel (add, edit and delete by `can`; filters in the URL; the old Dependencies page) — "Roadmap", "Programs", "Dependencies" + `timeline.md` + `projects-view.md`.
 - `/projects`, `/projects/:id` — Planning, everyone (`can`; the picker, the remembered project, the Milestones table, `?milestone=` marks a milestone; `/milestones` redirects) — "Project view" + `projects-view.md` + `timeline.md`.
 - `/baselines`, `/baselines/:id` — Planning, everyone (`can.manage` writes) — "Baselines".
-- `/teams` — Teams and capacity, everyone reads, ADMIN writes — "Teams and the team page"; `/teams/:id` — everyone (`team.can`) — "Teams and the team page" + `timeline.md`.
-- `/team-load` — Teams and capacity, everyone (read-only; warnings and past-weeks filters) — "Team load".
+- `/teams` — Teams and capacity, everyone reads, ADMIN writes: ONE table of the team-load view (`?warning=`, `?past=true`; `/team-load` redirects) — "Team load"; `/teams/:id` — everyone (`team.can`) — "Teams and the team page" + `timeline.md`.
 - `/schedule-proposals` — Teams and capacity, everyone (teams offered by `GET /schedule-proposals/teams`) — "Schedule proposals"; `/schedule-proposals/saved/:id` (no nav leaf) — everyone (`can`) — same section.
 - `/people`, `/people/:id` — Teams and capacity, everyone reads, ADMIN writes — "People".
 - `/public-holidays` — Teams and capacity, everyone reads, ADMIN writes — "Public holidays".

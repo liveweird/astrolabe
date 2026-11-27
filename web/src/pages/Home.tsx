@@ -16,7 +16,7 @@ import { violatedDependenciesPath } from "../utils/dependencyListLinks";
 import { deviationsPath } from "../utils/deviationLinks";
 import { planPath, roadmapFilteredPath, roadmapPath } from "../utils/planLinks";
 import { isStaleSource } from "../utils/staleness";
-import { teamLoadPath, teamLoadWarningPath } from "../utils/teamLoadLinks";
+import { teamsPath, teamsWarningPath } from "../utils/teamLinks";
 import classes from "../theme.module.css";
 
 /** The room a card's figure group keeps while the read has not answered (px, about the lines it will hold), so the card's link stays where it is. */
@@ -79,7 +79,7 @@ function OpenLine({ label, counts, stale }: { label: string; counts: OpenCounts 
 
 /**
  * The Plan card's figures (what there is, nothing filtered, as the Programs page's facts line) - empty, but as tall, until the read answers. The
- * "not scheduled yet" line is a link to Team load when positive: its rows count each team's unscheduled milestones, the parts of this figure.
+ * "not scheduled yet" line is a link to the Teams page when positive: its rows count each team's unscheduled milestones, the parts of this figure.
  */
 function PlanFigures({ plan }: { plan: HomePlan | undefined }) {
   const { t } = useTranslation();
@@ -92,7 +92,7 @@ function PlanFigures({ plan }: { plan: HomePlan | undefined }) {
           <Text className={classes.homeMetric}>{t("programs.facts.projects", { count: plan.projects })}</Text>
           <Text className={classes.homeMetric}>{t("teams.view.milestones", { count: plan.milestones })}</Text>
           {plan.unscheduledMilestones > 0 ? (
-            <Anchor component={RouterLink} to={teamLoadPath} size="sm" className={classes.homePlanAction}>
+            <Anchor component={RouterLink} to={teamsPath} size="sm" className={classes.homePlanAction}>
               {t("home.plan.notScheduled", { count: plan.unscheduledMilestones })}
             </Anchor>
           ) : (
@@ -107,7 +107,7 @@ function PlanFigures({ plan }: { plan: HomePlan | undefined }) {
 /**
  * The Roadmap card's figures: the ranked and unranked counts and the warnings and infos of the Roadmap's facts line, then what else needs attention
  * (a badge only when positive). The unranked count links to the Roadmap with "unranked projects only", the warnings badge to the projects with a warning and the
- * infos badge to the projects with an info (a link is shown as written, so no remembered filter narrows it) and the two capacity figures to the Team load page filtered to them. Violated dependencies count every link once, a link inside one project included, so
+ * infos badge to the projects with an info (a link is shown as written, so no remembered filter narrows it) and the two capacity figures to the Teams page filtered to them. Violated dependencies count every link once, a link inside one project included, so
  * they are worded as dependencies, not as the arrows the Roadmap draws between projects; the red badge opens the dependency panel narrowed to the violated ones.
  */
 function RoadmapFigures({ plan, jiraStale }: { plan: HomePlan | undefined; jiraStale: boolean }) {
@@ -145,12 +145,12 @@ function RoadmapFigures({ plan, jiraStale }: { plan: HomePlan | undefined; jiraS
               </BadgeLink>
             )}
             {plan.overloadedTeams > 0 && (
-              <BadgeLink to={teamLoadWarningPath("overloaded")} color="orange">
+              <BadgeLink to={teamsWarningPath("overloaded")} color="orange">
                 {t("home.roadmap.overloadedTeams", { count: plan.overloadedTeams })}
               </BadgeLink>
             )}
             {plan.wipExceededTeams > 0 && (
-              <BadgeLink to={teamLoadWarningPath("wip")} color="orange">
+              <BadgeLink to={teamsWarningPath("wip")} color="orange">
                 {t("home.roadmap.wipTeams", { count: plan.wipExceededTeams })}
               </BadgeLink>
             )}
