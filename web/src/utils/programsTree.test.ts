@@ -11,7 +11,7 @@ const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): 
 const program = (id: number, name: string, projects: RoadmapProject[], over: Partial<ProgramsProgram> = {}): ProgramsProgram => ({
   id,
   name,
-  ownerName: "Pat",
+  ownerPersonId: 1, ownerName: "Pat",
   span: null,
   flags: { warnings: 0, infos: 0 },
   projects,
@@ -21,7 +21,7 @@ const program = (id: number, name: string, projects: RoadmapProject[], over: Par
 const stream = (id: number, name: string, programs: ProgramsProgram[], over: Partial<ProgramsWorkStream> = {}): ProgramsWorkStream => ({
   id,
   name,
-  ownerName: "Sam",
+  ownerPersonId: 1, ownerName: "Sam",
   startDate: "2026-01-05",
   endDate: null,
   span: null,

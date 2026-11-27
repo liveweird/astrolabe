@@ -87,5 +87,6 @@ internal suspend fun proposalLinks(links: Collection<PlanLinkFact>, check: Sched
     }
 }
 
-private fun DependencyEndpoint.toProposalEnd() =
-    ScheduleProposalEnd(kind, id, name, projectName.takeIf { kind == EndpointKind.MILESTONE })
+private fun DependencyEndpoint.toProposalEnd() = ScheduleProposalEnd(
+    kind, id, name, projectId.takeIf { kind == EndpointKind.MILESTONE }, projectName.takeIf { kind == EndpointKind.MILESTONE },
+)

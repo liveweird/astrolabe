@@ -79,12 +79,12 @@ const viewOf = (): ProgramsView => ({
     {
       id: 1,
       name: "Platform",
-      ownerName: "Sam Stream",
+      ownerPersonId: 1, ownerName: "Sam Stream",
       startDate: "2026-01-05",
       endDate: null,
       span: { start: "2026-03-02", end: "2026-06-05" },
       flags: { warnings: 1, infos: 1 },
-      programs: [{ id: 10, name: "Billing", ownerName: "Pat Program", span: { start: "2026-03-02", end: "2026-06-05" }, flags: { warnings: 1, infos: 1 }, projects: [INVOICES, TAXES, AUDIT] }],
+      programs: [{ id: 10, name: "Billing", ownerPersonId: 1, ownerName: "Pat Program", span: { start: "2026-03-02", end: "2026-06-05" }, flags: { warnings: 1, infos: 1 }, projects: [INVOICES, TAXES, AUDIT] }],
     },
   ],
 });

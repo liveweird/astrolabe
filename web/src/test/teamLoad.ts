@@ -9,6 +9,7 @@ export function teamLoadRow(over: Partial<Row> = {}): Row {
   return {
     id: 3,
     name: "Backend",
+    managerPersonId: 9,
     managerName: "Alex Rivera",
     milestones: 12,
     unscheduledMilestones: 0,

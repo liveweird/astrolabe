@@ -53,7 +53,7 @@ internal suspend fun teamMilestoneRows(
         .innerJoin(programs, { projects.programId }, { programs.id })
         .innerJoin(streams, { programs.workStreamId }, { streams.id })
         .join(ranks, JoinType.LEFT, onColumn = milestones.projectId, otherColumn = ranks.projectId)
-        .select(milestones.columns + listOf(projects.name, programs.name, streams.name, ranks.position))
+        .select(milestones.columns + listOf(projects.name, programs.id, programs.name, streams.id, streams.name, ranks.position))
         .where { (milestones.teamId eq teamId) and milestones.active() }
         .toList()
         .map { row ->
@@ -88,7 +88,9 @@ internal suspend fun teamMilestoneRows(
                     createdAt = row[milestones.createdAt],
                     updatedAt = row[milestones.updatedAt],
                     projectName = row[projects.name],
+                    programId = row[programs.id].value,
                     programName = row[programs.name],
+                    workStreamId = row[streams.id].value,
                     workStreamName = row[streams.name],
                     rankPosition = rank,
                     slackDays = null,

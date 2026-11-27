@@ -123,8 +123,8 @@ class TeamLoadViewTest {
             val row = root.getValue("teams").jsonArray.first().jsonObject
             assertEquals(
                 setOf(
-                    "id", "name", "managerName", "milestones", "unscheduledMilestones", "overloadedWeeks", "wipExceededWeeks",
-                    "weeksWithoutCapacity", "warningWeeks",
+                    "id", "name", "managerPersonId", "managerName", "milestones", "unscheduledMilestones", "overloadedWeeks",
+                    "wipExceededWeeks", "weeksWithoutCapacity", "warningWeeks",
                 ),
                 row.keys,
             )
@@ -140,6 +140,7 @@ class TeamLoadViewTest {
             val rows = Json.parseToJsonElement(s.w.stranger.client.get(path).bodyAsText()).jsonObject.getValue("teams").jsonArray
             val absent = rows.map { it.jsonObject }.single { it.getValue("id").toString() == managerless.toString() }
             assertEquals(JsonNull, absent.getValue("managerName"), "the member is present and null")
+            assertEquals(JsonNull, absent.getValue("managerPersonId"), "the id is present and null with it")
             assertEquals(TestPlan.revision(), s.w.stranger.client.load().revision)
         }
 
@@ -173,6 +174,7 @@ class TeamLoadViewTest {
             val row = load.row(id)
             assertEquals(page.team.name, row.name)
             assertEquals(manager, row.managerName)
+            assertEquals(s.manager, row.managerPersonId, "the id of the person the name is")
             assertEquals(page.team.managerName, row.managerName)
             assertEquals(page.weeks.count { it.overloaded }, row.overloadedWeeks)
             assertEquals(page.weeks.count { it.wipExceeded }, row.wipExceededWeeks)
@@ -215,6 +217,7 @@ class TeamLoadViewTest {
         try {
             val orphaned = uncapped()
             assertNull(orphaned.row(s.teams[0]).managerName, "the team stays, without a manager")
+            assertNull(orphaned.row(s.teams[0]).managerPersonId, "and the id goes with the name")
             assertEquals(full.totals, orphaned.totals)
         } finally {
             // The person delete refuses while the person manages an active team: leave no team managed by a deleted person behind.

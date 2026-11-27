@@ -160,6 +160,7 @@ const endpoint = (kind: "MILESTONE" | "PROJECT", id: number, name: string, proje
   kind,
   id,
   name,
+  projectId: kind === "PROJECT" ? null : 20,
   projectName: kind === "PROJECT" ? null : projectName,
 });
 

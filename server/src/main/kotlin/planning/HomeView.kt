@@ -59,14 +59,17 @@ data class HomeMe(
 data class HomeWorkStream(val id: UInt, val name: String, val endDate: String?, val programs: Int, val projects: Int, val flags: FlagCounts)
 
 /**
- * A program's row on the Programs page: its [projects] and their rolled-up [flags]. [ownerName] is the program's owner and [direct]
- * says the caller's person is that owner (false: the row is listed because the person owns its work stream).
+ * A program's row on the Programs page: its [projects] and their rolled-up [flags]. [workStreamId] is its work stream's and
+ * [ownerPersonId]/[ownerName] the program's owner (the ids let the page link the names); [direct] says the caller's person is that
+ * owner (false: the row is listed because the person owns its work stream).
  */
 @Serializable
 data class HomeProgram(
     val id: UInt,
     val name: String,
+    val workStreamId: UInt,
     val workStreamName: String,
+    val ownerPersonId: UInt,
     val ownerName: String,
     val direct: Boolean,
     val projects: Int,
@@ -75,14 +78,17 @@ data class HomeProgram(
 
 /**
  * A project's Roadmap row ([flags] are the warnings and infos the Roadmap counts, Jira's included; [rankPosition] is null while
- * unranked) with the project page's milestone figures and its red conflicts badge. [ownerName] is the project's owner and [direct]
- * says the caller's person is that owner (false: the row is listed because the person owns its program or work stream).
+ * unranked) with the project page's milestone figures and its red conflicts badge. [programId] is its program's and
+ * [ownerPersonId]/[ownerName] the project's owner; [direct] says the caller's person is that owner (false: the row is listed because
+ * the person owns its program or work stream).
  */
 @Serializable
 data class HomeProject(
     val id: UInt,
     val name: String,
+    val programId: UInt,
     val programName: String,
+    val ownerPersonId: UInt,
     val ownerName: String,
     val direct: Boolean,
     val rankPosition: Int?,

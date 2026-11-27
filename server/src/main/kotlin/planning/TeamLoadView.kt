@@ -43,8 +43,8 @@ data class TeamLoadView(
 data class TeamLoadTotals(val teams: Int, val overloadedTeams: Int, val wipExceededTeams: Int, val unscheduledMilestones: Int)
 
 /**
- * One team: its ACTIVE manager's name ([managerName] is null without one, a deleted person included), its ACTIVE [milestones] and the
- * [unscheduledMilestones] among them (the team page's two trays summed and the Unscheduled tray), and its weeks - [overloadedWeeks]
+ * One team: its ACTIVE manager's id and name ([managerPersonId] and [managerName] are null without one, a deleted person included),
+ * its ACTIVE [milestones] and the [unscheduledMilestones] among them (the team page's two trays summed and the Unscheduled tray), and its weeks - [overloadedWeeks]
  * and [wipExceededWeeks] are the team page's two orange badges, [weeksWithoutCapacity] the weeks of its load with no capacity period
  * in force (never flagged overloaded, so a team with work and no capacity would otherwise look fine). [warningWeeks] are the weeks
  * behind the first two counts - the team page's own overloaded or over-WIP weeks, oldest first (the team view's [WeekLoadView], never
@@ -54,6 +54,7 @@ data class TeamLoadTotals(val teams: Int, val overloadedTeams: Int, val wipExcee
 data class TeamLoadRow(
     val id: UInt,
     val name: String,
+    val managerPersonId: UInt?,
     val managerName: String?,
     val milestones: Int,
     val unscheduledMilestones: Int,

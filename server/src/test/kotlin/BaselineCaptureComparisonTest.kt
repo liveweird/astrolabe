@@ -23,7 +23,7 @@ import kotlin.test.assertTrue
 /** The pure assembly of the comparison's `links` and `capacity` blocks: naming, ordering, the caps and "not captured" (no database). */
 class BaselineCaptureComparisonTest {
     private val names = LinkEndNames(
-        nowProjects = listOf(CompareProject(20u, "Now project", "Prog", "Stream", null, null)),
+        nowProjects = listOf(CompareProject(20u, "Now project", 30u, "Prog", 40u, "Stream", null, null)),
         frozenProjects = emptyList(),
         nowMilestones = listOf(MilestoneCapture(10u, 20u, 1u, "Live milestone", BigDecimal.ONE, null)),
         frozenMilestones = emptyList(),
@@ -58,6 +58,8 @@ class BaselineCaptureComparisonTest {
         assertEquals(LinkChangeKind.CHANGED, item.change)
         assertEquals("Live milestone", item.predecessor.name)
         assertEquals("Now project", item.predecessor.projectName)
+        assertEquals(20u, item.predecessor.projectId, "and its id")
+        assertEquals(null, item.successor.projectId, "a project end names no project: its id is the project")
         assertEquals(EndpointKind.PROJECT, item.successor.kind)
         assertEquals("Now project", item.successor.name)
         assertEquals(null, item.successor.projectName, "a project end has no project name")

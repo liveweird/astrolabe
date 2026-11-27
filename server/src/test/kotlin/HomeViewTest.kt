@@ -116,11 +116,14 @@ class HomeViewTest {
             assertEquals(o.owner.personId.toString(), me.getValue("personId").toString())
             fun row(list: String): JsonObject = me.getValue(list).jsonArray.single().jsonObject
             assertEquals(setOf("id", "name", "endDate", "programs", "projects", "flags"), row("workStreams").keys)
-            assertEquals(setOf("id", "name", "workStreamName", "ownerName", "direct", "projects", "flags"), row("programs").keys)
+            assertEquals(
+                setOf("id", "name", "workStreamId", "workStreamName", "ownerPersonId", "ownerName", "direct", "projects", "flags"),
+                row("programs").keys,
+            )
             assertEquals(
                 setOf(
-                    "id", "name", "programName", "ownerName", "direct", "rankPosition", "milestones", "unscheduledMilestones", "flags",
-                    "conflicts",
+                    "id", "name", "programId", "programName", "ownerPersonId", "ownerName", "direct", "rankPosition", "milestones",
+                    "unscheduledMilestones", "flags", "conflicts",
                 ),
                 row("projects").keys,
             )
@@ -192,6 +195,11 @@ class HomeViewTest {
         assertEquals(listOf(1, 1), streamOwner.workStreams.single().let { listOf(it.programs, it.projects) }, "its roll-up, as before")
         assertEquals(listOf(ownerName(w.programOwner), false), streamOwner.programs.single().let { listOf(it.ownerName, it.direct) })
         assertEquals(listOf(ownerName(w.projectOwner), false), streamOwner.projects.single().let { listOf(it.ownerName, it.direct) })
+        // The ids of the names the rows show: the work stream and the owner of the program, the program and the owner of the project.
+        val seenProgram = streamOwner.programs.single()
+        assertEquals(listOf(w.streamId, w.programOwner.personId), listOf(seenProgram.workStreamId, seenProgram.ownerPersonId))
+        val seenProject = streamOwner.projects.single()
+        assertEquals(listOf(w.programId, w.projectOwner.personId), listOf(seenProject.programId, seenProject.ownerPersonId))
         // The program's owner: the program and its project, no work stream.
         val programOwner = checkNotNull(w.programOwner.client.home().me)
         assertEquals(listOf(w.programId), programOwner.programs.map { it.id })

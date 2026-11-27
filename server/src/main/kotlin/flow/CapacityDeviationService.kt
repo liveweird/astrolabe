@@ -202,7 +202,8 @@ class CapacityDeviationService(
             deviations.map { row ->
                 val ack = stored[bindingId to row.detail.sprintId]
                 val stamped = ack?.let {
-                    CapacityDeviationAcknowledgement(it.at, names[it.byUserId]?.name, current = it.fingerprint == row.fingerprint)
+                    val by = names[it.byUserId]
+                    CapacityDeviationAcknowledgement(it.at, by?.name, by?.personId, current = it.fingerprint == row.fingerprint)
                 }
                 row.copy(acknowledgement = stamped)
             }

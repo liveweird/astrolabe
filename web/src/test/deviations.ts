@@ -95,7 +95,7 @@ export const renamed = (): DeviationLine => ({ kind: "RENAMED", severity: "INFO"
 /** A line stamped by Ada Lovelace on 2026-11-06 (UTC); `over` makes it stale (`current: false`) or nameless (`by: null`). */
 export const stamped = (line: DeviationLine, over: Partial<NonNullable<DeviationLine["acknowledgement"]>> = {}): DeviationLine => ({
   ...line,
-  acknowledgement: { at: Date.UTC(2026, 10, 6, 12, 30), by: "Ada Lovelace", current: true, ...over },
+  acknowledgement: { at: Date.UTC(2026, 10, 6, 12, 30), by: "Ada Lovelace", byPersonId: null, current: true, ...over },
 });
 
 export function item(over: Partial<DeviationItem> = {}): DeviationItem {

@@ -58,7 +58,7 @@ function stubViews(answers: Answers = {}) {
   return fetchMock;
 }
 
-const PROJECT = { id: 7, name: "Ledger", programName: "Core", ownerName: "Alex Example", direct: true, rankPosition: 3, milestones: 10, unscheduledMilestones: 2, flags: { warnings: 2, infos: 1 }, conflicts: 0 };
+const PROJECT = { id: 7, name: "Ledger", programId: 3, programName: "Core", ownerPersonId: 5, ownerName: "Alex Example", direct: true, rankPosition: 3, milestones: 10, unscheduledMilestones: 2, flags: { warnings: 2, infos: 1 }, conflicts: 0 };
 const TEAM = {
   id: 4,
   name: "Payments",

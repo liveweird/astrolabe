@@ -27,11 +27,11 @@ describe("a line's acknowledgement cell: the button matrix (can x none / current
   // [name, can, line state, offers Acknowledge, offers Unacknowledge]
   const matrix = [
     ["no rights, never acknowledged", false, null, false, false],
-    ["no rights, current", false, { at: AT, by: "Ada Lovelace", current: true }, false, false],
-    ["no rights, stale", false, { at: AT, by: "Ada Lovelace", current: false }, false, false],
+    ["no rights, current", false, { at: AT, by: "Ada Lovelace", byPersonId: null, current: true }, false, false],
+    ["no rights, stale", false, { at: AT, by: "Ada Lovelace", byPersonId: null, current: false }, false, false],
     ["rights, never acknowledged", true, null, true, false],
-    ["rights, current", true, { at: AT, by: "Ada Lovelace", current: true }, false, true],
-    ["rights, stale (open again)", true, { at: AT, by: "Ada Lovelace", current: false }, true, false],
+    ["rights, current", true, { at: AT, by: "Ada Lovelace", byPersonId: null, current: true }, false, true],
+    ["rights, stale (open again)", true, { at: AT, by: "Ada Lovelace", byPersonId: null, current: false }, true, false],
   ] as const;
 
   test.each(matrix)("%s", (_name, allowed, acknowledgement, offersAck, offersUnack) => {

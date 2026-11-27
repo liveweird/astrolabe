@@ -2721,6 +2721,11 @@ export interface components {
             /** Format: int32 */
             userId: number;
             name: string;
+            /**
+             * Format: int32
+             * @description The login's linked ACTIVE person (the id `GET /people` lists); null when it has none.
+             */
+            personId: number | null;
         };
         BaselineResponse: {
             /** Format: int32 */
@@ -3015,12 +3020,14 @@ export interface components {
             /** @description The link's terms now; null for a `REMOVED` link. */
             now: components["schemas"]["BaselineLinkTerms"] | null;
         };
-        /** @description One end of a changed link. The name is the "now" side's when the end exists there, else the frozen one; `projectName` is the project a MILESTONE end belongs to (null for a project end). */
+        /** @description One end of a changed link. The name is the "now" side's when the end exists there, else the frozen one; `projectId` and `projectName` are the project a MILESTONE end belongs to (null for a project end, whose `id` is the project). */
         BaselineLinkEnd: {
             kind: components["schemas"]["EndpointKind"];
             /** Format: int32 */
             id: number;
             name: string;
+            /** Format: int32 */
+            projectId: number | null;
             projectName: string | null;
         };
         BaselineLinkTerms: {
@@ -3083,7 +3090,17 @@ export interface components {
             projectId: number;
             /** @description The live name; the frozen one for a project that is gone. */
             name: string;
+            /**
+             * Format: int32
+             * @description The program the live project sits in (the frozen one for a project that is gone: it may no longer exist).
+             */
+            programId: number;
             programName: string;
+            /**
+             * Format: int32
+             * @description The work stream of the live project (the frozen one for a project that is gone: it may no longer exist).
+             */
+            workStreamId: number;
             workStreamName: string;
             /**
              * Format: int32
@@ -4193,7 +4210,11 @@ export interface components {
              */
             updatedAt: number;
             projectName: string;
+            /** Format: int32 */
+            programId: number;
             programName: string;
+            /** Format: int32 */
+            workStreamId: number;
             workStreamName: string;
             /**
              * Format: int32
@@ -4484,6 +4505,11 @@ export interface components {
             at: number;
             /** @description The acknowledging login's ACTIVE person's name, else its display name; never the email; null once that login is deleted. */
             by: string | null;
+            /**
+             * Format: int32
+             * @description The acknowledging login's linked ACTIVE person (the id `GET /people` lists); null when it has none or the login is deleted.
+             */
+            byPersonId: number | null;
             /** @description True while the stored fingerprint equals the line's now. False = acknowledged, then changed since, so the line is open again. */
             current: boolean;
         };
@@ -4864,7 +4890,14 @@ export interface components {
             /** Format: int32 */
             id: number;
             name: string;
+            /** Format: int32 */
+            workStreamId: number;
             workStreamName: string;
+            /**
+             * Format: int32
+             * @description The program's owner (a person's id).
+             */
+            ownerPersonId: number;
             /** @description The program's owner (a person's name). */
             ownerName: string;
             /** @description True when the caller's person is the program's owner; false when the row is listed because that person owns its work stream. */
@@ -4879,7 +4912,14 @@ export interface components {
             /** Format: int32 */
             id: number;
             name: string;
+            /** Format: int32 */
+            programId: number;
             programName: string;
+            /**
+             * Format: int32
+             * @description The project's owner (a person's id).
+             */
+            ownerPersonId: number;
             /** @description The project's owner (a person's name). */
             ownerName: string;
             /** @description True when the caller's person is the project's owner; false when the row is listed because that person owns its program or work stream. */
@@ -4978,6 +5018,11 @@ export interface components {
             /** Format: int32 */
             id: number;
             name: string;
+            /**
+             * Format: int32
+             * @description The id of `managerName`'s person; null with it.
+             */
+            managerPersonId: number | null;
             /** @description The team's active manager; null when it has none (a deleted person is none). */
             managerName: string | null;
             /**
@@ -5103,6 +5148,11 @@ export interface components {
             /** Format: int32 */
             id: number;
             name: string;
+            /**
+             * Format: int32
+             * @description The owner's person id.
+             */
+            ownerPersonId: number;
             ownerName: string;
             /** Format: date */
             startDate: string;
@@ -5122,6 +5172,11 @@ export interface components {
             /** Format: int32 */
             id: number;
             name: string;
+            /**
+             * Format: int32
+             * @description The owner's person id.
+             */
+            ownerPersonId: number;
             ownerName: string;
             /** @description The earliest start to the latest end over its projects' derived spans; null when none is scheduled. */
             span: components["schemas"]["DateSpan"] | null;
@@ -5328,6 +5383,11 @@ export interface components {
             /** Format: int32 */
             id: number;
             name: string;
+            /**
+             * Format: int32
+             * @description The milestone's project for a milestone end; null for a project end, whose `id` is the project.
+             */
+            projectId: number | null;
             /** @description The milestone's project for a milestone end; null for a project end, whose `name` is the project. */
             projectName: string | null;
         };
@@ -6463,10 +6523,30 @@ export interface components {
             /** @description A milestone's or project's program. */
             programName?: string | null;
             workStreamName?: string | null;
+            /**
+             * Format: int32
+             * @description The id of `projectName`'s project; null with it.
+             */
+            projectId: number | null;
+            /**
+             * Format: int32
+             * @description The id of `programName`'s program; null with it.
+             */
+            programId: number | null;
+            /**
+             * Format: int32
+             * @description The id of `workStreamName`'s work stream; null with it.
+             */
+            workStreamId: number | null;
         };
         JiraBindingCreator: {
             /** Format: int32 */
             userId: number;
+            /**
+             * Format: int32
+             * @description The login's linked ACTIVE person (the id `GET /people` lists); null when it has none.
+             */
+            personId: number | null;
             /** @description The login's active person's name, else its display name - never its email. */
             name: string;
         };
@@ -7088,6 +7168,11 @@ export interface components {
             at: number;
             /** @description The acknowledging login's ACTIVE person's name, else its display name; never the email; null once that login is deleted. */
             by: string | null;
+            /**
+             * Format: int32
+             * @description The acknowledging login's linked ACTIVE person (the id `GET /people` lists); null when it has none or the login is deleted.
+             */
+            byPersonId: number | null;
             /** @description True while the stored fingerprint equals the row's now. False = acknowledged, then changed since (its dates, held days, working days, either figure, the gap or the severity; a rename in Flow changes nothing), so the row is open again. */
             current: boolean;
         };

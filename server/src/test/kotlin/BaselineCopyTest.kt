@@ -147,14 +147,17 @@ class BaselineCopyTest {
             ids += bare.id
             assertEquals(withPerson.userId, named.createdBy?.userId)
             assertEquals(personName, named.createdBy?.name, "the ACTIVE linked person's name")
+            assertEquals(withPerson.personId, named.createdBy?.personId, "and that person's id, for the link")
             assertEquals(withoutPerson.userId, bare.createdBy?.userId)
             assertEquals("Plain Display", bare.createdBy?.name, "no person: the login's display name")
             assertNotEquals(email, bare.createdBy?.name, "never the email")
+            assertNull(bare.createdBy?.personId, "no person: no id (the member is null, the creator is still there)")
 
             // A soft-deleted person falls back to the display name too; a soft-deleted login reads as null.
             TestPeople.softDelete(withPerson.personId!!)
-            val afterPersonGone = w.admin.client.get("/api/v1/baselines/${named.id}").body<BaselineResponse>().createdBy?.name
-            assertEquals("Plain Display", afterPersonGone, "a deleted person is not a name")
+            val afterPersonGone = w.admin.client.get("/api/v1/baselines/${named.id}").body<BaselineResponse>().createdBy
+            assertEquals("Plain Display", afterPersonGone?.name, "a deleted person is not a name")
+            assertNull(afterPersonGone?.personId, "nor an id")
             TestUsers.softDelete(withoutPerson.userId)
             assertNull(w.admin.client.get("/api/v1/baselines/${bare.id}").body<BaselineResponse>().createdBy, "the login is gone")
             val listed = w.admin.client.get("/api/v1/baselines").body<BaselineList>().items

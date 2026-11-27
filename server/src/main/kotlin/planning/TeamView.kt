@@ -100,7 +100,8 @@ data class WeekLoadView(
 )
 
 /**
- * A milestone of the team view: the [MilestoneResponse] fields plus the names of its project chain and its project's rank, its Jira
+ * A milestone of the team view: the [MilestoneResponse] fields plus the names of its project chain ([programId] and [workStreamId]
+ * are the ids of the program and work stream named) and its project's rank, its Jira
  * link ([jira]: null = unbound; a disabled connection's dates are null) and its open Jira [flags] ([FlagKind.JIRA_DEVIATION] per
  * deviation).
  */
@@ -118,7 +119,9 @@ data class TeamMilestone(
     val createdAt: Long,
     val updatedAt: Long,
     val projectName: String,
+    val programId: UInt,
     val programName: String,
+    val workStreamId: UInt,
     val workStreamName: String,
     /** The project's position in the global project rank (1-based); null = unranked. */
     val rankPosition: Int?,

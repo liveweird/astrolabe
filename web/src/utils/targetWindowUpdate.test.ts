@@ -64,14 +64,14 @@ describe("applyProgramsWindow", () => {
       {
         id: 1,
         name: "Platform",
-        ownerName: "Sam",
+        ownerPersonId: 1, ownerName: "Sam",
         startDate: "2026-01-05",
         endDate: null,
         span: null,
         flags: { warnings: 3, infos: 2 },
         programs: [
-          { id: 10, name: "Billing", ownerName: "Pat", span: null, flags: { warnings: 2, infos: 1 }, projects: [project(1), project(2, { flags: [], drift: null })] },
-          { id: 11, name: "Reports", ownerName: "Rita", span: null, flags: { warnings: 1, infos: 1 }, projects: [project(3)] },
+          { id: 10, name: "Billing", ownerPersonId: 1, ownerName: "Pat", span: null, flags: { warnings: 2, infos: 1 }, projects: [project(1), project(2, { flags: [], drift: null })] },
+          { id: 11, name: "Reports", ownerPersonId: 1, ownerName: "Rita", span: null, flags: { warnings: 1, infos: 1 }, projects: [project(3)] },
         ],
       },
     ],
@@ -114,12 +114,12 @@ describe("the Jira flags are not drift", () => {
         {
           id: 1,
           name: "Platform",
-          ownerName: "Sam",
+          ownerPersonId: 1, ownerName: "Sam",
           startDate: "2026-01-05",
           endDate: null,
           span: null,
           flags: { warnings: 2, infos: 1 },
-          programs: [{ id: 10, name: "Billing", ownerName: "Pat", span: null, flags: { warnings: 2, infos: 1 }, projects: [withJira] }],
+          programs: [{ id: 10, name: "Billing", ownerPersonId: 1, ownerName: "Pat", span: null, flags: { warnings: 2, infos: 1 }, projects: [withJira] }],
         },
       ],
     };

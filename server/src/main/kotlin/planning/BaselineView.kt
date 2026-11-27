@@ -40,7 +40,8 @@ data class BaselineView(
 data class BaselineViewTotals(val milestones: MovementTotalsView, val projects: MovementTotalsView)
 
 /**
- * A project of the comparison: the live names when it exists now, else the frozen ones; [rankThen]/[rankNow] its rank positions
+ * A project of the comparison: the live names when it exists now, else the frozen ones ([programId] and [workStreamId] follow the
+ * same side, so the id of a node that is gone may not open anything); [rankThen]/[rankNow] its rank positions
  * (null = unranked or absent on that side); [baselineSpan]/[span] its derived span then and now (null = nothing scheduled or absent
  * on that side). [movement] is ADDED for a project newer than the baseline and REMOVED for one gone; [counts] the movement counts
  * over its milestones (a removed project: its removed milestones).
@@ -49,7 +50,9 @@ data class BaselineViewTotals(val milestones: MovementTotalsView, val projects: 
 data class BaselineViewProject(
     val projectId: UInt,
     val name: String,
+    val programId: UInt,
     val programName: String,
+    val workStreamId: UInt,
     val workStreamName: String,
     val rankThen: Int?,
     val rankNow: Int?,

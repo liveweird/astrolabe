@@ -183,6 +183,7 @@ class JiraAcknowledgeTest {
         val acknowledged = admin.dvView("connectionId=${f.connectionId}&acknowledged=true").items.single()
         val stored = assertNotNull(acknowledged.ackSummary())
         assertEquals(listOf(given.acknowledgedAt, ownerName, true), listOf(stored.at, stored.by, stored.current))
+        assertEquals(w.streamOwner.personId, stored.byPersonId, "the acknowledging login's person, for the link")
         assertEquals(fingerprint, acknowledged.fingerprint, "acknowledging changes nothing about the fingerprint")
         assertEquals(listOf(binding), admin.dvView("connectionId=${f.connectionId}&all=true").items.map { it.bindingId })
 
@@ -191,7 +192,9 @@ class JiraAcknowledgeTest {
         jbSql("UPDATE users SET name = 'Display Owner' WHERE id = ?", w.streamOwner.userId.toInt())
         w.streamOwner.client.ack(binding, fingerprint).acknowledgement()
         TestPeople.softDelete(w.streamOwner.personId!!)
-        assertEquals("Display Owner", admin.ackItem(f.connectionId, binding).ackSummary()?.by, "no active person: the display name")
+        val noPerson = admin.ackItem(f.connectionId, binding).ackSummary()
+        assertEquals("Display Owner", noPerson?.by, "no active person: the display name")
+        assertNull(noPerson?.byPersonId, "and no person id")
         TestUsers.softDelete(w.streamOwner.userId)
         val orphaned = assertNotNull(admin.ackItem(f.connectionId, binding).ackSummary(), "a deleted login keeps its acknowledgement")
         assertNull(orphaned.by)

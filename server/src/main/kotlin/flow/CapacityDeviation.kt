@@ -62,11 +62,11 @@ data class CapacityDeviation(
 
 /**
  * A row's stored acknowledgement: [at] epoch millis, [by] the acknowledging login's active person's name else its display name (never the
- * email; null once the login is deleted), [current] whether the stored fingerprint still equals the row's (false = acknowledged, then
- * changed: the row is open again).
+ * email; null once the login is deleted), [byPersonId] that login's active linked person (null when it has none or is gone), [current]
+ * whether the stored fingerprint still equals the row's (false = acknowledged, then changed: the row is open again).
  */
 @Serializable
-data class CapacityDeviationAcknowledgement(val at: Long, val by: String?, val current: Boolean)
+data class CapacityDeviationAcknowledgement(val at: Long, val by: String?, val byPersonId: UInt?, val current: Boolean)
 
 /** A row is OPEN unless its acknowledgement is current: a stale one (acknowledged, then the figures changed) is open again. */
 val CapacityDeviation.isOpen: Boolean get() = acknowledgement?.current != true

@@ -232,12 +232,12 @@ const ACK_AT = Date.UTC(2026, 10, 8, 10, 0);
 
 /** The row as a manager has acknowledged it ("known, leave it") and its figures have not changed since: `current` is true, so the row is not open. */
 export function acknowledgedRow(row: CapacityDeviation, by: string | null = "Ada Manager"): CapacityDeviation {
-  return { ...row, acknowledgement: { at: ACK_AT, by, current: true } };
+  return { ...row, acknowledgement: { at: ACK_AT, by, byPersonId: null, current: true } };
 }
 
 /** The row as acknowledged and then CHANGED (`current: false`): the server lists it as open again, with "changed since". */
 export function staleAcknowledgedRow(row: CapacityDeviation, by: string | null = "Ada Manager"): CapacityDeviation {
-  return { ...row, acknowledgement: { at: ACK_AT, by, current: false } };
+  return { ...row, acknowledgement: { at: ACK_AT, by, byPersonId: null, current: false } };
 }
 
 export const GONE_ROW: CapacityDeviation = { kind: "TEAM_GONE", severity: "WARNING", detail: NO_DETAIL, fingerprint: fingerprintOf(0), acknowledgement: null };

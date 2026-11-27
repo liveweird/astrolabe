@@ -10,16 +10,19 @@ import ch.nokillswit.infra.time.WorkingCalendar
 internal class CompareProject(
     val id: UInt,
     val name: String,
+    val programId: UInt,
     val programName: String,
+    val workStreamId: UInt,
     val workStreamName: String,
     val rankPosition: Int?,
     val span: DaySpan?,
 )
 
-internal fun FrozenProjectRow.toCompare() = CompareProject(id, name, programName, workStreamName, rankPosition, span)
+internal fun FrozenProjectRow.toCompare() =
+    CompareProject(id, name, programId, programName, workStreamId, workStreamName, rankPosition, span)
 
 internal fun RoadmapProject.toCompare(spans: Map<UInt, DaySpan>) =
-    CompareProject(id, name, programName, workStreamName, rankPosition, spans[id])
+    CompareProject(id, name, programId, programName, workStreamId, workStreamName, rankPosition, spans[id])
 
 /** A baseline's frozen milestone as the "now" side of a two-baseline comparison (the live plan's [MilestoneCapture] shape). */
 internal fun FrozenMilestoneRow.toCapture() = MilestoneCapture(id, projectId, teamId, name, estimateMd, span)
@@ -120,7 +123,9 @@ internal object BaselineComparison {
         val view = BaselineViewProject(
             projectId = id,
             name = (now?.name ?: then?.name).orEmpty(),
+            programId = checkNotNull(now?.programId ?: then?.programId),
             programName = (now?.programName ?: then?.programName).orEmpty(),
+            workStreamId = checkNotNull(now?.workStreamId ?: then?.workStreamId),
             workStreamName = (now?.workStreamName ?: then?.workStreamName).orEmpty(),
             rankThen = then?.rankPosition,
             rankNow = now?.rankPosition,

@@ -195,7 +195,8 @@ internal class World(
     /** [deviation] with its stored acknowledgement; the line's fingerprint is hashed only when there is one to compare with. */
     private fun lineOf(bindingId: UInt, deviation: Deviation): LineState {
         val ack = stored[bindingId]?.get(deviation.kind) ?: return LineState(deviation, null)
-        val wire = DeviationAcknowledgement(ack.at, creators[ack.byUserId]?.name, ack.fingerprint == fingerprintOf(deviation))
+        val by = creators[ack.byUserId]
+        val wire = DeviationAcknowledgement(ack.at, by?.name, by?.personId, ack.fingerprint == fingerprintOf(deviation))
         return LineState(deviation, wire)
     }
 

@@ -339,11 +339,12 @@ class ScheduleProposalTest {
         assertEquals(DependencyStatus.OK, reported.before)
         assertEquals(DependencyStatus.VIOLATED, reported.check.status)
         assertEquals("2027-02-02", reported.check.requiredDate, "P's derived end after the moves is 02-01, not the stored 01-22")
-        val projectEnd = ScheduleProposalEnd(EndpointKind.PROJECT, w.projectId, projectNameOf(w.projectId), null)
+        val projectEnd = ScheduleProposalEnd(EndpointKind.PROJECT, w.projectId, projectNameOf(w.projectId), null, null)
         assertEquals(projectEnd, reported.predecessor, "a project end: its own name, no project")
         assertEquals(EndpointKind.MILESTONE, reported.successor.kind)
         assertEquals(z, reported.successor.id)
         assertEquals(projectNameOf(second.projectId), reported.successor.projectName, "a milestone end names its project")
+        assertEquals(second.projectId, reported.successor.projectId, "and carries its id")
     }
 
     private fun projectNameOf(id: UInt): String = TestPlan.scalar("SELECT name FROM projects WHERE id = $id") { it.getString(1) }
@@ -466,7 +467,8 @@ class ScheduleProposalTest {
             assertEquals("2027-02-17", reported.check.requiredDate)
             assertEquals("2027-02-08", reported.check.actualDate, "the fixed end keeps its dates")
             val moved = proposal.move(m)
-            assertEquals(ScheduleProposalEnd(EndpointKind.MILESTONE, m, moved.name, moved.projectName), reported.predecessor)
+            val milestoneEnd = ScheduleProposalEnd(EndpointKind.MILESTONE, m, moved.name, moved.projectId, moved.projectName)
+            assertEquals(milestoneEnd, reported.predecessor)
             assertEquals(theirs, reported.successor.id)
             assertEquals(link, proposal.dependencies.first().id, "violated-after links come first")
             assertEquals("2027-02-08" to "2027-02-12", datesOf(theirs), "the other team's milestone is never touched")

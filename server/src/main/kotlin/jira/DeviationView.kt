@@ -176,10 +176,11 @@ data class DeviationLine(
 
 /**
  * An acknowledgement as stored: [at] epoch millis, [by] the acknowledging login's active person's name else its display name (never
- * the email; null once the login is deleted); [current] is false when the acknowledged line changed since.
+ * the email; null once the login is deleted); [byPersonId] is that active linked person (null when the login has none or is gone);
+ * [current] is false when the acknowledged line changed since.
  */
 @Serializable
-data class DeviationAcknowledgement(val at: Long, val by: String?, val current: Boolean)
+data class DeviationAcknowledgement(val at: Long, val by: String?, val byPersonId: UInt?, val current: Boolean)
 
 /**
  * What the caller may do with the item: [acknowledge] is the node's owner chain, ADMIN or - on a milestone - its team's manager

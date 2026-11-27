@@ -69,7 +69,8 @@ fun DeviationItem.lineStates(): Map<DeviationKind, Boolean?> = deviations.associ
  */
 fun DeviationItem.ackSummary(): DeviationAcknowledgement? {
     val newest = deviations.mapNotNull { it.acknowledgement }.maxByOrNull { it.at } ?: return null
-    return DeviationAcknowledgement(newest.at, newest.by, current = deviations.all { it.acknowledgement?.current == true })
+    val current = deviations.all { it.acknowledgement?.current == true }
+    return DeviationAcknowledgement(newest.at, newest.by, newest.byPersonId, current)
 }
 
 suspend fun HttpResponse.acknowledgement(): Acknowledgement {

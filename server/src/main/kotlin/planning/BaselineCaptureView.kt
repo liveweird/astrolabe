@@ -12,9 +12,12 @@ import kotlinx.serialization.Serializable
 const val MAX_BASELINE_LINK_ROWS = 1_000
 const val MAX_BASELINE_CAPACITY_ROWS = 2_000
 
-/** One end of a changed link: its [kind] and [id], its [name] (the "now" side's when it exists there) and, for a milestone, its project. */
+/**
+ * One end of a changed link: its [kind] and [id], its [name] (the "now" side's when it exists there) and, for a milestone, its
+ * project ([projectId] and [projectName]; null for a project end, whose [id] is the project).
+ */
 @Serializable
-data class BaselineLinkEnd(val kind: EndpointKind, val id: UInt, val name: String, val projectName: String?)
+data class BaselineLinkEnd(val kind: EndpointKind, val id: UInt, val name: String, val projectId: UInt?, val projectName: String?)
 
 /** A link's terms on one side. */
 @Serializable

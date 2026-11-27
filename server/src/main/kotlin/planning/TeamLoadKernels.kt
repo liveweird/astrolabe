@@ -2,8 +2,8 @@ package ch.nokillswit.planning
 
 import java.time.LocalDate
 
-/** An ACTIVE team as the team-load view sees it; [managerName] is null without an ACTIVE manager person. */
-data class TeamLoadTeam(val id: UInt, val name: String, val managerName: String?)
+/** An ACTIVE team as the team-load view sees it; [managerName] and [managerPersonId] are null without an ACTIVE manager person. */
+data class TeamLoadTeam(val id: UInt, val name: String, val managerPersonId: UInt?, val managerName: String?)
 
 /** A team's ACTIVE milestones: all of them and the ones without dates. */
 data class TeamMilestoneCount(val total: Int, val unscheduled: Int)
@@ -87,6 +87,7 @@ object TeamLoadKernels {
     private fun row(team: TeamLoadTeam, count: TeamMilestoneCount, weeks: List<WeekLoad>, listed: List<WeekLoad>) = TeamLoadRow(
         id = team.id,
         name = team.name,
+        managerPersonId = team.managerPersonId,
         managerName = team.managerName,
         milestones = count.total,
         unscheduledMilestones = count.unscheduled,

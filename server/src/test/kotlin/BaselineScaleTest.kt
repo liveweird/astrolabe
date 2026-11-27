@@ -191,7 +191,7 @@ class BaselineScaleTest {
         const val TAKE_TRIPWIRE_MS = 5_000.0
         const val VIEW_P50_TRIPWIRE_MS = 1_000.0
 
-        /** The measured 432,811 B (three runs alone, `timeline.md` "Measured figures") plus 10 percent. */
+        /** The 1.27 figure, 432,811 B (three runs alone, `timeline.md` "Measured figures"), plus 10 percent; 444,915 B with 1.31's ids. */
         const val VIEW_MAX_BYTES = 476_100
 
         val FROZEN_TABLES = listOf("baseline_projects", "baseline_milestones", "baseline_dependencies", "baseline_capacity_periods")

@@ -31,6 +31,7 @@ class StoredProposalFormatTest {
     /** Format -> the fingerprint of the stored shapes when that format was current. Append-only. */
     private val history = mapOf(
         1 to "aa01f7b679143cc7978ea14ddb055d1bce6866c01b482ab95c6619660babc3eb",
+        2 to "2fc5e33419abd2bcba1f8eeb9c1718d25621aec570f97c286bf3579e39f4e438",
     )
 
     @Test

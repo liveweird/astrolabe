@@ -6,6 +6,7 @@ import ch.nokillswit.planning.SavedProposalState
 import ch.nokillswit.planning.SavedProposalSummary
 import ch.nokillswit.planning.STALE_REVISION_PROBLEM
 import ch.nokillswit.planning.STALE_SCOPE_PROBLEM
+import ch.nokillswit.planning.STORED_PROPOSAL_FORMAT
 import ch.nokillswit.planning.ScheduleCheckRequest
 import ch.nokillswit.planning.ScheduleCheckResponse
 import ch.nokillswit.planning.TeamScheduleBatchItem
@@ -74,7 +75,7 @@ class SavedProposalTest {
         assertNull(record.check, "every move ticked: the proposal's own post-check applies")
         assertEquals(run.moveIds().sorted(), record.selectedMilestoneIds)
         assertTrue(record.can.accept && record.can.delete)
-        assertTrue(TestSavedProposals.scalar(summary.id, "format") { it.getInt(1) } == 1)
+        assertEquals(STORED_PROPOSAL_FORMAT.toInt(), TestSavedProposals.scalar(summary.id, "format") { it.getInt(1) })
     }
 
     @Test
@@ -240,6 +241,7 @@ class SavedProposalTest {
             val listed = caller.client.get(SAVED_PATH).also { assertEquals(HttpStatusCode.OK, it.status, label) }
                 .body<SavedProposalList>().items
             assertEquals(mayAct, listed.single { it.id == id }.can.delete, "list can.delete: $label")
+            assertEquals(s.both.personId, listed.single { it.id == id }.createdBy?.personId, "list createdBy.personId: $label")
             val record = caller.client.get("$SAVED_PATH/$id").also { assertEquals(HttpStatusCode.OK, it.status, label) }
                 .body<SavedProposalRecord>()
             assertEquals(mayAct, record.can.delete, "can.delete: $label")

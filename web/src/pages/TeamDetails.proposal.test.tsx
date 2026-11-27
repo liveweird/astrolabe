@@ -39,7 +39,9 @@ const milestone = (id: number, name: string, over: Partial<TeamMilestone> = {}):
   createdAt: 1,
   updatedAt: 2,
   projectName: "Invoices",
+  programId: 4,
   programName: "Billing",
+  workStreamId: 1,
   workStreamName: "Platform",
   rankPosition: 1,
   ...over,
@@ -713,7 +715,7 @@ describe("the Proposed schedule section", () => {
 });
 
 describe("the ticked-subset check (1.8)", () => {
-  const end = (id: number, name: string): ScheduleProposalEnd => ({ kind: "MILESTONE", id, name, projectName: "Invoices" });
+  const end = (id: number, name: string): ScheduleProposalEnd => ({ kind: "MILESTONE", id, name, projectId: 20, projectName: "Invoices" });
   const link = (id: number, predecessor: ScheduleProposalEnd, successor: ScheduleProposalEnd, before: ScheduleProposalLink["before"], status: ScheduleProposalLink["before"]): ScheduleProposalLink => ({
     id,
     predecessor,

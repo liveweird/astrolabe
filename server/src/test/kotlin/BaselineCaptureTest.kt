@@ -288,6 +288,8 @@ class BaselineCaptureTest {
                 assertEquals(DependencyType.SS to 5, changed.now?.type to changed.now?.lagDays)
                 assertEquals(EndpointKind.MILESTONE to milestoneName(b), changed.predecessor.kind to changed.predecessor.name)
                 assertEquals(projectName, changed.predecessor.projectName, "a milestone end names its project")
+                assertEquals(w.projectId, changed.predecessor.projectId, "and carries its id")
+                assertNull(changed.successor.projectId)
                 assertEquals(EndpointKind.PROJECT to secondName, changed.successor.kind to changed.successor.name)
                 assertNull(changed.successor.projectName)
 
@@ -301,6 +303,7 @@ class BaselineCaptureTest {
                 val orphan = ours.getValue(orphaned)
                 assertEquals(LinkChangeKind.REMOVED, orphan.change)
                 assertEquals(eName to projectName, orphan.predecessor.name to orphan.predecessor.projectName, "a deleted end: frozen name")
+                assertEquals(w.projectId, orphan.predecessor.projectId, "and its frozen project id")
 
                 val new = ours.getValue(added)
                 assertEquals(LinkChangeKind.ADDED, new.change)

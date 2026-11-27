@@ -51,6 +51,7 @@ private suspend fun streamFacts(): List<PlanStreamFact> {
         PlanStreamFact(
             id = row[streams.id].value,
             name = row[streams.name],
+            ownerPersonId = row[streams.ownerPersonId].value,
             ownerName = owners.getValue(row[streams.ownerPersonId].value),
             startDate = row[streams.startDate],
             endDate = row[streams.endDate],
@@ -68,6 +69,7 @@ private suspend fun programFacts(): List<PlanProgramFact> {
             id = row[programs.id].value,
             workStreamId = row[programs.workStreamId].value,
             name = row[programs.name],
+            ownerPersonId = row[programs.ownerPersonId].value,
             ownerName = owners.getValue(row[programs.ownerPersonId].value),
         )
     }

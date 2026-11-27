@@ -163,6 +163,7 @@ class TeamViewTest {
                 assertEquals(t.teamId, row.teamId)
                 assertEquals(w.projectId, row.projectId)
                 assertTrue(row.projectName.isNotBlank() && row.programName.isNotBlank() && row.workStreamName.isNotBlank())
+                assertEquals(listOf(w.programId, w.streamId), listOf(row.programId, row.workStreamId), "the ids of the names")
                 assertEquals(4.0, row.estimateMd)
                 assertEquals("2027-02-01", row.startDate)
                 assertNull(view.unscheduled.single().startDate)

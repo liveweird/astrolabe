@@ -21,7 +21,10 @@ fun validateBindRequest(request: JiraBindRequest): JiraBindRequest {
     return request.copy(issueKey = key)
 }
 
-/** The bound plan node and where it sits: the names of its ancestors (those above the node's own level are null). */
+/**
+ * The bound plan node and where it sits: the names of its ancestors (those above the node's own level are null) and, member for
+ * member, their ids ([projectId], [programId], [workStreamId]: the ids the page links the names to; null exactly where the name is).
+ */
 @Serializable
 data class JiraBindingNode(
     val kind: JiraLevel,
@@ -30,11 +33,17 @@ data class JiraBindingNode(
     val projectName: String? = null,
     val programName: String? = null,
     val workStreamName: String? = null,
+    val projectId: UInt? = null,
+    val programId: UInt? = null,
+    val workStreamId: UInt? = null,
 )
 
-/** The login that made a binding: its ACTIVE person's name, else the login's display name - never its email. */
+/**
+ * The login that made a binding: its ACTIVE person's name, else the login's display name - never its email. [personId] is the ACTIVE
+ * person linked to that login (the id `GET /people` shows every login), null when it has none.
+ */
 @Serializable
-data class JiraBindingCreator(val userId: UInt, val name: String)
+data class JiraBindingCreator(val userId: UInt, val name: String, val personId: UInt?)
 
 /** The latest observed state of the bound issue (`jira_observations`); dates are ISO `YYYY-MM-DD`, [estimate] is in [estimateUnit]. */
 @Serializable

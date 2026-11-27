@@ -102,8 +102,9 @@ object HomeKernels {
             .map { program ->
                 val projects = projectsOfProgram[program.id].orEmpty()
                 HomeProgram(
-                    program.id, program.name, streamName.getValue(program.workStreamId), program.ownerName,
-                    program.ownerPersonId == personId, projects.size, RoadmapKernels.flagCounts(projects.flatMap { it.flags }),
+                    program.id, program.name, program.workStreamId, streamName.getValue(program.workStreamId),
+                    program.ownerPersonId, program.ownerName, program.ownerPersonId == personId, projects.size,
+                    RoadmapKernels.flagCounts(projects.flatMap { it.flags }),
                 )
             }
         val inheritedFrom = mineOfPrograms.map { it.id }.toSet()
@@ -113,8 +114,8 @@ object HomeKernels {
             .map { project ->
                 val own = facts.milestones.filter { it.projectId == project.id }
                 HomeProject(
-                    project.id, project.name, project.programName, project.ownerName, project.ownerPersonId == personId,
-                    project.rankPosition, own.size, own.count { it.span == null },
+                    project.id, project.name, project.programId, project.programName, project.ownerPersonId, project.ownerName,
+                    project.ownerPersonId == personId, project.rankPosition, own.size, own.count { it.span == null },
                     RoadmapKernels.flagCounts(project.flags), projectConflicts[project.id] ?: 0,
                 )
             }

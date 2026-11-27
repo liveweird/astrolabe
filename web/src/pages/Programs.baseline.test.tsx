@@ -47,12 +47,12 @@ const TAXES = project(2, "Taxes", { span: { start: "2026-05-04", end: "2026-06-0
 const FRESH = project(3, "Fresh", { programId: 11, programName: "Reports", span: { start: "2026-08-03", end: "2026-09-04" } });
 
 // Reports (the second program) has no project the baseline froze: its row has no `baseline`.
-const BILLING: ProgramsProgram = { id: 10, name: "Billing", ownerName: "Pat Program", span: { start: "2026-03-02", end: "2026-06-05" }, flags: { warnings: 0, infos: 0 }, projects: [INVOICES, TAXES], baseline: frozen({ start: "2026-03-02", end: "2026-06-05" }, move("UNCHANGED", 0, 0)) };
-const REPORTS: ProgramsProgram = { id: 11, name: "Reports", ownerName: "Rita Reports", span: { start: "2026-08-03", end: "2026-09-04" }, flags: { warnings: 0, infos: 0 }, projects: [FRESH] };
+const BILLING: ProgramsProgram = { id: 10, name: "Billing", ownerPersonId: 1, ownerName: "Pat Program", span: { start: "2026-03-02", end: "2026-06-05" }, flags: { warnings: 0, infos: 0 }, projects: [INVOICES, TAXES], baseline: frozen({ start: "2026-03-02", end: "2026-06-05" }, move("UNCHANGED", 0, 0)) };
+const REPORTS: ProgramsProgram = { id: 11, name: "Reports", ownerPersonId: 1, ownerName: "Rita Reports", span: { start: "2026-08-03", end: "2026-09-04" }, flags: { warnings: 0, infos: 0 }, projects: [FRESH] };
 const PLATFORM: ProgramsWorkStream = {
   id: 1,
   name: "Platform",
-  ownerName: "Sam Stream",
+  ownerPersonId: 1, ownerName: "Sam Stream",
   startDate: "2026-01-05",
   endDate: null,
   span: { start: "2026-03-02", end: "2026-09-04" },
@@ -194,7 +194,7 @@ describe("Programs page with a baseline", () => {
 
   test("a program whose live projects are all deleted still has its chevron: it expands and shows the removed row, announced with the count", async () => {
     const user = userEvent.setup();
-    const empty: ProgramsProgram = { id: 12, name: "Legacy", ownerName: "Lea Legacy", span: null, flags: { warnings: 0, infos: 0 }, projects: [] };
+    const empty: ProgramsProgram = { id: 12, name: "Legacy", ownerPersonId: 1, ownerName: "Lea Legacy", span: null, flags: { warnings: 0, infos: 0 }, projects: [] };
     mockFetch.mockImplementation((url: string) => {
       if (url.startsWith("/api/v1/views/programs")) {
         const base = withRemoved();

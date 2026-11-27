@@ -40,13 +40,15 @@ data class ProgramsView(
 )
 
 /**
- * A work stream: [startDate] and [endDate] are its own stored dates (the end only when closed), [span] the derived span over its
- * programs' spans (null while none of its projects is scheduled), [flags] the counts over all its projects' flags.
+ * A work stream: [ownerPersonId] is the owner [ownerName] names (the id lets the page link it), [startDate] and [endDate] are its
+ * own stored dates (the end only when closed), [span] the derived span over its programs' spans (null while none of its projects is
+ * scheduled), [flags] the counts over all its projects' flags.
  */
 @Serializable
 data class ProgramsWorkStream(
     val id: UInt,
     val name: String,
+    val ownerPersonId: UInt,
     val ownerName: String,
     val startDate: String,
     val endDate: String?,
@@ -63,6 +65,7 @@ data class ProgramsWorkStream(
 data class ProgramsProgram(
     val id: UInt,
     val name: String,
+    val ownerPersonId: UInt,
     val ownerName: String,
     val span: DateSpan?,
     val flags: FlagCounts,

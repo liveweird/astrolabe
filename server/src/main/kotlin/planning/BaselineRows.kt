@@ -222,9 +222,11 @@ internal suspend fun creatorsOf(userIds: Collection<UInt>): Map<UInt, BaselineCr
     val people = PersonService.People
     val displayNames = users.select(users.id, users.name).where { (users.id inList ids) and users.active() }.toList()
         .associate { it[users.id].value to it[users.name] }
-    val names = people.select(people.userId, people.name).where { (people.userId inList ids) and people.active() }.toList()
-        .mapNotNull { row -> row[people.userId]?.value?.let { it to row[people.name] } }.toMap()
-    return displayNames.mapValues { (userId, displayName) -> BaselineCreator(userId, names[userId] ?: displayName) }
+    val linked = people.select(people.id, people.userId, people.name).where { (people.userId inList ids) and people.active() }.toList()
+        .mapNotNull { row -> row[people.userId]?.value?.let { it to Pair(row[people.id].value, row[people.name]) } }.toMap()
+    return displayNames.mapValues { (userId, displayName) ->
+        BaselineCreator(userId, linked[userId]?.second ?: displayName, linked[userId]?.first)
+    }
 }
 
 internal fun BaselineHeader.toResponse(creators: Map<UInt, BaselineCreator>) = BaselineResponse(

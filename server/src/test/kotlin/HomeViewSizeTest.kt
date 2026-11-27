@@ -425,8 +425,8 @@ class HomeViewSizeTest {
         const val RUNS = 5
 
         /**
-         * The plan's gate (calculated about 25 KB, plan 1.6): measured 25,293 B before 1.23 and 31,533 B after (each of the 120 program
-         * and project rows gained `ownerName` and `direct`, about 52 B a row; the one owner of all 125 nodes already listed them all).
+         * The plan's gate (calculated about 25 KB, plan 1.6): measured 25,293 B before 1.23, 31,533 B after (each of the 120 program
+         * and project rows gained `ownerName` and `direct`, about 52 B a row) and 35,665 B with 1.31's ids (about 34 B a row).
          */
         const val MAX_BYTES = 40_000
 

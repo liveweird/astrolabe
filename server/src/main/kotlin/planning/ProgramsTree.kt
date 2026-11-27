@@ -4,10 +4,17 @@ import ch.nokillswit.infra.time.WorkingCalendar
 import java.time.LocalDate
 
 /** An ACTIVE work stream as the programs tree sees it. */
-data class PlanStreamFact(val id: UInt, val name: String, val ownerName: String, val startDate: LocalDate, val endDate: LocalDate?)
+data class PlanStreamFact(
+    val id: UInt,
+    val name: String,
+    val ownerPersonId: UInt,
+    val ownerName: String,
+    val startDate: LocalDate,
+    val endDate: LocalDate?,
+)
 
 /** An ACTIVE program as the programs tree sees it. */
-data class PlanProgramFact(val id: UInt, val workStreamId: UInt, val name: String, val ownerName: String)
+data class PlanProgramFact(val id: UInt, val workStreamId: UInt, val name: String, val ownerPersonId: UInt, val ownerName: String)
 
 /**
  * What the `?baseline=` overlay rolls up: [frozenSpans] holds, for each CURRENT project the baseline also froze, the span it had (null =
@@ -47,6 +54,7 @@ object ProgramsTree {
                 ProgramsWorkStream(
                     id = stream.id,
                     name = stream.name,
+                    ownerPersonId = stream.ownerPersonId,
                     ownerName = stream.ownerName,
                     startDate = stream.startDate.toString(),
                     endDate = stream.endDate?.toString(),
@@ -77,6 +85,7 @@ object ProgramsTree {
         val node = ProgramsProgram(
             id = program.id,
             name = program.name,
+            ownerPersonId = program.ownerPersonId,
             ownerName = program.ownerName,
             span = span?.toWire(),
             flags = RoadmapKernels.flagCounts(ordered.flatMap { it.flags }),

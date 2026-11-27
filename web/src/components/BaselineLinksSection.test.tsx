@@ -4,8 +4,8 @@ import BaselineLinksSection from "./BaselineLinksSection";
 import type { BaselineLinks } from "../api/baselines";
 import { renderWithProviders } from "../test/render";
 
-const milestone = (id: number, name: string, projectName: string | null = "Checkout") => ({ kind: "MILESTONE" as const, id, name, projectName });
-const project = (id: number, name: string) => ({ kind: "PROJECT" as const, id, name, projectName: null });
+const milestone = (id: number, name: string, projectName: string | null = "Checkout") => ({ kind: "MILESTONE" as const, id, name, projectId: projectName === null ? null : 9, projectName });
+const project = (id: number, name: string) => ({ kind: "PROJECT" as const, id, name, projectId: null, projectName: null });
 
 const LINKS: BaselineLinks = {
   captured: true,

@@ -39,8 +39,8 @@ const TAXES = project(2, "Taxes", { span: { start: "2026-05-04", end: "2026-06-0
 const DASHBOARDS = project(3, "Dashboards", { programId: 11, programName: "Reports", span: { start: "2026-08-03", end: "2026-09-04" } });
 const DRAFTS = project(4, "Drafts", { programId: 11, programName: "Reports" });
 
-const BILLING: ProgramsProgram = { id: 10, name: "Billing", ownerName: "Pat Program", span: { start: "2026-03-02", end: "2026-06-05" }, flags: { warnings: 0, infos: 0 }, projects: [INVOICES, TAXES] };
-const REPORTS: ProgramsProgram = { id: 11, name: "Reports", ownerName: "Rita Reports", span: { start: "2026-08-03", end: "2026-09-04" }, flags: { warnings: 0, infos: 0 }, projects: [DASHBOARDS, DRAFTS] };
+const BILLING: ProgramsProgram = { id: 10, name: "Billing", ownerPersonId: 1, ownerName: "Pat Program", span: { start: "2026-03-02", end: "2026-06-05" }, flags: { warnings: 0, infos: 0 }, projects: [INVOICES, TAXES] };
+const REPORTS: ProgramsProgram = { id: 11, name: "Reports", ownerPersonId: 1, ownerName: "Rita Reports", span: { start: "2026-08-03", end: "2026-09-04" }, flags: { warnings: 0, infos: 0 }, projects: [DASHBOARDS, DRAFTS] };
 
 const okCheck = { status: "OK", shortfallDays: null, slackDays: 0, requiredDate: null, actualDate: null } as const;
 /** Invoices -> Taxes is a direct link inside Billing; Taxes -> Dashboards is a bundle of two milestone links between the two programs. */
@@ -58,7 +58,7 @@ const plainView = (): ProgramsView => ({
     {
       id: 1,
       name: "Platform",
-      ownerName: "Sam Stream",
+      ownerPersonId: 1, ownerName: "Sam Stream",
       startDate: "2026-01-05",
       endDate: null,
       span: { start: "2026-03-02", end: "2026-09-04" },

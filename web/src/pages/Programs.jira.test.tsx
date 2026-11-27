@@ -45,11 +45,11 @@ const INVOICES = project(1, "Invoices", {
   flags: [flag("JIRA_DEVIATION", "WARNING", { deviation: evidence(endLater) })],
 });
 const TAXES = project(2, "Taxes", { jira: { bindingId: 12, connectionId: 2, issueKey: "E2E-7", start: null, end: null, rollup: null } });
-const BILLING: ProgramsProgram = { id: 10, name: "Billing", ownerName: "Pat Program", span: { start: "2026-03-02", end: "2026-04-10" }, flags: { warnings: 1, infos: 0 }, projects: [INVOICES, TAXES] };
+const BILLING: ProgramsProgram = { id: 10, name: "Billing", ownerPersonId: 1, ownerName: "Pat Program", span: { start: "2026-03-02", end: "2026-04-10" }, flags: { warnings: 1, infos: 0 }, projects: [INVOICES, TAXES] };
 const PLATFORM: ProgramsWorkStream = {
   id: 1,
   name: "Platform",
-  ownerName: "Sam Stream",
+  ownerPersonId: 1, ownerName: "Sam Stream",
   startDate: "2026-01-05",
   endDate: null,
   span: { start: "2026-03-02", end: "2026-04-10" },
@@ -59,7 +59,7 @@ const PLATFORM: ProgramsWorkStream = {
 const REPORTS: ProgramsProgram = {
   id: 11,
   name: "Reports",
-  ownerName: "Pat Program",
+  ownerPersonId: 1, ownerName: "Pat Program",
   span: { start: "2026-08-03", end: "2026-08-07" },
   flags: { warnings: 0, infos: 0 },
   projects: [project(5, "Dashboards", { programId: 11, programName: "Reports", span: { start: "2026-08-03", end: "2026-08-07" } })],

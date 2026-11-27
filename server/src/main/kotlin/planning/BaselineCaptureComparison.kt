@@ -17,10 +17,11 @@ internal class LinkEndNames(
         frozenMilestones.associate { it.id to (it.name to it.projectId) } + nowMilestones.associate { it.id to (it.name to it.projectId) }
 
     fun end(ref: EndpointRef): BaselineLinkEnd = when (ref.kind) {
-        EndpointKind.PROJECT -> BaselineLinkEnd(ref.kind, ref.id, projectNames[ref.id] ?: "#${ref.id}", null)
+        EndpointKind.PROJECT -> BaselineLinkEnd(ref.kind, ref.id, projectNames[ref.id] ?: "#${ref.id}", null, null)
         EndpointKind.MILESTONE -> {
             val milestone = milestones[ref.id]
-            BaselineLinkEnd(ref.kind, ref.id, milestone?.first ?: "#${ref.id}", milestone?.let { projectNames[it.second] })
+            val name = milestone?.first ?: "#${ref.id}"
+            BaselineLinkEnd(ref.kind, ref.id, name, milestone?.second, milestone?.let { projectNames[it.second] })
         }
     }
 }

@@ -47,12 +47,12 @@ const VIEW: ProgramsView = {
     {
       id: 1,
       name: "Platform",
-      ownerName: "Sam Stream",
+      ownerPersonId: 1, ownerName: "Sam Stream",
       startDate: "2026-01-05",
       endDate: null,
       span: { start: "2026-03-02", end: "2026-04-10" },
       flags: { warnings: 0, infos: 0 },
-      programs: [{ id: 10, name: "Billing", ownerName: "Pat Program", span: { start: "2026-03-02", end: "2026-04-10" }, flags: { warnings: 0, infos: 0 }, projects: [INVOICES] }],
+      programs: [{ id: 10, name: "Billing", ownerPersonId: 1, ownerName: "Pat Program", span: { start: "2026-03-02", end: "2026-04-10" }, flags: { warnings: 0, infos: 0 }, projects: [INVOICES] }],
     },
   ],
 };

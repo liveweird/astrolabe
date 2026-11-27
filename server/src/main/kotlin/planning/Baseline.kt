@@ -33,9 +33,12 @@ data class BaselineResponse(
     val capacityPeriodCount: Int?,
 )
 
-/** The login that took a baseline: [name] is its ACTIVE person's name, else the login's display name - never its email. */
+/**
+ * The login that took a baseline: [name] is its ACTIVE person's name, else the login's display name - never its email. [personId] is
+ * that ACTIVE linked person (the id every login reads in `GET /people`), null when the login has none.
+ */
 @Serializable
-data class BaselineCreator(val userId: UInt, val name: String)
+data class BaselineCreator(val userId: UInt, val name: String, val personId: UInt?)
 
 /** `POST /baselines`: the name (1..100, trimmed, unique among ACTIVE baselines, case-insensitively) and an optional description (≤ 500). */
 @Serializable

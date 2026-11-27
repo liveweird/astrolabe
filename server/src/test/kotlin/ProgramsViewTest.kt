@@ -66,7 +66,7 @@ class ProgramsViewTest {
         val emptyStream = TestPlan.workStream(owner, "$tag-Charlie-empty")
         val pB = TestPlan.program(alpha, owner, "$tag-pB")
         val pA = TestPlan.program(alpha, owner, "$tag-Pa-empty")
-        val pC = TestPlan.program(alpha, owner, "$tag-pC")
+        val pC = TestPlan.program(alpha, projectOwner, "$tag-pC") // another owner than its stream: a stream-for-program mix-up shows
         val pClosed = TestPlan.program(closed, owner, "$tag-pClosed")
         TestPlan.program(bravo, owner, "$tag-pBravo")
 
@@ -94,7 +94,11 @@ class ProgramsViewTest {
 
         val a = streams.first()
         assertEquals(listOf(pA, pB, pC), a.programs.map { it.id }, "programs by name, case-insensitive; the empty one is present")
-        assertTrue(a.ownerName.isNotBlank() && a.programs.all { it.ownerName == a.ownerName }, "the owner's name rides on every level")
+        assertTrue(a.ownerName.isNotBlank(), "the owner's name rides on every level")
+        assertEquals(owner, a.ownerPersonId, "and the owner's person id, for the link")
+        assertEquals(listOf(owner, owner, projectOwner), a.programs.map { it.ownerPersonId }, "each program's own owner, not its stream's")
+        assertEquals(listOf(a.ownerName, a.ownerName), a.programs.take(2).map { it.ownerName })
+        assertNotEquals(a.ownerName, a.programs.last().ownerName, "pC's owner is another person")
 
         val empty = a.program("$tag-Pa-empty")
         assertTrue(empty.projects.isEmpty())

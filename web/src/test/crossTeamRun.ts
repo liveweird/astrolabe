@@ -72,7 +72,7 @@ export const SAVED: SavedProposalSummary = {
   asOf: "2042-01-05",
   planRevision: 12,
   createdAt: Date.UTC(2042, 0, 5, 9, 30),
-  createdBy: { userId: 3, name: "Ada" },
+  createdBy: { userId: 3, name: "Ada", personId: null },
   teams: [{ id: 1, name: "Platform" }, { id: 2, name: "Payments" }],
   moveCount: 3,
   selectedCount: 2,

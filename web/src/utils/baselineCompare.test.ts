@@ -9,7 +9,9 @@ const UNCHANGED = { kind: "UNCHANGED" as const, startDays: 0, endDays: 0, estima
 const project = (projectId: number, name: string, over: Partial<BaselineViewProject> = {}): BaselineViewProject => ({
   projectId,
   name,
+  programId: 2,
   programName: "Program",
+  workStreamId: 1,
   workStreamName: "Stream",
   rankThen: null,
   rankNow: null,

@@ -80,6 +80,7 @@ class CapacityDeviationAckViewTest {
                 val row = acknowledged.items.single().deviations.single()
                 assertEquals(ack.acknowledgedAt, row.acknowledgement?.at)
                 assertEquals(personName, row.acknowledgement?.by, "the manager is named by their person")
+                assertEquals(manager.personId, row.acknowledgement?.byPersonId, "and linked to it")
                 assertEquals(true, row.acknowledgement?.current)
                 assertEquals(listOf(2, 0, 1, 1, 1), acknowledged.totals.asList(), "the open counts survive acknowledged=true")
 
@@ -156,6 +157,11 @@ class CapacityDeviationAckViewTest {
             manager.client.capAck(bindingId, 2, moved.fingerprint).capAcknowledgement()
             assertTrue(assertNotNull(admin.rowOf(2).acknowledgement).current)
             assertNull(admin.rowOf(3).acknowledgement)
+            // An ADMIN has no person: the acknowledgement names the login's display name and links no person.
+            admin.capAck(bindingId, 3, admin.rowOf(3).fingerprint).capAcknowledgement()
+            val byAdmin = assertNotNull(admin.rowOf(3).acknowledgement)
+            assertNotNull(byAdmin.by)
+            assertNull(byAdmin.byPersonId)
         }
     }
 

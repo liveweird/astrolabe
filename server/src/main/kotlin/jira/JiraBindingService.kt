@@ -279,7 +279,7 @@ class JiraBindingService(private val database: R2dbcDatabase) {
                 url = "${siteRows[binding.connectionId]?.get(connections.siteUrl).orEmpty()}/browse/${binding.issueKey}",
                 observation = observations[binding.id],
                 createdAt = binding.row[Bindings.createdAt],
-                createdBy = creator?.let { JiraBindingCreator(it.userId, it.name) },
+                createdBy = creator?.let { JiraBindingCreator(it.userId, it.name, it.personId) },
             )
         }
     }

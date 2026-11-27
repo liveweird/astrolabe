@@ -23,6 +23,7 @@ const end = (id: number, name: string, over: Partial<ScheduleProposalEnd> = {}):
   kind: "MILESTONE",
   id,
   name,
+  projectId: 20,
   projectName: "Web",
   ...over,
 });

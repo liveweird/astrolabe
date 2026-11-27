@@ -179,13 +179,15 @@ data class ScheduleProposalUnplaced(
 
 /**
  * One end of a [ScheduleProposalLink], named and nothing else: the page prints the other end's words and reads every date from the link's
- * `check`. [projectName] is the milestone's project for a milestone end, null for a project end (whose [name] IS the project).
+ * `check`. [projectId] and [projectName] are the milestone's project for a milestone end, null for a project end (whose [id] and [name]
+ * ARE the project).
  */
 @Serializable
 data class ScheduleProposalEnd(
     val kind: EndpointKind,
     val id: UInt,
     val name: String,
+    val projectId: UInt?,
     val projectName: String?,
 )
 

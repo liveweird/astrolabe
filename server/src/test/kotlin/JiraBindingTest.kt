@@ -105,6 +105,16 @@ class JiraBindingTest {
                     val binding = caller.client.jbBind(f.connectionId, level, node, key).jbBinding()
                     assertEquals(level, binding.node.kind, who)
                     assertEquals(node, binding.node.id, who)
+                    // The creator's linked person, if any: an ADMIN here has none, so the member is null, not absent.
+                    assertEquals(caller.personId, binding.createdBy?.personId, who)
+                    // The ids of the ancestors the names are (work stream, program, project): null exactly above the node's own level.
+                    val expected = when (level) {
+                        JiraLevel.PROGRAM -> listOf(w.streamId, null, null)
+                        JiraLevel.PROJECT -> listOf(w.streamId, w.programId, null)
+                        JiraLevel.MILESTONE -> listOf(w.streamId, w.programId, w.projectId)
+                    }
+                    val ancestors = listOf(binding.node.workStreamId, binding.node.programId, binding.node.projectId)
+                    assertEquals(expected, ancestors, who)
                     // Recycles the issue and the node for the next caller; the unbinder is an owner of the same chain.
                     assertEquals(HttpStatusCode.NoContent, w.admin.client.delete("$JB_BINDINGS/${binding.id}").status)
                 }
@@ -363,6 +373,7 @@ class JiraBindingTest {
         assertNotNull(binding.node.workStreamName)
         val creator = assertNotNull(binding.createdBy)
         assertEquals(f.w.projectOwner.userId, creator.userId)
+        assertEquals(f.w.projectOwner.personId, creator.personId, "the login's linked person, for the link")
         val observation = assertNotNull(binding.observation)
         assertTrue(observation.observedAt >= before)
         assertEquals("E2E-5", observation.issueKey)

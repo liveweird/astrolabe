@@ -13,7 +13,9 @@ const ROLES_KEY = "astrolabe.auth.roles";
 const PROJECT: HomeMe["projects"][number] = {
   id: 7,
   name: "Ledger",
+  programId: 3,
   programName: "Core",
+  ownerPersonId: 5,
   ownerName: "Alex Example",
   direct: true,
   rankPosition: 3,
@@ -34,7 +36,7 @@ const TEAM: HomeMe["teams"][number] = {
   flags: [{ kind: "FLOW_CAPACITY", severity: "WARNING", count: 2 }],
 };
 const STREAM: HomeMe["workStreams"][number] = { id: 1, name: "Platform", endDate: null, programs: 4, projects: 20, flags: { warnings: 42, infos: 0 } };
-const PROGRAM: HomeMe["programs"][number] = { id: 3, name: "Core", workStreamName: "Platform", ownerName: "Alex Example", direct: true, projects: 5, flags: { warnings: 0, infos: 3 } };
+const PROGRAM: HomeMe["programs"][number] = { id: 3, name: "Core", workStreamId: 1, workStreamName: "Platform", ownerPersonId: 5, ownerName: "Alex Example", direct: true, projects: 5, flags: { warnings: 0, infos: 3 } };
 
 const INHERITED_PROJECT: HomeMe["projects"][number] = { ...PROJECT, id: 8, name: "Audit", programName: "Billing", ownerName: "Sam Other", direct: false, rankPosition: null };
 const INHERITED_PROGRAM: HomeMe["programs"][number] = { ...PROGRAM, id: 4, name: "Billing", ownerName: "Sam Other", direct: false, projects: 2 };

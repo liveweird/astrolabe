@@ -15,13 +15,13 @@ const binding = (id: number, over: Partial<JiraBinding> = {}): JiraBinding => ({
   id,
   connectionId: 1,
   level: "MILESTONE",
-  node: { kind: "MILESTONE", id: 10 + id, name: `Milestone ${id}`, projectName: "Invoices", programName: "Billing", workStreamName: "Platform" },
+  node: { kind: "MILESTONE", id: 10 + id, name: `Milestone ${id}`, projectName: "Invoices", programName: "Billing", workStreamName: "Platform", projectId: 7, programId: 4, workStreamId: 1 },
   issueId: `100${id}`,
   issueKey: `E2E-${id}`,
   url: `https://acme.atlassian.net/browse/E2E-${id}`,
   observation: { observedAt: 1, statusCategory: "IN_PROGRESS", summary: `Epic ${id}`, gone: false },
   createdAt: Date.UTC(2026, 10, 6, 9, 30),
-  createdBy: { userId: 1, name: "Ola Owner" },
+  createdBy: { userId: 1, name: "Ola Owner", personId: null },
   ...over,
 });
 
@@ -37,7 +37,7 @@ const PLAN = planOf(
 const emptyPage = { items: [], page: 1, pageSize: 50, total: 0 };
 
 beforeEach(() => {
-  rows = [binding(1), binding(2, { level: "PROJECT", node: { kind: "PROJECT", id: 7, name: "Invoices", programName: "Billing", workStreamName: "Platform" }, observation: { observedAt: 1, statusCategory: "DONE", summary: "Initiative", gone: true } })];
+  rows = [binding(1), binding(2, { level: "PROJECT", node: { kind: "PROJECT", id: 7, name: "Invoices", programName: "Billing", workStreamName: "Platform", projectId: null, programId: 4, workStreamId: 1 }, observation: { observedAt: 1, statusCategory: "DONE", summary: "Initiative", gone: true } })];
   deleteStatus = 204;
   planStatus = 200;
   mockFetch = vi.fn((url: string, init?: RequestInit) => {
@@ -184,8 +184,8 @@ describe("JiraBindingsSection", () => {
   });
 
   describe("Import from Jira… on a program or project row (1.15)", () => {
-    const programRow = () => binding(3, { level: "PROGRAM", issueKey: "E2E-3", node: { kind: "PROGRAM", id: 4, name: "Billing", workStreamName: "Platform" } });
-    const projectRow = () => binding(2, { level: "PROJECT", issueKey: "E2E-2", node: { kind: "PROJECT", id: 7, name: "Invoices", programName: "Billing", workStreamName: "Platform" } });
+    const programRow = () => binding(3, { level: "PROGRAM", issueKey: "E2E-3", node: { kind: "PROGRAM", id: 4, name: "Billing", workStreamName: "Platform", projectId: null, programId: null, workStreamId: 1 } });
+    const projectRow = () => binding(2, { level: "PROJECT", issueKey: "E2E-2", node: { kind: "PROJECT", id: 7, name: "Invoices", programName: "Billing", workStreamName: "Platform", projectId: null, programId: 4, workStreamId: 1 } });
     const planCalls = () => mockFetch.mock.calls.filter(([url]) => url === "/api/v1/views/plan").length;
     const rowOf = async (name: string) => {
       const table = await screen.findByRole("table", { name: "Links to plan items" });
@@ -233,7 +233,7 @@ describe("JiraBindingsSection", () => {
     });
 
     test("a node the plan view does not know has no button, and a failed plan read hides them all without an error", async () => {
-      rows = [programRow(), binding(5, { level: "PROJECT", issueKey: "E2E-5", node: { kind: "PROJECT", id: 99, name: "Elsewhere", workStreamName: "Platform" } })];
+      rows = [programRow(), binding(5, { level: "PROJECT", issueKey: "E2E-5", node: { kind: "PROJECT", id: 99, name: "Elsewhere", workStreamName: "Platform", projectId: null, programId: null, workStreamId: 1 } })];
       const { unmount } = renderWithProviders(<JiraBindingsSection connection={CONNECTION} />);
       const program = await rowOf("Billing");
       expect(await within(program).findByRole("button", { name: /^Import from Jira what is listed under Billing/ })).toBeInTheDocument();
@@ -265,7 +265,7 @@ describe("JiraBindingsSection", () => {
     });
 
     test("a project row opens the project-rooted note, and a gone observation opens with the 'cannot be used' note", async () => {
-      rows = [binding(2, { level: "PROJECT", issueKey: "E2E-2", node: { kind: "PROJECT", id: 7, name: "Invoices", programName: "Billing", workStreamName: "Platform" }, observation: { observedAt: 1, statusCategory: "DONE", summary: "Initiative", gone: true } })];
+      rows = [binding(2, { level: "PROJECT", issueKey: "E2E-2", node: { kind: "PROJECT", id: 7, name: "Invoices", programName: "Billing", workStreamName: "Platform", projectId: null, programId: 4, workStreamId: 1 }, observation: { observedAt: 1, statusCategory: "DONE", summary: "Initiative", gone: true } })];
       const user = userEvent.setup();
       renderWithProviders(<JiraBindingsSection connection={CONNECTION} />);
       await user.click(await screen.findByRole("button", { name: "Import from Jira what is listed under Invoices" }));

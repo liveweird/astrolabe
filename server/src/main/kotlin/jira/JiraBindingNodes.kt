@@ -85,19 +85,22 @@ internal suspend fun describeNodes(nodes: Collection<Pair<JiraLevel, UInt>>): Ma
     fun ids(level: JiraLevel) = nodes.filter { it.first == level }.map { it.second }.distinct()
     ids(JiraLevel.PROGRAM).takeIf { it.isNotEmpty() }?.let { ids ->
         programs.innerJoin(streams, { programs.workStreamId }, { streams.id })
-            .select(programs.id, programs.name, streams.name).where { programs.id inList ids }.toList().forEach {
+            .select(programs.id, programs.name, streams.id, streams.name).where { programs.id inList ids }.toList().forEach {
                 val id = it[programs.id].value
-                result[JiraLevel.PROGRAM to id] =
-                    JiraBindingNode(JiraLevel.PROGRAM, id, it[programs.name], workStreamName = it[streams.name])
+                result[JiraLevel.PROGRAM to id] = JiraBindingNode(
+                    JiraLevel.PROGRAM, id, it[programs.name], workStreamName = it[streams.name], workStreamId = it[streams.id].value,
+                )
             }
     }
     ids(JiraLevel.PROJECT).takeIf { it.isNotEmpty() }?.let { ids ->
         projects.innerJoin(programs, { projects.programId }, { programs.id })
             .innerJoin(streams, { programs.workStreamId }, { streams.id })
-            .select(projects.id, projects.name, programs.name, streams.name).where { projects.id inList ids }.toList().forEach {
+            .select(projects.id, projects.name, programs.id, programs.name, streams.id, streams.name)
+            .where { projects.id inList ids }.toList().forEach {
                 val id = it[projects.id].value
                 result[JiraLevel.PROJECT to id] = JiraBindingNode(
                     JiraLevel.PROJECT, id, it[projects.name], programName = it[programs.name], workStreamName = it[streams.name],
+                    programId = it[programs.id].value, workStreamId = it[streams.id].value,
                 )
             }
     }
@@ -105,12 +108,13 @@ internal suspend fun describeNodes(nodes: Collection<Pair<JiraLevel, UInt>>): Ma
         milestones.innerJoin(projects, { milestones.projectId }, { projects.id })
             .innerJoin(programs, { projects.programId }, { programs.id })
             .innerJoin(streams, { programs.workStreamId }, { streams.id })
-            .select(milestones.id, milestones.name, projects.name, programs.name, streams.name)
+            .select(milestones.id, milestones.name, projects.id, projects.name, programs.id, programs.name, streams.id, streams.name)
             .where { milestones.id inList ids }.toList().forEach {
                 val id = it[milestones.id].value
                 result[JiraLevel.MILESTONE to id] = JiraBindingNode(
                     JiraLevel.MILESTONE, id, it[milestones.name],
                     projectName = it[projects.name], programName = it[programs.name], workStreamName = it[streams.name],
+                    projectId = it[projects.id].value, programId = it[programs.id].value, workStreamId = it[streams.id].value,
                 )
             }
     }

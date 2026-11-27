@@ -46,21 +46,21 @@ const TAXES = project(2, "Taxes", { span: { start: "2026-05-04", end: "2026-06-0
 const DASHBOARDS = project(3, "Dashboards", { programId: 11, programName: "Reports", span: { start: "2026-08-03", end: "2026-09-04" }, flags: [flag("DRIFT_END_EARLY", "INFO", 3)] });
 const UNSCHEDULED = project(4, "Drafts", { programId: 11, programName: "Reports" });
 
-const BILLING: ProgramsProgram = { id: 10, name: "Billing", ownerName: "Pat Program", span: { start: "2026-03-02", end: "2026-06-05" }, flags: { warnings: 1, infos: 1 }, projects: [INVOICES, TAXES] };
-const REPORTS: ProgramsProgram = { id: 11, name: "Reports", ownerName: "Rita Reports", span: { start: "2026-08-03", end: "2026-09-04" }, flags: { warnings: 0, infos: 1 }, projects: [DASHBOARDS, UNSCHEDULED] };
-const LEGACY: ProgramsProgram = { id: 12, name: "Legacy", ownerName: "Leo Legacy", span: null, flags: { warnings: 0, infos: 0 }, projects: [] };
+const BILLING: ProgramsProgram = { id: 10, name: "Billing", ownerPersonId: 1, ownerName: "Pat Program", span: { start: "2026-03-02", end: "2026-06-05" }, flags: { warnings: 1, infos: 1 }, projects: [INVOICES, TAXES] };
+const REPORTS: ProgramsProgram = { id: 11, name: "Reports", ownerPersonId: 1, ownerName: "Rita Reports", span: { start: "2026-08-03", end: "2026-09-04" }, flags: { warnings: 0, infos: 1 }, projects: [DASHBOARDS, UNSCHEDULED] };
+const LEGACY: ProgramsProgram = { id: 12, name: "Legacy", ownerPersonId: 1, ownerName: "Leo Legacy", span: null, flags: { warnings: 0, infos: 0 }, projects: [] };
 
 const PLATFORM: ProgramsWorkStream = {
   id: 1,
   name: "Platform",
-  ownerName: "Sam Stream",
+  ownerPersonId: 1, ownerName: "Sam Stream",
   startDate: "2026-01-05",
   endDate: null,
   span: { start: "2026-03-02", end: "2026-09-04" },
   flags: { warnings: 1, infos: 2 },
   programs: [BILLING, REPORTS],
 };
-const ARCHIVE: ProgramsWorkStream = { id: 2, name: "Archive", ownerName: "Ava Archive", startDate: "2025-01-06", endDate: "2025-12-19", span: null, flags: { warnings: 0, infos: 0 }, programs: [LEGACY] };
+const ARCHIVE: ProgramsWorkStream = { id: 2, name: "Archive", ownerPersonId: 1, ownerName: "Ava Archive", startDate: "2025-01-06", endDate: "2025-12-19", span: null, flags: { warnings: 0, infos: 0 }, programs: [LEGACY] };
 
 const okCheck = { status: "OK", shortfallDays: null, slackDays: 0, requiredDate: null, actualDate: null } as const;
 const LINKS: RoadmapLink[] = [
@@ -235,8 +235,8 @@ describe("Programs page", () => {
     const warned = project(5, "Warned", { teamIds: [4], span: { start: "2026-03-02", end: "2026-03-13" }, flags: [capacity("WARNING")] });
     const noted = project(6, "Noted", { teamIds: [4], span: { start: "2026-03-16", end: "2026-03-27" }, flags: [capacity("INFO")] });
     // The roll-ups are the server's: 2 warnings and 1 info for the program although its projects below hold one flag each (the page sums nothing it is given).
-    const program: ProgramsProgram = { id: 20, name: "Capacity", ownerName: "Pat Program", span: { start: "2026-03-02", end: "2026-03-27" }, flags: { warnings: 2, infos: 1 }, projects: [warned, noted] };
-    const stream: ProgramsWorkStream = { id: 9, name: "Delivery", ownerName: "Sam Stream", startDate: "2026-01-05", endDate: null, span: program.span, flags: { warnings: 2, infos: 1 }, programs: [program] };
+    const program: ProgramsProgram = { id: 20, name: "Capacity", ownerPersonId: 1, ownerName: "Pat Program", span: { start: "2026-03-02", end: "2026-03-27" }, flags: { warnings: 2, infos: 1 }, projects: [warned, noted] };
+    const stream: ProgramsWorkStream = { id: 9, name: "Delivery", ownerPersonId: 1, ownerName: "Sam Stream", startDate: "2026-01-05", endDate: null, span: program.span, flags: { warnings: 2, infos: 1 }, programs: [program] };
     view = viewOf({ workStreams: [stream], teams: [{ id: 4, name: "Backend" }], links: [] });
     const user = userEvent.setup();
     renderWithProviders(<Programs />);
@@ -253,8 +253,8 @@ describe("Programs page", () => {
 
   test("a project on a team whose Flow comparison is pending shows the neutral hourglass and no count (1.26.0)", async () => {
     const waiting = project(7, "Waiting", { teamIds: [4], span: { start: "2026-03-02", end: "2026-03-13" }, flowPendingTeamIds: [4] });
-    const program: ProgramsProgram = { id: 21, name: "Pending", ownerName: "Pat Program", span: waiting.span, flags: { warnings: 0, infos: 0 }, projects: [waiting] };
-    const stream: ProgramsWorkStream = { id: 9, name: "Delivery", ownerName: "Sam Stream", startDate: "2026-01-05", endDate: null, span: program.span, flags: { warnings: 0, infos: 0 }, programs: [program] };
+    const program: ProgramsProgram = { id: 21, name: "Pending", ownerPersonId: 1, ownerName: "Pat Program", span: waiting.span, flags: { warnings: 0, infos: 0 }, projects: [waiting] };
+    const stream: ProgramsWorkStream = { id: 9, name: "Delivery", ownerPersonId: 1, ownerName: "Sam Stream", startDate: "2026-01-05", endDate: null, span: program.span, flags: { warnings: 0, infos: 0 }, programs: [program] };
     view = viewOf({ workStreams: [stream], teams: [{ id: 4, name: "Backend" }], links: [] });
     const user = userEvent.setup();
     renderWithProviders(<Programs />);

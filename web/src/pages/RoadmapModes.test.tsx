@@ -29,12 +29,12 @@ const PROGRAMS: ProgramsView = {
     {
       id: 1,
       name: "Platform",
-      ownerName: "Sam Stream",
+      ownerPersonId: 1, ownerName: "Sam Stream",
       startDate: "2026-01-05",
       endDate: null,
       span: null,
       flags: { warnings: 0, infos: 0 },
-      programs: [{ id: 10, name: "Billing", ownerName: "Pat Program", span: null, flags: { warnings: 0, infos: 0 }, projects: [roadmapProject({ id: 1, name: "Invoices" })] }],
+      programs: [{ id: 10, name: "Billing", ownerPersonId: 1, ownerName: "Pat Program", span: null, flags: { warnings: 0, infos: 0 }, projects: [roadmapProject({ id: 1, name: "Invoices" })] }],
     },
   ],
 };

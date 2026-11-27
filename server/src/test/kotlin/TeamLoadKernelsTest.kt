@@ -33,11 +33,11 @@ class TeamLoadKernelsTest {
     )
 
     private val teams = listOf(
-        TeamLoadTeam(1u, "Zulu", "Zed"),
-        TeamLoadTeam(2u, "alpha", null),
-        TeamLoadTeam(3u, "Mike", "Em"),
-        TeamLoadTeam(4u, "Bravo", null),
-        TeamLoadTeam(5u, "bravo", null),
+        TeamLoadTeam(1u, "Zulu", 11u, "Zed"),
+        TeamLoadTeam(2u, "alpha", null, null),
+        TeamLoadTeam(3u, "Mike", 13u, "Em"),
+        TeamLoadTeam(4u, "Bravo", null, null),
+        TeamLoadTeam(5u, "bravo", null, null),
     )
 
     private val counts = mapOf(1u to TeamMilestoneCount(9, 2), 2u to TeamMilestoneCount(3, 3), 5u to TeamMilestoneCount(4, 0))
@@ -64,6 +64,8 @@ class TeamLoadKernelsTest {
         // Two weeks without capacity, none flagged: the row says so instead of looking fine.
         assertEquals(listOf(0, 0, 2, 4, 0), rows.getValue(5u).figures())
         assertEquals("Zed", rows.getValue(1u).managerName)
+        assertEquals(11u, rows.getValue(1u).managerPersonId)
+        assertNull(rows.getValue(2u).managerPersonId)
         assertNull(rows.getValue(2u).managerName)
         assertEquals(7L, view.revision)
     }
@@ -130,7 +132,8 @@ class TeamLoadKernelsTest {
             LocalDate.parse(monday), BigDecimal(load), capacity, overloaded, if (overloaded) BigDecimal("2.5") else null, 3, wipExceeded,
         )
 
-    private val warningTeams = listOf(TeamLoadTeam(1u, "a", null), TeamLoadTeam(2u, "b", null), TeamLoadTeam(3u, "c", null))
+    private val warningTeams =
+        listOf(TeamLoadTeam(1u, "a", null, null), TeamLoadTeam(2u, "b", null, null), TeamLoadTeam(3u, "c", null, null))
     private val warningWeeks = mapOf(
         1u to listOf(
             dated("2027-03-01", "12.5", overloaded = true),

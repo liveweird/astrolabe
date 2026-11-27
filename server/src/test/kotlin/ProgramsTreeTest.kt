@@ -25,9 +25,9 @@ class ProgramsTreeTest {
     private fun span(start: String, end: String) = DaySpan(day(start), day(end))
 
     private fun stream(id: UInt, name: String, endDate: String? = null) =
-        PlanStreamFact(id, name, "owner", day("2026-01-01"), endDate?.let(::day))
+        PlanStreamFact(id, name, 7u, "owner", day("2026-01-01"), endDate?.let(::day))
 
-    private fun program(id: UInt, streamId: UInt, name: String) = PlanProgramFact(id, streamId, name, "owner")
+    private fun program(id: UInt, streamId: UInt, name: String) = PlanProgramFact(id, streamId, name, 7u, "owner")
 
     private fun flag(severity: FlagSeverity) = PlanFlag(
         if (severity == FlagSeverity.WARNING) FlagKind.DRIFT_END_LATE else FlagKind.DRIFT_START_LATE, severity, 1, null, null,

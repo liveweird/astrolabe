@@ -20,7 +20,9 @@ const milestone = (id: number, scheduled = true): TeamMilestone => ({
   createdAt: 1,
   updatedAt: 2,
   projectName: "Invoices",
+  programId: 4,
   programName: "Billing",
+  workStreamId: 1,
   workStreamName: "Platform",
   rankPosition: 1,
 });
