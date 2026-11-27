@@ -375,9 +375,11 @@ test("a milestone's address marks and focuses its row on the project page, then 
 
   // A milestone that is not this project's: no error page, a dismissible notice, and the page works as ever.
   await page.goto(`/projects/${world.projectId}?milestone=2147483000`);
-  await expect(page.getByText("That milestone is not in this project any more", { exact: false })).toBeVisible();
+  // the visible note (the same sentence is said once more, a tick later, in a hidden status region: look at the note only)
+  const gone = page.getByRole("note").filter({ hasText: "That milestone is not in this project any more" });
+  await expect(gone).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: world.project })).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`/projects/${world.projectId}$`));
   await page.getByRole("button", { name: "Dismiss this notice" }).click();
-  await expect(page.getByText("That milestone is not in this project any more", { exact: false })).toHaveCount(0);
+  await expect(gone).toHaveCount(0);
 });

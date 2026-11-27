@@ -358,8 +358,10 @@ describe("a saved proposal that does not open", () => {
       </>,
       { route: "/roadmap?mode=overview&proposal=2147483000" },
     );
-    expect(await screen.findByText("This saved proposal does not exist — it may have been deleted.")).toBeInTheDocument();
+    // a visible note (never role="alert"), said once more in the polite status region
+    expect((await screen.findAllByRole("note")).map((note) => note.textContent)).toContain("This saved proposal does not exist — it may have been deleted.");
     await waitFor(() => expect(where()).toBe("?mode=overview"));
+    await waitFor(() => expect(screen.getAllByRole("status").map((region) => region.textContent).join(" ")).toContain("This saved proposal does not exist"));
     expect(screen.getByText("No work streams yet")).toBeInTheDocument();
   });
 

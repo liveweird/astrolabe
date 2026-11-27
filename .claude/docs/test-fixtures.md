@@ -232,7 +232,7 @@ Files: `e2e/README.md` (run recipes, the parallel state-ownership rulebook, the 
 
 ## The e2e worlds
 
-Each world is seeded through the admin API of the named stack and removed by its own spec. The steps, dates and expected figures of each live in its scenario file (`e2e/scenarios/<spec>.md`); only the collision, lock and ownership rules are kept here. Holidays are global, so only one spec writes holidays in a far-off year (2040: `public-holidays`); the worlds below date their rows in 2041 to 2048, where nothing else writes a holiday, and a year may hold more than one world.
+Each world is seeded through the admin API of the named stack and removed by its own spec. The steps, dates and expected figures of each live in its scenario file (`e2e/scenarios/<spec>.md`); only the collision, lock and ownership rules are kept here. Holidays are global, so only one spec writes holidays in a far-off year (2040: `public-holidays`); the worlds below date their rows in 2041 to 2049, where nothing else writes a holiday, and a year may hold more than one world.
 
 ### The e2e dependency world
 
@@ -309,6 +309,14 @@ Files: `e2e/tests/roadmap-proposal.spec.ts` (the Roadmap overview, 1.33); prefix
 - The fifth test SAVES a proposal through the page (`e2e-ct-saved-*`) and registers its delete first in the teardown: the saved table holds the newest 20 for everyone and any save evicts the oldest, so it never relies on another row, clears none, and saves once (10 a minute per login).
 - `accessibility.spec.ts` scans the overview with an open proposal over its 2042 proposal world (the page is gone since 1.33).
 
+### The e2e project-proposal world
+
+Files: `e2e/tests/project-proposal.spec.ts` (the project page, 1.33); prefix `e2e-pp-*`. Year **2049** (2049-01-04 is a Monday; nothing writes a holiday there).
+
+- Seeded per test: a project OWNER login (manages nothing), the SINGLE manager login of team Y (team X's manager is a person with no login), two teams with ONE capacity period each from Monday 2049-01-04 (10 MD/week),
+  a project with `x1` on X scheduled 2049-03-02..03, `y1` on Y unscheduled and the link `x1 -FS-> y1`. A project-page run covers only the project's own teams, so no narrowing is needed and the plan stays shared.
+- The hand-counted run: `x1` 01-04..05, `y1` 01-06, the project's end 40 working days earlier. The spec holds the lock `holiday-dictionary`; its last test is the axe scan of the open preview (light scheme only).
+
 ### The e2e baselines world
 
 Files: `e2e/tests/baselines.spec.ts`; prefix `e2e-bl-*`. Year **2043** (2043-01-01 is a Thursday, so the Mondays are 01-05, 01-12, 01-19, 01-26; nothing writes a holiday there).
@@ -332,7 +340,7 @@ Files: `e2e/tests/jira-sync.spec.ts`; prefix `e2e-jira-*`. Year **2044** (2044-0
 - **The stub is one process with one scenario state, and this file alone flips `jira-day2`**: the beforeAll starts it at `Started`, the day-2 step resets it right after the refresh that shows "Gone from Jira" (in a `finally`), and the afterAll is the backstop.
 - A refresh is proven by the Deviations view's `observedAt` of the item growing (a bind already writes the first reading), never by a fixed sleep.
 - Test connection and Peek share a per-IP bucket across the whole suite (10 a minute by default, 30 on the e2e stacks). This file spends about six calls (the chip scenario's own connection included), and one more in the accessibility Jira describe, which seeds its own `e2e-axe-jira-*` world and binds `E2E-4`, present in both stub states; the three result tables the file shows are axe-scanned in place, which costs no call.
-- `schedule-proposal.spec.ts` and `public-holidays.spec.ts` share the Playwright lock `holiday-dictionary` (a proposal's scope hash covers the global holiday dictionary); the Jira specs never write a holiday and need none.
+- `schedule-proposal.spec.ts`, `roadmap-proposal.spec.ts`, `project-proposal.spec.ts` and `public-holidays.spec.ts` share the Playwright lock `holiday-dictionary` (a proposal's scope hash covers the global holiday dictionary); the Jira specs never write a holiday and need none.
 
 ### The e2e Jira import world
 

@@ -1,6 +1,6 @@
 import type { TFunction } from "i18next";
 import type { ScheduleCheckTeam } from "../api/scheduleProposals";
-import type { ScheduleProposal, ScheduleProposalEnd, ScheduleProposalLink, ScheduleProposalMove, SkippedSchedule, TeamMilestone, TeamScheduleBatchResponse, TeamView } from "../api/teams";
+import type { ScheduleProposal, ScheduleProposalEnd, ScheduleProposalLink, ScheduleProposalMove, SkippedSchedule, TeamScheduleBatchResponse } from "../api/teams";
 import type { TimelineBarData } from "./timelineModel";
 
 /**
@@ -60,7 +60,7 @@ export function proposalBars(moves: readonly ScheduleProposalMove[], t: TFunctio
  * The rows a preview APPENDS after the scheduled ones: the tray's milestones that the proposal schedules, in the tray's own (effective)
  * order. A move whose milestone is not in the tray (it is a row already, or left the team meanwhile) adds nothing here.
  */
-export function proposalRows(view: Pick<TeamView, "unscheduled">, moves: readonly ScheduleProposalMove[]): TeamMilestone[] {
+export function proposalRows<M extends { id: number }>(view: { unscheduled: readonly M[] }, moves: readonly ScheduleProposalMove[]): M[] {
   const moved = new Set(moves.map((move) => move.milestoneId));
   return view.unscheduled.filter((milestone) => moved.has(milestone.id));
 }

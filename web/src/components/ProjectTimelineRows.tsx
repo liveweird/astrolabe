@@ -59,7 +59,7 @@ const emphasized = (t: TFunction, critical: boolean, describe: string): Pick<Tim
  * The cells of a row with the optional Flags cell (1.3, while some scheduled milestone is linked to Jira or flagged) and then the Slack cell (while the toggle is on)
  * before the actions cell (the last one): `null` = that column is not shown, `""` = shown and empty.
  */
-const withOptional = (cells: TimelineRowData["cells"], flags: ReactNode | null, slack: ReactNode | null): TimelineRowData["cells"] => [
+export const withOptional = (cells: TimelineRowData["cells"], flags: ReactNode | null, slack: ReactNode | null): TimelineRowData["cells"] => [
   ...cells.slice(0, -1),
   ...(flags === null ? [] : [flags]),
   ...(slack === null ? [] : [slack]),

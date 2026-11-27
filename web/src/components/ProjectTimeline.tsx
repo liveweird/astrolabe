@@ -5,6 +5,7 @@ import { useHolidays } from "../hooks/useHolidays";
 import { useTeamColours } from "../hooks/useTeamColours";
 import { jiraTrayNote } from "../utils/flagSentences";
 import { jiraTrayBars, siteUrls, type JiraWindow } from "../utils/jiraBars";
+import type { ProjectPreview } from "../utils/planProposal";
 import { arrowSpecs, conflictsByBar, ghostEndpoints, summaryRowNeeded, upstreamIndex } from "../utils/projectDependencies";
 import type { TimelineColumn } from "../utils/timelineModel";
 import type { TimelineScale, Zoom } from "../utils/timelineScale";
@@ -12,6 +13,7 @@ import { NameWithFlags } from "./MilestoneFlags";
 import MilestoneMenu, { type MilestoneActions } from "./MilestoneMenu";
 import EntityLink from "./EntityLink";
 import NameCell from "./MilestoneNameCell";
+import { previewRows } from "./ProjectTimelineProposal";
 import { bandsOf, baselineRows, estimateText, ghostRow, hasMenu, jiraRows, milestoneRows, summaryRow } from "./ProjectTimelineRows";
 import Timeline, { type TimelineHandle } from "./Timeline";
 import TimelineArrows from "./TimelineArrows";
@@ -45,6 +47,7 @@ export default function ProjectTimeline({
   jira,
   timelineRef,
   current = null,
+  proposal,
 }: {
   view: ProjectView;
   scale: TimelineScale;
@@ -63,6 +66,8 @@ export default function ProjectTimeline({
   timelineRef?: Ref<TimelineHandle>;
   /** The milestone the page was opened at (1.31, `?milestone=`): its row is marked `current`. */
   current?: number | null;
+  /** A schedule proposal's preview (1.33): dashed bars, "(new)" rows, the summary row's proposed span; every bar read-only and no idle bands. Absent = the timeline as ever. */
+  proposal?: ProjectPreview;
 }) {
   const { t } = useTranslation();
   const { holidays, failed: holidaysFailed } = useHolidays();
@@ -81,13 +86,14 @@ export default function ProjectTimeline({
   ];
   const upstream = criticalPath ? upstreamIndex(view) : null;
   const appended = { criticalPath, flagsColumn, trayBars: jiraTrayBars(view.unscheduled, jira, t), scheduleOnJira: actions.scheduleOnJira };
-  const rows = [
-    ...(summaryRowNeeded(view) ? [summaryRow(view, t, conflicts, criticalPath, flagsColumn)] : []),
+  const built = [
+    ...(summaryRowNeeded(view) || proposal !== undefined ? [summaryRow(view, t, conflicts, criticalPath, flagsColumn)] : []),
     ...milestoneRows(view, t, { actions, jira, conflicts, criticalPath, flagsColumn, colours, current }),
     ...baselineRows(view, t, appended),
     ...jiraRows(view, t, appended),
     ...ghostEndpoints(view).map((endpoint) => ghostRow(endpoint, t, upstream, flagsColumn, colours)),
   ];
+  const rows = proposal === undefined ? built : previewRows(built, view, proposal, t, { colours, flagsColumn, criticalPath });
   const arrows = arrowSpecs(view, criticalPath);
   return (
     <Timeline
@@ -98,7 +104,7 @@ export default function ProjectTimeline({
       today={today}
       columns={columns}
       rows={rows}
-      bands={bandsOf(view, t)}
+      bands={bandsOf(proposal === undefined ? view : { ...view, idleGaps: [] }, t)}
       holidays={holidays}
       holidaysFailed={holidaysFailed}
       busy={busy}
@@ -109,7 +115,7 @@ export default function ProjectTimeline({
 }
 
 /** The Unscheduled tray of the project's milestones without dates: drag onto the timeline (pointer) or Schedule (button), inside the same `TimelineDndContext`; `current` marks the milestone the page was opened at. */
-export function ProjectTray({ view, actions, label, current = null }: { view: ProjectView; actions: MilestoneActions; label: string; current?: number | null }) {
+export function ProjectTray({ view, actions, label, current = null, previewing = false }: { view: ProjectView; actions: MilestoneActions; label: string; current?: number | null; previewing?: boolean }) {
   const { t } = useTranslation();
   const canLink = view.project.can.createDependency;
   const sites = siteUrls(view.jiraSites);
@@ -125,6 +131,8 @@ export function ProjectTray({ view, actions, label, current = null }: { view: Pr
       estimateText(t, milestone),
     ],
     canSchedule: milestone.can.schedule,
+    // While a schedule proposal is open the tray is read-only: the Schedule button is disabled and the row cannot be dragged.
+    disabled: previewing,
     current: milestone.id === current,
     actions: hasMenu(milestone, canLink) ? <MilestoneMenu milestone={milestone} actions={actions} canLink={canLink} /> : null,
   }));

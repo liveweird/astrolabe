@@ -77,6 +77,7 @@ beforeEach(() => {
       "GET /api/v1/teams": { items: [], page: 1, pageSize: 100, total: 0 },
       "GET /api/v1/views/plan": planView(),
       "GET /api/v1/baselines": { items: [], can: { manage: false } },
+      "GET /api/v1/schedule-proposals/teams": { items: [], truncated: false },
     }),
   );
   localStorage.setItem("astrolabe.auth.token", "fake-token");

@@ -308,5 +308,29 @@
     "deleteWith_few": "Usuniemy też {{count}} zależności.",
     "deleteWith_many": "Usuniemy też {{count}} zależności.",
     "deleteWith_other": "Usuniemy też {{count}} zależności."
+  },
+  "proposal": {
+    "covers_one": "Proponuje terminy dla {{count}} zespołu pracującego nad kamieniami milowymi tego projektu; terminy pozostałych zespołów zostają bez zmian. Nic się nie zmieni, dopóki nie zaakceptujesz propozycji.",
+    "covers_few": "Proponuje terminy dla {{count}} zespołów pracujących nad kamieniami milowymi tego projektu; terminy pozostałych zespołów zostają bez zmian. Nic się nie zmieni, dopóki nie zaakceptujesz propozycji.",
+    "covers_many": "Proponuje terminy dla {{count}} zespołów pracujących nad kamieniami milowymi tego projektu; terminy pozostałych zespołów zostają bez zmian. Nic się nie zmieni, dopóki nie zaakceptujesz propozycji.",
+    "covers_other": "Proponuje terminy dla {{count}} zespołu pracującego nad kamieniami milowymi tego projektu; terminy pozostałych zespołów zostają bez zmian. Nic się nie zmieni, dopóki nie zaakceptujesz propozycji.",
+    "requesting": "Pobieranie propozycji — terminy są tylko do odczytu, dopóki nie nadejdzie.",
+    "intro": "Kreskowane paski na osi czasu pokazują proponowane terminy. Nic się nie zmieni, dopóki nie zaakceptujesz propozycji; tu można zaakceptować tylko zmiany tego projektu.",
+    "unchanged": "Terminy projektu by się nie zmieniły.",
+    "newly": "Projekt zostałby zaplanowany od {{start}} do {{end}}.",
+    "endSame": "Projekt nadal kończyłby się {{end}}; zmieniłby się tylko jego początek.",
+    "endEarlier_one": "Gdyby zaakceptować ruchy wszystkich zespołów, projekt skończyłby się {{after}} zamiast {{before}}, {{count}} dzień roboczy wcześniej.",
+    "endEarlier_few": "Gdyby zaakceptować ruchy wszystkich zespołów, projekt skończyłby się {{after}} zamiast {{before}}, {{count}} dni robocze wcześniej.",
+    "endEarlier_many": "Gdyby zaakceptować ruchy wszystkich zespołów, projekt skończyłby się {{after}} zamiast {{before}}, {{count}} dni roboczych wcześniej.",
+    "endEarlier_other": "Gdyby zaakceptować ruchy wszystkich zespołów, projekt skończyłby się {{after}} zamiast {{before}}, {{count}} dnia roboczego wcześniej.",
+    "endLater_one": "Gdyby zaakceptować ruchy wszystkich zespołów, projekt skończyłby się {{after}} zamiast {{before}}, {{count}} dzień roboczy później.",
+    "endLater_few": "Gdyby zaakceptować ruchy wszystkich zespołów, projekt skończyłby się {{after}} zamiast {{before}}, {{count}} dni robocze później.",
+    "endLater_many": "Gdyby zaakceptować ruchy wszystkich zespołów, projekt skończyłby się {{after}} zamiast {{before}}, {{count}} dni roboczych później.",
+    "endLater_other": "Gdyby zaakceptować ruchy wszystkich zespołów, projekt skończyłby się {{after}} zamiast {{before}}, {{count}} dnia roboczego później.",
+    "others_one": "Przebieg przesuwa też {{count}} inny kamień milowy tych zespołów, niedostępny tutaj:",
+    "others_few": "Przebieg przesuwa też {{count}} inne kamienie milowe tych zespołów, niedostępne tutaj:",
+    "others_many": "Przebieg przesuwa też {{count}} innych kamieni milowych tych zespołów, niedostępnych tutaj:",
+    "others_other": "Przebieg przesuwa też {{count}} innego kamienia milowego tych zespołów, niedostępnego tutaj:",
+    "discarded": "Propozycja harmonogramu odrzucona."
   }
 }

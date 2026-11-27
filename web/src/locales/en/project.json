@@ -274,5 +274,21 @@
     "deleteFailed": "Could not delete",
     "deleteWith_one": "Its {{count}} dependency will be deleted too.",
     "deleteWith_other": "Its {{count}} dependencies will be deleted too."
+  },
+  "proposal": {
+    "covers_one": "Proposes dates for the {{count}} team that works on this project's milestones; other teams' dates are kept. Nothing changes until you accept.",
+    "covers_other": "Proposes dates for the {{count}} teams that work on this project's milestones; other teams' dates are kept. Nothing changes until you accept.",
+    "requesting": "Asking for a proposal — the dates are read-only until it arrives.",
+    "intro": "Dashed bars on the timeline show the proposed dates. Nothing changes until you accept; only this project's moves are offered.",
+    "unchanged": "The project's dates would not change.",
+    "newly": "The project would be newly scheduled, from {{start}} to {{end}}.",
+    "endSame": "The project would still end on {{end}}; only its start moves.",
+    "endEarlier_one": "If every team's moves are accepted, the project would end on {{after}} instead of {{before}}, {{count}} working day earlier.",
+    "endEarlier_other": "If every team's moves are accepted, the project would end on {{after}} instead of {{before}}, {{count}} working days earlier.",
+    "endLater_one": "If every team's moves are accepted, the project would end on {{after}} instead of {{before}}, {{count}} working day later.",
+    "endLater_other": "If every team's moves are accepted, the project would end on {{after}} instead of {{before}}, {{count}} working days later.",
+    "others_one": "The run also moves {{count}} other milestone of these teams, not offered here:",
+    "others_other": "The run also moves {{count}} other milestones of these teams, not offered here:",
+    "discarded": "Schedule proposal discarded."
   }
 }

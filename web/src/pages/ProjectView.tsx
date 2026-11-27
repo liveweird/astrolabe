@@ -16,6 +16,7 @@ import ErrorAlert from "../components/ErrorAlert";
 import MilestoneScheduleModal from "../components/MilestoneScheduleModal";
 import ProjectPageHeader from "../components/ProjectPageHeader";
 import ProjectPicker from "../components/ProjectPicker";
+import ProjectProposal from "../components/ProjectProposal";
 import ProjectsStart from "../components/ProjectsStart";
 import ProjectViewNotices from "../components/ProjectViewNotices";
 import CriticalChain from "../components/CriticalChain";
@@ -45,6 +46,7 @@ import { useLocalToday } from "../hooks/useLocalToday";
 import { useJiraUnlink } from "../hooks/useJiraUnlink";
 import { useMilestoneArrival } from "../hooks/useMilestoneArrival";
 import { useMilestoneSchedule } from "../hooks/useMilestoneSchedule";
+import { useProjectProposal } from "../hooks/useProjectProposal";
 import { useRowMenuFocus } from "../hooks/useRowMenuFocus";
 import { isOneOf, useStoredState } from "../hooks/useStoredState";
 import { baselineDays } from "../utils/baselineOverlay";
@@ -84,6 +86,8 @@ function ProjectPage({ id }: { id: number }) {
   const { pick, setPick } = useBaselinePick();
   const schedule = useMilestoneSchedule(id, pick);
   const { view, query } = schedule;
+  // 1.33: the schedule proposal previewed on the timeline; its lock refuses the date writes below while a run is requested or open.
+  const proposal = useProjectProposal(id, schedule);
   const dropping = useDropUnknownPick(query.error, pick, setPick);
   // The project `/projects` opens next: remembered once this page has loaded, forgotten with the project.
   useRememberProject(id, view !== undefined);
@@ -159,6 +163,7 @@ function ProjectPage({ id }: { id: number }) {
     project.targetStart,
     project.targetEnd,
     ...baselineDays(view.baseline),
+    ...proposal.days,
   ].filter(
     (d): d is string => d !== null,
   );
@@ -191,7 +196,7 @@ function ProjectPage({ id }: { id: number }) {
   const requestUnlink = (mark: JiraMark | undefined, name: string) => {
     if (mark !== undefined) unlinkJira.requestDelete({ bindingId: mark.bindingId, key: mark.key, name });
   };
-  const actions: MilestoneActions = {
+  const actions: MilestoneActions = proposal.lockActions({
     edit: (milestone) => setEditor({ kind: "edit", milestone }),
     editSchedule: (milestone) => setScheduling({ milestone, revision: view.revision }),
     unschedule: (milestone) => schedule.commit(milestone.id, null, null, { announce: true }),
@@ -203,7 +208,7 @@ function ProjectPage({ id }: { id: number }) {
     linkJira: (milestone) => setEditor({ kind: "jira", target: { level: "MILESTONE", id: milestone.id, name: milestone.name } }),
     jiraKeyOf: (milestone) => marks.byNode.get(markKey("MILESTONE", milestone.id))?.key,
     unlinkJira: (milestone) => requestUnlink(marks.byNode.get(markKey("MILESTONE", milestone.id)), milestone.name),
-  };
+  });
   const milestoneCount = view.scheduled.length + view.unscheduled.length;
   const canTrayEdit = view.unscheduled.some((m) => m.can.schedule);
   const closeEditor = () => setEditor(null);
@@ -261,7 +266,7 @@ function ProjectPage({ id }: { id: number }) {
       {milestoneCount === 0 ? (
         <EmptyState icon={IconCalendarStats} label={t("project.noMilestones")} hint={project.can.createMilestone ? t("project.noMilestonesHint") : t("project.noMilestonesHintReadOnly")} />
       ) : (
-        <TimelineDndContext scale={scale} onSchedule={(barId, start, end) => schedule.commit(Number(barId), start, end)}>
+        <TimelineDndContext scale={scale} onSchedule={proposal.guardDrop((barId, start, end) => schedule.commit(Number(barId), start, end))}>
           <Stack gap="xs">
             <TimelineTitle title={t("project.timelineTitle")} saving={schedule.pending} />
             <ProjectTimeline
@@ -277,11 +282,14 @@ function ProjectPage({ id }: { id: number }) {
               jira={jiraWindowNow}
               timelineRef={timelineRef}
               current={arrival.marked}
+              proposal={proposal.preview}
             />
           </Stack>
           <UnscheduledTraySection hasItems={view.unscheduled.length > 0} canSchedule={canTrayEdit}>
-            <ProjectTray view={view} actions={actions} label={t("project.trayAria")} current={arrival.marked} />
+            <ProjectTray view={view} actions={actions} label={t("project.trayAria")} current={arrival.marked} previewing={proposal.preview !== undefined} />
           </UnscheduledTraySection>
+          {/* After the tray, not between: the tray's pointer drop needs it close to the timeline (and in view with it). */}
+          <ProjectProposal proposal={proposal} announce={schedule.announce} />
         </TimelineDndContext>
       )}
       {/* 1.29: the milestones as a filterable table, after the tray (and with something to list: an empty project has the empty state above). */}

@@ -1,5 +1,5 @@
 import type { CrossTeamProposal, CrossTeamProposalTeam } from "../api/scheduleProposals";
-import type { WeekLoad } from "../api/teams";
+import type { ScheduleProposalMove, WeekLoad } from "../api/teams";
 
 /**
  * Pure derivations of a cross-team run on the pages that host it beside the plan (1.33): which of its moves the viewer may tick, which teams an
@@ -52,3 +52,10 @@ export function projectSlice(run: RunTeams, projectId?: number, milestoneIds?: R
 /** The weeks that carry a warning (overloaded or over the WIP limit): the figure of a section's orange badge. */
 export const warningWeekCount = (weeks: readonly Pick<WeekLoad, "overloaded" | "wipExceeded">[] | undefined): number =>
   (weeks ?? []).filter((week) => week.overloaded || week.wipExceeded).length;
+
+/** The part of a run the project page's timeline draws (1.33): the moves of THIS project's milestones and the project's own entry of `projects[]` (absent = its span would not change). */
+export type ProjectPreview = { moves: readonly ScheduleProposalMove[]; project: CrossTeamProposal["projects"][number] | undefined };
+
+/** Every first and last proposed day of a project preview (its moves' spans and the project's span after): the page's range grows over them. */
+export const previewDays = (preview: ProjectPreview | undefined): string[] =>
+  preview === undefined ? [] : [...preview.moves.flatMap((move) => [move.to.start, move.to.end]), ...(preview.project === undefined ? [] : [preview.project.after.start, preview.project.after.end])];

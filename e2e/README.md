@@ -85,8 +85,8 @@ tests may be order-dependent); different files run concurrently. That is only so
   revision (no client write is staled by it).
 - `public-holidays.spec.ts` sweeps every 2040 holiday before its first test and again in its afterAll; the calendar-in-the-views test lives in the same file (a file's tests run serially). The Polish preset is only ever applied to such a year.
 - A holiday write also changes a schedule proposal's scope token (its holidays part), so a write while a proposal is open can stale its accept (409 `stale-scope`, only when the write changes an accepted date).
-  `public-holidays`, `schedule-proposal` and `roadmap-proposal` therefore share the lock `holiday-dictionary`. A spec that only reads the calendar needs no lock unless it compares a scope hash.
-- A project or team timeline's range always includes today, so a year far ahead stretches every timeline spec to decades of header day cells: the far-off years stay below 2085. A new spec that needs a holiday takes the next unused year (2049, ...), records it in its scenario's **Owns** line and sweeps by date.
+  `public-holidays`, `schedule-proposal`, `roadmap-proposal` and `project-proposal` therefore share the lock `holiday-dictionary`. A spec that only reads the calendar needs no lock unless it compares a scope hash.
+- A project or team timeline's range always includes today, so a year far ahead stretches every timeline spec to decades of header day cells: the far-off years stay below 2085. A new spec that needs a holiday takes the next unused year (2050, ...), records it in its scenario's **Owns** line and sweeps by date.
 
 | Year | Years other specs must not write holidays in, and who dates a world there |
 |---|---|
@@ -99,12 +99,13 @@ tests may be order-dependent); different files run concurrently. That is only so
 | 2046 | `jira-coverage` (the stub's `COV` project; 2046-03-05 is a Monday) |
 | 2047 | `flow-sync`, `flow-capacity-deviation`, `flow-capacity-acknowledge` (the stub's "E2E Flow Team": six two-week sprints from Monday 2047-01-07, ten working days each) |
 | 2048 | `roadmap-proposal` (two teams from Monday 2048-01-06) |
+| 2049 | `project-proposal` (two teams from Monday 2049-01-04) |
 | 2027 | `dependencies`, `team-view` |
 | 2026 | `accessibility` |
 | none | `jira-polling` and `dialog-focus` date nothing |
 
 Nothing writes a holiday in any year but 2040. **Precondition of the figure-pinning specs:** the stack under test must hold no public holiday on the days they pin
-(`dependencies`: 2027-01-25..02-12; `team-view`: February 2027) nor in 2040 to 2048 outside `public-holidays`' own rows; the Polish
+(`dependencies`: 2027-01-25..02-12; `team-view`: February 2027) nor in 2040 to 2049 outside `public-holidays`' own rows; the Polish
 preset of the sample plan's years (about 2025-2028) has no day in those windows, so it is harmless, but a hand-added holiday there
 would shift their figures. This is a rule, not a guard: a fail-fast check on 2026/2027 would trip on that preset.
 
@@ -112,7 +113,7 @@ would shift their figures. This is a rule, not a guard: a fail-fast check on 202
 
 | Lock | Held by | Why |
 |---|---|---|
-| `holiday-dictionary` | `public-holidays`, `schedule-proposal`, `roadmap-proposal` | a holiday write can stale an open proposal's accept (above) |
+| `holiday-dictionary` | `public-holidays`, `schedule-proposal`, `roadmap-proposal`, `project-proposal` | a holiday write can stale an open proposal's accept (above) |
 | `jira-import-stub` | `jira-import` alone | no other spec imports the stub's `IMP` project; it only serialises `--repeat-each` copies, which would race on the global "IMP Program" name |
 | `flow-stub-scenario` | `flow-sync`, `flow-capacity-deviation`, `flow-capacity-acknowledge` | the second and third flip the stub's `flow-day2` (and reset it; the third flips it again in its last scenario, to day one and back to day two), the first asserts day one's figures of the same "E2E Flow Team", so the three files take turns |
 
@@ -185,6 +186,7 @@ One line a spec: what it proves. The design (actors, owned state, numbered steps
 - [`schedule-proposal.spec.ts`](scenarios/schedule-proposal.md) — the schedule proposal on the team page, in 2042: the manager proposes and reads the dashed bars, the strip and the table, accepts a selection (or a subset) and an accept skips a milestone rescheduled in the meantime; the project owner has no Propose; a pinned milestone is untouched.
 - [`roadmap-proposal.spec.ts`](scenarios/roadmap-proposal.md) — the cross-team proposal on the Roadmap overview (narrowed to the spec's own program), in 2048: a login managing no team previews it (dashed bars, the projects that would move) and has no Accept; a manager of two teams proposes, reads the sections and the dates a link forces, and accepts across teams; unticking x1 turns y1's Links cell into the red "Conflict"; a manager of one team accepts that team's moves alone;
   a saved proposal is listed under the timeline, opened by a manager of another team, who has no Accept, and accepted from there by the manager of both teams, after which it reads as changed; the old Schedule proposals addresses lead to the overview.
+- [`project-proposal.spec.ts`](scenarios/project-proposal.md) — the cross-team proposal on the project page, in 2049: a login managing no team previews it (three dashed bars, the "(new)" row of the tray milestone, the sentence about the project's end) and has no Accept; the manager of one of the two teams accepts only their move (the check describes that tick, the Schedule button is locked meanwhile, the accept names their team alone, the other team's milestone stays); axe over the open preview.
 - [`baselines.spec.ts`](scenarios/baselines.md) — baselines, in 2043: take one on `/baselines`, re-plan under it, pick it on the team page (shadow bars, the Movement table), read the comparison page as the project owner, compare two baselines with **Compare against**; a reader has no Take button; rename and delete behind a confirmation; a link added and a capacity period cut after one are listed in the comparison's Links and Capacity sections, and the project page marks the link "New since the baseline".
 
 ### Jira
