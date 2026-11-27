@@ -25,14 +25,13 @@ import kotlin.test.assertTrue
 
 /**
  * `POST /schedule-proposals` and `GET /schedule-proposals/teams` (1.8.0): the cross-team run over the wire. The kernel's arithmetic is
- * pinned by `CrossTeamKernelsTest`; these tests pin the guard over a body-listed team SET (body, shape 400, every team active else 404,
- * every team managed else 403, `asOf` 400), the loading of the rows into ONE snapshot, the document and the run-level `scopeHash`. The
- * size gate is `CrossTeamProposalSizeTest`. Every date is explicit (2027-01-31 is a Sunday, so the first candidate day is Monday
- * 2027-02-01; 10 MD a week is 2 MD a day).
+ * pinned by `CrossTeamKernelsTest`; these tests pin the order over a body-listed team SET (body, shape 400, every team active else 404,
+ * `asOf` 400; no 403 since 1.33.0: any login runs any teams and the document is the same whoever asks), the loading of the rows into
+ * ONE snapshot, the document and the run-level `scopeHash`. The size gate is `CrossTeamProposalSizeTest`. Every date is explicit
+ * (2027-01-31 is a Sunday, so the first candidate day is Monday 2027-02-01; 10 MD a week is 2 MD a day).
  */
 class CrossTeamProposalTest {
     private val ok = HttpStatusCode.OK
-    private val forbidden = HttpStatusCode.Forbidden
     private val notFound = HttpStatusCode.NotFound
     private val badRequest = HttpStatusCode.BadRequest
     private val asOf = "2027-01-31"
@@ -68,7 +67,7 @@ class CrossTeamProposalTest {
     }
 
     @Test
-    fun `ADMIN runs any set, a manager of every listed team runs it - one team short, the project owner and every other caller get 403`() =
+    fun `every login runs any set - the document is byte-identical for ADMIN, a manager, an owner, a stranger and a personless login`() =
         testApplication {
             usePostgresTestcontainer()
             val w = planWorld("ctg", teams = true)
@@ -77,31 +76,31 @@ class CrossTeamProposalTest {
             TestPlan.milestone(w.projectId, both.first)
             TestPlan.milestone(w.projectId, both.second)
             TestPlan.milestone(w.projectId, t.teamId)
-
-            assertEquals(2, w.admin.client.run(listOf(t.teamId, t.otherTeamId)).teams.size, "ADMIN runs teams it manages none of")
-            assertEquals(2, both.caller.client.run(listOf(both.first, both.second)).teams.size, "the manager of both runs both")
-            assertEquals(1, both.caller.client.run(listOf(both.second)).teams.size, "and either one alone")
-            assertEquals(forbidden, both.caller.client.propose(listOf(both.first, t.teamId)).status, "one team of the set is not theirs")
-            assertEquals(forbidden, both.caller.client.propose(listOf(t.teamId, both.first)).status, "whatever the order of the set")
-            assertEquals(forbidden, both.caller.client.propose(listOf(both.first, both.second, t.teamId)).status)
-
-            assertEquals(1, t.manager.client.run(listOf(t.teamId)).teams.size)
-            assertEquals(forbidden, t.manager.client.propose(listOf(t.teamId, t.otherTeamId)).status, "one of the two: 403 on the pair")
-            assertEquals(forbidden, t.manager.client.propose(listOf(t.otherTeamId)).status, "and the other team alone")
-            assertEquals(1, t.otherManager.client.run(listOf(t.otherTeamId)).teams.size)
-
-            val denied = listOf(
-                "project owner" to w.projectOwner, "program owner" to w.programOwner, "stream owner" to w.streamOwner,
-                "stranger" to w.stranger, "personless" to w.personless, "roadmap editor" to w.editor,
+            val everyone = listOf(
+                "admin" to w.admin, "the manager of one team" to t.manager, "the other manager" to t.otherManager,
+                "the manager of two teams" to both.caller, "project owner" to w.projectOwner, "program owner" to w.programOwner,
+                "stream owner" to w.streamOwner, "stranger" to w.stranger, "personless" to w.personless, "roadmap editor" to w.editor,
             )
-            for ((label, caller) in denied) {
-                assertEquals(forbidden, caller.client.propose(listOf(t.teamId)).status, label)
-                assertEquals(forbidden, caller.client.propose(listOf(t.teamId, t.otherTeamId)).status, "$label on the pair")
+            val sets = listOf(
+                listOf(t.teamId), listOf(t.teamId, t.otherTeamId), listOf(both.first, both.second), listOf(both.first, t.teamId),
+                listOf(t.teamId, both.first, both.second),
+            )
+            for (set in sets) {
+                val expected = w.admin.client.propose(set)
+                assertEquals(ok, expected.status)
+                val document = expected.bodyAsText()
+                assertEquals(set.size, w.admin.client.run(set).teams.size)
+                for ((label, caller) in everyone) {
+                    val response = caller.client.propose(set)
+                    assertEquals(ok, response.status, "$label on $set")
+                    assertEquals(document, response.bodyAsText(), "$label reads the same document on $set")
+                }
             }
+            assertEquals(HttpStatusCode.Unauthorized, jsonClient().propose(listOf(t.teamId)).status)
         }
 
     @Test
-    fun `a missing or deleted team is 404 for every caller - before the guard, naming the ids - and the 403 never leaks which exist`() =
+    fun `a missing or deleted team is 404 for every caller, naming the ids`() =
         testApplication {
             usePostgresTestcontainer()
             val w = planWorld("ct404", teams = true)
@@ -118,11 +117,11 @@ class CrossTeamProposalTest {
             val detail = w.stranger.client.propose(listOf(t.teamId, gone, 999999u)).bodyAsText()
             val named = Regex("Team not found: ([0-9]+(?:, [0-9]+)*)").find(detail)?.groupValues?.get(1)?.split(", ")
             assertEquals(listOf("$gone", "999999"), named, "the 404 names exactly the missing ids, in request order: $detail")
-            assertEquals(forbidden, w.stranger.client.propose(listOf(t.teamId, t.otherTeamId)).status, "all active: 403")
+            assertEquals(ok, w.stranger.client.propose(listOf(t.teamId, t.otherTeamId)).status, "all active: the run")
         }
 
     @Test
-    fun `the body decodes first and the team set is validated before the guard, asOf after it - a forbidden caller's bad asOf stays 403`() =
+    fun `the body decodes first, then the team set, then asOf - the same 400 for every login`() =
         testApplication {
             usePostgresTestcontainer()
             val w = planWorld("ct400", teams = true)
@@ -130,7 +129,7 @@ class CrossTeamProposalTest {
             val manager = w.requireTeams().manager.client
             val stranger = w.stranger.client
 
-            // The team set is in the body, so a malformed body is a 400 even for a caller the guard would refuse.
+            // The team set is in the body: a malformed body is the same 400 for every login.
             for (client in listOf(manager, stranger)) {
                 assertEquals(badRequest, client.postJson(path, "{ not json").status)
                 assertEquals(badRequest, client.postJson(path, """{"asOf":"$asOf"}""").status, "teamIds missing")
@@ -143,9 +142,9 @@ class CrossTeamProposalTest {
                 assertEquals(badRequest, client.propose(fiftyOne).status, "51 teams, ids that do not even exist: shape first")
             }
 
-            // asOf is checked AFTER the guard: the stranger's bad date is still 403, the manager's is 400.
+            // asOf is checked after the 404 of the team set, for every login alike.
             for (bad in listOf("nonsense", "2027-02-30", "2027-1-1", "3000-01-01", "2990-01-06", "1899-12-31")) {
-                assertEquals(forbidden, stranger.propose(listOf(t.teamId), asOfDay = bad).status, "forbidden caller, asOf '$bad'")
+                assertEquals(badRequest, stranger.propose(listOf(t.teamId), asOfDay = bad).status, "stranger, asOf '$bad'")
                 assertEquals(badRequest, manager.propose(listOf(t.teamId), asOfDay = bad).status, "manager, asOf '$bad'")
             }
             assertEquals(ok, manager.propose(listOf(t.teamId), asOfDay = "2990-01-05").status, "the latest asOf, as per team")
@@ -341,7 +340,7 @@ class CrossTeamProposalTest {
     }
 
     @Test
-    fun `a manager whose person was deleted loses the run - 403 on the run, no team on the list`() = testApplication {
+    fun `a manager whose person was deleted still runs - the list of teams they may accept is empty`() = testApplication {
         usePostgresTestcontainer()
         val both = twoTeamManager("ctd")
         val listed = "/api/v1/schedule-proposals/teams"
@@ -349,8 +348,8 @@ class CrossTeamProposalTest {
         assertEquals(2, both.caller.client.get(listed).body<ProposalTeamList>().items.size)
 
         TestPeople.softDelete(checkNotNull(both.caller.personId)) // the grant is read per request, from the ACTIVE person
-        assertEquals(forbidden, both.caller.client.propose(listOf(both.first)).status)
-        assertEquals(forbidden, both.caller.client.propose(listOf(both.first, both.second)).status)
+        assertEquals(ok, both.caller.client.propose(listOf(both.first)).status, "the run is open to every login")
+        assertEquals(ok, both.caller.client.propose(listOf(both.first, both.second)).status)
         assertEquals(emptyList(), both.caller.client.get(listed).body<ProposalTeamList>().items)
     }
 
@@ -385,7 +384,7 @@ class CrossTeamProposalTest {
             for (nobody in listOf(w.stranger, w.projectOwner, w.personless, w.editor)) {
                 assertEquals(emptyList(), nobody.client.get(listed).body<ProposalTeamList>().items)
             }
-            // What the list offers is what the run accepts.
+            // What the list offers is what the caller may accept; the run itself is open.
             assertEquals(ok, both.caller.client.propose(theirs.map { it.id }).status)
             assertEquals(HttpStatusCode.Unauthorized, jsonClient().get(listed).status)
         }

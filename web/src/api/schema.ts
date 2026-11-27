@@ -1310,7 +1310,7 @@ export interface paths {
         put?: never;
         /**
          * Propose a schedule over several teams at once (a computation, nothing is stored)
-         * @description Computes ONE schedule proposal over a set of teams (`teamIds`) instead of one team with every other team's dates fixed; nothing is written and the plan revision does not move. ADMIN or the active manager of every listed team. Order, because the team set is in the body: the body decodes first (`400` even for a caller who would be refused), `teamIds` shape `400` (one to 50, none twice), every listed team active else `404` for every caller (naming the missing ids), `403` unless the caller manages every listed team, then `asOf` `400`. Teams are placed in dependency order (a team holding a link's predecessor before the one holding its successor; a cycle is broken by the team with the most movable milestones, then by name), each by the per-team rules with the teams placed so far held fixed, and the round repeats until a pass changes nothing an earlier-placed team reads, at most five times. `passes` is the number made; `settled` is false when the limit was hit (the last pass's dates stand and the links still failing are in `dependencies`). Pinned milestones are fixed everywhere. A run over one team equals that team's proposal, its `scopeHash` apart.
+         * @description Computes ONE schedule proposal over a set of teams (`teamIds`) instead of one team with every other team's dates fixed; nothing is written and the plan revision does not move. Any authenticated caller: everything a run reads is readable by every login, so the document is the same whoever asks (what the caller may accept is `GET /schedule-proposals/teams`). Order, because the team set is in the body: the body decodes first, `teamIds` shape `400` (one to 50, none twice), every listed team active else `404` (naming the missing ids), then `asOf` `400`. Teams are placed in dependency order (a team holding a link's predecessor before the one holding its successor; a cycle is broken by the team with the most movable milestones, then by name), each by the per-team rules with the teams placed so far held fixed, and the round repeats until a pass changes nothing an earlier-placed team reads, at most five times. `passes` is the number made; `settled` is false when the limit was hit (the last pass's dates stand and the links still failing are in `dependencies`). Pinned milestones are fixed everywhere. A run over one team equals that team's proposal, its `scopeHash` apart.
          */
         post: operations["proposeCrossTeamSchedule"];
         delete?: never;
@@ -1330,7 +1330,7 @@ export interface paths {
         put?: never;
         /**
          * Accept a cross-team run - schedule several teams' milestones at once (ONE plan write, ONE bump)
-         * @description Accepts a cross-team run: schedules the ticked moves of every team of the run, N schedule PUTs in one plan write, one revision bump. ADMIN or the active manager of every team in `teamIds`. Order, as for the run: the body decodes first (a malformed body, a missing `scopeHash` included, is `400` even for a caller who would be refused), `teamIds` shape `400`, every listed team active else `404` for every caller (naming the missing ids), `403` unless the caller manages every listed team, then the rest of the shape `400` before any write (a forbidden caller's malformed items stay `403`). Re-checked under the write: a team deleted meanwhile is `404`, a manager cleared meanwhile `403`, nothing written. `409` for the whole request, nothing written: `expectedRevision` above the plan revision (`urn:astrolabe:problem:stale-revision`); or the run's `scopeHash` no longer matches what the run read, or a milestone of a listed team that is not an item was scheduled after `expectedRevision` (`urn:astrolabe:problem:stale-scope`). Otherwise each item is decided in body order by the batch's rules, the first matching `reason` skipping it; an item that unschedules a pinned milestone clears its pin.
+         * @description Accepts a cross-team run: schedules the ticked moves of every team of the run in one plan write, one revision bump. ADMIN or the active manager of every team in `acceptTeamIds` (absent: all of `teamIds`); the run's other teams are locked and checked, not written. Order: the body decodes first (`400` even for a caller who would be refused), `teamIds` and `acceptTeamIds` shape `400`, every team of `teamIds` active else `404` for every caller, `403` unless the caller manages every team of `acceptTeamIds`, then the rest of the shape `400` (a forbidden caller's bad items stay `403`). Under the write: a run team deleted meanwhile is `404`, a manager cleared from an accept team `403`. `409` for the whole request: `expectedRevision` above the plan revision (`urn:astrolabe:problem:stale-revision`); or the run's `scopeHash` no longer matches, or a run team's milestone that is not an item was scheduled after `expectedRevision` (`urn:astrolabe:problem:stale-scope`; after one accept, other open copies of the run go stale). Otherwise each item is decided in body order, the first matching `reason` skipping it (`NOT_ON_TEAM` outside `acceptTeamIds`); unscheduling a pinned milestone clears its pin.
          */
         post: operations["acceptCrossTeamSchedule"];
         delete?: never;
@@ -1350,7 +1350,7 @@ export interface paths {
         put?: never;
         /**
          * Check the link verdicts and the weekly load for the ticked subset of a proposal (a computation, nothing is stored)
-         * @description Computes which dependency links would be violated, and how loaded each week would be, if only the given `items` were accepted: the ticked subset of a proposal. Nothing is written and the plan revision does not move. ADMIN or the active manager of every team in `teamIds`; order as for the run: the body decodes first (`400` even for a caller who would be refused), `teamIds` shape `400`, every listed team active else `404` for every caller (naming the missing ids), `403` unless the caller manages every listed team, then the rest of the shape `400` (a forbidden caller's malformed items stay `403`); a milestone that is not an active milestone of a listed team is `400` too. Each listed team's dates are its stored dates with exactly the items applied (an item without dates removes the milestone's); every other milestone keeps its stored dates, so a successor ticked without its predecessor is judged against the predecessor's stored dates. There is no `asOf`. The verdicts are the proposal's own, so the answer for a proposal's dates equals its `weeks` and `dependencies`; items an accept would skip (`STALE`, `NO_WORKING_DAY`) are not anticipated.
+         * @description Computes which dependency links would be violated, and how loaded each week would be, if only the given `items` were accepted: the ticked subset of a proposal. Nothing is written and the plan revision does not move. Any authenticated caller; order as for the run: the body decodes first, `teamIds` shape `400`, every listed team active else `404` (naming the missing ids), then the rest of the shape `400`; a milestone that is not an active milestone of a listed team is `400` too. Each listed team's dates are its stored dates with exactly the items applied (an item without dates removes the milestone's); every other milestone keeps its stored dates, so a successor ticked without its predecessor is judged against the predecessor's stored dates. There is no `asOf`. The verdicts are the proposal's own, so the answer for a proposal's dates equals its `weeks` and `dependencies`; items an accept would skip (`STALE`, `NO_WORKING_DAY`) are not anticipated.
          */
         post: operations["checkCrossTeamSchedule"];
         delete?: never;
@@ -1367,8 +1367,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List the teams the caller may include in a cross-team run
-         * @description Lists the active teams the caller may name in a cross-team run: every active team for an ADMIN, otherwise the teams the caller currently manages (none = an empty list). Any authenticated caller. The first 1,000 teams by case- and accent-insensitive name, then id. `truncated` indicates more eligible teams. The run itself still answers `403` for any team the caller may not manage.
+         * List the teams whose proposed moves the caller may accept
+         * @description Lists the active teams whose proposed moves the caller may accept (`acceptTeamIds` of the accept): every active team for an ADMIN, otherwise the teams the caller currently manages (none = an empty list). Any authenticated caller. The first 1,000 teams by case- and accent-insensitive name, then id. `truncated` indicates more eligible teams. Anyone may run any teams (`POST /schedule-proposals`); the accept answers `403` for a team of `acceptTeamIds` the caller may not manage.
          */
         get: operations["listScheduleProposalTeams"];
         put?: never;
@@ -1388,7 +1388,7 @@ export interface paths {
         };
         /**
          * List the saved cross-team proposals
-         * @description Lists the saved proposals, newest first (at most 20; ANY save removes the oldest, whoever saved it). Any authenticated user may read them. A saved proposal holds names, dates and load that every login reads in the plan, but also the run's OUTPUT (proposed dates, unplaced reasons, the post-check, the ticks, the saver and when), which `POST /schedule-proposals` refuses a caller who manages none of its teams; team names stay as saved until the proposal is evicted or deleted. A bounded `{items}` set, not paged, without the proposals' documents. `can.delete` is the caller's right to delete that proposal (ADMIN, or the active manager of every team it names).
+         * @description Lists the saved proposals, newest first (at most 20; ANY save removes the oldest, whoever saved it). Any authenticated user may read them. A saved proposal holds names, dates and load that every login reads in the plan, but also the run's OUTPUT (proposed dates, unplaced reasons, the post-check, the ticks, the saver and when), which any login may also compute with `POST /schedule-proposals`; team names stay as saved until the proposal is evicted or deleted. A bounded `{items}` set, not paged, without the proposals' documents. `can.delete` is the caller's right to delete that proposal (ADMIN, or the active manager of every team it names).
          */
         get: operations["listSavedScheduleProposals"];
         put?: never;
@@ -5399,7 +5399,7 @@ export interface components {
              * @description The viewer's calendar day, 1900-01-01 to 2990-01-05 (a later day is `400`). A milestone of a run team that starts after it, or has no dates, may move; the others are fixed.
              */
             asOf: string;
-            /** @description The run's teams: one to 50, each once, in any order (the server places them in dependency order). The caller must manage every one, or be ADMIN. */
+            /** @description The run's teams: one to 50, each once, in any order (the server places them in dependency order). Any caller may name any active teams. */
             teamIds: number[];
         };
         CrossTeamAcceptRequest: {
@@ -5410,8 +5410,10 @@ export interface components {
             expectedRevision: number;
             /** @description The run's `scopeHash`, REQUIRED: an opaque token (64 lowercase hex digits, else `400`) to send back unchanged; a per-team proposal's never matches. The whole accept is refused (`409`, `stale-scope`) when the plan the run read changed, a milestone of a listed team that is not an item was scheduled since, or a changed holiday dictionary would give an accepted milestone another date. */
             scopeHash: string;
-            /** @description The run's teams, exactly the proposal request's (a team whose moves were all unticked stays in the set: it is part of the run's premise and is checked and re-guarded). The caller must manage every one, or be ADMIN. */
+            /** @description The run's teams, exactly the proposal request's (a team whose moves were all unticked stays in the set: it is part of the run's premise and is checked and locked). Writing is guarded by `acceptTeamIds`. */
             teamIds: number[];
+            /** @description The teams whose moves the caller accepts: each one of `teamIds`. The caller must manage every one, or be ADMIN. Absent means every team of `teamIds`. An item whose stored team is not among them is skipped `NOT_ON_TEAM`; the scope token and the staleness sweep still cover the whole run. Empty, a team twice or one outside `teamIds` is `400`. */
+            acceptTeamIds?: number[];
             /** @description One to 2000 entries, one per milestone of any listed team (an id twice is `400`), applied in this order. An item with one date, a bad date, an end before the start or a span of only weekend days is `400`; a span with no working day on the current holiday calendar is skipped as `NO_WORKING_DAY`. */
             items: components["schemas"]["TeamScheduleBatchItem"][];
         };
@@ -5459,7 +5461,7 @@ export interface components {
             dependencies: components["schemas"]["ScheduleProposalLink"][];
         };
         ScheduleCheckRequest: {
-            /** @description The teams to check: one to 50, each once (the proposal's team set). The caller must manage every one, or be ADMIN. */
+            /** @description The teams to check: one to 50, each once (the proposal's team set). Any caller may name any active teams. */
             teamIds: number[];
             /** @description The ticked moves: one entry per milestone of a listed team (an id twice, or of a milestone outside the listed teams, is a `400`). Both dates or neither (the pair of nulls unschedules). */
             items: components["schemas"]["TeamScheduleBatchItem"][];
@@ -5479,7 +5481,7 @@ export interface components {
             /** @description The links touching the team (an end among its milestones, or a project end holding one of them whose span changes) whose verdict is or was VIOLATED - on the stored dates or with the items applied; violated-after first. A link between two listed teams is in both blocks. */
             dependencies: components["schemas"]["ScheduleProposalLink"][];
         };
-        /** @description The first 1,000 active teams the caller may include in a cross-team run, ordered by name and then id. */
+        /** @description The first 1,000 active teams whose proposed moves the caller may accept, ordered by name and then id. */
         ProposalTeamList: {
             items: components["schemas"]["TeamRef"][];
             /** @description True when additional eligible teams were left out. */
@@ -7435,7 +7437,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetail"];
             };
         };
-        /** @description Throttled: a per-IP rate-limit bucket or a per-user one (telemetry reads, Jira bind and import, sync runs, password change) is exhausted, the account is locked out on `/login`, or the wrong-current-password lock of a password change is active. The body is a `ProblemDetail`. Every rate-bucket `429` carries `Retry-After`; the lockout and lock `429`s do not (the wait is not a bucket window). */
+        /** @description Throttled: a per-IP or per-user rate-limit bucket (telemetry, Jira bind/import, sync runs, password change, proposal runs and saves) is exhausted, the account is locked out on `/login`, or the wrong-current-password lock of a password change is active. The body is a `ProblemDetail`. Every rate-bucket `429` carries `Retry-After`; the lockout and lock `429`s do not (the wait is not a bucket window). */
         TooManyRequests: {
             headers: {
                 "Retry-After": components["headers"]["RetryAfter"];
@@ -10216,10 +10218,10 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
+            429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalServerError"];
         };
     };
@@ -10260,6 +10262,7 @@ export interface operations {
             };
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
+            429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalServerError"];
         };
     };
@@ -10287,7 +10290,6 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];

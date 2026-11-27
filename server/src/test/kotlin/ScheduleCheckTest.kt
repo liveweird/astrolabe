@@ -28,13 +28,12 @@ import kotlin.test.assertTrue
 /**
  * `POST /schedule-proposals/check` (1.8.0): the link verdicts and the weekly load for the dates a TICKED SUBSET of a proposal would give
  * the run teams. The kernel (`checkMany`) is pinned by `CrossTeamKernelsTest`; these tests pin the guard over a body-listed team SET
- * (the run's order: body, shape 400, every team active else 404, every team managed else 403, the rest of the shape 400), the overlay
+ * (the run's order: body, shape 400, every team active else 404, the rest of the shape 400; no 403 since 1.33.0), the overlay
  * of the items on the STORED spans (an unticked move keeps its stored dates), the equivalence with the proposals' own post-checks, and
  * that it is a computation. 2027-01-31 is a Sunday (`asOf` of the proposals used here); 10 MD a week is 2 MD a day.
  */
 class ScheduleCheckTest {
     private val ok = HttpStatusCode.OK
-    private val forbidden = HttpStatusCode.Forbidden
     private val notFound = HttpStatusCode.NotFound
     private val badRequest = HttpStatusCode.BadRequest
     private val asOf = "2027-01-31"
@@ -81,39 +80,37 @@ class ScheduleCheckTest {
     }
 
     @Test
-    fun `ADMIN checks any set, a manager of every listed team checks it - one short, the project owner and others get 403`() =
-        testApplication {
-            val r = pairWorld("scg")
-            val w = r.w
-            val t = r.t
-            val items = listOf(item(r.a1, "2027-02-01", "2027-02-02"))
-            val both = planCaller("scg-both")
-            val first = TestTeams.seed(planName("scg-first"), both.personId)
-            val second = TestTeams.seed(planName("scg-second"), both.personId)
-            val m1 = TestPlan.milestone(w.projectId, first)
+    fun `every login checks any set - the document is byte-identical for ADMIN, a manager, an owner and a stranger`() = testApplication {
+        val r = pairWorld("scg")
+        val w = r.w
+        val t = r.t
+        val items = listOf(item(r.a1, "2027-02-01", "2027-02-02"))
+        val both = planCaller("scg-both")
+        val first = TestTeams.seed(planName("scg-first"), both.personId)
+        val second = TestTeams.seed(planName("scg-second"), both.personId)
+        val m1 = TestPlan.milestone(w.projectId, first)
 
-            assertEquals(2, w.admin.client.verdicts(r.both, items).teams.size, "ADMIN checks teams it manages none of")
-            val swapped = listOf(t.otherTeamId, t.teamId)
-            assertEquals(swapped, w.admin.client.verdicts(swapped, items).teams.map { it.teamId })
-            assertEquals(1, t.manager.client.verdicts(listOf(t.teamId), items).teams.size, "a manager of ONE team checks that team")
-            assertEquals(2, both.client.verdicts(listOf(first, second), listOf(item(m1, "2027-02-01", "2027-02-02"))).teams.size)
-            assertEquals(forbidden, both.client.check(listOf(first, t.teamId), items).status, "one team of the set is not theirs")
-            assertEquals(forbidden, both.client.check(listOf(t.teamId, first), items).status, "whatever the order")
-            assertEquals(forbidden, t.manager.client.check(r.both, items).status, "a manager of one of the two: 403 on the pair")
-            assertEquals(forbidden, t.manager.client.check(listOf(t.otherTeamId), items).status)
-            val denied = listOf(
-                "project owner" to w.projectOwner, "program owner" to w.programOwner, "stream owner" to w.streamOwner,
-                "stranger" to w.stranger, "personless" to w.personless, "roadmap editor" to w.editor,
-            )
-            for ((label, caller) in denied) {
-                assertEquals(forbidden, caller.client.check(listOf(t.teamId), items).status, label)
-                assertEquals(forbidden, caller.client.check(r.both, items).status, "$label on the pair")
+        val swapped = listOf(t.otherTeamId, t.teamId)
+        assertEquals(swapped, w.admin.client.verdicts(swapped, items).teams.map { it.teamId })
+        assertEquals(2, both.client.verdicts(listOf(first, second), listOf(item(m1, "2027-02-01", "2027-02-02"))).teams.size)
+        val everyone = listOf(
+            "admin" to w.admin, "manager of one of the two" to t.manager, "the other manager" to t.otherManager,
+            "project owner" to w.projectOwner, "program owner" to w.programOwner, "stream owner" to w.streamOwner,
+            "stranger" to w.stranger, "personless" to w.personless, "roadmap editor" to w.editor,
+        )
+        for (mine in listOf(listOf(t.teamId), r.both, listOf(t.teamId, first))) {
+            val expected = w.admin.client.check(mine, items).bodyAsText()
+            for ((label, caller) in everyone) {
+                val response = caller.client.check(mine, items)
+                assertEquals(ok, response.status, "$label on $mine")
+                assertEquals(expected, response.bodyAsText(), "$label reads the same document on $mine")
             }
-            assertEquals(HttpStatusCode.Unauthorized, jsonClient().check(listOf(t.teamId), items).status)
         }
+        assertEquals(HttpStatusCode.Unauthorized, jsonClient().check(listOf(t.teamId), items).status)
+    }
 
     @Test
-    fun `a missing or deleted team is 404 for every caller - before the guard, naming the ids`() = testApplication {
+    fun `a missing or deleted team is 404 for every caller, naming the ids`() = testApplication {
         val r = pairWorld("sc404")
         val gone = TestTeams.seed(planName("sc404-gone"), null)
         assertEquals(HttpStatusCode.NoContent, r.w.admin.client.delete("/api/v1/teams/$gone").status)
@@ -131,7 +128,7 @@ class ScheduleCheckTest {
     }
 
     @Test
-    fun `the body decodes first, the team set is validated before the guard, the items' shape after it - bad items stay 403`() =
+    fun `the body decodes first, the team set is validated, then the items' shape - the same 400 for every login`() =
         testApplication {
             val r = pairWorld("sc400")
             val manager = r.t.manager.client
@@ -158,7 +155,7 @@ class ScheduleCheckTest {
             )
             for ((label, items) in bad) {
                 assertEquals(badRequest, manager.check(mine, items).status, label)
-                assertEquals(forbidden, stranger.check(mine, items).status, "a forbidden caller's '$label' stays 403")
+                assertEquals(badRequest, stranger.check(mine, items).status, "a stranger's '$label' is the same 400")
             }
             assertTrue(manager.check(mine, bad.getValue("one date only")).bodyAsText().contains("items[0]"), "the 400 names the item")
         }
@@ -291,7 +288,7 @@ class ScheduleCheckTest {
     }
 
     @Test
-    fun `a milestone outside the listed teams is 400 after the guard - another team's, unknown or deleted`() = testApplication {
+    fun `a milestone outside the listed teams is 400 after the teams' 404 - another team's, unknown or deleted`() = testApplication {
         val r = pairWorld("scx")
         val admin = r.w.admin.client
         val mine = listOf(r.t.teamId)
@@ -306,7 +303,7 @@ class ScheduleCheckTest {
         assertEquals(ok, admin.check(mine, listOf(item(doomed, "2027-02-01", "2027-02-02"))).status)
         assertEquals(HttpStatusCode.NoContent, admin.delete("/api/v1/milestones/$doomed").status)
         assertEquals(badRequest, admin.check(mine, listOf(item(doomed, "2027-02-01", "2027-02-02"))).status, "deleted since")
-        assertEquals(forbidden, r.w.stranger.client.check(mine, listOf(item(r.b1, "2027-02-03", "2027-02-03"))).status, "403 outranks it")
+        assertEquals(badRequest, r.w.stranger.client.check(mine, listOf(item(r.b1, "2027-02-03", "2027-02-03"))).status, "for every login")
     }
 
     @Test

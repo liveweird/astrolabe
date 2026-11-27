@@ -49,20 +49,22 @@ data class CrossTeamProposal(
     val scopeHash: String,
 )
 
-/** A team the caller may include in a run (`GET /schedule-proposals/teams`). */
+/** A team whose proposed moves the caller may accept (`GET /schedule-proposals/teams`). */
 @Serializable
 data class ProposalTeam(val id: UInt, val name: String)
 
-/** The bounded teams a run may include; [truncated] tells the picker that more eligible teams exist. */
+/** The bounded teams whose moves the caller may accept; [truncated] says more such teams exist. */
 @Serializable
 data class ProposalTeamList(val items: List<ProposalTeam>, val truncated: Boolean)
 
 /**
  * `POST /schedule-proposals/accept` (1.8.0): the accept of a [CrossTeamProposal], N teams' schedule PUTs in ONE plan write. [teamIds] is
  * the run's team SET (the proposal's request, not derived from the items: a team whose moves were all unticked is still a premise of
- * the run and must be checked and re-guarded), [expectedRevision] the proposal's `revision` and [scopeHash] its `scopeHash` - REQUIRED,
- * the run's whole point is the cross-team premise. [items] are the ticked moves of every team ([TeamScheduleBatchItem], at most
- * [MAX_RUN_SCHEDULE_ITEMS]); the answer is the per-team batch's [TeamScheduleBatchResponse].
+ * the run and must be checked and locked), [expectedRevision] the proposal's `revision` and [scopeHash] its `scopeHash` - REQUIRED,
+ * the run's whole point is the cross-team premise. [acceptTeamIds] (1.33.0) are the teams whose moves the caller accepts: a subset of
+ * [teamIds] (absent = all of them, the 1.8.0 contract); the guard runs over them alone, an item of any other team is skipped
+ * `NOT_ON_TEAM`, and the scope token and the sweep still cover the whole run. [items] are the ticked moves of every team
+ * ([TeamScheduleBatchItem], at most [MAX_RUN_SCHEDULE_ITEMS]); the answer is the per-team batch's [TeamScheduleBatchResponse].
  */
 @Serializable
 data class CrossTeamAcceptRequest(
@@ -70,6 +72,7 @@ data class CrossTeamAcceptRequest(
     val scopeHash: String,
     val teamIds: List<UInt>,
     val items: List<TeamScheduleBatchItem>,
+    val acceptTeamIds: List<UInt>? = null,
 )
 
 /**
@@ -84,8 +87,21 @@ fun validateTeamIds(ids: List<UInt>): List<UInt> {
 }
 
 /**
+ * The accept set's rule, checked after [validateTeamIds] and BEFORE the guard (the guard runs over it): absent = [teamIds]; given,
+ * between one and [MAX_RUN_TEAMS] teams, none twice, each one of [teamIds] (a 400 otherwise). Returns the set to guard and write.
+ */
+fun validateAcceptTeamIds(acceptTeamIds: List<UInt>?, teamIds: List<UInt>): List<UInt> {
+    if (acceptTeamIds == null) return teamIds
+    if (acceptTeamIds.isEmpty() || acceptTeamIds.size > MAX_RUN_TEAMS || acceptTeamIds.toSet().size != acceptTeamIds.size) {
+        throw BadRequestException("acceptTeamIds must list between 1 and $MAX_RUN_TEAMS teams, each once")
+    }
+    if (!teamIds.containsAll(acceptTeamIds)) throw BadRequestException("acceptTeamIds must each be one of teamIds")
+    return acceptTeamIds
+}
+
+/**
  * `POST /schedule-proposals/check` (1.8.0): the ticked subset of a run (or of one team's proposal) as hypothetical dates. [teamIds] is
- * the run's team SET (as the run's: the caller must manage every one); [items] the ticked moves - each milestone of one of those teams,
+ * the run's team SET (as the run's: any login may ask); [items] the ticked moves - each milestone of one of those teams,
  * once, [TeamScheduleBatchItem] (the null pair = unschedule) - applied over the STORED spans of those teams. There is no `asOf`: no
  * verdict reads it.
  */
@@ -110,7 +126,7 @@ data class ScheduleCheckTeam(
 data class ScheduleCheckResponse(val teams: List<ScheduleCheckTeam>)
 
 /**
- * The check's item rules, checked after the guard (the team set is already shaped, [validateTeamIds]): 1..[MAX_RUN_SCHEDULE_ITEMS]
+ * The check's item rules, checked after the teams' 404 (the team set is already shaped, [validateTeamIds]): 1..[MAX_RUN_SCHEDULE_ITEMS]
  * items, no milestone twice, each through [validateSchedule] (a 400 names the failing item's index).
  */
 fun validateScheduleCheck(request: ScheduleCheckRequest): List<ValidatedBatchItem> =

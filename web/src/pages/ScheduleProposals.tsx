@@ -27,7 +27,7 @@ const MAX_TEAMS = 50;
 
 /**
  * Schedule proposals (`/schedule-proposals`, 1.8): ONE proposal over several teams. The multi-select offers the teams the SERVER says the caller
- * may include (`GET /schedule-proposals/teams`: an administrator's are all, a manager's their own; the server's 403 on the run stays the rule).
+ * may accept (`GET /schedule-proposals/teams`: an administrator's are all, a manager's their own; the run is open to every login since 1.33).
  * Propose places the teams in dependency order, each with the teams placed before it as fixed dates, until the dates stop changing; the page
  * reads that run, never recomputes it: a section per team in placement order (its table and, collapsed, its load), the facts line (passes,
  * settled or not), and ONE accept for the ticked moves of every section - one plan write. While only some moves are ticked the server checks

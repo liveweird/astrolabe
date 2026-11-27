@@ -20,6 +20,7 @@ import ch.nokillswit.planning.TeamScheduleBatchRequest
 import ch.nokillswit.planning.TeamScheduleBatchResponse
 import ch.nokillswit.plugins.ProblemDetail
 import ch.nokillswit.teams.TeamUpdateRequest
+import ch.nokillswit.users.UserRole
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
@@ -36,8 +37,9 @@ import kotlin.test.assertTrue
 /**
  * `POST /schedule-proposals/accept` (1.8.0): the accept of a cross-team run over the wire - N teams' schedule PUTs in ONE plan write,
  * ONE bump, under a run-level `scopeHash`. The kernel is `CrossTeamKernelsTest`, the run is `CrossTeamProposalTest`; these tests pin the
- * order of the checks over a body-listed team SET (body, shape 400, every team active else 404, every team managed else 403, the rest
- * of the shape 400, then under the lock every team locked and re-guarded, the two 409s, the per-item rules), the sweep over EVERY run
+ * order of the checks over a body-listed team SET (body, shape 400 of the run and of `acceptTeamIds` (1.33.0: the teams written, absent
+ * = the run's), every RUN team active else 404, every ACCEPT team managed else 403, the rest of the shape 400, then under the lock every
+ * run team locked and every accept team re-guarded, the two 409s over the whole run, the per-item rules), the sweep over EVERY run
  * team, the cross-refusal of the per-team and the run hash, and the audit. 2027-01-31 is a Sunday (`asOf`); 10 MD a week is 2 MD a day.
  */
 class CrossTeamAcceptTest {
@@ -65,7 +67,12 @@ class CrossTeamAcceptTest {
         items: List<TeamScheduleBatchItem> = run.items(),
         hash: String = run.scopeHash,
         revision: Long = run.revision,
-    ): HttpResponse = postJson(acceptPath, CrossTeamAcceptRequest(revision, hash, teamIds, items))
+        acceptTeamIds: List<UInt>? = null,
+    ): HttpResponse = postJson(acceptPath, CrossTeamAcceptRequest(revision, hash, teamIds, items, acceptTeamIds))
+
+    /** The moves of ONE run team as batch items: what a viewer who may accept only that team ticks. */
+    private fun CrossTeamProposal.itemsOf(teamId: UInt) =
+        teams.single { it.teamId == teamId }.moves.map { TeamScheduleBatchItem(it.milestoneId, it.to.start, it.to.end) }
 
     private suspend fun HttpResponse.result(): TeamScheduleBatchResponse = body()
 
@@ -335,13 +342,16 @@ class CrossTeamAcceptTest {
             val r = runWorld("ctw")
             val admin = r.w.admin.client
             val a1Only = listOf(item(r.a1, "2027-02-01", "2027-02-02"))
+            var cases = 0
 
             // Each case: a fresh run, ONE change by somebody else, then an accept of a1 alone (team B has NO item): 409 stale-scope.
+            // A login of its own per case: one login's run + accept pairs would pass the 30 a minute of the run bucket.
             suspend fun refused(label: String, change: suspend () -> Unit) {
-                val run = admin.run(r.both)
+                val caller = seededClient("ctw-${cases++}", UserRole.ADMIN)
+                val run = caller.run(r.both)
                 change()
                 val revision = TestPlan.revision()
-                admin.accept(run, r.both, a1Only).assertConflict(STALE_SCOPE_PROBLEM)
+                caller.accept(run, r.both, a1Only).assertConflict(STALE_SCOPE_PROBLEM)
                 assertEquals("2027-03-01" to "2027-03-02", datesOf(r.a1), "$label: nothing written")
                 assertEquals(revision, TestPlan.revision(), "$label: no bump")
             }
@@ -551,5 +561,208 @@ class CrossTeamAcceptTest {
         assertEquals(notFound, response.status, "every team is re-read and locked under the plan lock")
         assertEquals(revision, TestPlan.revision())
         assertEquals("2027-03-01" to "2027-03-02", datesOf(r.a1))
+    }
+
+    @Test
+    fun `an absent acceptTeamIds is the whole run, the 1_8 contract - a manager of one run team is refused, the full set is the same`() =
+        testApplication {
+            val r = runWorld("ctz")
+            val admin = r.w.admin.client
+            val run = admin.run(r.both)
+            val revision = TestPlan.revision()
+            assertEquals(forbidden, r.t.manager.client.accept(run, r.both).status, "absent: every run team must be managed")
+            assertEquals(forbidden, r.t.manager.client.accept(run, r.both, acceptTeamIds = r.both).status, "naming the set is the same")
+            assertEquals(revision, TestPlan.revision())
+
+            val response = admin.accept(run, r.both, acceptTeamIds = r.both.reversed())
+            assertEquals(ok, response.status)
+            assertEquals(run.items().map { it.milestoneId }, response.result().accepted, "the full set writes every team's items")
+            assertEquals("2027-02-03" to "2027-02-03", datesOf(r.b1))
+        }
+
+    @Test
+    fun `the manager of one run team accepts only their own rows - one bump, one audit line, the other team's items are NOT_ON_TEAM`() =
+        testApplication {
+            val r = runWorld("ctm1")
+            val run = r.t.manager.client.run(r.both) // anyone may run any teams since 1.33.0
+            val before = TestPlan.revision()
+            val b2Before = datesOf(r.b2)
+            assertTrue(run.itemsOf(r.t.otherTeamId).isNotEmpty() && r.a1 in run.itemsOf(r.t.teamId).map { it.milestoneId })
+            withAuditCapture { capture ->
+                val response = r.t.manager.client.accept(run, r.both, acceptTeamIds = listOf(r.t.teamId))
+                assertEquals(ok, response.status)
+                val body = response.result()
+                assertEquals(before + 1, body.revision, "ONE bump")
+                assertEquals(run.itemsOf(r.t.teamId).map { it.milestoneId }, body.accepted, "only team A's rows")
+                val others = run.items().map { it.milestoneId }.filter { it !in body.accepted }
+                assertEquals(others.map { SkippedSchedule(it, NOT_ON_TEAM) }, body.skipped, "team B's rows are not this caller's to move")
+                assertEquals("2027-02-01" to "2027-02-02", datesOf(r.a1))
+                assertEquals(null to null, datesOf(r.b1), "B's b1 is untouched")
+                assertEquals(b2Before, datesOf(r.b2))
+
+                val lines = capture.events.filter { it.message == "team.schedule_batch_applied" }
+                val line = lines.single()
+                assertTrue(line.hasKeyValue("teamId", r.t.teamId.toLong()) && line.hasKeyValue("revisionTo", body.revision))
+                assertTrue(line.hasKeyValue("runTeamIds", r.both.sorted().joinToString(",")), "the run's whole sorted set")
+                assertTrue(line.hasKeyValue("acceptedIds", "${r.a1}") && line.hasKeyValue("skippedCount", 0), "A's own rows only")
+                val scheduled = capture.events.filter { it.message == "milestone.scheduled" }
+                assertEquals(listOf(r.a1.toLong()), scheduled.map { e -> e.keyValuePairs.single { it.key == "milestoneId" }.value })
+            }
+        }
+
+    @Test
+    fun `the accept lines are one per ACCEPT team in ascending order - the run's other teams have none`() = testApplication {
+        val r = runWorld("ctm2")
+        val idle = TestTeams.seed(planName("ctm2-idle"), null)
+        TestPlan.capacityPeriod(idle, "2027-01-04", 10.0)
+        TestPlan.schedule(TestPlan.milestone(r.w.projectId, idle), "2027-02-01", "2027-02-05")
+        val teams = r.both + idle
+        val admin = r.w.admin.client
+        val run = admin.run(teams)
+        val accept = listOf(r.t.otherTeamId, r.t.teamId) // not ascending on purpose
+        withAuditCapture { capture ->
+            assertEquals(ok, admin.accept(run, teams, acceptTeamIds = accept).status)
+            val lines = capture.events.filter { it.message == "team.schedule_batch_applied" }
+            assertEquals(accept.sorted().map { it.toLong() }, lines.map { l -> l.keyValuePairs.single { it.key == "teamId" }.value })
+            assertTrue(lines.all { it.hasKeyValue("runTeamIds", teams.sorted().joinToString(",")) })
+        }
+    }
+
+    @Test
+    fun `an acceptTeamIds naming a team the caller does not manage is 403 and nothing is written, a stranger gets 403 for any`() =
+        testApplication {
+            val r = runWorld("ctm3")
+            val run = r.w.admin.client.run(r.both)
+            val revision = TestPlan.revision()
+            val own = listOf(r.t.teamId)
+            assertEquals(forbidden, r.t.manager.client.accept(run, r.both, acceptTeamIds = r.both).status, "one managed, one not")
+            assertEquals(forbidden, r.t.manager.client.accept(run, r.both, acceptTeamIds = listOf(r.t.otherTeamId)).status, "the other")
+            assertEquals(forbidden, r.t.otherManager.client.accept(run, r.both, acceptTeamIds = own).status)
+            for (caller in listOf(r.w.stranger, r.w.projectOwner, r.w.personless, r.w.editor)) {
+                assertEquals(forbidden, caller.client.accept(run, r.both, acceptTeamIds = own).status)
+            }
+            assertEquals(null to null, datesOf(r.b1))
+            assertEquals("2027-03-01" to "2027-03-02", datesOf(r.a1))
+            assertEquals(revision, TestPlan.revision(), "nothing written, no bump")
+        }
+
+    @Test
+    fun `a malformed acceptTeamIds is 400 before the guard - empty, twice, outside the run, over 50 - a stranger's bad items stay 403`() =
+        testApplication {
+            val r = runWorld("ctm4")
+            val run = r.w.admin.client.run(r.both)
+            val revision = TestPlan.revision()
+            for ((label, client) in listOf("manager" to r.t.manager.client, "stranger" to r.w.stranger.client)) {
+                val ids = mapOf<String, List<UInt>>(
+                    "empty" to emptyList(), "a team twice" to listOf(r.t.teamId, r.t.teamId), "outside the run" to listOf(r.outside),
+                    "one of the run and one outside" to listOf(r.t.teamId, r.outside), "unknown" to listOf(999999u),
+                    "51 teams" to (1u..51u).toList(),
+                )
+                for ((what, accept) in ids) {
+                    assertEquals(badRequest, client.accept(run, r.both, acceptTeamIds = accept).status, "$what: $label")
+                }
+            }
+            assertEquals(forbidden, r.w.stranger.client.accept(run, r.both, emptyList(), acceptTeamIds = listOf(r.t.teamId)).status)
+            assertEquals(badRequest, r.t.manager.client.accept(run, r.both, emptyList(), acceptTeamIds = listOf(r.t.teamId)).status)
+            assertEquals(notFound, r.w.admin.client.accept(run, r.both + 999999u, acceptTeamIds = r.both).status, "a missing RUN team")
+            assertEquals(revision, TestPlan.revision())
+        }
+
+    @Test
+    fun `after one manager accepts their part another open copy of the run is a 409 stale-scope - a fresh run then lands`() =
+        testApplication {
+            val r = runWorld("ctm5")
+            val run = r.w.admin.client.run(r.both)
+            val a = r.t.manager.client.accept(run, r.both, run.itemsOf(r.t.teamId), acceptTeamIds = listOf(r.t.teamId))
+            assertEquals(ok, a.status)
+            val revision = TestPlan.revision()
+            val stale = r.t.otherManager.client.accept(run, r.both, run.itemsOf(r.t.otherTeamId), acceptTeamIds = listOf(r.t.otherTeamId))
+            stale.assertConflict(STALE_SCOPE_PROBLEM)
+            assertEquals(null to null, datesOf(r.b1))
+            assertEquals(revision, TestPlan.revision(), "refused, nothing written")
+
+            val fresh = r.t.otherManager.client.run(r.both)
+            val b = r.t.otherManager.client.accept(fresh, r.both, fresh.itemsOf(r.t.otherTeamId), acceptTeamIds = listOf(r.t.otherTeamId))
+            assertEquals(ok, b.status)
+            assertTrue(datesOf(r.b1).first != null, "b1 now follows a1's accepted date")
+            assertEquals(datesOf(r.a1), "2027-02-01" to "2027-02-02")
+        }
+
+    @Test
+    fun `a rescheduled row of a run team outside the accept set is 409 stale-scope even when the caller lists it`() = testApplication {
+        val r = runWorld("ctm6")
+        val run = r.w.admin.client.run(r.both)
+        assertTrue(r.b1 in run.itemsOf(r.t.otherTeamId).map { it.milestoneId }, "b1 is a move of team B")
+        TestPlan.schedule(r.b1, "2027-02-03", "2027-02-03") // team B's manager drags it after the run
+        val revision = TestPlan.revision()
+
+        val listed = r.t.manager.client.accept(run, r.both, run.items(), acceptTeamIds = listOf(r.t.teamId))
+        listed.assertConflict(STALE_SCOPE_PROBLEM)
+        r.t.manager.client.accept(run, r.both, run.itemsOf(r.t.teamId), acceptTeamIds = listOf(r.t.teamId))
+            .assertConflict(STALE_SCOPE_PROBLEM)
+        assertEquals(revision, TestPlan.revision(), "refused, nothing written")
+        assertEquals("2027-03-01" to "2027-03-02", datesOf(r.a1))
+
+        // The whole-run accept still treats a dragged ITEM as the per-item STALE, not as a refusal.
+        val whole = r.w.admin.client.accept(run, r.both)
+        assertEquals(ok, whole.status)
+        assertTrue(whole.result().skipped.any { it.milestoneId == r.b1 && it.reason == STALE })
+    }
+
+    @Test
+    fun `a manager cleared from an ACCEPT team while held is 403 - re-guarded under the lock, nothing written`() = testApplication {
+        val r = runWorld("cth3")
+        val both = twoTeamManager("cth3")
+        val first = TestPlan.milestone(r.w.projectId, both.first)
+        TestPlan.milestone(r.w.projectId, both.second)
+        val teams = listOf(both.first, both.second)
+        val run = both.caller.client.run(teams)
+        val revision = TestPlan.revision()
+
+        val refused = requestHeldAtPlanLock(
+            { both.caller.client.accept(run, teams, run.itemsOf(both.first), acceptTeamIds = listOf(both.first)) },
+            { it.exec("UPDATE teams SET manager_person_id = NULL WHERE id = ?", both.first.toInt()) },
+        )
+        assertEquals(forbidden, refused.status, "the accept team is re-guarded under the lock")
+        assertEquals(revision, TestPlan.revision())
+        assertEquals(null to null, datesOf(first))
+    }
+
+    @Test
+    fun `a manager cleared from a run team OUTSIDE the accept set while held still lands - a premise`() = testApplication {
+        val r = runWorld("cth5")
+        val both = twoTeamManager("cth5")
+        TestPlan.milestone(r.w.projectId, both.first)
+        val second = TestPlan.milestone(r.w.projectId, both.second)
+        val teams = listOf(both.first, both.second)
+        val run = both.caller.client.run(teams)
+        val revision = TestPlan.revision()
+
+        // Both teams are managed when the request starts; the held mutation is the ONLY thing that clears the first team's manager.
+        val landed = requestHeldAtPlanLock(
+            { both.caller.client.accept(run, teams, run.itemsOf(both.second), acceptTeamIds = listOf(both.second)) },
+            { it.exec("UPDATE teams SET manager_person_id = NULL WHERE id = ?", both.first.toInt()) },
+        )
+        assertEquals(ok, landed.status, "the first team is a premise: its manager no longer matters")
+        assertEquals(revision + 1, TestPlan.revision())
+        assertTrue(datesOf(second).first != null)
+    }
+
+    @Test
+    fun `a run team outside the accept set deleted while held is 404 - it is still locked and checked active`() = testApplication {
+        val r = runWorld("cth4")
+        val both = twoTeamManager("cth4")
+        val first = TestPlan.milestone(r.w.projectId, both.first)
+        TestPlan.milestone(r.w.projectId, both.second)
+        val teams = listOf(both.first, both.second)
+        val run = both.caller.client.run(teams)
+        val revision = TestPlan.revision()
+        val response = requestHeldAtPlanLock(
+            { both.caller.client.accept(run, teams, run.itemsOf(both.first), acceptTeamIds = listOf(both.first)) },
+            { it.exec("UPDATE teams SET marked_as_deleted = TRUE WHERE id = ?", both.second.toInt()) },
+        )
+        assertEquals(notFound, response.status)
+        assertEquals(revision, TestPlan.revision())
+        assertEquals(null to null, datesOf(first))
     }
 }

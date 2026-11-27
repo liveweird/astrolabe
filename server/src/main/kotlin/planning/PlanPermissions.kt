@@ -110,7 +110,7 @@ object PlanPermissions {
     fun canEditTeamOrder(actor: PlanActor, teamId: UInt): Boolean = canSchedule(actor, teamId)
 
     /**
-     * A team SET in a body or a stored proposal (`POST /schedule-proposals*`, the saved proposals' save and delete): ADMIN, or the
+     * A team SET in a body or a stored proposal (the accept's `acceptTeamIds`, the saved proposals' save and delete): ADMIN, or the
      * ACTIVE manager of EVERY team (`requireTeamManagerOfAllOrAdmin`), [canSchedule] over each member; an empty set passes, as there.
      */
     fun canScheduleAll(actor: PlanActor, teamIds: Collection<UInt>): Boolean =

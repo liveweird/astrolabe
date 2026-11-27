@@ -63,9 +63,9 @@ internal class RateLimitAuditThrottle(
 }
 
 /**
- * Every token bucket the routes ride (per client IP, except [TELEMETRY], [JIRA_BIND], [JIRA_IMPORT], [PASSWORD_CHANGE], [SYNC_RUN]
- * and [SCHEDULE_PROPOSAL_SAVE]: per signed-in user), named in one place so a feature module never has to know another's
- * constant (the auth module used to import the try-it bucket's name — a layering inversion the checkup removed). Route files
+ * Every token bucket the routes ride (per client IP, except [TELEMETRY], [JIRA_BIND], [JIRA_IMPORT], [PASSWORD_CHANGE], [SYNC_RUN],
+ * [SCHEDULE_PROPOSAL_SAVE] and [SCHEDULE_PROPOSAL_RUN]: per signed-in user), named in one place so a feature module never has to
+ * know another's constant (the auth module used to import the try-it bucket's name — a layering inversion the checkup removed). Route files
  * reference these names; only this plugin installs them.
  */
 object RateLimits {
@@ -136,6 +136,14 @@ object RateLimits {
      * guard and a refused save spends a token too.
      */
     const val SCHEDULE_PROPOSAL_SAVE = "schedule-proposal-save"
+    /**
+     * `POST /api/v1/schedule-proposals` (the run) and `POST /api/v1/schedule-proposals/accept` (`planning/CrossTeamScheduleRoutes.kt`):
+     * 30/min per SIGNED-IN USER in every mode, ONE bucket for the two (both run the cross-team kernel, the accept under the plan lock on
+     * its look-again path). Since 1.33 any login may run any team set, so one account is bounded. The check rides none (debounced,
+     * view-class cost). A bucket bounds the rate, not the concurrency. It rides the route node: it runs before the guard and the body,
+     * and a refused call spends a token too.
+     */
+    const val SCHEDULE_PROPOSAL_RUN = "schedule-proposal-run"
 
     const val DEFAULT_REFRESH_PER_MINUTE = 30
     /**
@@ -151,6 +159,7 @@ object RateLimits {
     private const val PASSWORD_CHANGE_PER_MINUTE = 10
     private const val SYNC_RUN_PER_MINUTE = 10
     private const val SCHEDULE_PROPOSAL_SAVE_PER_MINUTE = 10
+    private const val SCHEDULE_PROPOSAL_RUN_PER_MINUTE = 30
     private const val MFA_PER_MINUTE = 10
     private const val PASSWORD_RESET_CONFIRM_PER_MINUTE = 10
     private const val JIRA_TEST_PER_MINUTE = 10
@@ -187,6 +196,7 @@ object RateLimits {
     internal fun passwordChangeLimit() = PASSWORD_CHANGE_PER_MINUTE
     internal fun syncRunLimit() = SYNC_RUN_PER_MINUTE
     internal fun scheduleProposalSaveLimit() = SCHEDULE_PROPOSAL_SAVE_PER_MINUTE
+    internal fun scheduleProposalRunLimit() = SCHEDULE_PROPOSAL_RUN_PER_MINUTE
     internal fun mfaLimit() = MFA_PER_MINUTE
     internal fun passwordResetConfirmLimit() = PASSWORD_RESET_CONFIRM_PER_MINUTE
     /** The shipped manifests keep 10; the e2e stacks (compose, the OrbStack overlay) pin 30. Capped at 100: each call fans out to Jira. */
@@ -265,6 +275,7 @@ internal fun Application.perUserBuckets(): Map<String, Int> = with(RateLimits) {
         PASSWORD_CHANGE to passwordChangeLimit(),
         SYNC_RUN to syncRunLimit(),
         SCHEDULE_PROPOSAL_SAVE to scheduleProposalSaveLimit(),
+        SCHEDULE_PROPOSAL_RUN to scheduleProposalRunLimit(),
     )
 }
 

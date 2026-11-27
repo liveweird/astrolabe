@@ -574,7 +574,7 @@ Pinned by: `BaselineTest`, `BaselineCopyTest`, `BaselineCaptureTest`, `BaselineC
 
 - `POST /teams/{id}/milestone-schedules` takes `{expectedRevision, items[1..1000], scopeHash?}` and answers `{revision, accepted[], skipped[{milestoneId, reason}]}`: a per-item failure is data in `200`.
 - `POST /teams/{id}/schedule-proposal` and `POST /schedule-proposals` (`{asOf, teamIds[1..50]}`, `teams[]` at most 50) answer one document each; so do the Jira import's preview and apply (`items[1..2,000]`).
-- `POST /schedule-proposals/accept` takes `{expectedRevision, scopeHash, teamIds, items[1..2,000]}` and answers the batch's `{revision, accepted[], skipped[]}`; `POST /schedule-proposals/check` takes `{teamIds, items}` and answers per team `{weeks, dependencies}`.
+- `POST /schedule-proposals/accept` takes `{expectedRevision, scopeHash, teamIds, acceptTeamIds?, items[1..2,000]}` and answers the batch's `{revision, accepted[], skipped[]}`; `POST /schedule-proposals/check` takes `{teamIds, items}` and answers per team `{weeks, dependencies}`.
 
 ### Measured figures
 

@@ -56,26 +56,29 @@ class TeamScheduleService(private val database: R2dbcDatabase) {
     /**
      * The cross-team accept (1.8.0, `POST /schedule-proposals/accept`): [request]'s items are written in ONE plan write for the run's
      * team SET, ONE revision bump. In this order: the whole-request shape is validated (400, before the lock) -> under the plan lock,
-     * every team of the set in ascending id order is re-read and locked `FOR SHARE` ([lockActiveTeam], gone = 404) and re-guarded by
-     * [guard] (the caller as of the lock must be ADMIN or the ACTIVE manager of EVERY team: 403, nothing written, no bump) -> the
+     * every RUN team in ascending id order is re-read and locked `FOR SHARE` ([lockActiveTeam], gone = 404) and each team of the ACCEPT
+     * set (`acceptTeamIds`, else the run's) re-guarded by [guard] (the caller as of the lock must be ADMIN or the ACTIVE manager of
+     * EVERY accept team: 403, nothing written, no bump; a manager cleared from a run team outside it changes nothing) -> the
      * `expectedRevision` above the plan revision is a 409 `stale-revision` -> [requireRunScopeUnchanged] (a 409 `stale-scope`: the
      * run's structure digest, recomputed with the teams' CURRENT names, differs, or ANY milestone of ANY run team that is not an item
      * was scheduled after `expectedRevision`, or only the holidays changed and the run proposed again would not give the items their
-     * dates) -> per item, in body order, the first of GONE / NOT_ON_TEAM (its STORED team is outside the
-     * set) / NO_WORKING_DAY / STALE skips it and the rest are written ([decideItems], the per-team batch's rules). An all-skipped
+     * dates; both over the whole RUN) -> per item, in body order, the first of GONE / NOT_ON_TEAM (its STORED
+     * team is outside the ACCEPT set) / NO_WORKING_DAY / STALE skips it and the rest are written ([decideItems], the per-team batch's
+     * rules). An all-skipped
      * accept bumps like the batch. The 409 and 403 are whole-request: the transaction rolls back.
      */
     suspend fun acceptRun(request: CrossTeamAcceptRequest, guard: TeamGuard): TeamBatchOutcome {
         val items = validateCrossTeamAccept(request)
         val teamIds = request.teamIds.sorted()
+        val acceptIds = validateAcceptTeamIds(request.acceptTeamIds, request.teamIds).toSet()
         val write = database.withPlanWrite { revision ->
             for (teamId in teamIds) {
                 lockActiveTeam(teamId)
-                guard(teamId)
+                if (teamId in acceptIds) guard(teamId)
             }
             if (request.expectedRevision > revision) throw staleRevision(request.expectedRevision, "reload the proposal")
-            val snapshot = requireRunScopeUnchanged(teamIds, request.expectedRevision, items, request.scopeHash)
-            val decided = decideItems(items, teamIds.toSet(), request.expectedRevision, snapshot.calendar)
+            val snapshot = requireRunScopeUnchanged(teamIds, acceptIds, request.expectedRevision, items, request.scopeHash)
+            val decided = decideItems(items, acceptIds, request.expectedRevision, snapshot.calendar)
             writeSchedules(decided.toWrite, revision + 1)
             decided
         }
@@ -130,10 +133,14 @@ class TeamScheduleService(private val database: R2dbcDatabase) {
      * the movable ones AND the fixed ones (started, pinned), whose spans are deliberately NOT in the run's hash - may carry a
      * `schedule_revision` above [expectedRevision] ([reschedulesOutsideBatch]: a colleague's drag, or a new milestone). Either is a
      * 409 `stale-scope`. A per-team hash never matches (another definition of "foreign"). When only the holidays part differs the
-     * check looks again ([lookedAgain]: the run once, on this very snapshot). Returns the snapshot (its calendar is the accept's).
+     * check looks again ([lookedAgain]: the run once, on this very snapshot). Only an item whose STORED team is among [acceptIds] is
+     * exempt from the sweep (the accept may write it, a dragged one is the per-item STALE): a rescheduled row of any other run team
+     * is a `409` even when the caller lists it (it would be skipped `NOT_ON_TEAM`, and the run's premise changed). Returns the
+     * snapshot (its calendar is the accept's).
      */
     private suspend fun requireRunScopeUnchanged(
         teamIds: List<UInt>,
+        acceptIds: Set<UInt>,
         expectedRevision: Long,
         items: List<ValidatedBatchItem>,
         hash: String,
@@ -144,8 +151,10 @@ class TeamScheduleService(private val database: R2dbcDatabase) {
         val snapshot = loadCrossTeamSnapshot(names)
         val token = ScopeToken(hash)
         val digests = snapshot.scopeDigests()
+        val stored = storedSchedules(items.map { it.milestoneId })
+        val exempt = items.map { it.milestoneId }.filter { stored[it]?.teamId in acceptIds }
         val stale = digests.structure != token.digests.structure ||
-            reschedulesOutsideBatch(teamIds, expectedRevision, items.map { it.milestoneId }) ||
+            reschedulesOutsideBatch(teamIds, expectedRevision, exempt) ||
             (digests.holidays != token.digests.holidays && !lookedAgain(token, items) { asOf -> snapshot.freshSpans(asOf) })
         if (stale) {
             throw ConflictException(

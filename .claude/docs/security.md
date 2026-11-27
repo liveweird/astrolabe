@@ -347,6 +347,7 @@ with the generic `429` problem, `Retry-After` and the coalesced `rate_limit.exce
 | `password-change` | user | 10/min every mode | `RateLimits.PASSWORD_CHANGE` |
 | `sync-run` | user | 10 per fixed 60 s window, every mode | no config key |
 | `schedule-proposal-save` | user | 10/min every mode | `RateLimits.SCHEDULE_PROPOSAL_SAVE` |
+| `schedule-proposal-run` | user | 30/min, run + accept | no config key |
 
 ### Per-IP buckets
 
@@ -408,6 +409,7 @@ both registration loops in `plugins/RateLimits.kt` apply (a new bucket inherits 
   at its next tick (`SchedulePolicy`: the connection's `changedAt` is newer than its newest run); that run is ADMIN-only (so is the
   edit), at most one per tick per connection, and a scheduled run re-asks an answered readable gone item at most once per
   `jira.censusHours`. Tests: `SyncRunBucketTest`.
+- **`schedule-proposal-run`**: per user, ahead of body and guard; ONE bucket for the run and the accept (both run the kernel, the accept under the lock via the look-again path); the check has none. Rate, not concurrency (`BACKLOG.md`).
 
 ### The Jira import bucket
 

@@ -50,8 +50,8 @@ suspend fun requireTeamManagerOrAdmin(
 }
 
 /**
- * ADMIN, or the ACTIVE manager of EVERY team in [teamIds] (the cross-team schedule run, `POST /schedule-proposals`): the first team the
- * caller does not manage fails the whole set with the single-team guard's own words, so the 403 is uniform. DB-free: [managedTeamIds]
+ * ADMIN, or the ACTIVE manager of EVERY team in [teamIds] (the cross-team accept's `acceptTeamIds`, the save's team set): the first team
+ * the caller does not manage fails the whole set with the single-team guard's own words, so the 403 is uniform. DB-free: [managedTeamIds]
  * is the injected `TeamService.activeManagedTeamIds` lookup, asked ONCE per request after the ADMIN short-circuit (the set arrives in
  * a body, so there is no per-team path id to ask [requireTeamManagerOrAdmin] about N times). A lookup failure propagates (fails
  * closed). An empty [teamIds] passes vacuously - the route's shape check (`validateTeamIds`) refuses it first. READ-BEFORE-GUARD like

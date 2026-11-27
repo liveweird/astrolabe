@@ -18,7 +18,8 @@ internal fun staleRevision(expectedRevision: Long, advice: String) = ConflictExc
 /**
  * Whether an ACTIVE milestone of ANY of [teamIds] that is not among [batchIds] was scheduled after [expectedRevision] (a colleague's
  * drag, or a new milestone), inside the caller's transaction. "Active" is `milestoneChain`'s: the milestone and its project, program
- * and work stream. The cross-team accept passes the items it writes as [batchIds]; the proposal save and a saved proposal's `state`
+ * and work stream. The cross-team accept passes as [batchIds] only the items whose stored team is in its accept set (a listed
+ * row of another run team still counts); the proposal save and a saved proposal's `state`
  * pass none (any later reschedule of a run team's milestone counts).
  */
 internal suspend fun reschedulesOutsideBatch(teamIds: Collection<UInt>, expectedRevision: Long, batchIds: List<UInt>): Boolean {

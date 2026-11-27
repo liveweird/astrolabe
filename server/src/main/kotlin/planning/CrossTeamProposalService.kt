@@ -17,7 +17,7 @@ val CrossTeamProposalServiceKey = AttributeKey<CrossTeamProposalService>("CrossT
 private const val MAX_RUNNABLE_TEAMS = 1_000
 
 /**
- * The cross-team schedule run (1.8.0, `POST /schedule-proposals`) and the teams a caller may include in one: reads, no lock, no audit.
+ * The cross-team schedule run (1.8.0, `POST /schedule-proposals`) and the teams whose moves a caller may accept: reads, no lock, no audit.
  * Reads `Teams`, the plan tables, `RoadmapEntries`, the order tables, `CapacityPeriods`, `Dependencies` and `PublicHolidays` (the
  * per-team proposal's tables, `ScheduleProposalService`), writes nothing.
  */
@@ -63,9 +63,9 @@ class CrossTeamProposalService(private val database: R2dbcDatabase) {
         }
 
     /**
-     * The ACTIVE teams [actor] may include in a run, by name (case-insensitive, then id): every active team for an ADMIN, otherwise the
-     * ones [PlanPermissions.canSchedule] allows (the actor must have been built with its managed teams). The page's multi-select; the
-     * server's 403 on `POST /schedule-proposals` stays the rule.
+     * The ACTIVE teams whose proposed moves [actor] may accept, by name (case-insensitive, then id): every active team for an ADMIN,
+     * otherwise the ones [PlanPermissions.canSchedule] allows (the actor must have been built with its managed teams). Anyone may run
+     * any teams; the accept's 403 stays the rule.
      */
     suspend fun runnableTeams(actor: PlanActor): ProposalTeamList = runnableTeams(actor, MAX_RUNNABLE_TEAMS)
 

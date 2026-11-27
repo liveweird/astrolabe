@@ -243,16 +243,24 @@ internal class PlanRouteDeps(
     }
 
     /**
-     * The read-before-guard preamble of a route whose team SET is in the body (the cross-team run): every id must name an ACTIVE team
-     * else a `404` for EVERY caller (it names the missing ids: ids are sequential and no secret), and only then must the caller be ADMIN
-     * or the ACTIVE manager of EVERY listed team (`requireTeamManagerOfAllOrAdmin`, one `activeManagedTeamIds` query) else a `403`.
-     * The 404 outranks the 403 whatever the caller manages. [teamIds] are already shape-validated (`validateTeamIds`).
+     * The read-before-guard half every body-listed team SET shares: every id must name an ACTIVE team else a `404` for EVERY caller (it
+     * names the missing ids: ids are sequential and no secret). [teamIds] are already shape-validated (`validateTeamIds`).
      */
-    suspend fun requireTeamManagers(caller: CallerPrincipal, teamIds: List<UInt>) {
+    suspend fun requireActiveTeams(teamIds: List<UInt>) {
         val active = teams.activeNamesAmong(teamIds).keys
         val missing = teamIds.filter { it !in active }
         if (missing.isNotEmpty()) throw NotFoundException("Team not found: ${missing.joinToString(", ")}")
-        requireTeamManagerOfAllOrAdmin(caller, teamIds, teams::activeManagedTeamIds)
+    }
+
+    /**
+     * The read-before-guard preamble of a write whose team SET is in the body (the cross-team save and accept): [requireActiveTeams]
+     * over [teamIds] (the 404 outranks the 403 whatever the caller manages), then the caller must be ADMIN or the ACTIVE manager of
+     * EVERY team of [managed] (`requireTeamManagerOfAllOrAdmin`, one `activeManagedTeamIds` query) else a `403`. [managed] is the
+     * whole set, except for the accept, which guards only the teams it writes.
+     */
+    suspend fun requireTeamManagers(caller: CallerPrincipal, teamIds: List<UInt>, managed: List<UInt> = teamIds) {
+        requireActiveTeams(teamIds)
+        requireTeamManagerOfAllOrAdmin(caller, managed, teams::activeManagedTeamIds)
     }
 
     /**

@@ -3,9 +3,12 @@ package ch.nokillswit.planning
 import ch.nokillswit.audit.audit
 import ch.nokillswit.authz.caller
 import ch.nokillswit.authz.orNotFound
+import ch.nokillswit.plugins.RateLimits
 import io.ktor.http.HttpStatusCode
 import io.ktor.resources.Resource
 import io.ktor.server.application.*
+import io.ktor.server.plugins.ratelimit.RateLimitName
+import io.ktor.server.plugins.ratelimit.rateLimit
 import io.ktor.server.request.receive
 import io.ktor.server.resources.get
 import io.ktor.server.resources.post
@@ -41,31 +44,35 @@ internal fun Route.crossTeamScheduleRoutes(d: PlanRouteDeps) {
 }
 
 /**
- * `POST /schedule-proposals`: the cross-team run, a COMPUTATION (`200`, no lock, no revision bump, NO audit event). The order, which
+ * `POST /schedule-proposals`: the cross-team run, a COMPUTATION (`200`, no lock, no revision bump, NO audit event). The per-USER
+ * `schedule-proposal-run` bucket (30 a minute, shared with the accept) rides the route node, so it answers `429` first. The order, which
  * differs from the per-team proposal's only where the set lives in the body:
  *  1. `call.receive` - the body decodes FIRST (a malformed body is a `400` even for a caller who would be refused: the team set to
  *     guard is IN it, so there is nothing to guard before it);
  *  2. [validateTeamIds] `400` (1..50 teams, none twice - the guard needs well-formed ids);
- *  3. [PlanRouteDeps.requireTeamManagers]: every team ACTIVE else `404` for EVERY caller (read-before-guard: ids are no secret), then
- *     ADMIN or the ACTIVE manager of EVERY team else `403` (the first failing guard wins);
- *  4. [validateAsOf] `400` - AFTER the guard, so a forbidden caller's malformed `asOf` stays `403`;
+ *  3. [PlanRouteDeps.requireActiveTeams]: every team ACTIVE else `404` for EVERY caller (ids are no secret). NO `403` since 1.33.0:
+ *     everything a run reads is readable by every login, so the document is the same whoever asks;
+ *  4. [validateAsOf] `400`;
  *  5. one read-only snapshot ([CrossTeamProposalService.propose]); a team deleted in the gap since step 3 is the same `404`.
  * Nothing is written, so there is no inner re-guard under a lock (the per-team proposal's rule).
  */
 private fun Route.runRoute(d: PlanRouteDeps) {
-    post<ScheduleProposalsRoute> {
-        val caller = call.caller()
-        val request = call.receive<CrossTeamProposalRequest>()
-        val teamIds = validateTeamIds(request.teamIds)
-        d.requireTeamManagers(caller, teamIds)
-        val asOf = validateAsOf(request.asOf)
-        call.respond(HttpStatusCode.OK, d.scheduling.crossTeam.propose(teamIds, asOf).orNotFound("Team"))
+    rateLimit(RateLimitName(RateLimits.SCHEDULE_PROPOSAL_RUN)) {
+        post<ScheduleProposalsRoute> {
+            call.caller() // any authenticated login (the claims are read); the document does not depend on who asks
+            val request = call.receive<CrossTeamProposalRequest>()
+            val teamIds = validateTeamIds(request.teamIds)
+            d.requireActiveTeams(teamIds)
+            val asOf = validateAsOf(request.asOf)
+            call.respond(HttpStatusCode.OK, d.scheduling.crossTeam.propose(teamIds, asOf).orNotFound("Team"))
+        }
     }
 }
 
 /**
- * `GET /schedule-proposals/teams`: the active teams the caller may include in a run - any authenticated caller, a read (no audit):
- * ADMIN every active team, otherwise the teams the caller currently manages (one query, `withManagedTeams`).
+ * `GET /schedule-proposals/teams`: the active teams whose proposed moves the caller may accept (since 1.33.0 anyone may run any team
+ * set) - any authenticated caller, a read (no audit): ADMIN every active team, otherwise the teams the caller currently manages (one
+ * query, `withManagedTeams`).
  */
 private fun Route.runnableTeamsRoute(d: PlanRouteDeps) {
     get<ScheduleProposalsRoute.Teams> {
@@ -75,61 +82,66 @@ private fun Route.runnableTeamsRoute(d: PlanRouteDeps) {
 }
 
 /**
- * `POST /schedule-proposals/accept`: the accept of a run, N teams' schedule PUTs in ONE plan write. The order of the checks is the run's
- * (the team SET is in the body) with the batch's write half: the body decodes FIRST (`400`, a missing `scopeHash` included), then
- * [validateTeamIds] `400`, then [PlanRouteDeps.requireTeamManagers] (every team ACTIVE else `404` for EVERY caller, then ADMIN or the
- * ACTIVE manager of EVERY team else `403`: a forbidden caller's malformed items stay `403`), then [TeamScheduleService.acceptRun]: the
- * rest of the shape `400` before the lock, and under the plan lock every team locked and re-guarded ([PlanRouteDeps.teamManagerGuard]),
- * the `409`s, the per-item rules. Answers the per-team batch's `{revision, accepted, skipped}`.
+ * `POST /schedule-proposals/accept`: the accept of a run, N teams' schedule PUTs in ONE plan write. The shared `schedule-proposal-run`
+ * bucket rides the route node (`429` first; the look-again path runs the kernel under the lock). The order of the checks: the body
+ * decodes FIRST (`400`, a missing `scopeHash` included), [validateTeamIds] `400`, [validateAcceptTeamIds] `400` (the teams whose moves
+ * are written, 1..50, each once, each in the run; absent = the run's), [PlanRouteDeps.requireTeamManagers] (every RUN team ACTIVE else
+ * `404` for EVERY caller, then ADMIN or the ACTIVE manager of EVERY ACCEPT team else `403`: a forbidden caller's malformed items stay
+ * `403`), then [TeamScheduleService.acceptRun]: the rest of the shape `400` before the lock, and under the plan lock every run team
+ * locked and each accept team re-guarded ([PlanRouteDeps.teamManagerGuard]), the `409`s (over the whole run), the per-item rules (an
+ * item of a team outside the accept set is `NOT_ON_TEAM`). Answers the per-team batch's `{revision, accepted, skipped}`.
  *
  * Audit, after the commit (a 4xx emits nothing of its own, a 403 is the central `authz.denied`): `milestone.scheduled` per accepted
  * item whose dates changed, with the item's STORED team, `milestone.unpinned` per released pin ([auditScheduledItems]), and ONE
- * `team.schedule_batch_applied` PER TEAM of the set (ascending id) over the items whose stored team it is - a GONE or NOT_ON_TEAM item
- * has no run team and is in no line (the response carries it); a team with no item gets a zero line (the lock was taken on its
- * behalf) - each with the additive `runTeamIds` (the sorted set, comma-joined) so the N lines read as one accept.
+ * `team.schedule_batch_applied` PER ACCEPT team (ascending id) over the items whose stored team it is - a GONE or NOT_ON_TEAM item
+ * has no accept team and is in no line (the response carries it); a team with no item gets a zero line (the lock was taken on its
+ * behalf) - each with the additive `runTeamIds` (the run's sorted set, comma-joined) so the N lines read as one accept.
  */
 private fun Route.acceptRoute(d: PlanRouteDeps) {
-    post<ScheduleProposalsRoute.Accept> {
-        val caller = call.caller()
-        val request = call.receive<CrossTeamAcceptRequest>()
-        val teamIds = validateTeamIds(request.teamIds)
-        d.requireTeamManagers(caller, teamIds)
-        val outcome = d.scheduling.teamSchedule.acceptRun(request, d.teamManagerGuard(caller))
-        auditScheduledItems(caller.userId, outcome)
-        val runTeamIds = teamIds.sorted()
-        for (teamId in runTeamIds) {
-            val accepted = outcome.accepted.filter { it.teamId == teamId }.map { it.milestoneId }.sorted()
-            val skipped = outcome.skipped.filter { outcome.storedTeams[it.milestoneId] == teamId }.map { it.milestoneId }.sorted()
-            audit(
-                "team.schedule_batch_applied",
-                "byUserId" to caller.userId.toLong(),
-                "teamId" to teamId.toLong(),
-                "revisionTo" to outcome.revision,
-                "acceptedCount" to accepted.size,
-                "skippedCount" to skipped.size,
-                "acceptedIds" to accepted.joinToString(","),
-                "skippedIds" to skipped.joinToString(","),
-                "runTeamIds" to runTeamIds.joinToString(","),
-            )
+    rateLimit(RateLimitName(RateLimits.SCHEDULE_PROPOSAL_RUN)) {
+        post<ScheduleProposalsRoute.Accept> {
+            val caller = call.caller()
+            val request = call.receive<CrossTeamAcceptRequest>()
+            val teamIds = validateTeamIds(request.teamIds)
+            val acceptTeamIds = validateAcceptTeamIds(request.acceptTeamIds, teamIds)
+            d.requireTeamManagers(caller, teamIds, acceptTeamIds)
+            val outcome = d.scheduling.teamSchedule.acceptRun(request, d.teamManagerGuard(caller))
+            auditScheduledItems(caller.userId, outcome)
+            val runTeamIds = teamIds.sorted()
+            for (teamId in acceptTeamIds.sorted()) {
+                val accepted = outcome.accepted.filter { it.teamId == teamId }.map { it.milestoneId }.sorted()
+                val skipped = outcome.skipped.filter { outcome.storedTeams[it.milestoneId] == teamId }.map { it.milestoneId }.sorted()
+                audit(
+                    "team.schedule_batch_applied",
+                    "byUserId" to caller.userId.toLong(),
+                    "teamId" to teamId.toLong(),
+                    "revisionTo" to outcome.revision,
+                    "acceptedCount" to accepted.size,
+                    "skippedCount" to skipped.size,
+                    "acceptedIds" to accepted.joinToString(","),
+                    "skippedIds" to skipped.joinToString(","),
+                    "runTeamIds" to runTeamIds.joinToString(","),
+                )
+            }
+            call.respond(HttpStatusCode.OK, outcome.toResponse())
         }
-        call.respond(HttpStatusCode.OK, outcome.toResponse())
     }
 }
 
 /**
  * `POST /schedule-proposals/check`: the link verdicts and the weekly load of the run teams for the dates the ticked
  * [ScheduleCheckRequest.items] would give them - a COMPUTATION (`200`, one read-only snapshot, no lock, no revision bump, NO audit
- * event). The run's order of checks: the body decodes FIRST, [validateTeamIds] `400`, [PlanRouteDeps.requireTeamManagers] (every team
- * ACTIVE else `404`, then ADMIN or the ACTIVE manager of EVERY team else `403`), then the items' shape [validateScheduleCheck] `400` (a
- * forbidden caller's malformed items stay `403`), then [CrossTeamProposalService.check] (`400` for a milestone outside the run teams; a
- * team deleted in the gap since the guard is the same `404`). Nothing is written, so no inner re-guard under a lock.
+ * event). The run's order of checks: the body decodes FIRST, [validateTeamIds] `400`, [PlanRouteDeps.requireActiveTeams] (every team
+ * ACTIVE else `404`; NO `403` since 1.33.0, any login may ask), then the items' shape [validateScheduleCheck] `400`, then
+ * [CrossTeamProposalService.check] (`400` for a milestone outside the run teams; a team deleted in the gap since the guard is the same
+ * `404`). Nothing is written, so no inner re-guard under a lock.
  */
 private fun Route.checkRoute(d: PlanRouteDeps) {
     post<ScheduleProposalsRoute.Check> {
-        val caller = call.caller()
+        call.caller() // any authenticated login (the claims are read); the document does not depend on who asks
         val request = call.receive<ScheduleCheckRequest>()
         val teamIds = validateTeamIds(request.teamIds)
-        d.requireTeamManagers(caller, teamIds)
+        d.requireActiveTeams(teamIds)
         val items = validateScheduleCheck(request)
         call.respond(HttpStatusCode.OK, d.scheduling.crossTeam.check(teamIds, items).orNotFound("Team"))
     }
