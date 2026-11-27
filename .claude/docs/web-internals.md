@@ -2043,7 +2043,7 @@ keeps focus" through a real Move) and its `TeamDetails.pin|proposal|baseline|jir
 
 ## People
 
-Files: `pages/People.tsx`, `PersonDetails.tsx`; `components/PersonEditorModal.tsx`, `PersonSelect.tsx`, `UserSelect.tsx`, `SearchPicker.tsx`; `utils/peopleLinks.ts`; `api/people.ts`.
+Files: `pages/People.tsx`, `PersonDetails.tsx`; `components/PersonEditorModal.tsx`, `PersonResponsibilities.tsx`, `PersonSelect.tsx`, `UserSelect.tsx`, `SearchPicker.tsx`; `utils/peopleLinks.ts`, `personResponsibilities.ts`; `api/people.ts`.
 
 The people directory, a Teams clone under Administration after Teams, **visible to everyone** (reads are open, emails included): `useRegistryListControls` + `RegistryListTable` (Name link, Email,
 Login), ADMIN-only New/Edit/Delete through `PersonEditorModal` (name, optional email, optional Login via `UserSelect`, an ADMIN-only users search). A list row carries every field of the detail, so
@@ -2052,6 +2052,11 @@ Edit takes the row as it stands (no detail fetch). The family of paths is spelle
 - **`PersonSelect`** is the owner/manager picker (`["people","picker",term]`, enabled for every session, options `name (email)` or `name`); it and `UserSelect` are thin wrappers over `SearchPicker`
   (debounced server-side search, the picked entry held by the caller). It also takes `disabled` and `error` (the plan editors' Owner: read-only for a caller who may edit only another part of the
   modal, and the required-owner message).
+- **What the person is responsible for** (`PersonResponsibilities`, under the header of `/people/:id`, 1.37): four sections (`people.responsibilities.*`), each an h3 with a dimmed count and a list of `EntityLink` rows or its empty sentence.
+  - Teams managed (`TeamNameCell`: swatch and name); Work streams, Programs and Projects owned (a program names its work stream, a project its program and work stream, as underlined links in a dimmed tail). A closed work stream reads "(closed)" (`plan.move.closedName`); a work stream link opens the Roadmap overview narrowed to it.
+  - No endpoint or filter was added. The owned nodes are `ownedBy(plan, personId)` (`utils/personResponsibilities.ts`) over `getPlanView` under `planViewKey` (the Plan page's own key and validator; the view holds only active nodes and every owner; ownership is DIRECT; the plan's own order).
+  - The managed teams are `listEveryTeam` under `["teams","options"]` (the team filters' key) filtered by `managerPersonId`: pages of 100 up to `MAX_TEAM_OPTION_PAGES`, so nothing is cut short and there is no "and N more".
+  - The two reads load and fail separately (a `LoadingBlock` or an `ErrorAlert` in place of that half, the other half still lists). A login's presence changes nothing here.
 - **A 409 on save** marks the email field, or the login field when the problem `type` is `person-login-taken` (`isPersonLoginTaken`, `api/people.ts`); an untyped 409 reads as the email.
 
 The co-located `People*.test.tsx`, `PersonDetails.test.tsx`, `PersonSelect.test.tsx`; the real browser is `e2e/tests/people.spec.ts`.

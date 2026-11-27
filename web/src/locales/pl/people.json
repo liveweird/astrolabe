@@ -22,6 +22,18 @@
   "noEmail": "Brak adresu e-mail",
   "loginLine": "Login: {{email}}",
   "noLogin": "Brak loginu",
+  "responsibilities": {
+    "teams": "Zarządzane zespoły",
+    "workStreams": "Posiadane strumienie pracy",
+    "programs": "Posiadane programy",
+    "projects": "Posiadane projekty",
+    "noTeams": "Nie zarządza żadnym zespołem",
+    "noWorkStreams": "Nie jest właścicielem/ką żadnego strumienia pracy",
+    "noPrograms": "Nie jest właścicielem/ką żadnego programu",
+    "noProjects": "Nie jest właścicielem/ką żadnego projektu",
+    "teamsFailed": "Nie udało się wczytać zespołów, którymi zarządza ta osoba",
+    "ownedFailed": "Nie udało się wczytać strumieni pracy, programów i projektów tej osoby"
+  },
   "deleteTitle": "Usunąć osobę?",
   "deleteBody": "Usuniemy osobę „{{name}}”.",
   "deleteFailed": "Nie udało się usunąć osoby",

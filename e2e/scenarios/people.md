@@ -4,8 +4,10 @@
 - **Actors**: the seed administrator (`admin@astrolabe.local`); one throwaway user per test (the first
   links it as the person's login, the second signs in as a regular reader)
 - **Owns** (exclusive server-side state): its throwaway people (unique `e2e-person-*` /
-  `e2e-person-ro-*` names) and users — all deleted by the end of the file (people also by the
-  afterEach, through the API, when a step fails first)
+  `e2e-person-ro-*` / `e2e-person-resp-*` names), users, and, in the third scenario, a team, a work
+  stream, a program and a project (`e2e-person-team-*`, `-stream-*`, `-program-*`, `-project-*`) — all
+  deleted by the end of the file (people, and the third scenario's plan nodes and team, by the afterEach,
+  through the API, children first)
 
 ## Scenario: admin creates a person, links a login, renames them, and deletes them
 
@@ -28,6 +30,21 @@
 3. They open the person.
    - *Expected*: the person page renders with the name as the heading and without the **Edit** button.
 4. The admin signs back in and deletes the user (the person is removed through the API).
+
+## Scenario: a person's page lists the team they manage and the work stream, program and project they own, each a link to its page
+
+1. The admin seeds a throwaway person through the API, a team they manage, a work stream they own with a
+   program and a project they own, and signs in.
+2. They open the person's page.
+   - *Expected*: the name is the heading; "Teams managed" lists the team, "Work streams owned" the work
+     stream, "Programs owned" the program and "Projects owned" the project, each as a link ("Open team …",
+     "Open work stream …", …); none of the empty sentences ("Manages no team", "Owns no project") shows.
+3. They click the team's link.
+   - *Expected*: the team's page opens (`/teams/<id>`) with the team's name as the heading.
+4. They go back and click the project's link.
+   - *Expected*: the project's page opens (`/projects/<id>`) with the project's name as the heading.
+5. They go back and click the work stream's link.
+   - *Expected*: the Roadmap opens narrowed to that work stream (`workStreamId=<id>` in the address).
 
 ## Not covered here (and why)
 

@@ -22,6 +22,18 @@
   "noEmail": "No email",
   "loginLine": "Login: {{email}}",
   "noLogin": "No login",
+  "responsibilities": {
+    "teams": "Teams managed",
+    "workStreams": "Work streams owned",
+    "programs": "Programs owned",
+    "projects": "Projects owned",
+    "noTeams": "Manages no team",
+    "noWorkStreams": "Owns no work stream",
+    "noPrograms": "Owns no program",
+    "noProjects": "Owns no project",
+    "teamsFailed": "Could not load the teams this person manages",
+    "ownedFailed": "Could not load the work streams, programs and projects this person owns"
+  },
   "deleteTitle": "Delete person?",
   "deleteBody": "\"{{name}}\" will be deleted.",
   "deleteFailed": "Could not delete the person",

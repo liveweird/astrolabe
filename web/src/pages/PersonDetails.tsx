@@ -10,6 +10,7 @@ import { useAdmin } from "../auth";
 import { getPerson } from "../api/people";
 import EditPageLoadState from "../components/EditPageLoadState";
 import PageHeader from "../components/PageHeader";
+import PersonResponsibilities from "../components/PersonResponsibilities";
 import PersonEditorModal from "../components/PersonEditorModal";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 import { peoplePath } from "../utils/peopleLinks";
@@ -17,7 +18,7 @@ import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { loadErrorMessage } from "../utils/saveError";
 
 /**
- * One person (`/people/:id`): their name, email and login. Everyone reads it; an ADMIN edits the person.
+ * One person (`/people/:id`): their name, email and login, and what they are responsible for (the teams they manage, the work streams, programs and projects they own). Everyone reads it; an ADMIN edits the person.
  */
 export default function PersonDetails() {
   const { t } = useTranslation();
@@ -68,6 +69,8 @@ export default function PersonDetails() {
           )
         }
       />
+
+      <PersonResponsibilities personId={data.id} />
 
       {editing && (
         <PersonEditorModal

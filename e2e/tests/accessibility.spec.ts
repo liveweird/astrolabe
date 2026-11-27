@@ -11,6 +11,7 @@
 // own their own team pair and plan (unique `e2e-axe-prop-*` names, all dated in 2042), created and deleted via the API. The baseline scans (the very last
 // describe) own a team, a plan and one baseline of their own (unique `e2e-axe-bl-*` names, dated in 2026), created and deleted via the API; the
 // baseline is soft-deleted FIRST in the afterAll, so the stack holds none of it afterwards.
+// The person page (the describe before the baselines) owns a person with a team they manage and a plan below them (unique `e2e-axe-person-*` names), created and deleted via the API.
 // The Jira pages (the very last describe) own a team, a plan, a Jira connection scoped to the stub's `E2E` project and one binding of their own (unique
 // `e2e-axe-jira-*` names, dated in 2044), created and deleted via the API; the connection is deleted FIRST in the afterAll (its binding goes with it).
 // The connection is manual-only and refreshed once through the API in the beforeAll (one manual run: its status reads Current), and the Deviations scans
@@ -845,6 +846,77 @@ test.describe("an open schedule proposal", () => {
   });
 });
 
+interface PersonFixture {
+  ownerId: number;
+  ownerName: string;
+  managedTeamName: string;
+  streamName: string;
+  programName: string;
+  projectName: string;
+}
+
+/**
+ * The person page (1.37), light and dark: the fixture person manages a team and owns a work stream, programs and projects, so every list has rows and links
+ * (the lists, the team swatch, the links and the dimmed parent tail are scanned).
+ */
+function registerPersonScan(scheme: Scheme, fixture: () => PersonFixture): void {
+  const suffix = scheme === "dark" ? " in the dark scheme" : "";
+  test(`/people/:id with the team they manage and what they own has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+    const { ownerId, ownerName, managedTeamName, streamName, programName, projectName } = fixture();
+    await login(page);
+    await page.goto(`/people/${ownerId}`);
+    await expect(page.getByRole("heading", { level: 2, name: ownerName })).toBeVisible();
+    await expect(page.getByRole("list", { name: "Teams managed" }).getByRole("link", { name: `Open team ${managedTeamName}` })).toBeVisible();
+    await expect(page.getByRole("list", { name: "Work streams owned" }).getByRole("link", { name: `Open work stream ${streamName}` })).toBeVisible();
+    await expect(page.getByRole("list", { name: "Programs owned" }).getByRole("link", { name: `Open program ${programName}` })).toBeVisible();
+    await expect(page.getByRole("list", { name: "Projects owned" }).getByRole("link", { name: `Open project ${projectName}` })).toBeVisible();
+    await expectScheme(page, scheme);
+    await scan(page);
+  });
+}
+
+/** POST a row as the admin and register its delete path (`tear` + id) in `paths`, in creation order. */
+async function createTracked(api: APIRequestContext, paths: string[], path: string, data: object, tear: string): Promise<number> {
+  const created = await api.post(path, { data });
+  expect(created.status(), await created.text()).toBe(201);
+  const id = ((await created.json()) as { id: number }).id;
+  paths.push(`${tear}/${id}`);
+  return id;
+}
+
+// The person page owns a tiny world of its own (unique `e2e-axe-person-*` names): one person who manages a team and owns a work stream, a program and a project,
+// created and deleted via the API (children first).
+test.describe("the person page", () => {
+  let api: APIRequestContext;
+  let world: PersonFixture;
+  const paths: string[] = []; // delete paths in creation order, registered the moment each row exists; the afterAll deletes them in reverse
+
+  test.beforeAll(async () => {
+    ({ api } = await apiAsAdmin());
+    const create = (path: string, data: object, tear: string) => createTracked(api, paths, path, data, tear);
+    const ownerName = uniqueText("e2e-axe-person");
+    const ownerId = await create("/api/v1/people", { name: ownerName }, "/api/v1/people");
+    const managedTeamName = uniqueText("e2e-axe-person-team");
+    await create("/api/v1/teams", { name: managedTeamName, managerPersonId: ownerId }, "/api/v1/teams");
+    const streamName = uniqueText("e2e-axe-person-stream");
+    const streamId = await create("/api/v1/work-streams", { name: streamName, ownerPersonId: ownerId, startDate: "2026-01-05" }, "/api/v1/work-streams");
+    const programName = uniqueText("e2e-axe-person-program");
+    const programId = await create(`/api/v1/work-streams/${streamId}/programs`, { name: programName, ownerPersonId: ownerId }, "/api/v1/programs");
+    const projectName = uniqueText("e2e-axe-person-project");
+    await create(`/api/v1/programs/${programId}/projects`, { name: projectName, ownerPersonId: ownerId }, "/api/v1/projects");
+    world = { ownerId, ownerName, managedTeamName, streamName, programName, projectName };
+  });
+  test.afterAll(async () => {
+    await deleteViaApi(paths.splice(0).reverse()).finally(() => api?.dispose());
+  });
+
+  registerPersonScan("light", () => world);
+  test.describe("dark scheme", () => {
+    test.use({ colorScheme: "dark" });
+    registerPersonScan("dark", () => world);
+  });
+});
+
 // The baselines (v0.9): the registry with a row, the comparison page and the team page with a baseline picked. One world of its own (the plan is
 // copied whole, so the baseline is taken AFTER the world exists, and then the plan moves under it): team T with `s1` 2026-02-02..06 (moves a week
 // later: the orange "Later" badge and a +5 figure), `s2` 2026-02-09..13 (is unscheduled afterwards: an appended "unscheduled since the baseline" row
@@ -1081,13 +1153,7 @@ test.describe("the Jira pages", () => {
   let bindingId: number;
   const paths: string[] = []; // delete paths in creation order (the connection last); the afterAll deletes them in reverse
 
-  async function create(path: string, data: object, tear: string): Promise<number> {
-    const created = await api.post(path, { data });
-    expect(created.status(), await created.text()).toBe(201);
-    const id = ((await created.json()) as { id: number }).id;
-    paths.push(`${tear}/${id}`);
-    return id;
-  }
+  const create = (path: string, data: object, tear: string) => createTracked(api, paths, path, data, tear);
 
   test.beforeAll(async () => {
     test.setTimeout(180_000); // the Test connection call may wait a 429 out (one minute)
