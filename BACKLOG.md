@@ -1,6 +1,6 @@
 # Product backlog
 
-Updated 2026-11-26 (1.30.0 released). This file tracks **outstanding work only**. Implemented behaviour and release history belong elsewhere:
+Updated 2026-11-27 (1.30.0 released; 1.31.0 built on the local branch `v1.31-a`, not released). This file tracks **outstanding work only**. Implemented behaviour and release history belong elsewhere:
 - [README.md](README.md);
 - the [application changelog](web/src/changelog/entries.ts);
 - the topic guides under `.claude/docs/`.
@@ -21,6 +21,7 @@ The `backlog` mod (`liveweird/claude-mods`) summarises the tags on the status li
 
 Each increment gets its own plan (architect) before implementation. The domain sketch is `.claude/docs/planning-model.md`; the timeline approach is `.claude/docs/timeline.md`.
 
+- [new] **Release 1.31.0.** Built on the local branch `v1.31-a` (not pushed; the release commit bumps `APP_VERSION` and `info.version` and holds the changelog); left: merge, push, CI, deploy, tag and GitHub release. No migration; the API only gains members; a saved proposal's stored format goes 1 to 2, so proposals saved before read as unreadable (the stack has none). Waits for the user's word.
 - [new] **Forced colours leftovers (1.30).** Only the filled bars are drawn there: the bars' edge handles, the today line, the load strip (the column fill and the capacity hairline), the weekend and idle hatch, and the window band and ghost fills still follow the browser's forcing or read tokens that were not re-pointed; a pass over them is a separate piece of work with a real High Contrast walk-through.
 - [new] **Ghost rows beyond the direct neighbours on the PROJECT page, if the Critical chain list proves insufficient.** Farther chain members are a list there (names, dates, hops, slack), not timeline rows; the team page draws the whole chain since 1.27.
 - [new] **Ghost rows for every cross-team link on the team page (1.27).** Only the critical chain's members get a dimmed row; a non-critical link to another team's milestone is drawn only when that milestone is on the chain.

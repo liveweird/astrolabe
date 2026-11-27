@@ -15,7 +15,7 @@ Scale assumed: about 15 teams, 5 work streams, 20 programs, 100 projects, 1,000 
 
 ## Roadmap
 
-Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.30.0**. Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-visible fix between two increments is a patch bump. One row a version (patches ride their minor's row); the scope only, the detail is in "Release history".
+Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.30.0** (1.31.0 built, not released). Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-visible fix between two increments is a patch bump. One row a version (patches ride their minor's row); the scope only, the detail is in "Release history".
 
 ### 0.1 to 0.9: the plan
 
@@ -71,6 +71,7 @@ Each increment gets its own plan (architect) before implementation; only v0.1.0 
 | **1.28.0 The Plan page as one tree** | One tree table with folds, search and filters in the address, Show only this, pins on top, work streams and programs re-arranged and shared with the Programs page (V34) |
 | **1.30.0 The 1.29 follow-ups** | Header sizes, the focus ring, forced colours, the Roadmap's dependency panel outside the timeline, milestones in the picker, Team load's total; `GET /milestones` trimmed |
 | **1.29.0 One Roadmap, Projects, team colours** | Roadmap and Programs in two modes on one page, a Projects view (picker, Milestones table), dependency lists beside the timelines, team colours (V35); the Milestones and Dependencies pages folded in |
+| **1.31.0 Names as links** | Every work stream, program, project, milestone, team and user name links to its page (a milestone to its row on the project page, a work stream or program to the Roadmap overview narrowed to it); the views carry the ids |
 
 ## Domain decisions taken with the user
 
@@ -284,6 +285,14 @@ What was ported later, and what was left in Flow on purpose:
 ## Release history
 
 Newest first. Each version: its scope, the user's answers, the defaults that still bind and what was not built; the commits, the plans (they live outside the repository) and the test runs are in git. "No migration" means the preceding schema still applies. Every release leaves "nothing is written to Jira or Flow" true.
+
+### v1.31.0 — names as links
+
+The user's request of 2026-11-27: wherever a work stream, program, project, milestone, team or user is named, the name links to its details (`web-internals.md` "Entity links"). Built overnight; a minor bump, the API only gains ids. No migration.
+
+- **The user's answers:** a work stream or program opens the Roadmap overview narrowed to it (not the Plan's "Show only this"); a milestone its project page with the row marked and focused; an owner or manager the person page, a login on an admin screen its edit page, "saved, taken, linked, acknowledged by" the login's person when it has one; a second name in a timeline cell is a pointer link plus an "Open ..." item in the row menu (one tab stop per cell stays).
+- **Defaults taken:** the saved-proposal document's stored format goes 1 to 2 (it embeds the proposal end, now with `projectId`); a proposal saved before reads as unreadable, the stack had none; the Plan's breadcrumbs stay Plan navigation (a control); `?milestone=` leaves the address after arrival; links keep the theme look (no underline at rest), underlined inside a sentence; the work stream narrowing lives in the address only, never remembered; an overview node row gained a menu; the Plan tree's disclosure button is chevron-only.
+- Not linked: a page's own subject, names in dialogs or on other controls, entities gone from the plan, a name whose id is unknown.
 
 ### v1.30.0 — the 1.29 follow-ups
 
@@ -531,39 +540,33 @@ The import preview's search (the user's request of 2026-11-12, to cherry-pick an
 
 ### v1.13.3 — what shipped
 
-The overnight batch (the user's choice, 2026-11-11: eight `BACKLOG.md` items for an unattended run), a patch bump; no migration; additive members only (`POST /users` `alsoCreatePerson`, `personId` on every user read, `DeviationJira.previousKey`, a nullable `JiraImportItem.issueKey`). Shipped: a new login can create its linked person in the same transaction (a login without one gets "Create a person"); the roadmap's flag panel filters All / Warnings / Infos; a moved Jira item shows "was OLD-1";
-the 1.13.2 audit's LOW-1; a capacity write locks the team's binding row before the team and prunes the acknowledgements in its own transaction; no `X-RateLimit-*` header on admitted answers (`Retry-After` only on a 429); the image's `apt-get update` fails when an index cannot be fetched; `checkVerificationMetadata` fails `check` on a superseded entry.
+The overnight batch (the user's choice, 2026-11-11: eight `BACKLOG.md` items for an unattended run), a patch bump; no migration; additive members only (`POST /users` `alsoCreatePerson`, `personId` on every user read, `DeviationJira.previousKey`, a nullable `JiraImportItem.issueKey`). Shipped: a new login can create its linked person in the same transaction; the roadmap's flag panel filters All / Warnings / Infos; a moved Jira item shows "was OLD-1"; the 1.13.2 audit's LOW-1;
+a capacity write locks the team's binding row before the team and prunes the acknowledgements in its own transaction; no `X-RateLimit-*` header on admitted answers (`Retry-After` only on a 429); the image's `apt-get update` fails when an index cannot be fetched; `checkVerificationMetadata` fails `check` on a superseded entry.
 
-**Defaults taken** (the overnight rule: the recommended answer, recorded): the "Also create a linked person" switch is ON by default (the request default stays false); the severity filter is the roadmap's only (the programs page has no flag panel); LOW-1 conceals a redacted row's key, id and parent for a non-admin under an active filter (one residual, a lone issue's group count, is in `authorization.md` and `BACKLOG.md`); a database failure in the capacity prune aborts the write with a `500`.
+**Defaults taken** (the overnight rule): the "Also create a linked person" switch is ON by default (the request default stays false); the severity filter is the roadmap's only; LOW-1 conceals a redacted row's key, id and parent for a non-admin under an active filter (one residual, a lone issue's group count, is in `authorization.md` and `BACKLOG.md`); a database failure in the capacity prune aborts the write with a `500`.
 
 ### v1.13.2 — what shipped
 
-The Jira import's filter (the user's request of 2026-11-11: leave out done items and items updated longer ago than a configurable number of days; released on the user's word), a patch bump: no migration; the additive `filter` request member and two row infos. It exists because a Jira project with more than 2,000 items at the mapped levels could not be imported at all (the browse stops at 2,000).
+The Jira import's filter (the user's request of 2026-11-11: leave out done items and items updated longer ago than a configurable number of days), released on the user's word, a patch bump: no migration; the additive `filter` request member and two row infos. A Jira project with more than 2,000 items at the mapped levels could not be imported at all (the browse stops at 2,000).
 
-**The answers:** Q1 the filter narrows EVERY mapped level inside the search query; a left-out direct parent of an item that is read is fetched by id and kept (`KEPT_AS_PARENT`; at most 200 reads a browse, past that the preview is `truncated`); a parent Jira answers `404` for skips its child (`PARENT_UNREADABLE`), while a `403`, `401`, `429` or `5xx` on that read fails the preview as the `502`.
-Q2 the filter is set per import in the dialog (Leave out done items on, Updated within 365 days, 1..3,650, empty = no limit), nothing stored. Q3 the version is 1.13.2. **Only the import reads through the filter** (Refresh, the Deviations page and the roll-ups read everything; an item imported earlier that later becomes done stays linked). **Defaults:** the window is sent in minutes (`updated >= "-<N x 1440>m"`); the preview does not count what was left out; the stub does not evaluate the filter (the isolated `IMF` project proves the by-id read and the `404`);
-`jira.import_applied` carries `excludeDone` and `updatedWithinDays`; ledger rows A16 and A17 stay stub-only.
+**The answers:** Q1 the filter narrows EVERY mapped level inside the search query; a left-out direct parent of a read item is fetched by id and kept (`KEPT_AS_PARENT`; at most 200 reads a browse, past that the preview is `truncated`); a parent Jira answers `404` for skips its child (`PARENT_UNREADABLE`), while a `403`, `401`, `429` or `5xx` fails the preview as the `502`. Q2 the filter is set per import in the dialog (Leave out done items on, Updated within 365 days, 1..3,650, empty = no limit), nothing stored. **Only the import reads through the filter** (Refresh,
+Deviations and the roll-ups read everything). **Defaults:** the window is sent in minutes; the preview does not count what was left out; the stub does not evaluate the filter (the isolated `IMF` project proves the by-id read and the `404`); `jira.import_applied` carries `excludeDone` and `updatedWithinDays`; ledger rows A16 and A17 stay stub-only.
 
 ### v1.13.1 — what shipped
 
-The fixes batch (the `[next]` items the user promoted on 2026-11-11; released on the user's word), a patch bump: every item is a fix or hardening; no migration. **The answers:** item 7 the proposal's accept **looks again** instead of refusing (a changed holiday dictionary refuses only when it changes a date being accepted; otherwise the same 409 `stale-scope`); item 2 **Refresh now** rides a per-user `sync-run` bucket, **10 a minute**; the version is 1.13.1; the verification-metadata prune is included.
+The fixes batch (the `[next]` items the user promoted on 2026-11-11; released on the user's word), a patch bump: every item is a fix or hardening; no migration. **The answers:** the proposal's accept **looks again** instead of refusing (a changed holiday dictionary refuses only when it changes a date being accepted; otherwise the same 409 `stale-scope`); **Refresh now** rides a per-user `sync-run` bucket, **10 a minute**; the verification-metadata prune is included.
 
-**Also shipped:** a capacity write (a manual period POST, a changed PUT, a DELETE, the import apply) clears the capacity acknowledgements of the sprints it brings in line, after its commit, through the `teams/` listener seam.
-**Defaults:** the 1.13 key and re-ask stay stub-only (a `[new]` item asks for the by-hand walk); the capacity prune runs after the commit in its own transaction, binding row first; one audit vocabulary, `via=capacity`; the focus fix only after a red unit test. **Upgrade note:** a proposal open during the upgrade carries the old `scopeHash` layout and is refused once (409 `stale-scope`), then proposed again by the page.
+**Also shipped:** a capacity write (a manual period POST, a changed PUT, a DELETE, the import apply) clears the capacity acknowledgements of the sprints it brings in line, after its commit, through the `teams/` listener seam (own transaction, binding row first; one audit vocabulary, `via=capacity`). **Defaults:** the 1.13 key and re-ask stay stub-only; the focus fix only after a red unit test. **Upgrade note:** a proposal open during the upgrade carries the old `scopeHash` layout and is refused once (409 `stale-scope`), then proposed again by the page.
 
 ### v1.13.0 — what shipped
 
-The Jira tail (the five items the user promoted on 2026-11-11, plus the moved-out e2e; released on the user's word), a minor bump; **V29** `jira_observations.gone_probed_key` and **V30**, which drops V22's `jira_bindings.ack_*` (1.11 and older can no longer run on the schema; 1.12 can). **The answers:** D3 the binding's key follows the key the gone probe's 200 carries, and a key inside the connection's project keys reads `NOT_LISTED` (archived, a changed type, a false-empty listing);
-D4 the header splits the gone total (`totals.stillInJira`, "N still in Jira, out of scope"); D5 the V22 columns are dropped now. **Defaults** (`jira-sync.md`): a readable gone item is asked again once per `jira.censusHours` on scheduled runs and at once on Refresh now; an in-memory per-connection back-off (`GoneProbeDamper`: three runs in a row without one answer trip it; a new vanish is still asked at once) with the retry order rotated. After the security audit:
-the key pattern on the three response key members, `isInScope` refuses a non-key.
+The Jira tail (the five items the user promoted on 2026-11-11, plus the moved-out e2e; released on the user's word), a minor bump; **V29** `jira_observations.gone_probed_key` and **V30**, which drops V22's `jira_bindings.ack_*` (1.11 and older can no longer run on the schema; 1.12 can). **The answers:** D3 the binding's key follows the key the gone probe's 200 carries, and a key inside the connection's project keys reads `NOT_LISTED` (archived, a changed type, a false-empty listing); D4 the header splits the gone total (`totals.stillInJira`, "N still in Jira, out of scope");
+D5 the V22 columns are dropped now. **Defaults** (`jira-sync.md`): a readable gone item is asked again once per `jira.censusHours` on scheduled runs and at once on Refresh now; an in-memory per-connection back-off (`GoneProbeDamper`: three runs without one answer trip it) rotates the retry order. After the security audit: the key pattern on the three response key members, `isInScope` refuses a non-key.
 
 ### v1.12.0 — what shipped
 
-The Jira deviation polish (three items the user promoted on 2026-11-11; released on the user's word), a minor bump; **V28** `jira_deviation_acknowledgements`. **The answers:**
-- Q2 a milestone's team manager may acknowledge and withdraw every deviation of a milestone binding of their team, whoever stamped it (project and program bindings unchanged; reverses 1.3 Q4 in part).
-- Q3 the earlier whole-list acknowledgements are **reset** by the upgrade.
-- Q4 per line plus "Acknowledge all (N)" / "Withdraw all (N)" (reverses 1.3 Q3's whole-list key).
-- Q5 a line that leaves and returns identical stays acknowledged (no pruning).
+The Jira deviation polish (three items the user promoted on 2026-11-11; released on the user's word), a minor bump; **V28** `jira_deviation_acknowledgements`. **The answers:** Q2 a milestone's team manager may acknowledge and withdraw every deviation of a milestone binding of their team, whoever stamped it (project and program bindings unchanged; reverses 1.3 Q4 in part); Q3 the earlier whole-list acknowledgements are **reset** by the upgrade; Q4 per line plus "Acknowledge all (N)" / "Withdraw all (N)" (reverses 1.3 Q3's whole-list key);
+Q5 a line that leaves and returns identical stays acknowledged (no pruning).
 
 **Defaults** (`jira-sync.md`): `MOVED_OUT` is a wire reason derived from the stored `OUT_OF_SCOPE` plus `gone_probed_at` (a known over-claim after a type change or a false-empty sweep); the API stays additive (`kind` optional on the existing POST/DELETE; the kind-less POST stamps the open lines, the kind-less DELETE clears every row; totals count open lines); a kind/severity chip matches the lines in the selected Status. After the security audit the DELETE refuses any query parameter but `kind`.
 
@@ -573,8 +576,8 @@ Overnight part 2 of 2026-11-11 (released on the user's "Feel free to release"), 
 
 ### v1.10.1 — what shipped
 
-Fifteen small fixes of the overnight run of 2026-11-10/11, a patch bump at the user's request; no migration. User-visible: the ADMIN "All teams" shortcut on `/schedule-proposals` (the first 50, the run's `teamIds` cap); the account menu's theme as three `Menu.Item`s; a per-user `password-change` bucket (10/min) on `PUT /users/{id}/password`, its 429 typed `urn:astrolabe:problem:password-change-locked`; the outbound guard refuses the IPv4-translated SIIT range `::ffff:0:0:0/96` whole, never unwrapped;
-a run claim locks its connection row `FOR SHARE`, so a claim racing a connection delete leaves no orphan `sync_runs` row. **Defaults taken overnight:** SIIT refused rather than unwrapped; the claim-time lock rather than an orphan sweep.
+Fifteen small fixes of the overnight run of 2026-11-10/11, a patch bump at the user's request; no migration. User-visible: the ADMIN "All teams" shortcut on `/schedule-proposals` (the first 50, the run's `teamIds` cap); the account menu's theme as three `Menu.Item`s; a per-user `password-change` bucket (10/min) on `PUT /users/{id}/password` (its 429 typed `password-change-locked`); the outbound guard refuses the IPv4-translated SIIT range `::ffff:0:0:0/96` whole, never unwrapped; a run claim locks its connection row `FOR SHARE`,
+so a claim racing a connection delete leaves no orphan `sync_runs` row.
 
 ### v1.10.0 — what shipped
 
@@ -583,29 +586,26 @@ the first Flow run deletes every stored acknowledgement whose row is not listed.
 
 ### v1.9.0 — what shipped
 
-The 1.6 follow-ups (2026-11-10); **V26** (`flow_capacity_acknowledgements`: one row per Flow team binding and sprint, `sprint_id NULL` is the team's own `TEAM_GONE` row); proven against the Flow stub only. The answers (Q1-Q4 of 2026-11-10) are Q8a-Q11a in "Domain decisions";
-the defaults are "Defaults taken for v1.9.0". Delivers the per-sprint acknowledge `POST|DELETE /integrations/flow/team-bindings/{id}/acknowledge` (audited, `409 stale-deviations`), the OPEN-by-default listing and the team view's `FLOW_CAPACITY` flag and `weeks[].flowCapacity`. **Consequence:** a later release that changes a kernel rule or the deviation's figures un-acknowledges everything, by design, and its notes say so.
+The 1.6 follow-ups (2026-11-10); **V26** (`flow_capacity_acknowledgements`: one row per Flow team binding and sprint, `sprint_id NULL` is the team's own `TEAM_GONE` row); proven against the Flow stub only. The answers (Q1-Q4 of 2026-11-10) are Q8a-Q11a in "Domain decisions"; the defaults are "Defaults taken for v1.9.0". Delivers the per-sprint acknowledge `POST|DELETE /integrations/flow/team-bindings/{id}/acknowledge` (audited, `409 stale-deviations`), the OPEN-by-default listing and the team view's `FLOW_CAPACITY` flag and `weeks[].flowCapacity`.
+**Consequence:** a later release that changes a kernel rule or the deviation's figures un-acknowledges everything, by design.
 
 ### v1.8.0 — what shipped
 
-The cross-team schedule proposal run (the release commit of 2026-11-10), a minor bump; no migration. The user's answers Q9a-Q13a of 2026-11-09 are in "Domain decisions"; the 1.8 plan added (Q1a) ONE plan-scoped check called by BOTH pages (the user's answer of 2026-11-09, "go ahead with 1.8, all recommended"); the defaults are "Defaults taken for v1.8.0". The page learns the caller's teams from `GET /schedule-proposals/teams`; the e2e is `cross-team-proposal.spec.ts` and the team page's check is covered by vitest only;
-the nav leaf sits after Baselines. **Consequences:** a run is page state (lost on navigation; `BACKLOG.md`); a drag of any run team's unticked milestone refuses the accept and the page re-proposes at once with the ticks kept; an unsettled run (a loop between teams) may be accepted, its dates are the last pass's.
+The cross-team schedule proposal run (the release commit of 2026-11-10), a minor bump; no migration. The user's answers Q9a-Q13a of 2026-11-09 are in "Domain decisions"; the 1.8 plan added (Q1a) ONE plan-scoped check called by BOTH pages ("go ahead with 1.8, all recommended"); the defaults are "Defaults taken for v1.8.0". The page learns the caller's teams from `GET /schedule-proposals/teams`; the e2e is `cross-team-proposal.spec.ts` (the team page's check is vitest only); the nav leaf sits after Baselines. **Consequences:** a run is page state (lost on navigation; `BACKLOG.md`);
+a drag of any run team's unticked milestone refuses the accept and the page re-proposes at once with the ticks kept; an unsettled run (a loop between teams) may be accepted, its dates are the last pass's.
 
 ### v1.7.0 — what shipped
 
-The planning features (the release commit of 2026-11-09), a minor bump; **V25** (`milestones.pinned`, and `ck_milestones_pinned_scheduled`: a pin needs dates). **The answers** ("all recommended", 2026-11-09): (Q1a) **1.7.0 = the critical path on the team page AND the roadmap (with the per-link slack), the stored pin, the baseline-vs-baseline diff (with the rank movement)**; the cross-team run goes to 1.8.0 (the pin comes first, so managers can protect dates before a run moves them);
-Q2a-Q7a and Q8 are in "Domain decisions"; (Q8) **out:** the ticked-subset link check (went with 1.8) and keep-what-fits with the target-window start bound (the pin covers "keep this one"). The pin writes `milestone.pinned` and `milestone.unpinned`; the pin is inside the proposal's scope hash.
+The planning features (the release commit of 2026-11-09), a minor bump; **V25** (`milestones.pinned`, and `ck_milestones_pinned_scheduled`: a pin needs dates). **The answers** ("all recommended", 2026-11-09): (Q1a) **1.7.0 = the critical path on the team page AND the roadmap (with the per-link slack), the stored pin, the baseline-vs-baseline diff (with the rank movement)**; the cross-team run goes to 1.8.0 (the pin comes first, so managers can protect dates before a run moves them); Q2a-Q7a are in "Domain decisions"; (Q8) **out:** the ticked-subset link check (went with 1.8)
+and keep-what-fits with the target-window start bound. The pin writes `milestone.pinned` and `milestone.unpinned` and is inside the proposal's scope hash.
 
 ### v1.6.0 — what shipped
 
-The capacity deviation (released 2026-11-08); no migration, nothing stored. **The answers** ("all recommended", 2026-11-08):
-- (Q1a) **no acknowledge** in 1.6.0 (the remedy is one click, the horizon is rolling, a store would need a migration; reversed in 1.9.0: per sprint).
-- (Q2a) the Deviations page gains a second section "Capacity from Flow" and the team page's Flow section a "Capacity vs Flow" line, both from the SAME document (`GET /views/capacity-deviations`, `flow/`); no timeline flag (reversed in 1.9.0 and 1.23.0).
-- (Q3a) **per sprint over the days it holds**, current or future (`end >= today` in the connection's zone), `flowMd = round2(mdPerWeek x W / 5)` beside Flow's raw `flowTotalMd`, both sides rounded before the 0.5 threshold, skipped and `LONG_WINDOW` sprints silent.
-- (Q4a) `CAPACITY_MISSING` per sprint (the web folds a team's rows into one line); (Q5a) a second endpoint beside the Jira one (`jira/` and `flow/` may not name each other); (Q6a) the e2e flips `flow-day2` under the lock `flow-stub-scenario`.
+The capacity deviation (released 2026-11-08); no migration, nothing stored. **The answers** ("all recommended", 2026-11-08): (Q1a) **no acknowledge** in 1.6.0 (reversed in 1.9.0: per sprint); (Q2a) the Deviations page gains a section "Capacity from Flow" and the team page's Flow section a "Capacity vs Flow" line, both from the SAME document (`GET /views/capacity-deviations`, `flow/`), no timeline flag (reversed in 1.9.0 and 1.23.0); (Q3a) **per sprint over the days it holds**, current or future (`end >= today` in the connection's zone),
+`flowMd = round2(mdPerWeek x W / 5)` beside Flow's raw `flowTotalMd`, both rounded before the 0.5 threshold, skipped and `LONG_WINDOW` sprints silent; (Q4a) `CAPACITY_MISSING` per sprint (the web folds a team's rows into one line); (Q5a) a second endpoint beside the Jira one (`jira/` and `flow/` may not name each other); (Q6a) the e2e flips `flow-day2` under the lock `flow-stub-scenario`.
 
-**Defaults taken:** `today` in the connection's zone, `asOf` the UTC date; only deviating teams are items, no `all`; caps 1,000 teams / 100 connections; the section hides itself without a Flow connection; no `revision` (team data). **Decided while building:** a sprint with no plan period against Flow's 0 is silent; a `ZERO_CAPACITY` sprint carried by an earlier period is a WARNING whose remedy is ticking it by hand in the preview;
-Flow's per-sprint figures and the connection's zone are disclosed to every login (`authorization.md`). **Consequence:** a team imported under 1.5.0 may show differences until imported again.
+**Defaults taken:** `today` in the connection's zone, `asOf` the UTC date; only deviating teams are items, no `all`; caps 1,000 teams / 100 connections; the section hides itself without a Flow connection; no `revision` (team data). **Decided while building:** a sprint with no plan period against Flow's 0 is silent; a `ZERO_CAPACITY` sprint carried by an earlier period is a WARNING whose remedy is ticking it by hand in the preview; Flow's per-sprint figures and the zone are disclosed to every login (`authorization.md`).
+**Consequence:** a team imported under 1.5.0 may show differences until imported again.
 
 ### v1.5.1 — what shipped
 
@@ -614,21 +614,17 @@ the capacity import counts Flow's days (`flow-sync.md` F3, F11, F12). **Conseque
 
 ### v1.5.0 — what shipped
 
-Flow teams, capacity and membership (released 2026-11-08), proven against the Flow stub only (walk-through and ledger F1-F10: `flow-sync.md`). **V24** (additive): `flow_connections`, the mirror `flow_teams` / `flow_sprints` / `flow_members` (one Flow document, replaced wholesale per run), the 1:1 `flow_team_bindings`, and `team_capacity_periods.source` (`MANUAL`|`FLOW`).
-Delivers the ADMIN registry with Test connection, `SyncKind.FLOW` through the 1.3 scheduler, binding by name, `GET /teams/{id}/flow`, the capacity import (preview then apply, one transaction under the team lock), the team page's Flow section and the Flow stub (host port 8097). The answers Q1a-Q7a are in "Domain decisions"; the defaults are "Defaults taken for v1.5.0". **Consequences:** an import is a snapshot (a re-import updates Flow-sourced periods;
-removals are listed and never preselected; the last imported sprint's figure stays in force until the next import); the roster is information only (`BACKLOG.md`); a revoked or expired token fails the runs with `AUTHENTICATION_FAILED` until a new token is saved.
+Flow teams, capacity and membership (released 2026-11-08), proven against the Flow stub only (walk-through and ledger F1-F10: `flow-sync.md`). **V24** (additive): `flow_connections`, the mirror `flow_teams` / `flow_sprints` / `flow_members` (one Flow document, replaced wholesale per run), the 1:1 `flow_team_bindings`, and `team_capacity_periods.source` (`MANUAL`|`FLOW`). Delivers the ADMIN registry with Test connection, `SyncKind.FLOW` through the 1.3 scheduler, binding by name, `GET /teams/{id}/flow`, the capacity import (preview then apply, one transaction under the team lock),
+the team page's Flow section and the Flow stub (host port 8097). The answers Q1a-Q7a are in "Domain decisions"; the defaults are "Defaults taken for v1.5.0". **Consequences:** an import is a snapshot (a re-import updates Flow-sourced periods; removals are listed and never preselected); the roster is information only (`BACKLOG.md`); a revoked or expired token fails the runs with `AUTHENTICATION_FAILED` until a new token is saved.
 
 ### v1.4.0 — what shipped
 
 Coverage and roll-ups, proven against the stub only (walk-through step 9 and ledger A11 to A14: `jira-sync.md` "The census" and the deviation kinds state what was built). **V23** (additive: `persistence.md`); the config key `JIRA_TEST_RATE_LIMIT_PER_MINUTE` is in `security.md`. The answers Q1a-Q6a (the user's "all recommended, go ahead", 2026-11-07) are in "Domain decisions".
 
-**Defaults taken** (any can be reversed):
-- Done Jira children are not `UNLINKED_IN_JIRA` (closed work the plan never had is history) but count in roll-ups; every non-sub-task type at the child level counts.
-- Coverage pairs a bound node with its DIRECT plan children against the mapping's level for that plan level (none when unmapped); "linked" is an ACTIVE binding on this or another active connection of the same site (D1).
-- A detail lists at most 10 keys or names, ascending by id, plus `count`; Jira items by key only, never a summary.
-- Roll-up points are the discovery's `storyPoints` marker, never converted to man-days, null when absent; the roll-up reads `done/children · points pt`, and a project link's `rollup` is always null.
-- `CHILDREN_DONE` only while the epic itself is not DONE (else `PROGRESS_MISMATCH` alone) and the plan's end is after today.
-- A disabled connection's link carries no roll-up and raises no flag; no census without bindings; no audit event for census writes; a children read past the page ceiling keeps what it read, prunes nothing and warns, and any other failure of the children pass leaves the run SUCCEEDED, unstamped, with a WARN. `jira.censusHours` is 24, bounds 1..168. Program-level coverage shows on the Deviations page only.
+**Defaults taken** (any can be reversed; the rules are in `jira-sync.md` "The census"):
+- Done Jira children are not `UNLINKED_IN_JIRA` (closed work the plan never had is history) but count in roll-ups; coverage pairs a bound node with its DIRECT plan children against the mapping's level ("linked" = an ACTIVE binding on this or another active connection of the same site, D1); a detail lists at most 10 keys or names plus `count`, Jira items by key only.
+- Roll-up points are the discovery's `storyPoints` marker, never converted to man-days, null when absent; a project link's `rollup` is always null; `CHILDREN_DONE` only while the epic is not DONE and the plan's end is after today.
+- A disabled connection's link carries no roll-up and raises no flag; no census without bindings or audit event; a children read past the page ceiling keeps what it read and warns, any other failure leaves the run SUCCEEDED, unstamped, with a WARN. `jira.censusHours` is 24, bounds 1..168. Program-level coverage shows on the Deviations page only.
 
 **Consequences:** a binding that gains one of the new kinds reopens (a new fingerprint); a story deleted in Jira can inflate a roll-up for up to `censusHours`; a site whose stories point at their epic through Epic Link shows no children (A12); the first run after the upgrade reads every connection in full once. **Not in 1.4:** program and work-stream coverage flags on the timelines, a drill-down from the roll-up.
 
@@ -636,26 +632,19 @@ Coverage and roll-ups, proven against the stub only (walk-through step 9 and led
 
 Polling, status, acknowledge and the timeline markers, proven against the stub only. **V22** (additive: `persistence.md`; its acknowledgement columns were dropped in 1.13). The scheduler and the five states are `sync.md`; the acknowledge routes, the deviation flags and the markers are `jira-sync.md` and `planning-model.md` "The roadmap view".
 
-**The answers** (the user: "yes, recommendations are fine, feel free to go ahead", 2026-11-07; any can be reversed):
-- (Q1) a per-connection `pollIntervalMinutes`, default 15, 5..1440, `null` = manual only; existing connections start polling at the upgrade.
-- (Q2) Flow's five states derived per read from `sync_runs` and `enabled`, nothing stored; an untested connection is told by `discoveredAt == null`.
-- (Q3) an acknowledgement keys on the sha256 of the binding's whole deviation list (replaced per line in 1.12). (Q4) the node's owner chain or ADMIN may acknowledge, like the bind.
-- (Q5) a server-side fold: one flag per open deviation on the project's own binding, one roll-up per project for its milestones. (Q6) the Jira shadow bar is on by default with a remembered toggle.
-- (Q7) Flow's back-off from `sync_runs`, capped at six hours, a config change making the connection due at once. (Q8) a disabled connection is not polled, raises no flag and draws no bar, but its bindings stay visible. (Q9) the poll's run lock and the import's plan lock are independent.
+**The answers** (the user: "yes, recommendations are fine, feel free to go ahead", 2026-11-07; any can be reversed): (Q1) a per-connection `pollIntervalMinutes`, default 15, 5..1440, `null` = manual only; existing connections start polling at the upgrade. (Q2) Flow's five states derived per read from `sync_runs` and `enabled`, nothing stored. (Q3) an acknowledgement keys on the sha256 of the binding's whole deviation list (replaced per line in 1.12); (Q4) the node's owner chain or ADMIN may acknowledge, like the bind. (Q5) a server-side fold:
+one flag per open deviation on the project's own binding, one roll-up per project for its milestones. (Q6) the Jira shadow bar is on by default with a remembered toggle. (Q7) Flow's back-off from `sync_runs`, capped at six hours. (Q8) a disabled connection is not polled, raises no flag and draws no bar, but its bindings stay visible. (Q9) the poll's run lock and the import's plan lock are independent.
 
 **Rulings while building:** the back-off is `max(interval, min(interval x 2^(n-1), 6 h))`; a run that outlives `sync.maxRunMinutes` without a claim reads FAILED (interrupted); the Jira dates bar is drawn only inside the plan's own dates padded by a year; a binding through a disabled connection stays a link (no dates, no flags) so its owner can still unlink it. **Consequence:** a later release that changes a deviation rule changes every fingerprint and un-acknowledges everything.
 
 ### v1.2.0 — what shipped
 
-Import from Jira, proven against the stub only (walk-through and ledger A10: `jira-sync.md` "Import", which states the routes, the bucket, the bounds and the audit line). **No migration.**
+Import from Jira, proven against the stub only (walk-through and ledger A10: `jira-sync.md` "Import"). **No migration.**
 
-**The decisions** (the user's, on the plan's recommended options; any can be reversed):
-- (A) the e2e imports an isolated `IMP` stub project, not `E2E`: program names are globally unique, so importing `E2E` would collide with the user's own demo import and with the specs that bind it.
-- (B) the modal is on the connection page only (ADMIN); superseded in 1.10 by the Plan page's work-stream menu.
-- (C) a project's target window is not copied from Jira (reversed in 1.14).
+**The decisions** (the user's, on the plan's recommended options): (A) the e2e imports an isolated `IMP` stub project, not `E2E` (program names are globally unique, so `E2E` would collide with the demo import); (B) the modal is on the connection page only (ADMIN; superseded in 1.10 by the work-stream menu); (C) a project's target window is not copied from Jira (reversed in 1.14).
 
-**Rulings while building:** for a non-admin every skipped row but `ALREADY_BOUND` is redacted and `unmatchedTeams` counts the created rows only; the apply's rights are the ticked rows' targets, narrower than a full preview's; redaction exists so an owner of one node cannot read every summary in scope (reversible if node owners may read everything in scope); a milestone whose dates cannot be copied is created unscheduled, never skipped. **Consequences:** linking is by name, so an unlinked item renamed in Jira previews as a new one (1.15 suggests a link);
-the planner reads only the direct Jira parent, so an item under an unmapped intermediate level goes to the default parent, else is skipped `NO_PARENT`.
+**Rulings while building:** for a non-admin every skipped row but `ALREADY_BOUND` is redacted and `unmatchedTeams` counts the created rows only; the apply's rights are the ticked rows' targets, narrower than a full preview's (so an owner of one node cannot read every summary in scope); a milestone whose dates cannot be copied is created unscheduled, never skipped. **Consequences:** linking is by name, so an unlinked item renamed in Jira previews as a new one (1.15 suggests a link); the planner reads only the direct Jira parent,
+so an item under an unmapped intermediate level goes to the default parent, else is skipped `NO_PARENT`.
 
 ### v1.1.0 — what shipped
 
@@ -665,10 +654,7 @@ The Jira sync's first release, proven against a built-in stub only (walk-through
 
 The checkup: no new domain feature, no migration. Doc drift fixed, coverage floors raised to the measured actuals, a11y lint and axe, the OrbStack Kubernetes overlay and a hardened compose app, a password-change lock and an MFA live-code limit; performance re-measured at scale, no fix justified (`BACKLOG.md`).
 
-**Defaults taken (the user accepted a, b and c):**
-- (a) **Kubernetes stays local on OrbStack** and its overlay sets `KTOR_DEVELOPMENT=true` and `HTTP_BEHIND_PROXY=false`, so no deployment target runs production mode and only the server suite proves it (`security.md` "Everything development mode relaxes").
-- (b) **The MFA limit replaces the oldest code** (default 3, 1..100, the user's choice after the reviews) rather than answering 429, which blocked an honest retrier and let a password holder keep the block going.
-- (c) **The password-change lock is one `LoginThrottle` per user id on the login lockout's knobs** (5 attempts, 15 minutes; login is unaffected): a stolen session can keep the lock active, and the exits are an email or an admin reset.
+**Defaults taken (the user accepted a, b and c):** (a) **Kubernetes stays local on OrbStack**, its overlay sets `KTOR_DEVELOPMENT=true` and `HTTP_BEHIND_PROXY=false`, so only the server suite proves production mode (`security.md`); (b) **the MFA limit replaces the oldest code** (default 3, 1..100) rather than answering 429, which let a password holder keep the block going; (c) **the password-change lock is one `LoginThrottle` per user id on the login lockout's knobs** (5 attempts, 15 minutes; login is unaffected), with an email or an admin reset as the exits.
 
 ### v0.9.0 — what shipped
 

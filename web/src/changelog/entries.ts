@@ -17,6 +17,36 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.31.0",
+    date: "2026-11-27",
+    en: `**Every name is a link**
+
+- Wherever a work stream, program, project, milestone, team or user is named, the name now opens what it stands for: on Plan, Roadmap, Projects, the team page, Team load, Teams, Home, Deviations, Schedule proposals (and the saved ones), Baselines and their comparison, the Jira links to plan items, the Flow connections and Users. Names you cannot follow stay plain text: the page's own subject, names inside dialogs, and items a baseline remembers that are no longer in the plan.
+- A work stream's or program's name opens the Roadmap overview narrowed to it. A work stream is narrowed by the address (\`workStreamId\`), with a way back to every work stream; an unknown one is dropped with a notice.
+- A milestone's name opens its project's page with the milestone's row marked and in view, in the timeline and in the Milestones table, or in the Unscheduled list when it has no dates yet. The mark is dropped from the address once it has arrived, and a milestone that is no longer in the project gets a short notice.
+- A project's and a team's name open their pages. An owner or manager opens their person page. On Users and the other admin screens a login opens its edit page. "Saved by", "taken by", "linked by" and "acknowledged by" open the person behind the login when it has one.
+- On the Roadmap and the team page a second name in a timeline row (a program beside a project, a milestone on a critical chain's dimmed row) is a link for the pointer only; the row's menu has an "Open …" item for it, so the keyboard keeps one stop per row. Every row of the Roadmap overview now has a menu, with "Open …" items for its names.
+- The Plan tree's disclosure button is now the chevron alone; the name beside it is the link. A link's accessible name says what it opens, for example "Open project Alpha".
+- Links keep the look of the app's other links: the text colour, underlined on hover, and underlined at rest inside a sentence.
+- API (\`/api/v1\`), additions only, the ids of the names the views show: \`programId\` and \`workStreamId\` on team-view milestones, Home's programs (\`workStreamId\`) and projects (\`programId\`), and the baseline view's projects; \`ownerPersonId\` on Home's programs and projects and on the Programs view's work streams and programs; \`managerPersonId\` on Team load rows; \`projectId\` on a link end of a baseline and of a schedule proposal; \`projectId\`, \`programId\` and \`workStreamId\` on a Jira link's plan item; \`personId\` on the creators of baselines and of Jira links; \`byPersonId\` on acknowledgements of Jira and Flow deviations.
+- Stored data: a saved schedule proposal's format changes, so proposals saved before this version can no longer be opened; save them again. Nothing else changes.
+- Proven against a built-in Jira stub; not yet tested against a real Jira site.
+- Proven against the built-in Flow stub; not yet compared with a real Flow.`,
+    pl: `**Każda nazwa jest linkiem**
+
+- Wszędzie, gdzie występuje nazwa strumienia pracy, programu, projektu, kamienia milowego, zespołu lub użytkownika/użytkowniczki, nazwa otwiera teraz to, co oznacza: na stronach „Plan”, „Roadmapa”, „Projekty”, na stronie zespołu, w „Obciążeniu zespołów”, w „Zespołach”, na stronie głównej, w „Odchyleniach”, w „Propozycjach harmonogramu” (także zapisanych), w „Bazach odniesienia” i ich porównaniu, w powiązaniach z Jirą, w połączeniach z Flow i na stronie „Użytkownicy/czki”. Nazwy, za którymi nie ma dokąd iść, zostają zwykłym tekstem: temat samej strony, nazwy w oknach dialogowych oraz elementy zapamiętane w bazie odniesienia, których nie ma już w planie.
+- Nazwa strumienia pracy lub programu otwiera Przegląd roadmapy zawężony do niego. Strumień pracy zawęża adres (\`workStreamId\`), z drogą powrotną do wszystkich strumieni; nieznany strumień jest pomijany z komunikatem.
+- Nazwa kamienia milowego otwiera stronę jego projektu z zaznaczonym wierszem kamienia i widocznym w oknie, na osi czasu i w tabeli „Kamienie milowe”, a gdy nie ma jeszcze dat, na liście niezaplanowanych kamieni milowych. Po dotarciu zaznaczenie znika z adresu, a kamień, którego nie ma już w projekcie, dostaje krótki komunikat.
+- Nazwa projektu i zespołu otwiera ich strony. Właściciel/ka lub kierownik/czka otwiera stronę osoby. Na stronie „Użytkownicy/czki” i na innych ekranach administracyjnych login otwiera swoją stronę edycji. „Zapisane przez”, „utworzone przez”, „powiązane przez” i „potwierdzone przez” otwierają osobę stojącą za loginem, jeśli go ma.
+- Na Roadmapie i stronie zespołu druga nazwa w wierszu osi czasu (program obok projektu, kamień milowy w przyciemnionym wierszu ścieżki krytycznej) jest linkiem tylko dla wskaźnika myszy; menu wiersza ma dla niej pozycję „Otwórz …”, więc klawiatura nadal ma jeden przystanek na wiersz. Każdy wiersz Przeglądu roadmapy ma teraz menu z pozycjami „Otwórz …” dla jego nazw.
+- Przycisk rozwijania w drzewie Planu to teraz sama strzałka; nazwa obok niej jest linkiem. Nazwa dostępna linku mówi, co otwiera, na przykład „Otwórz projekt Alfa”.
+- Linki wyglądają jak pozostałe linki aplikacji: w kolorze tekstu, podkreślone po najechaniu, a w zdaniu podkreślone zawsze.
+- API (\`/api/v1\`), tylko dodatki, identyfikatory nazw pokazywanych w widokach: \`programId\` i \`workStreamId\` w kamieniach milowych widoku zespołu, w programach strony głównej (\`workStreamId\`) i jej projektach (\`programId\`) oraz w projektach widoku bazy odniesienia; \`ownerPersonId\` w programach i projektach strony głównej oraz w strumieniach pracy i programach widoku Programów; \`managerPersonId\` w wierszach „Obciążenia zespołów”; \`projectId\` w końcu zależności bazy odniesienia i propozycji harmonogramu; \`projectId\`, \`programId\` i \`workStreamId\` w elemencie planu powiązanym z Jirą; \`personId\` w autorach baz odniesienia i powiązań z Jirą; \`byPersonId\` w potwierdzeniach odchyleń z Jiry i Flow.
+- Zapisane dane: zmienia się format zapisanej propozycji harmonogramu, więc propozycji zapisanych przed tą wersją nie da się już otworzyć; zapisz je ponownie. Poza tym nic się nie zmienia.
+- Sprawdzone na wbudowanej atrapie Jiry; jeszcze nie przetestowane na prawdziwej witrynie Jira.
+- Sprawdzone na wbudowanej atrapie Flow; jeszcze nie porównane z prawdziwym Flow.`,
+  },
+  {
     version: "1.30.0",
     date: "2026-11-26",
     en: `**Follow-ups to 1.29**
