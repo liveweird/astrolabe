@@ -725,6 +725,7 @@ test("an administrator schedules an unscheduled milestone on Jira's dates from i
     await dashedRow.getByRole("button", { name: kebabName, exact: true }).click();
     const item = admin.getByRole("menuitem", { name: `Schedule on Jira's dates: ${tray.name}, 2044-01-04 to 2044-01-08`, exact: true });
     await expect(item).toBeVisible();
+    await expect(admin.getByRole("menu")).toHaveCSS("opacity", "1"); // axe measures contrast against the fade-in's partial opacity
     expect(await axeViolations(admin)).toEqual([]);
 
     // One click writes Jira's two dates: the page says so, the dashed row is gone, the milestone's one row carries the dashed bar and the tray has nothing left.
