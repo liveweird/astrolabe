@@ -17,6 +17,24 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.36.0",
+    date: "2026-11-27",
+    en: `**Less repetition, more room: tables that echoed the Gantts are gone, page headers are compact**
+
+- **Project page:** the Milestones table under the Gantt is gone; it repeated the Gantt and the Unscheduled table. Home's "not scheduled" link now opens the project with its **Unscheduled** table in view and focused.
+- **Teams:** the "Weeks with a warning" section is gone; it repeated each team page's weekly load. A team's **Overloaded**, **WIP** and gray "without capacity" badges are now links: the team page opens its weekly load table, scrolled to the first such week from this week on, marked.
+- **Page headers:** titles are smaller and share a row with the page's buttons. A page's description opens from the **ⓘ** beside its title (Escape closes it). Facts stay in sight: a project's program, work stream and owner, a team's manager, a person's email and login. A project's, team's or baseline's own description still prints.
+- **Saved proposals:** Dismiss on the note now always works, even straight after the page opens.
+- API and stored data: nothing changes.`,
+    pl: `**Mniej powtórzeń, więcej miejsca: znikają tabele powielające wykresy Gantta, nagłówki stron są zwięźlejsze**
+
+- **Strona projektu:** tabela Kamienie milowe pod wykresem Gantta znika; powielała wykres i tabelę Niezaplanowane. Odnośnik „niezaplanowane” na stronie głównej otwiera projekt z widoczną i aktywną tabelą **Niezaplanowane**.
+- **Zespoły:** sekcja „Tygodnie z ostrzeżeniem” znika; powielała tygodniowe obciążenie na stronie każdego zespołu. Plakietki **Przeciążenie**, **WIP** i szare „bez przepustowości” są teraz odnośnikami: strona zespołu otwiera tabelę tygodniowego obciążenia przewiniętą do pierwszego takiego tygodnia od bieżącego, oznaczonego.
+- **Nagłówki stron:** tytuły są mniejsze i stoją w jednym wierszu z przyciskami strony. Opis strony otwiera się przyciskiem **ⓘ** obok tytułu (Escape go zamyka). Fakty zostają na widoku: program, strumień prac i właściciel projektu, kierownik zespołu, e-mail i login osoby. Własny opis projektu, zespołu lub linii bazowej nadal trafia na wydruk.
+- **Zapisane propozycje:** przycisk Zamknij na komunikacie działa zawsze, także tuż po otwarciu strony.
+- API i zapisane dane: bez zmian.`,
+  },
+  {
     version: "1.35.0",
     date: "2026-11-27",
     en: `**Fixes after 1.34: the Teams figures, phone width, hidden columns**

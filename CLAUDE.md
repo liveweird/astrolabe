@@ -15,7 +15,7 @@ team manager schedules milestones (manual drag/resize, or accept a server propos
 
 **Roadmap:** 0.1–0.9 the plan, timelines, dependencies, capacity, auto-proposal, baselines · 1.0.0 checkup · 1.1–1.4 Jira sync, import, polling, coverage · 1.5–1.6 Flow, capacity · 1.7–1.8 planning, cross-team run · 1.9–1.13 follow-ups and fixes · 1.14–1.16 import under a linked node, import entry points, timeline extras ·
 1.17–1.23 Home figures and links, list pages and filters, view ETags, database time limit · 1.24 technical checkup · 1.25–1.28 reliability, saved proposals, baselines of links and capacity, the Plan page as one tree ·
-1.29–1.34 one Roadmap, Projects, team colours, names as links, Team load folded into Teams, schedule proposals on the Gantts, collapsible Gantt columns · **1.35.0 (current)** the 1.34 walkthrough fixes: Teams figures, phone width, hidden-column count.
+1.29–1.35 one Roadmap, Projects, team colours, names as links, Team load folded into Teams, schedule proposals on the Gantts, collapsible Gantt columns, walkthrough fixes · **1.36.0 (current)** less repetition: no Milestones table, no warning weeks, a compact header.
 One row a version, the user's decisions, assumptions: `.claude/docs/product.md`; what each version shipped: `.claude/docs/release-history.md`. Open items: `BACKLOG.md`.
 
 Brand: deep cyan (the `astrolabe` colour tuple in `web/src/theme.ts`, `primaryShade: { light: 8, dark: 9 }`); the logo a stylised astrolabe.

@@ -13,6 +13,16 @@ Owns: what each version shipped, newest first: its scope, the user's answers, th
 
 Newest first. Each version: its scope, the user's answers, the defaults that still bind and what was not built; the commits, the plans (they live outside the repository) and the test runs are in git. "No migration" means the preceding schema still applies. Every release leaves "nothing is written to Jira or Flow" true.
 
+### v1.36.0 — less repetition, a compact page header
+
+The user's requests of 2026-11-27 after 1.35: "remove it, point Home's link at the Unscheduled table" (the project page's Milestones table), "yes, remove it and link the badges" (the Teams page's "Weeks with a warning"), and a smaller page header (answers: the description behind an ⓘ button; titles kept, more compact). A minor bump; web, e2e and docs only (the spec changes only in `info.version`); no migration.
+
+- **Project page:** `ProjectMilestonesTable` and its utils, locale keys and setting removed; `?milestones=unscheduled` (Home, the `/milestones?scheduled=false` redirect) focuses the Unscheduled heading once the view is read, then drops the parameter (`useUnscheduledArrival`; `projects-view.md`).
+- **Teams:** `TeamLoadWeeks`, the "Include past weeks" switch and `?past=` removed; the Teams table's badges link to `/teams/N?load=overloaded|wip|nocapacity` (`useWeeklyLoadArrival`: waits for the view and the Flow section, opens the table for the visit without memory, marks the first week of that kind from this week on, else the latest before; `web-internals.md`). The server's `warningWeeks` stays (`BACKLOG.md`).
+- **Page header:** `PageHeader`'s title is a compact h2 on the actions' row; `description` opens from a 24 px "About this page: <title>" popover; `facts` stay visible (a project's program, work stream and owner, a team's manager, a person's email and login, the Roadmap's read-only note, the 404's text); `printDescription` keeps an entity's own description in print (`web-internals.md` "Page chrome").
+- **Tests:** Dismiss on a saved-proposal note no longer races the address transition (`useSavedVerdict` remembers the dismissed address); `useScheduleCheck`'s debounce tests run on a fake clock only.
+- Decided by the main session: entity facts stay visible (the request was about the descriptive paragraph); written entity descriptions print; the Roadmap's read-only sentence is a visible fact.
+
 ### v1.35.0 — the 1.34 walkthrough fixes
 
 The user's choices of 2026-11-27 from the suggestions after 1.34: an eye walkthrough of 1.31 to 1.34 on the sample plan, a sweep for the live-region test race, the count while only some columns are hidden, and room under the docs' ceilings (`product.md` "Releases"); then "fix the Teams cut-off, the 390px scrolling and the clipped headers" from what the walkthrough found. A minor bump; web, e2e and docs only (the spec changes only in `info.version`); no migration.
