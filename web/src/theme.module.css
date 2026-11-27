@@ -97,20 +97,27 @@ table.table {
 }
 
 .pageHeader {
-  padding-block: 2px var(--mantine-spacing-sm);
+  padding-block: 0 var(--mantine-spacing-xs);
   border-block-end: 1px solid var(--mantine-color-default-border);
 }
 
 .pageHeading {
-  font-size: clamp(1.375rem, 1.175rem + 0.65vw, 1.75rem);
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: clamp(1.25rem, 1.1rem + 0.5vw, 1.5rem);
   letter-spacing: -0.03em;
   line-height: 1.2;
   overflow-wrap: anywhere;
 }
 
+/* The facts line under the title: one compact dimmed line, wrapping only when it must. */
+.pageFacts {
+  max-inline-size: 70ch;
+}
+
+/* The description inside its popover: the words keep a readable measure. */
 .pageDescription {
   max-inline-size: 70ch;
-  margin-block-start: 4px;
 }
 
 .homeOverview {

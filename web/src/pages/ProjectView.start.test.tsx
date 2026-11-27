@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { screen, waitFor, within } from "@testing-library/react";
 import { onlineManager, QueryClient } from "@tanstack/react-query";
 import { Route, Routes, useLocation, useNavigationType } from "react-router-dom";
 import ProjectView from "./ProjectView";
 import { deferred } from "../test/deferred";
 import { headingOutline } from "../test/headings";
+import { openPageInfo } from "../test/pageInfo";
 import { jsonResponse, routeFetch } from "../test/http";
 import type { PlanView } from "../api/plan";
 import { planOf } from "../test/planView";
@@ -131,7 +133,8 @@ describe("the bare Projects page", () => {
     localStorage.setItem(KEY, "999");
     renderStart();
     expect(await screen.findByText("No project picked")).toBeInTheDocument();
-    expect(screen.getByText("Pick a project to see its milestones on the timeline.")).toBeInTheDocument();
+    expect(screen.queryByText("Pick a project to see its milestones on the timeline.")).toBeNull();
+    expect(within(await openPageInfo(userEvent.setup())).getByText("Pick a project to see its milestones on the timeline.")).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Project" })).toHaveValue("");
     await waitFor(() => expect(localStorage.getItem(KEY)).toBe("null"));
     expect(headingOutline()).toEqual([[2, "Projects"]]);

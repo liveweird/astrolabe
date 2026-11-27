@@ -1,7 +1,8 @@
 {
   "title": "Roadmap",
-  "intro": "One ranking of every project, best first, on a timeline: a row's bar is the span its milestones cover, the shaded band behind it the target window, and flags mark what drifts or is out of rank order. Everyone can read it; administrators and roadmap editors change the ranking.",
+  "intro": "One ranking of every project, best first, on a timeline: a row's bar is the span its milestones cover, the shaded band behind it the target window, and flags mark what drifts or is out of rank order.",
   "introEdit": "One ranking of every project, best first, on a timeline: a row's bar is the span its milestones cover, the shaded band behind it the target window, and flags mark what drifts or is out of rank order. Drag a row by its handle or use its menu to change the ranking; every change is saved at once. Dropping a row below the Unranked line, or Unrank, takes it out of the ranking; Rank adds an unranked project at the end.",
+  "readOnlyFact": "Read-only: everyone can read the ranking; administrators and roadmap editors change it.",
   "mode": {
     "aria": "Roadmap mode",
     "prioritization": "Prioritization",

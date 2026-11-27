@@ -144,6 +144,18 @@ states, so nothing here depends on `jira-sync.spec.ts`'s flips or rows. Each tes
 1. The same with the dark scheme emulated.
    - *Expected*: `<html>` carries the dark scheme and the scan reports zero violations.
 
+## Scenario: the open page description has no WCAG A/AA violations
+
+1. The admin signs in, opens `/`, waits for the Home heading and presses the header's info button "About this page: Astrolabe".
+   - *Expected*: a dialog of that name (a portal'd `role="dialog"`, in the DOM only while open) is visible and has settled at full opacity, `<html>` carries the light scheme and an axe scan of the whole page (same tags, `color-contrast` included) reports zero violations.
+2. The admin presses Escape.
+   - *Expected*: the dialog leaves the DOM and the focus returns to the info button.
+
+## Scenario: the open page description has no WCAG A/AA violations in the dark scheme
+
+1. The same with the dark scheme emulated.
+   - *Expected*: `<html>` carries the dark scheme and the scan reports zero violations.
+
 ## Scenario: the app shell at a mobile width has no WCAG A/AA violations
 
 1. The browser viewport is 390x844. The admin signs in, opens `/` and waits for the Home heading.

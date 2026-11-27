@@ -12,7 +12,7 @@ export default function NotFound() {
   const { t } = useTranslation();
   return (
     <Stack gap="md">
-      <PageHeader title={t("common.notFound.title")} description={t("common.notFound.message")} />
+      <PageHeader title={t("common.notFound.title")} facts={t("common.notFound.message")} />
       <Anchor component={RouterLink} to="/">
         {t("common.notFound.backHome")}
       </Anchor>

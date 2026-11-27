@@ -219,7 +219,7 @@ describe("Plan page: folds", () => {
     await findPlanTree();
     const names = screen.getAllByRole("button").map((button) => button.getAttribute("aria-label") ?? button.textContent);
     // The only menus left are the view ones (Show only this, Pin): everyone may focus and pin.
-    expect(names.sort()).toEqual(["Collapse all", "Expand all", "Filters", "Operations for Billing", "Operations for Invoices", "Operations for Platform", "Program Billing", "Work stream Platform"]);
+    expect(names.sort()).toEqual(["About this page: Plan", "Collapse all", "Expand all", "Filters", "Operations for Billing", "Operations for Invoices", "Operations for Platform", "Program Billing", "Work stream Platform"]);
     expect(screen.getByRole("link", { name: "Open project Invoices" })).toBeInTheDocument();
   });
 

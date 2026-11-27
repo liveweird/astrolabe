@@ -37,7 +37,7 @@ Read the page's section before changing the page; a new how-it-works paragraph g
 - **Focus on navigation**: `hooks/useFocusMainOnNavigation.ts` owns the focus of `#main-content` when the PATHNAME changes (never for a query/filter change,
   never on the first render, never over a focus already inside main); a page's own `autoFocus` must keep working beside it.
 - **Page chrome**: every page is a `Stack gap="md"` starting with `components/PageHeader.tsx` (`title` is the `order={2}` heading tests locate; `actions?` is
-  the ONE place a page's primary "New …" button lives). No `Container`, no page-wrapping `Paper`; widths come from `utils/layout.ts`: full-bleed lists,
+  the ONE place a page's primary "New …" button lives; `facts?` (an entity's linked meta line, a status) stays visible under the title; `description?` (free text) is never on the page: it opens from the "About this page" info button, tests read it with `test/pageInfo.ts` `openPageInfo`). No `Container`, no page-wrapping `Paper`; widths come from `utils/layout.ts`: full-bleed lists,
   `Box maw={CONTENT_MAX_WIDTH}` for registry tables and the changelog, `Paper withBorder p="xl" maw={FORM_MAX_WIDTH}` (left-aligned) for simple field forms. The
   one spinner is `components/LoadingBlock.tsx`; `EditPageLoadState` is the edit pages' load-failure triage; `EmptyState` takes the Tabler icon COMPONENT.
 - **One heading outline everywhere**: the `PageHeader` title is the h2, a page's cards/sections are h3 (`<Title order={3} size="h4">`), their inner blocks h4;

@@ -9,6 +9,7 @@ import Roadmap from "./Roadmap";
 import type { PlanFlag, RoadmapLink, RoadmapProject, RoadmapView } from "../api/roadmap";
 import { applyRanking } from "../utils/roadmapOrder";
 import { headingOutline } from "../test/headings";
+import { openPageInfo } from "../test/pageInfo";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
 
@@ -932,7 +933,9 @@ describe("Roadmap page: without rights and the empty states", () => {
     await openMenu(user, "Taxes");
     expect(await screen.findByRole("menuitem", { name: "Open project Taxes" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: /Move|Rank/ })).toBeNull();
-    expect(screen.getByText(/Everyone can read it/)).toBeInTheDocument();
+    // The read-only status is a fact on the page, not help behind the info button.
+    expect(screen.getByText(/everyone can read the ranking/i)).toBeInTheDocument();
+    expect(within(await openPageInfo(user)).queryByText(/everyone can read the ranking/i)).toBeNull();
   });
 
   test("a viewer with no right still has the project's Dependencies in the row menu: the text path of the arrows, an in-page action (not a link) whose effect is pinned in Roadmap.dependencies.test.tsx", async () => {

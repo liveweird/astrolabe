@@ -1,8 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import TeamPageHeader from "./TeamPageHeader";
 import type { TeamView } from "../api/teams";
 import { renderWithProviders } from "../test/render";
+import { openPageInfo } from "../test/pageInfo";
 import { textContent } from "../test/textContent";
 
 const team = (over: Partial<TeamView["team"]> = {}): TeamView["team"] => ({
@@ -36,16 +38,23 @@ describe("TeamPageHeader: the colour swatch (1.29)", () => {
 });
 
 describe("TeamPageHeader: the manager (1.31)", () => {
-  test("the manager's name leads to the person's page, inside the line that still says 'Manager:'", () => {
+  test("the manager's name leads to the person's page, inside the line that still says 'Manager:'; the line is on the page, not behind the info button", () => {
     renderHeader(team());
     expect(screen.getByRole("link", { name: "Open person Cara New" })).toHaveAttribute("href", "/people/12");
     expect(screen.getByText(textContent("Manager: Cara New"))).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^About this page/ })).toBeNull();
   });
 
   test("a team without a manager says so and links nothing", () => {
     renderHeader(team({ managerPersonId: null, managerName: null }));
     expect(screen.getByText("No manager")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Open person/ })).toBeNull();
+  });
+
+  test("the team's own written description is behind the info button", async () => {
+    renderHeader(team({ description: "Money movers" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(within(await openPageInfo(userEvent.setup())).getByText("Money movers")).toBeInTheDocument();
   });
 });
 

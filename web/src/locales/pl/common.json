@@ -6,6 +6,7 @@
     "delete": "Usuń",
     "edit": "Edytuj",
     "close": "Zamknij",
+    "aboutPage": "O tej stronie: {{title}}",
     "dismissNotice": "Zamknij to powiadomienie",
     "closeNotification": "Zamknij powiadomienie",
     "editAria": "Edytuj {{name}}",

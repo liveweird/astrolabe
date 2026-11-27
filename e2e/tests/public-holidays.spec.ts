@@ -10,7 +10,7 @@
 // deleted by the afterEach (the projects first - their milestones and the link go with them - then program, work stream, people).
 import { randomUUID } from "node:crypto";
 import type { APIRequestContext, Page } from "@playwright/test";
-import { apiAsAdmin, axeViolations, deleteViaApi, expect, login, test, uniqueText } from "./helpers";
+import { apiAsAdmin, axeViolations, deleteViaApi, expect, login, openPageInfo, test, uniqueText } from "./helpers";
 
 // The holiday dictionary is global, and a schedule proposal's scope token carries it: a holiday written while a proposal is open can stale the accept (409
 // `stale-scope`, when it changes an accepted date). Specs that write the dictionary or compare the figures never run at the same time (a named lock holds the whole file's run).
@@ -139,7 +139,8 @@ test("a regular user reads the 2040 holidays but cannot change them", async ({ p
   await page.getByRole("group", { name: "Teams and capacity" }).getByRole("link", { name: "Public holidays", exact: true }).click();
   await expect(page).toHaveURL(/\/public-holidays$/);
   await expect(page.getByRole("heading", { level: 2, name: "Public holidays", exact: true })).toBeVisible();
-  await expect(page.getByText(/The list is maintained by administrators\./)).toBeVisible();
+  await expect((await openPageInfo(page)).getByText(/The list is maintained by administrators\./)).toBeVisible();
+  await page.keyboard.press("Escape");
   await page.getByRole("combobox", { name: "Year", exact: true }).click();
   await page.getByRole("option", { name: YEAR, exact: true }).click();
   await expect(yearTable(page).getByRole("row", { name: new RegExp(`^2040-05-02 .* ${name}`) })).toBeVisible();

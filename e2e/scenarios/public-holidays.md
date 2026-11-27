@@ -30,7 +30,7 @@
 
 1. The administrator adds a holiday on 2040-05-02 through the API. A throwaway regular user signs in and follows **Public holidays** in the
    Teams and capacity group of the navigation.
-   - *Expected*: the page opens at `/public-holidays` with the read-only hint "The list is maintained by administrators."
+   - *Expected*: the page opens at `/public-holidays` with the read-only hint "The list is maintained by administrators." in its "About this page" popover
 2. They pick 2040 in the Year picker.
    - *Expected*: the table has the 2040-05-02 row; there is no add strip (no Date textbox, no Add holiday button), no Polish-preset button
      and no delete button; an axe scan of the page reports no violations.

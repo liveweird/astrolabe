@@ -1,7 +1,8 @@
 {
   "title": "Roadmapa",
-  "intro": "Jeden ranking wszystkich projektów, od najważniejszego, na osi czasu: pasek wiersza to okres objęty jego kamieniami milowymi, zacieniony pas za nim to okno docelowe, a flagi wskazują, co się rozjeżdża albo łamie kolejność rankingu. Każdy go widzi; zmieniają go administratorzy/rki i edytorzy/ki roadmapy.",
+  "intro": "Jeden ranking wszystkich projektów, od najważniejszego, na osi czasu: pasek wiersza to okres objęty jego kamieniami milowymi, zacieniony pas za nim to okno docelowe, a flagi wskazują, co się rozjeżdża albo łamie kolejność rankingu.",
   "introEdit": "Jeden ranking wszystkich projektów, od najważniejszego, na osi czasu: pasek wiersza to okres objęty jego kamieniami milowymi, zacieniony pas za nim to okno docelowe, a flagi wskazują, co się rozjeżdża albo łamie kolejność rankingu. Przeciągnij wiersz za uchwyt albo użyj jego menu, aby zmienić ranking; każda zmiana zapisuje się od razu. Upuszczenie wiersza poniżej linii „Bez rankingu” albo „Usuń z rankingu” wyjmuje go z rankingu; „Dodaj do rankingu” dodaje projekt na koniec listy.",
+  "readOnlyFact": "Tylko do odczytu: każdy widzi ranking; zmieniają go administratorzy/rki i edytorzy/ki roadmapy.",
   "mode": {
     "aria": "Tryb roadmapy",
     "prioritization": "Priorytetyzacja",

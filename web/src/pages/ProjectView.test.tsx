@@ -12,6 +12,7 @@ import type { PlanFlag } from "../api/roadmap";
 import { applySchedule } from "../utils/projectViewUpdate";
 import { withoutGeneratedIds } from "../test/generatedIds";
 import { headingOutline } from "../test/headings";
+import { openPageInfo } from "../test/pageInfo";
 import { deferred } from "../test/deferred";
 import { jsonResponse } from "../test/http";
 import { requestsAnswered } from "../test/requestsAnswered";
@@ -219,8 +220,9 @@ describe("Project view page", () => {
       [3, "Dependencies"],
       [3, "Idle gaps"],
     ]);
-    expect(screen.getByText("Monthly invoicing")).toBeInTheDocument();
-    expect(screen.getByText("Monthly invoicing").nextElementSibling).toHaveTextContent("Billing · Platform · Owner: Ola Owner");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(within(await openPageInfo(userEvent.setup())).getByText("Monthly invoicing")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open program Billing" }).parentElement).toHaveTextContent("Billing · Platform · Owner: Ola Owner");
     const facts = screen.getByRole("group", { name: "Project facts" });
     expect(within(facts).getByText("Target window: 2027-01-04 – 2027-01-22")).toBeInTheDocument();
     expect(within(facts).getByText("Scheduled span: 2027-01-11 – 2027-01-29")).toBeInTheDocument();

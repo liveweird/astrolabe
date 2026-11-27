@@ -4,6 +4,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import { notifications } from "@mantine/notifications";
 import PublicHolidays from "./PublicHolidays";
 import { headingOutline } from "../test/headings";
+import { openPageInfo } from "../test/pageInfo";
 import { jsonResponse } from "../test/http";
 import { QueryClient } from "@tanstack/react-query";
 import { renderWithProviders } from "../test/render";
@@ -70,7 +71,8 @@ describe("PublicHolidays page", () => {
     expect(screen.queryByRole("button", { name: "Add holiday" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Add Polish public holidays/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Delete the holiday/ })).not.toBeInTheDocument();
-    expect(screen.getByText(/The list is maintained by administrators/)).toBeInTheDocument();
+    expect(screen.queryByText(/The list is maintained by administrators/)).toBeNull();
+    expect(within(await openPageInfo(userEvent.setup())).getByText(/The list is maintained by administrators/)).toBeInTheDocument();
     expect(headingOutline()).toEqual([[2, "Public holidays"]]);
   });
 

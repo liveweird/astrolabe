@@ -249,6 +249,32 @@ test.describe("dark scheme", () => {
   registerAccountMenuScan("dark");
 });
 
+// The OPEN page description: the header's info button ("About this page: <title>") opens a portal'd `role="dialog"` named by it, with the focus moved inside; it
+// exists only while open (like the menus above). Escape closes it and gives the focus back to the button.
+function registerPageInfoScan(scheme: Scheme): void {
+  const suffix = scheme === "dark" ? " in the dark scheme" : "";
+  test(`the open page description has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+    await login(page);
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Astrolabe" }).first()).toBeVisible();
+    await expectScheme(page, scheme);
+    const button = page.getByRole("button", { name: "About this page: Astrolabe" });
+    await button.click();
+    const dialog = page.getByRole("dialog", { name: "About this page: Astrolabe" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveCSS("opacity", "1"); // axe measures contrast against the fade-in's partial opacity
+    await scan(page);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect(button).toBeFocused();
+  });
+}
+registerPageInfoScan("light");
+test.describe("dark scheme", () => {
+  test.use({ colorScheme: "dark" });
+  registerPageInfoScan("dark");
+});
+
 // The app shell at a phone width (390x844): the desktop rail toggle gives way to the burger — the
 // one control that opens the nav drawer — so the shell is scanned with it present, light and dark.
 function registerMobileShellScan(scheme: Scheme): void {

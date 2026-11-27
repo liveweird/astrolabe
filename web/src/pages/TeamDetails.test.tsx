@@ -10,6 +10,7 @@ import type { PlanFlag } from "../api/roadmap";
 import type { CapacityPeriod, TeamMilestone, TeamView } from "../api/teams";
 import { READ_ONLY_PANEL } from "../test/flow";
 import { headingOutline } from "../test/headings";
+import { openPageInfo } from "../test/pageInfo";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
 import { textContent } from "../test/textContent";
@@ -261,7 +262,8 @@ describe("Team view page", () => {
       [3, "Weekly load"],
       [3, "Idle gaps"],
     ]);
-    expect(screen.getByText("Money movers")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(within(await openPageInfo(userEvent.setup())).getByText("Money movers")).toBeInTheDocument();
     expect(screen.getByText(textContent("Manager: Cara New"))).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open person Cara New" })).toHaveAttribute("href", "/people/12");
     const facts = screen.getByRole("group", { name: "Team facts" });

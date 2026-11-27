@@ -63,6 +63,15 @@
 4. They click **Open the deviations**.
    - *Expected*: the "Deviations" heading (h2) shows. They click **Home** in the sidebar and the "Astrolabe" heading is back. Nothing is written.
 
+## Scenario: a page's description opens from its info button and closes with Escape
+
+1. The admin signs in and opens **Teams** from the sidebar.
+   - *Expected*: the "Teams" heading (h2) shows; the page's description ("The teams of your organization with their load…") is not on the page.
+2. They press the info button right after the title, named "About this page: Teams".
+   - *Expected*: the button reads `aria-expanded="true"`; a dialog named "About this page: Teams" shows with the description's words.
+3. They press Escape.
+   - *Expected*: the dialog and the description are gone, the button has the focus again and reads `aria-expanded="false"`. Nothing is written.
+
 ## Scenario: a tab left open across a deploy is told to reload when the user comes back to it, and Reload loads the build that is served
 
 1. The administrator signs in; the test waits for the shell's first read of `/index.html`.

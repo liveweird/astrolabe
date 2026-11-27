@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
-import { Button, Stack, Text } from "@mantine/core";
+import { Button, Stack } from "@mantine/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconPencil } from "@tabler/icons-react";
 import { HOME_VIEW_KEY } from "../api/home";
@@ -52,14 +52,11 @@ export default function PersonDetails() {
     <Stack gap="md">
       <PageHeader
         title={data.name}
-        description={
+        facts={
           <>
-            <Text span display="block">
-              {data.email ? t("people.emailLine", { email: data.email }) : t("people.noEmail")}
-            </Text>
-            <Text span display="block">
-              {data.userEmail ? t("people.loginLine", { email: data.userEmail }) : t("people.noLogin")}
-            </Text>
+            {data.email ? t("people.emailLine", { email: data.email }) : t("people.noEmail")}
+            {" · "}
+            {data.userEmail ? t("people.loginLine", { email: data.userEmail }) : t("people.noLogin")}
           </>
         }
         backTo={{ to: peoplePath, label: t("people.backToPeople") }}

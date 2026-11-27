@@ -84,7 +84,12 @@ The model is `utils/navigation.ts`, shared by the sidebar and the command palett
 
 The rules (the `Stack`, the widths, the one spinner, the heading outline, the tab title): `web/CLAUDE.md` "Layout conventions". The mechanics behind them:
 
-- `components/PageHeader.tsx` takes `title` (the `order={2}` heading), `description?`, `backTo?`, `actions?`, a `toolbar?` row and a `switcher?` above the title.
+- `components/PageHeader.tsx` takes `title` (the `order={2}` heading), `description?`, `printDescription?`, `facts?`, `backTo?`, `actions?`, a `toolbar?` row and a `switcher?` above the title. The title is compact (20-24 px, `.pageHeading`) on ONE row with the actions (right-aligned, aligned with the title row); `facts` and `toolbar` sit below, full width.
+- **Facts stay, free text goes behind a button** (2026-11-27). `facts?` is data and always shows, as a dimmed line (a project's program · work stream · owner links, a team's manager, a person's email and login, the Roadmap's read-only status, the Not found explanation). `description` is free text (a generic intro, a written description) and renders nothing on the page.
+  - The button: a 24 px subtle `ActionIcon` (`IconInfoCircle`) named "About this page: {title}" (`common.action.aboutPage`), in a nowrap group with `titleLead` and the title (the title shrinks, wrapping inside its h2), before `titleAddon`. It opens a Mantine `Popover` (`trapFocus`, `returnFocus`, 440 px).
+  - Semantics: `aria-haspopup="dialog"`, `aria-expanded` and, while open, `aria-controls`; the dropdown is a `role="dialog"` named by the button. Focus moves in on open, Escape returns it to the button, an outside click closes it, links inside stay links.
+  - Print: the button and the dropdown do not print. A generic intro stays out of print; with `printDescription` (a project's, team's or baseline's own written text) a `data-print="only"` copy sits under the title.
+  - Tests open it with `test/pageInfo.ts` `openPageInfo(user)` (e2e: `helpers.ts` `openPageInfo(page)`) and assert INSIDE the dialog; the print copy is in the DOM, so assert absence with `queryByRole("dialog")`. `TelemetryPanel`'s and `AuthCard`'s titles are not page headers.
 - `components/LoadingBlock.tsx` is the one spinner (`TableLoadingRow` wraps it); `components/EditPageLoadState.tsx` is the edit pages' shared load-failure
   triage (a centred loader, else a back-to-list alert); `EmptyState` sizes the Tabler icon itself, and an optional `hint` is the next step under the label.
 - Page tests pin the outline with `test/headings.ts`'s `headingOutline()`.

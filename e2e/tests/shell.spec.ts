@@ -108,6 +108,30 @@ test("the Home page links to the plan, the roadmap and the deviations", async ({
   }
 });
 
+// The page description (2026-11-27): no page prints its description under the title; a small "About this page" info button right after the title opens it in a
+// popover (a dialog the button names), Escape closes it and the focus is back on the button. Read-only (the Teams page, nothing written).
+test("a page's description opens from its info button and closes with Escape", async ({ page }) => {
+  await login(page);
+  await page.getByRole("link", { name: "Teams", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Teams", exact: true })).toBeVisible();
+  const description = page.getByText(/^The teams of your organization with their load/);
+  await expect(description).toHaveCount(0);
+
+  const info = page.getByRole("button", { name: "About this page: Teams", exact: true });
+  await expect(info).toHaveAttribute("aria-expanded", "false");
+  await info.click();
+  const dialog = page.getByRole("dialog", { name: "About this page: Teams" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText(/^The teams of your organization with their load/)).toBeVisible();
+  await expect(info).toHaveAttribute("aria-expanded", "true");
+
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(description).toHaveCount(0);
+  await expect(info).toBeFocused();
+  await expect(info).toHaveAttribute("aria-expanded", "false");
+});
+
 // The deploy check (1.17): the shell re-reads `/index.html` (served `no-cache`, its `astrolabe-build` meta holds the build's commit) and compares it with
 // the commit baked into its own bundle. A real second build cannot be had inside one stack, so the test answers the shell's read with the real response whose
 // meta content is replaced, in its own browser only: the server and every other spec are untouched, so this spec owns nothing. The five-minute interval, the

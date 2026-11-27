@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { ReactElement } from "react";
 import { QueryClient } from "@tanstack/react-query";
+import userEvent from "@testing-library/user-event";
 import type { HomeView } from "../api/home";
 import { HOME_VIEW_KEY } from "../api/home";
 import i18n from "../i18n";
@@ -8,6 +9,7 @@ import { connectionIn, view } from "../test/deviations";
 import { CAPACITY_CONNECTION, capacityView } from "../test/flow";
 import { homeMe, homeView } from "../test/home";
 import { headingOutline } from "../test/headings";
+import { openPageInfo } from "../test/pageInfo";
 import { jsonResponse } from "../test/http";
 import { requestsAnswered } from "../test/requestsAnswered";
 import { act, renderWithProviders as renderWithClient, screen, waitFor, within } from "../test/render";
@@ -93,7 +95,8 @@ describe("Home", () => {
     const fetchMock = stubViews({ jira: () => jsonResponse(200, jiraView(3, 0)), flow: () => jsonResponse(200, flowView(0, 2)) });
     renderWithProviders(<Home />);
     expect(screen.getByRole("heading", { level: 2, name: "Astrolabe" })).toBeInTheDocument();
-    expect(screen.getByText("Review the plan, delivery risks, and the work you own.")).toBeInTheDocument();
+    expect(screen.queryByText("Review the plan, delivery risks, and the work you own.")).toBeNull();
+    expect(within(await openPageInfo(userEvent.setup())).getByText("Review the plan, delivery risks, and the work you own.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open the plan" })).toHaveAttribute("href", "/plan");
     expect(screen.getByRole("link", { name: "Open the roadmap" })).toHaveAttribute("href", "/roadmap");
     expect(screen.getByRole("link", { name: "Open the deviations" })).toHaveAttribute("href", "/deviations");

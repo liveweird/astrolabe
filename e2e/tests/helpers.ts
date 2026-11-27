@@ -43,6 +43,17 @@ export async function loginViaForm(page: Page, email = ADMIN, password = PASSWOR
   await expect(accountMenu(page)).toBeVisible({ timeout: 15_000 });
 }
 
+/**
+ * Opens the page header's "About this page" popover (a page's description lives behind it since 2026-11-27) and returns the dialog, so a spec asserts the
+ * description's words and links INSIDE it.
+ */
+export async function openPageInfo(page: Page): Promise<Locator> {
+  await page.getByRole("button", { name: "About this page" }).click();
+  const dialog = page.getByRole("dialog", { name: "About this page" });
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+
 /** The `/login` response fields the SPA persists (`storeSession` in `web/src/api/session.ts`). */
 interface LoginBody {
   token: string;

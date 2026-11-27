@@ -259,7 +259,7 @@ test("a user without the roadmap right reads the ranked rows with no handle and 
   await openRoadmapOf(page, programId);
   await expect.poll(() => layout(page, mine)).toEqual([first, second, "Unranked", third]);
   await expect(rowOf(page, first).getByRole("img", { name: `${first}, target window 2026-02-02 to 2026-03-31, read-only` })).toHaveCount(1);
-  await expect(page.getByText("Everyone can read it")).toBeVisible();
+  await expect(page.getByText(/everyone can read the ranking/i)).toBeVisible();
 
   // Read-only: no drag handle anywhere, no bar that can be picked up, and the row menu offers the project and nothing that changes the ranking.
   await expect(page.locator("[data-row-handle]")).toHaveCount(0);

@@ -6,6 +6,7 @@
     "delete": "Delete",
     "edit": "Edit",
     "close": "Close",
+    "aboutPage": "About this page: {{title}}",
     "closeNotification": "Close notification",
     "dismissNotice": "Dismiss this notice",
     "editAria": "Edit {{name}}",

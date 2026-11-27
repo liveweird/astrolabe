@@ -113,7 +113,12 @@ export default function Roadmap({ modeSwitch }: { modeSwitch?: ReactNode }) {
 
   return (
     <Stack gap="md">
-      <PageHeader title={t("roadmap.title")} description={editable ? t("roadmap.introEdit") : t("roadmap.intro")} toolbar={modeSwitch} />
+      <PageHeader
+        title={t("roadmap.title")}
+        description={editable ? t("roadmap.introEdit") : t("roadmap.intro")}
+        facts={view !== undefined && !editable ? t("roadmap.readOnlyFact") : undefined}
+        toolbar={modeSwitch}
+      />
 
       {query.isError && !dropping && <ErrorAlert error={query.error} title={t("roadmap.loadFailed")} />}
       {pick !== null && query.isError && !dropping && view === undefined && <ShowWithoutBaseline onClick={() => setPick(null)} />}

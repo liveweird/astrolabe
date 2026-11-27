@@ -190,6 +190,7 @@ function Comparison({ id }: { id: number }) {
       <PageHeader
         title={data.baseline.name}
         description={data.baseline.description ?? undefined}
+        printDescription
         backTo={{ to: baselinesPath, label: t("baselines.compare.backToList") }}
         actions={
           sides === null ? (

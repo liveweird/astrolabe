@@ -1,6 +1,6 @@
 import type { Ref } from "react";
 import { useTranslation } from "react-i18next";
-import { Button, Text } from "@mantine/core";
+import { Button } from "@mantine/core";
 import { IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import type { ProjectView as ProjectViewDocument } from "../api/milestones";
 import type { JiraMark, JiraMarks } from "../utils/jiraMarks";
@@ -22,7 +22,7 @@ type ProjectHeaderProps = {
 };
 
 /**
- * The project page's header: the picker above the name (1.29: it replaced the back link), the name, the description and meta lines, and the actions the project's own `can:{…}` offers (New
+ * The project page's header: the picker above the name (1.29: it replaced the back link), the name, the program · work stream · owner line (visible `facts`; the project's own written description is behind the info button), and the actions the project's own `can:{…}` offers (New
  * milestone, Edit, the Jira link/unlink, Import from Jira, Delete).
  */
 export default function ProjectPageHeader({ project, marks, titleRef, onNewMilestone, onEdit, onLinkJira, onImportJira, onUnlinkJira, onDelete }: ProjectHeaderProps) {
@@ -31,20 +31,15 @@ export default function ProjectPageHeader({ project, marks, titleRef, onNewMiles
     <PageHeader
       titleRef={titleRef}
       title={project.name}
-      description={
+      description={project.description ?? undefined}
+      printDescription
+      facts={
         <>
-          {project.description && (
-            <Text span display="block">
-              {project.description}
-            </Text>
-          )}
-          <Text span display="block">
-            <EntityLink entity={{ kind: "program", id: project.programId }} name={project.programName} underline="always" />
-            {" · "}
-            <EntityLink entity={{ kind: "workStream", id: project.workStreamId }} name={project.workStreamName} underline="always" />
-            {" · "}
-            {t("project.ownerLabel")} <EntityLink entity={{ kind: "person", id: project.ownerPersonId }} name={project.ownerName} underline="always" />
-          </Text>
+          <EntityLink entity={{ kind: "program", id: project.programId }} name={project.programName} underline="always" />
+          {" · "}
+          <EntityLink entity={{ kind: "workStream", id: project.workStreamId }} name={project.workStreamName} underline="always" />
+          {" · "}
+          {t("project.ownerLabel")} <EntityLink entity={{ kind: "person", id: project.ownerPersonId }} name={project.ownerName} underline="always" />
         </>
       }
       switcher={<ProjectPicker projectId={project.id} currentName={project.name} />}

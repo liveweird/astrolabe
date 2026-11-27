@@ -69,8 +69,9 @@ describe("PersonDetails page", () => {
     serve();
     renderPage();
     expect(await screen.findByRole("heading", { level: 2, name: "Anna Nowak" })).toBeInTheDocument();
-    expect(screen.getByText("Email: anna@example.com")).toBeInTheDocument();
-    expect(screen.getByText("Login: anna.login@example.com")).toBeInTheDocument();
+    expect(screen.getByText(/Email: anna@example\.com/)).toBeInTheDocument();
+    expect(screen.getByText(/Login: anna\.login@example\.com/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^About this page/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^edit$/i })).not.toBeInTheDocument();
   });
 
@@ -93,8 +94,8 @@ describe("PersonDetails page", () => {
   test("a person without an email or a login says so", async () => {
     serve({}, { ...PERSON, email: null, userId: null, userEmail: null });
     renderPage();
-    expect(await screen.findByText("No email")).toBeInTheDocument();
-    expect(screen.getByText("No login")).toBeInTheDocument();
+    expect(await screen.findByText(/No email/)).toBeInTheDocument();
+    expect(screen.getByText(/No login/)).toBeInTheDocument();
   });
 
   test("a missing person shows the not-found message with a way back", async () => {

@@ -4,6 +4,7 @@ import { screen, within } from "@testing-library/react";
 import { Link, Route, Routes } from "react-router-dom";
 import BaselineCompare from "./BaselineCompare";
 import { headingOutline } from "../test/headings";
+import { openPageInfo } from "../test/pageInfo";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
 import { textContent } from "../test/textContent";
@@ -111,7 +112,8 @@ describe("Baseline comparison page", () => {
   test("shows the header facts and the totals, the rows whose end is later in ORANGE", async () => {
     renderPage();
     expect(await screen.findByRole("heading", { level: 2, name: "Q2 commitment" })).toBeInTheDocument();
-    expect(screen.getByText("After replanning")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(within(await openPageInfo(userEvent.setup())).getByText("After replanning")).toBeInTheDocument();
     expect(screen.getByText(textContent("Taken 2026-11-02 14:30 UTC by Ada Admin · Plan revision 40 · 120 milestones · 12 projects"))).toBeInTheDocument();
     expect(screen.queryByText("The plan has not changed since this baseline.")).not.toBeInTheDocument();
     const later = screen.getAllByText("2 end later")[0];
