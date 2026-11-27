@@ -5,7 +5,7 @@ Owns: what each version shipped, newest first: its scope, the user's answers, th
 ## Rules
 
 - **Read one version, never the whole doc.** Nothing here is loaded by default: go to the version's heading (`### v1.26.0`) when a doc, a test or the user names a version, one of its questions (`Q`) or one of its defaults (`D`).
-- **A release writes here:** its section at the top of "Versions" (what a section holds is said there). Its one-row scope goes to `product.md` "Roadmap" and the current version to `CLAUDE.md` "Product".
+- **A release writes here:** its section at the top of "Versions" (what a section holds is said there). Its one-row scope goes to `product.md` "Roadmap" and the current version to `CLAUDE.md` "Product": its Roadmap line names that version alone, and the version before it joins the last range of that line (a range holds about five versions).
 - **No entry is trimmed to make room.** This doc has no byte ceiling (`ci.md` "Docs shape"): it is the one instruction doc meant to grow. An entry stays one section, under the section limit.
 - **A standing answer is filed by topic** in `product.md` "Domain decisions"; this doc keeps the answers that shaped one version's build and, from 1.10.1 on, each version's defaults.
 
