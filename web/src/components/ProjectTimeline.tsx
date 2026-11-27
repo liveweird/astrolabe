@@ -10,6 +10,7 @@ import type { TimelineColumn } from "../utils/timelineModel";
 import type { TimelineScale, Zoom } from "../utils/timelineScale";
 import { NameWithFlags } from "./MilestoneFlags";
 import MilestoneMenu, { type MilestoneActions } from "./MilestoneMenu";
+import EntityLink from "./EntityLink";
 import NameCell from "./MilestoneNameCell";
 import { bandsOf, baselineRows, estimateText, ghostRow, hasMenu, jiraRows, milestoneRows, summaryRow } from "./ProjectTimelineRows";
 import Timeline, { type TimelineHandle } from "./Timeline";
@@ -120,7 +121,7 @@ export function ProjectTray({ view, actions, label, current = null }: { view: Pr
       <NameWithFlags key="name" flags={milestone.flags} link={milestone.jira} sites={sites}>
         <NameCell milestone={milestone} note={jiraTrayNote(t, milestone.jira, milestone.flags)} />
       </NameWithFlags>,
-      milestone.teamName,
+      <EntityLink key="team" entity={{ kind: "team", id: milestone.teamId }} name={milestone.teamName} />,
       estimateText(t, milestone),
     ],
     canSchedule: milestone.can.schedule,

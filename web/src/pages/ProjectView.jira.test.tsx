@@ -244,9 +244,9 @@ describe("the project page's Jira markers", () => {
       const cleanup = within(tray()).getByRole("row", { name: /Cleanup/ });
       expect(cleanup.querySelector("[data-flags]")).toHaveAttribute("data-flags", "1,0");
       expect(cleanup).not.toHaveTextContent("Jira: 2027-04-01");
-      // an unlinked row is as it was
+      // an unlinked row is as it was (no Jira key link; the team's name is an ordinary link, 1.31)
       expect(within(tray()).getByRole("row", { name: /Docs/ }).querySelector("[data-flags]")).toBeNull();
-      expect(within(tray()).getByRole("row", { name: /Docs/ }).querySelector("a")).toBeNull();
+      expect(within(tray()).getByRole("row", { name: /Docs/ }).querySelector("a[target]")).toBeNull();
       expect(within(tray()).queryByRole("columnheader", { name: "Flags" })).not.toBeInTheDocument();
     });
 

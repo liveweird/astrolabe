@@ -366,19 +366,19 @@ The rules: `web/CLAUDE.md` "Registries" and "Forms". The small ADMIN-curated reg
 
 ## Entity links
 
-Files: `components/EntityLink.tsx`, `utils/entityLinks.ts`, `entityLinkGuard.test.ts`; the rule: `web/CLAUDE.md` "An entity's NAME is the way into its detail page".
+Files: `components/EntityLink.tsx`, `OpenEntityItem.tsx`, `utils/entityLinks.ts`, `entityLinkGuard.test.ts`; the rule: `web/CLAUDE.md` "An entity's NAME is the way into its detail page".
 
 - **`EntityRef`** is `{kind: workStream|program|project|team|person|user, id}` or `{kind: "milestone", id, projectId}`; `entityPath(ref)` dispatches to the area's own helper: a milestone `/projects/P?milestone=M`
-  (`milestonePath`; the page marks and focuses it: projects-view.md "The Milestones table"), a login's ADMIN edit page, a program the Roadmap overview narrowed by its pick (`programPath`: `?mode=overview&programId=N`),
-  a work stream the overview narrowed by `workStreamId` (`workStreamPath`; "Programs").
-- **`<EntityLink entity name>`**: a `RouterLink` `Anchor` in the theme's look (no colour or underline prop), visible text the name (or `children`, a team's swatch), accessible name
-  `common.entity.open.<kind>` ("Open project {{name}}"; `aria-label` replaces it and must start with the visible text, `to` replaces the destination). A null `entity` or `current` is the same typography as
-  plain text; a `user` links for an ADMIN only. A figure leading to an entity's page spells `to={entityPath(...)}`; the guard fails `to={projectPath(...)}` and siblings outside `EntityLink` and the three menu-item files.
+  (`milestonePath`; the page marks and focuses it: projects-view.md "The Milestones table"), a login its ADMIN edit page, a program the overview narrowed by its pick (`programPath`: `?mode=overview&programId=N`), a work stream by `workStreamId` (`workStreamPath`; "Programs").
+- **`<EntityLink entity name>`**: a `RouterLink` `Anchor` in the theme's look, visible text the name (or `children`, a team's swatch), accessible name `common.entity.open.<kind>` ("Open project {{name}}";
+  `aria-label` replaces it and must start with the visible text, `to` the destination). A null `entity` or `current` is plain text of the same typography; a `user` links for an ADMIN only. A figure leading
+  to an entity's page spells `to={entityPath(...)}`; the guard fails `to={projectPath(...)}` and siblings outside `EntityLink` and the three menu-item files.
 - **Where NOT to link** (text, not a link): (1) the page's own subject (h2, the narrowed node's header, the last breadcrumb step, a milestone's own marked row); (2) a label of another control (select
   options, menu items, chevrons, checkboxes, handles, filter chips); (3) inside a dialog; (4) not rendered text (bar and handle names, `title`, arrow titles, live regions, toasts); (5) an entity gone or
   foreign (removed or frozen baseline rows, a deleted login, raw Jira or Flow values); (6) prose or the session (changelog, account menu); (7) an unknown id, never a guessed link.
 - **Keyboard**: a native table gives every link a tab stop. A Timeline grid keeps one stop per cell (`useRovingGrid`): the link takes `stop` where its cell has no other focusable, else it is `secondary`
-  (`tabIndex -1`; the props exclude both at once). Later 1.31 commits add the row menu's "Open ..." item for it and make the Plan tree's fold button chevron-only, the name link beside it.
+  (`tabIndex -1`, the pointer's link; never both) and the row menu carries its `OpenEntityItem` ("Open program X": Roadmap project rows, the overview's node and project rows).
+  The Plan tree's disclosure button is chevron-only beside the name link. A link sits in a flex item, or `underline="always"`, when text shares its block (axe `link-in-text-block`).
 - Keys: `common.entity.open.{workStream,program,project,milestone,team,person,user}` (EN/PL); names never pass through `<Trans>` values.
 
 ## Timeline mechanics (`components/Timeline*.tsx`)
@@ -680,7 +680,7 @@ Files:
 
 `ProjectPage` composes child components, split for the complexity backstop (`complexity: 35`, `eslint.config.js`):
 
-- `ProjectPageHeader` (name, meta lines, the `can`-gated actions), `ProjectViewNotices` (notes, inline write failures, the polite status region), `ProjectEditors` (the dialogs for the
+- `ProjectPageHeader` (name, the program · work stream · owner line as links, the `can`-gated actions), `ProjectViewNotices` (notes, inline write failures, the polite status region), `ProjectEditors` (the dialogs for the
   open `editor`), `TimelineTitle` and `UnscheduledTraySection` (shared with the team page).
 - The team page has the same shape: `TeamPageHeader.tsx`, `TeamViewNotices.tsx`, `TeamResetConfirm.tsx` and `TeamFlowSection.tsx` (`components/`).
 - A split moves markup, never ARIA, focus or queries.
@@ -772,8 +772,7 @@ The view's `idleGaps[]` is the SERVER's list, read and never recomputed; the ban
 - `bandsOf` appends `idleBands(view.idleGaps, t)` (`utils/idleGaps.ts`) after the window and drift bands, also when the project has no target window.
 - `<IdleGaps gaps scope="project" />` (`components/IdleGaps.tsx`, h3) follows `{dependencies}` (h3 order: Timeline, Unscheduled, Dependencies, Idle gaps); the facts line gains a gray
   `timeline.idle.badge` "N idle gaps", absent at zero.
-- `applySchedule` spreads the view, so the cached gaps survive the optimistic step unchanged (same array identity, `projectViewUpdate.test.ts`) and the refetch replaces them
-  (`ProjectView.test.tsx`: the old band is still drawn synchronously after a drop, then the server's new gap). Strings: `timeline.idle.*`.
+- `applySchedule` spreads the view, so the cached gaps survive the optimistic step unchanged and the refetch replaces them (`ProjectView.test.tsx`: the old band is still drawn synchronously after a drop, then the server's new gap). Strings: `timeline.idle.*`.
 
 ### The critical path
 
@@ -850,7 +849,7 @@ session's roles): without it there is no handle, no ranking item in the menu, an
 
 - Rows: one per project in rank order, then an "Unranked" divider row (present only while something unranked is visible) and the unranked projects (by name).
 - Left columns, 404 px sticky: `#` (the SERVER's position, "—" when unranked; a filter leaves gaps), Project (the pointer-only row handle, the name as the link into `/projects/:id` -
-  `common.entity.open.project` "Open project {{name}}" - the program dimmed after it), Flags, Operations (the row menu). Work stream and owner are filters, not columns.
+  `common.entity.open.project` "Open project {{name}}" - the program after it, dimmed: a pointer-only link), Flags, Operations (the row menu, with "Open program"). Work stream and owner are filters, not columns.
 - On the track: the project's **span bar** (read-only, `tone: "summary"`, name "{{name}}, {{start}} to {{end}}" plus ", N conflicts") over its **target window** (a `tone: "window"` bar,
   `window:<id>`, name `timeline.bar.window`; editable only where the project's own `can.editTargetWindow` is set, else a read-only image) and, past the window, the orange drift band
   (`utils/roadmapRows.ts` `driftBandOf`).
@@ -1030,7 +1029,7 @@ A browser blurs a focused element whose row is moved in the DOM, so after a take
     settles without a rollback, so a later failed pointer drag never pulls it to an old row.
   - A user focus that sits on the very element the hook placed (they pressed Enter on the Filters button before a 409/403 settled) cannot be told apart from the hook's own, so the focus
     returns to the row.
-- Under happy-dom Mantine's exit transition never ends, so `menuClosed` is proven at the hook (`useRowMenuFocus.test.tsx`), the rest in `Roadmap.test.tsx` ("Rank under Unranked projects
+- Under happy-dom Mantine's exit transition never ends, so `menuClosed` is proven at the hook, the rest in `Roadmap.test.tsx` ("Rank under Unranked projects
   only").
 
 ### The target window
@@ -1099,7 +1098,7 @@ project, one row each, in the server's order (open streams first, projects ranke
   Prioritization at first, and always when the address names a filter only it has); each body's hook rewrites the address on mount, so two writers would clobber.
 - The switch (`SegmentedControl`, radiogroup "Roadmap mode", in the header toolbar) writes the memory and pushes `mode` FIRST; filters and pick leave the address (each mode restores its memory; a
   pick only a link named is not carried), `dependency*` and foreign parameters stay. The page re-focuses it (Back/forward: main).
-- Links: `roadmapPath` bare (the last mode), `roadmapFilteredPath` names `mode=prioritization`, `roadmapOverviewPath` is Home's "Open the roadmap overview" (tests: `RoadmapModes*`).
+- Links: `roadmapPath` bare (the last mode), `roadmapFilteredPath` names `mode=prioritization`, `roadmapOverviewPath` is Home's "Open the roadmap overview".
 - Read for everyone; the one thing written here is a project's target window (band, draw, row menu - "The target window" under "Roadmap", the same shared row and write path); the
   server's spans, flag counts, drift and link checks are only read. The Timeline sits in the page's `TimelineDndContext`, as on the roadmap.
 - **Zoom:** Month / Quarter / Year under `timeline.planZoom` (the roadmap's key); the range grows over every span and window of the WHOLE plan (`hooks/usePlanScale.ts`).
@@ -1110,19 +1109,19 @@ project, one row each, in the server's order (open streams first, projects ranke
 - **The address alone**; `useProgramPick` takes it as written for the page's life (a remembered pick is neither restored nor applied, also after "Show every work stream"). `replace`, foreign parameters kept; the mode switch drops it. The filter panel's Work stream field sets it.
 - **Said in words** (`ProgramsNarrowing`): "Work stream: X" and "Show every work stream"; with no project under the narrowing (or the picked programs) an empty line and the way back, also said by the status region.
 - **An unknown or malformed id** (judged only after a successful, settled read): dropped with the parameter; a dismissible `note` Alert says so, through an always-mounted status region (`useLiveText`).
-- The narrowed node's own row is its page's subject: plain text once the tree's names become links (rule 1).
+- The narrowed node's own row (the work stream of the address, or the one picked program) is its page's subject: its name is plain text (`own`, rule 1).
 
 ### Rows
 
 `treeRows(view, pick, open)` (`utils/programsTree.ts`, pure and tested). Left columns, 448 px sticky (the Flags column is 120 px: a stream's roll-up runs to three digits on the sample
 plan): the name (a tree indent of 16 px per level), Flags, Operations.
 
-- A **work stream / program row** shows its name with the owner dimmed (and "(closed)" for a stream with an end date), a read-only `tone: "summary"` bar over the span its projects cover
+- A **work stream / program row** shows its name (a link to the overview narrowed to it) with the owner dimmed (a link; "(closed)" for a stream with an end date) and a menu of "Open ..." items, a read-only `tone: "summary"` bar over the span its projects cover
   (`programs.streamBarAria`/`programBarAria`) and the **roll-up counts** of its projects' flags in the Flags cell (the project row's icons: an orange triangle and a gray info circle
   with a visually hidden sentence, `data-flags`). A node with nothing under it (an empty program) shows no chevron.
 - A **project row** is the roadmap's row - `projectTrack`: the target-window band, the span bar (with ", N conflicts"), the drift band - with the name as the link into the project (the
-  owner dimmed) and a menu that holds the critical-path item ("Show…"/"Hide critical path", for everyone), "Dependencies" (the roadmap's `DependenciesItem`: the text path of the arrows, a
-  link to the list narrowed to the project), "Open project" and, by the project's own `can.editTargetWindow`, the window items.
+  owner dimmed, a pointer link) and a menu that holds the critical-path item ("Show…"/"Hide critical path", for everyone), "Dependencies" (the roadmap's `DependenciesItem`: the text path of the arrows, a
+  link to the list narrowed to the project), "Open project", "Open person" and, by the project's own `can.editTargetWindow`, the window items.
 - Row and bar ids are `ws:<id>` / `pg:<id>` / the project id, so the arrows anchor on the project ids as on the roadmap, or, for a project whose row is folded away, on the bar of the folded
   row that stands for it ("Arrows").
 - **One project-row builder.** `projectTrack(project, t, conflicts)` is the only place a project's bars and drift band are made; `planArrows` (over `arrowSpecsForLinks` and `rolledUpLinks`,
@@ -1143,7 +1142,7 @@ happened in its polite status region ("X expanded, 3 programs", "X collapsed").
 - `toggle(key)` finds the row in the CURRENT rows to say what it did (`programs.announce.*` with a plural `count`).
 - **Focus.** While the rows stay on one render path the chevron button is the same DOM node before and after (rows are keyed by id), so it keeps the focus and the roving grid re-adopts
   it as the tab stop. A toggle that crosses the virtualisation threshold (80 rows) remounts every row (`timeline.md` "The programs page's use"), so `toggle` records the node key in a
-  ref and an effect, after the render, calls `timelineRef.focusRow(key)` unless `[data-node-key=<key>]` is already the active element (`Programs.virtual.test.tsx`).
+  ref and an effect, after the render, calls `timelineRef.focusRow(key)` unless `[data-node-key=<key>]` is already the active element.
 
 ### The program pick
 
@@ -1320,7 +1319,7 @@ progress (peak) and Status. The weeks are the document's `warningWeeks` (the tea
 
 ### Tests
 
-The page's co-located tests (`TeamLoad.test.tsx` also pins the date, the line, the switch, a pinned far-off browser clock; the `teamLoad*` `api/` and `utils/` tests; fixtures `test/teamLoad.ts`).
+The page's co-located tests and the fixtures `test/teamLoad.ts`.
 
 ## Baselines
 
@@ -1385,7 +1384,7 @@ line (`BaselineTotals`); query keys, write rules, tone, rows: `timeline.md` "The
 
 ### Tests
 
-The co-located `Baseline*.test.tsx` (the frozen sections: `BaselineCompare.frozen.test.tsx`), `useBaselines.test.tsx` and the `baseline*` `utils/` tests.
+The co-located `Baseline*.test.tsx`, `useBaselines.test.tsx` and the `baseline*` `utils/` tests.
 
 ## Schedule proposals
 
@@ -1892,7 +1891,7 @@ ADMIN), never the session's roles.
 ### Critical path and the pin
 
 - **Critical path.** The page holds the project page's `useCriticalPathPick()` and `<CriticalPathToggle>` (after the baseline picker); the highlight, the chain's ghost rows and arrows and the Critical chain section are `timeline.md` "The critical-path highlight". Read, never recomputed.
-  - **The key.** On, the page asks `?criticalChain=true`: the toggle is the other half of the view's key. `useTeamSchedule`, `useTeamOrder` and `useScheduleProposal` all take the same trailing `chain` and build their key with `teamViewKey`, so a step, a rollback and an answered revision hit the entry the page shows, never the other document's (`teamWriteSiblings.test.tsx`); a chain-only placeholder keeps the pick's overlay (`overlayPick`). A successful write removes the team's inactive sibling entries (`dropInactiveSiblings`), so a toggle after one shows no stale copy.
+  - **The key.** On, the page asks `?criticalChain=true`: the toggle is the other half of the view's key. `useTeamSchedule`, `useTeamOrder` and `useScheduleProposal` all take the same trailing `chain` and build their key with `teamViewKey`, so a step, a rollback and an answered revision hit the entry the page shows, never the other document's; a chain-only placeholder keeps the pick's overlay (`overlayPick`). A successful write removes the team's inactive sibling entries (`dropInactiveSiblings`), so a toggle after one shows no stale copy.
   - **Locked toggle.** It is `disabled` with the baseline picker (`frozen`) while a write runs or a proposal is requested or open. `useTeamChain` hands over the block while on and says, once per switch-on in the mount (not a first load), how many rows arrived. A failed chain request offers "Show without the critical chain" (`PickedLoadState`), which turns the shared stored toggle off (the project page's too); the range stays wide after toggling off.
 - **The pin.** `PUT /milestones/{id}/pin {pinned}` (`api/milestones.ts` `pinMilestone`, answers `{revision}`; no `expectedRevision`: an idempotent flag) is a SECOND write of `useScheduleWritePath`
   (`pin(id, pinned)`, so both timeline pages have it). It is its own mutation on the SAME write key (`teamWriteKey`; the project page's `["plan","project-write",id]`), so a drag, a pin and an order
@@ -2426,7 +2425,7 @@ The rules (restrained cyan, neutral defaults, success green, overlay close names
 `src/themeVariables.ts` + `src/theme.module.css` are the single source and `src/theme.test.ts` guards every contrast ratio.
 
 - **The brand** is the 10-stop **`astrolabe` cyan tuple** (`#e3fafc … #0b7285 #095c6b`: Mantine's cyan shifted one step deeper) with `primaryShade: { light: 8, dark: 9 }`: Mantine's own shade 7/8 pair
-  falls short of 4.5:1 for white text on this hue (white on shade 8 is 5.6:1, on shade 9 7.6:1, pinned in `theme.test.ts`), and `autoContrast: true`.
+  falls short of 4.5:1 for white text on this hue (white on shade 8 is 5.6:1, on shade 9 7.6:1), and `autoContrast: true`.
   - Cyan marks only primary CTAs, the active nav item (a light tint + a 3px accent bar) and focus (chart series colours are `utils/chartColors.ts`'s); everything else is neutral by theme default
     (tables `verticalSpacing="xs"`, ≈40px rows), and pages never pass those props back.
   - GREEN is the SUCCESS colour, red the BLOCKING one, orange the warning one (soft findings, waived); the ADMIN role badge is `variant="outline" color="gray"`. **Never use teal for success:** its

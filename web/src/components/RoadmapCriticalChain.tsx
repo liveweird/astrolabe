@@ -37,6 +37,7 @@ export default function RoadmapCriticalChain({
     name: project.name,
     entity: { kind: "project", id: project.id },
     context: project.programName,
+    contextEntity: { kind: "program", id: project.programId },
     startDate: project.span?.start ?? null,
     endDate: project.span?.end ?? null,
     slackDays,

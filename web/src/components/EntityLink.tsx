@@ -25,6 +25,8 @@ export type EntityLinkProps = Omit<TextProps, "children"> & GridPlacement & {
   to?: string;
   /** An accessible name other than the entity's `common.entity.open.<kind>`; it must start with the visible text. */
   "aria-label"?: string;
+  /** `always` where the name sits inline in a sentence beside other text ("Billing · Platform"), so the link is told apart without colour (axe `link-in-text-block`). */
+  underline?: "hover" | "always";
   title?: string;
   onClick?: MouseEventHandler<HTMLAnchorElement>;
 };
@@ -32,17 +34,19 @@ export type EntityLinkProps = Omit<TextProps, "children"> & GridPlacement & {
 /**
  * An entity's NAME as the way into its page (1.31): a real link in the theme's own Anchor look (text colour, underline on hover), its accessible name
  * `common.entity.open.<kind>` ("Open project {{name}}"). The ONE component for a work stream, program, project, milestone, team, person or login name:
- * no page hand-assembles an entity's address (`entityLinkGuard.test.ts`). A null `entity`, or `current`, shows the name as plain text of the same typography;
+ * no page hand-assembles an entity's address (`entityLinkGuard.test.ts`). Without a `size` the font is the surroundings' (`inherit`). A null `entity`, or `current`, shows the name as plain text of the same typography;
  * a `user` is a link for an ADMIN only (the edit page is theirs). "Where not to link": web-internals "Entity links".
  */
-export default function EntityLink({ entity, name, children, stop, secondary, current, to, "aria-label": ariaLabel, title, onClick, ...typography }: EntityLinkProps) {
+export default function EntityLink({ entity, name, children, stop, secondary, current, to, "aria-label": ariaLabel, underline, title, onClick, ...typography }: EntityLinkProps) {
   const { t } = useTranslation();
   const admin = useAdmin();
   const content = children ?? name;
+  // No `size` of its own: the surroundings' font (Mantine's Text would otherwise be 16 px, `md`, inside a `sm` cell).
+  const inheritFont = typography.inherit ?? typography.size === undefined;
   if (entity === null || current === true || (entity.kind === "user" && !admin)) {
     return (
       // The cell's roving stop stays on the text when the name stops being a link (`current`, a null entity), so the grid keeps its position.
-      <Text span title={title} {...typography} {...stop}>
+      <Text span title={title} {...typography} inherit={inheritFont} {...stop}>
         {content}
       </Text>
     );
@@ -54,7 +58,9 @@ export default function EntityLink({ entity, name, children, stop, secondary, cu
       aria-label={ariaLabel ?? t(`common.entity.open.${entity.kind}`, { name })}
       title={title}
       onClick={onClick}
+      underline={underline}
       {...typography}
+      inherit={inheritFont}
       {...(secondary === true ? { tabIndex: -1 } : stop)}
     >
       {content}

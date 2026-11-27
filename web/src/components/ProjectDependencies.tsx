@@ -16,6 +16,7 @@ import { DependencyStatusBadge, DependencyLagText } from "./DependencyCells";
 import DependencyDeleteModal from "./DependencyDeleteModal";
 import DestructiveMenuItem from "./DestructiveMenuItem";
 import EmptyState from "./EmptyState";
+import EntityLink from "./EntityLink";
 import RowActionsMenu from "./RowActionsMenu";
 import ScrollRegion from "./ScrollRegion";
 import SlackCell from "./SlackCell";
@@ -25,6 +26,32 @@ const NO_WRAP = { whiteSpace: "nowrap" } as const;
 
 /** The view-settings key of the show/hide choice (`astrolabe.viewSettings.project.dependenciesOpen`), shared by every project. */
 const OPEN_KEY = "project.dependenciesOpen";
+
+/**
+ * One end of a link in words, as `dependencyEndpointText` words it, its names as links (1.31): a milestone (its project's name after it when that is another project)
+ * or a whole project ("Project X"; this page's own project is its subject, plain text).
+ */
+function EndName({ end, ownProjectId }: { end: ProjectDependency["predecessor"]; ownProjectId: number }) {
+  const { t } = useTranslation();
+  const project = { kind: "project", id: end.projectId } as const;
+  if (end.kind === "PROJECT") {
+    return (
+      <EntityLink entity={project} name={end.name} current={end.projectId === ownProjectId}>
+        {dependencyEndpointText(end, ownProjectId, t)}
+      </EntityLink>
+    );
+  }
+  const milestone = <EntityLink entity={{ kind: "milestone", id: end.id, projectId: end.projectId }} name={end.name} />;
+  if (end.projectId === ownProjectId) return milestone;
+  // Two links and a separator: flex items (never one run of text with links in it: axe `link-in-text-block`), the separator's spaces kept for the text.
+  return (
+    <Group component="span" gap={4} wrap="wrap">
+      {milestone}
+      {" · "}
+      <EntityLink entity={project} name={end.projectName} />
+    </Group>
+  );
+}
 
 function DependencyRow({
   dependency,
@@ -60,10 +87,10 @@ function DependencyRow({
           </Badge>
         )}
       </Table.Td>
-      <Table.Td>{dependencyEndpointText(predecessor, ownProjectId, t)}</Table.Td>
+      <Table.Td><EndName end={predecessor} ownProjectId={ownProjectId} /></Table.Td>
       <Table.Td>{t(`project.dependency.type.${dependency.type}`)}</Table.Td>
       <Table.Td><DependencyLagText lagDays={dependency.lagDays} /></Table.Td>
-      <Table.Td>{dependencyEndpointText(successor, ownProjectId, t)}</Table.Td>
+      <Table.Td><EndName end={successor} ownProjectId={ownProjectId} /></Table.Td>
       <Table.Td style={NO_WRAP}>
         {check.requiredDate !== null && check.actualDate !== null ? t("project.dependency.dates", { required: check.requiredDate, actual: check.actualDate }) : "–"}
       </Table.Td>

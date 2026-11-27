@@ -112,8 +112,9 @@ describe("ProjectMilestonesTable", () => {
     renderTable();
     const link = within(bodyRows()[0]).getByRole("link", { name: "Open team Design" });
     expect(link).toHaveAttribute("href", "/teams/4");
-    await waitFor(() => expect(link.querySelector("[data-team-colour]")).toHaveAttribute("data-team-colour", "TEAL"));
-    expect(within(bodyRows()[1]).getByRole("link", { name: "Open team Backend" }).querySelector("[data-team-colour]")).toHaveAttribute("data-team-colour", "INDIGO");
+    // The swatch sits beside the link, in the same cell (decoration, never part of the link's name).
+    await waitFor(() => expect(link.closest("td")?.querySelector("[data-team-colour]")).toHaveAttribute("data-team-colour", "TEAL"));
+    expect(within(bodyRows()[1]).getByRole("link", { name: "Open team Backend" }).closest("td")?.querySelector("[data-team-colour]")).toHaveAttribute("data-team-colour", "INDIGO");
   });
 
   test("the Schedule control rewrites the address by replace, keeping what else the address holds, and narrows the rows", async () => {

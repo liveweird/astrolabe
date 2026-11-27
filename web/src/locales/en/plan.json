@@ -22,8 +22,6 @@
     "tableAria": "Work streams, programs and projects",
     "streamAria": "Work stream {{name}}",
     "programAria": "Program {{name}}",
-    "streamKind": "Work stream",
-    "programKind": "Program",
     "programs_one": "{{count}} program",
     "programs_other": "{{count}} programs",
     "projects_one": "{{count}} project",

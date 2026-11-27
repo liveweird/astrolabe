@@ -13,7 +13,9 @@ import type { RovingTarget, TimelineColumn, TimelineRowData } from "../utils/tim
 import { PLAN_ZOOMS, type TimelineScale, type Zoom } from "../utils/timelineScale";
 import { BaselineRowName } from "./BaselineParts";
 import { CriticalPathItem, DependenciesItem, FlagCountsCell, OpenProjectItem, ProjectLink, TargetWindowItems, type WindowActions } from "./PlanProjectCells";
+import EntityLink from "./EntityLink";
 import MoveItems from "./MoveItems";
+import OpenEntityItem from "./OpenEntityItem";
 import RowActionsMenu from "./RowActionsMenu";
 import Timeline, { type TimelineHandle } from "./Timeline";
 import TimelineArrows from "./TimelineArrows";
@@ -115,21 +117,23 @@ function ProjectMenu({
       <TargetWindowItems project={project} actions={actions.window} />
       <DependenciesItem project={project} />
       <OpenProjectItem project={project} />
+      <OpenEntityItem entity={{ kind: "program", id: project.programId }} name={project.programName} />
     </RowActionsMenu>
   );
 }
 
-/** The project cell: the pointer-only drag handle (only when the viewer may rank), the name as the link into the project, the program dimmed after it. */
+/** The project cell: the pointer-only drag handle (only when the viewer may rank), the name as the link into the project (the stop), the program after it as the pointer's link (D4). */
 function ProjectCell({ project, placement, stop }: { project: RoadmapProject; placement: { index: number; count: number } | null; stop: RovingTarget }) {
   return (
     <Group gap={4} wrap="nowrap" style={{ minWidth: 0 }}>
       {placement !== null && <TimelineRowHandle id={project.id} label={project.name} position={placement.index + 1} count={placement.count} />}
+      {/* Each link in its own flex item (never one run of text beside other text: axe `link-in-text-block`); the owner-like second name shrinks first. */}
       <Text component="span" size="sm" truncate style={{ minWidth: 0 }}>
         <ProjectLink project={project} stop={stop} />
-        <Text span c="dimmed">
-          {" "}
-          {project.programName}
-        </Text>
+      </Text>{" "}
+      {/* The cell's one stop is the project's link: the program's is for the pointer, the row menu's "Open program" is the keyboard's. */}
+      <Text component="span" size="sm" truncate style={{ minWidth: 0, flexShrink: 1000 }}>
+        <EntityLink entity={{ kind: "program", id: project.programId }} name={project.programName} c="dimmed" secondary />
       </Text>
     </Group>
   );

@@ -9,7 +9,8 @@ export type Crumb = { key: string; name: string; href: string | null; onFollow: 
 
 /**
  * The way back from a focus ("Show only this"): "All work streams", then the work stream and, for a program, the program. Every step but the last is a
- * real link (the address changes, Back works). It is shown only while the plan is focused, and is no content on paper.
+ * real link (the address changes, Back works). It is shown only while the plan is focused, and is no content on paper. The steps are the Plan's own focus
+ * navigation, a control (rule 2 of "Entity links"), not the names' links: a work stream's or program's NAME elsewhere (the tree) leads to the Roadmap overview.
  */
 export default function PlanBreadcrumb({ allHref, onAll, trail }: { allHref: string; onAll: (event: MouseEvent) => void; trail: readonly Crumb[] }) {
   const { t } = useTranslation();

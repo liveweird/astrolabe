@@ -221,7 +221,7 @@ describe("Project view page", () => {
       [3, "Idle gaps"],
     ]);
     expect(screen.getByText("Monthly invoicing")).toBeInTheDocument();
-    expect(screen.getByText("Billing · Platform · Owner: Ola Owner")).toBeInTheDocument();
+    expect(screen.getByText("Monthly invoicing").nextElementSibling).toHaveTextContent("Billing · Platform · Owner: Ola Owner");
     const facts = screen.getByRole("group", { name: "Project facts" });
     expect(within(facts).getByText("Target window: 2027-01-04 – 2027-01-22")).toBeInTheDocument();
     expect(within(facts).getByText("Scheduled span: 2027-01-11 – 2027-01-29")).toBeInTheDocument();

@@ -243,10 +243,21 @@ describe("Roadmap page", () => {
     await screen.findByRole("grid", { name: "Roadmap timeline" });
     expect(document.querySelectorAll("[data-row-handle]")).toHaveLength(4);
     await openMenu(user, "Taxes");
-    for (const name of ["Move up Taxes", "Move down Taxes", "Move to top: Taxes", "Move to bottom: Taxes", "Unrank Taxes", "Dependencies of Taxes", "Open project Taxes"]) {
+    for (const name of ["Move up Taxes", "Move down Taxes", "Move to top: Taxes", "Move to bottom: Taxes", "Unrank Taxes", "Dependencies of Taxes", "Open project Taxes", "Open program Compliance"]) {
       expect(await screen.findByRole("menuitem", { name })).toBeInTheDocument();
     }
     expect(screen.queryByRole("menuitem", { name: /^Rank / })).toBeNull();
+  });
+
+  test("the program after a project's name is a pointer-only link to its overview: out of the tab order, the row menu's \"Open program\" is the keyboard's", async () => {
+    renderWithProviders(<Roadmap />);
+    await screen.findByRole("grid", { name: "Roadmap timeline" });
+    const program = within(rowOf("Ledger")).getByRole("link", { name: "Open program Compliance" });
+    expect(program).toHaveAttribute("href", "/roadmap?mode=overview&programId=11");
+    expect(program).toHaveAttribute("tabindex", "-1");
+    // The project's name is the cell's roving stop: it carries the grid position the program's link lacks.
+    expect(within(rowOf("Ledger")).getByRole("link", { name: "Open project Ledger" })).toHaveAttribute("data-grid-pos");
+    expect(program).not.toHaveAttribute("data-grid-pos");
   });
 
   test("Move up PUTs the complete new order with the view's revision, reorders at once, announces it and the menu keeps focus", async () => {

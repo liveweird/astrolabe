@@ -25,6 +25,8 @@ export type UpstreamRow = {
   kind?: string;
   /** The context column's text: the project of a milestone (project page), the program of a project (roadmap). */
   context: string;
+  /** What the context text stands for, when it names an entity (the roadmap's program): it then links to its page. */
+  contextEntity?: EntityRef;
   startDate: string | null;
   endDate: string | null;
   slackDays: number;
@@ -83,7 +85,7 @@ export default function UpstreamTable({
                 )}
               </Table.Td>
               {kindColumn && <Table.Td>{row.kind}</Table.Td>}
-              <Table.Td>{row.context}</Table.Td>
+              <Table.Td>{row.contextEntity === undefined ? row.context : <EntityLink entity={row.contextEntity} name={row.context} />}</Table.Td>
               <Table.Td style={NO_WRAP}>{row.startDate === null || row.endDate === null ? "—" : t("project.critical.span", { start: row.startDate, end: row.endDate })}</Table.Td>
               <Table.Td style={NO_WRAP}>{t("project.critical.slackDays", { count: row.slackDays })}</Table.Td>
               {chainBadge && (

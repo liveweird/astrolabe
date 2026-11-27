@@ -19,7 +19,7 @@
   },
   "notFound": "Ten projekt już nie istnieje.",
   "loadFailed": "Nie udało się wczytać projektu",
-  "metaLine": "{{program}} · {{workStream}} · Właściciel/ka: {{owner}}",
+  "ownerLabel": "Właściciel/ka:",
   "factsAria": "Informacje o projekcie",
   "windowLine": "Okno docelowe: {{start}} – {{end}}",
   "noWindow": "Brak okna docelowego",

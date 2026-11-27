@@ -63,12 +63,12 @@ describe("Plan page: folds", () => {
     expect(stored()).toBeNull();
   });
 
-  test("a childless program is plain text: no disclosure button, its kind said to a screen reader", async () => {
+  test("a childless program has no disclosure button: its name is a link that says its kind", async () => {
     show();
     renderWithProviders(<Plan />);
     await findPlanTree();
     expect(screen.queryByRole("button", { name: "Program Archive" })).not.toBeInTheDocument();
-    expect(screen.getByRole("rowheader", { name: /Archive/ })).toHaveTextContent("Program Archive");
+    expect(within(screen.getByRole("rowheader", { name: /Archive/ })).getByRole("link", { name: "Open program Archive" })).toHaveTextContent(/^Archive$/);
   });
 
   test("a click folds a work stream, hides what is under it, keeps the focus on the button, says so and remembers it", async () => {

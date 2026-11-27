@@ -90,7 +90,7 @@ export default function PlanTreeRow({
         </div>
       </Table.Th>
       <Table.Td>
-        <Text size="sm">{plain.ownerName}</Text>
+        <EntityLink entity={{ kind: "person", id: plain.ownerPersonId }} name={plain.ownerName} size="sm" aria-label={label(t("common.entity.open.person", { name: plain.ownerName }))} />
       </Table.Td>
       <Table.Td>
         <Dates row={row} />
@@ -112,43 +112,33 @@ export default function PlanTreeRow({
   );
 }
 
-/** The name: a disclosure button for a node with children, plain text (with its kind said to a screen reader) for a childless one, the link for a project. */
+/**
+ * The name (1.31): a link for every level - a project to its page, a work stream or program to the Roadmap overview narrowed to it - and, for a node with
+ * children, a chevron-only disclosure button BESIDE it (the button keeps its level-and-name accessible name and `aria-expanded`; nothing nests in a button). A childless
+ * node, and the root of a focus (always open), has no button: the name keeps the chevron's room.
+ */
 function RowName({ row, label, highlight, onToggle }: { row: PlanTreeRow; label: (text: string) => string; highlight: string; onToggle: (row: NodeRow) => void }) {
   const { t } = useTranslation();
   const name = rowName(row);
-  const shown = <Highlighted text={name} query={highlight} />;
-  if (row.kind === "project") {
-    return (
-      <span className={classes.planTreeLeaf}>
-        <EntityLink entity={{ kind: "project", id: row.project.id }} name={name} size="sm" fw={WEIGHT.project} aria-label={label(t("common.entity.open.project", { name }))}>
-          {shown}
-        </EntityLink>
-      </span>
-    );
-  }
-  // A childless work stream or program has nothing to fold, and the root of a focus is always open: plain text, never a disclosure button.
-  if (row.childCount === 0 || row.locked) {
-    return (
-      <span className={classes.planTreeLeaf}>
-        <Text span size="sm" fw={WEIGHT[row.kind]}>
-          <VisuallyHidden>{t(row.kind === "workStream" ? "plan.tree.streamKind" : "plan.tree.programKind")} </VisuallyHidden>
-          {shown}
-        </Text>
-      </span>
-    );
-  }
+  const entity = { kind: row.kind, id: row.kind === "workStream" ? row.stream.id : row.kind === "program" ? row.program.id : row.project.id } as const;
+  const link = (
+    <EntityLink entity={entity} name={name} size="sm" fw={WEIGHT[row.kind]} aria-label={label(t(`common.entity.open.${row.kind}`, { name }))}>
+      <Highlighted text={name} query={highlight} />
+    </EntityLink>
+  );
+  if (row.kind === "project" || row.childCount === 0 || row.locked) return <span className={classes.planTreeLeaf}>{link}</span>;
   return (
-    <UnstyledButton
-      className={classes.planTreeToggle}
-      aria-expanded={row.expanded}
-      aria-label={label(t(row.kind === "workStream" ? "plan.tree.streamAria" : "plan.tree.programAria", { name }))}
-      onClick={() => onToggle(row)}
-    >
-      {row.expanded ? <IconChevronDown size={16} aria-hidden="true" data-print="hide" /> : <IconChevronRight size={16} aria-hidden="true" data-print="hide" />}
-      <Text span size="sm" fw={WEIGHT[row.kind]}>
-        {shown}
-      </Text>
-    </UnstyledButton>
+    <span className={classes.planTreeNameRow}>
+      <UnstyledButton
+        className={classes.planTreeToggle}
+        aria-expanded={row.expanded}
+        aria-label={label(t(row.kind === "workStream" ? "plan.tree.streamAria" : "plan.tree.programAria", { name }))}
+        onClick={() => onToggle(row)}
+      >
+        {row.expanded ? <IconChevronDown size={16} aria-hidden="true" data-print="hide" /> : <IconChevronRight size={16} aria-hidden="true" data-print="hide" />}
+      </UnstyledButton>
+      {link}
+    </span>
   );
 }
 

@@ -19,7 +19,7 @@
   },
   "notFound": "This project no longer exists.",
   "loadFailed": "Could not load the project",
-  "metaLine": "{{program}} · {{workStream}} · Owner: {{owner}}",
+  "ownerLabel": "Owner:",
   "factsAria": "Project facts",
   "windowLine": "Target window: {{start}} – {{end}}",
   "noWindow": "No target window",

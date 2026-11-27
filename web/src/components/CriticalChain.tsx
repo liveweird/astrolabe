@@ -7,7 +7,7 @@ import TableDisclosure from "./TableDisclosure";
 import UpstreamTable, { type UpstreamRow } from "./UpstreamTable";
 
 /** The server's upstream entries as the shared table's rows: a project's name links to its page, a milestone's to its row on its project's page. */
-function rowsOf(entries: readonly UpstreamEntity[], t: TFunction): UpstreamRow[] {
+function rowsOf(entries: readonly UpstreamEntity[], ownProjectId: number, t: TFunction): UpstreamRow[] {
   return entries.map((entry) => ({
     key: `${entry.kind}:${entry.id}`,
     hops: entry.hops,
@@ -16,6 +16,8 @@ function rowsOf(entries: readonly UpstreamEntity[], t: TFunction): UpstreamRow[]
     ariaLabel: t(entry.kind === "MILESTONE" ? "project.ghostMilestoneLinkAria" : "project.ghostLinkAria", { text: entry.name, project: entry.projectName }),
     kind: t(`project.dependency.kind.${entry.kind}`),
     context: entry.projectName,
+    // The context names a milestone's project: plain for a project row (it is the name itself) and for this page's own project (its subject).
+    ...(entry.kind === "PROJECT" || entry.projectId === ownProjectId ? {} : { contextEntity: { kind: "project", id: entry.projectId } as const }),
     startDate: entry.startDate,
     endDate: entry.endDate,
     slackDays: entry.slackDays,
@@ -46,7 +48,7 @@ export default function CriticalChain({ view }: { view: ProjectView }) {
       <Text size="sm" fw={600}>
         {t("project.critical.onChain")}
       </Text>
-      {onChain.length === 0 ? <Text c="dimmed">{t(neighboursOnly ? "project.critical.emptyNeighbours" : "project.critical.empty")}</Text> : <UpstreamTable rows={rowsOf(onChain, t)} label={t("project.critical.onChainAria")} contextHeader={t("project.critical.column.project")} kindColumn />}
+      {onChain.length === 0 ? <Text c="dimmed">{t(neighboursOnly ? "project.critical.emptyNeighbours" : "project.critical.empty")}</Text> : <UpstreamTable rows={rowsOf(onChain, view.project.id, t)} label={t("project.critical.onChainAria")} contextHeader={t("project.critical.column.project")} kindColumn />}
       <Text size="sm" fw={600}>
         {t("project.critical.withSlack")}
       </Text>
@@ -54,7 +56,7 @@ export default function CriticalChain({ view }: { view: ProjectView }) {
         <Text c="dimmed">{t("project.critical.emptySlack")}</Text>
       ) : (
         <TableDisclosure showLabel={t("project.critical.show")} hideLabel={t("project.critical.hide")}>
-          <UpstreamTable rows={rowsOf(withSlack, t)} label={t("project.critical.withSlackAria")} contextHeader={t("project.critical.column.project")} kindColumn stickyHeader />
+          <UpstreamTable rows={rowsOf(withSlack, view.project.id, t)} label={t("project.critical.withSlackAria")} contextHeader={t("project.critical.column.project")} kindColumn stickyHeader />
         </TableDisclosure>
       )}
       {upstreamTruncated && (

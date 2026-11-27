@@ -29,7 +29,6 @@ import SortHeader from "./SortHeader";
 import TableDisclosure from "./TableDisclosure";
 import TeamFilterSelect from "./TeamFilterSelect";
 import TeamNameCell from "./TeamNameCell";
-import EntityLink from "./EntityLink";
 import classes from "../theme.module.css";
 
 const TABLE_MAX_HEIGHT = 420;
@@ -50,9 +49,7 @@ function MilestoneRow({ milestone, colour, current }: { milestone: ProjectMilest
         </Text>
       </Table.Td>
       <Table.Td>
-        <EntityLink entity={{ kind: "team", id: milestone.teamId }} name={milestone.teamName} size="sm">
-          <TeamNameCell name={milestone.teamName} colour={colour} />
-        </EntityLink>
+        <TeamNameCell name={milestone.teamName} colour={colour} teamId={milestone.teamId} />
       </Table.Td>
       <Table.Td style={NO_WRAP}>
         <Text size="sm">{milestone.estimateMd}</Text>

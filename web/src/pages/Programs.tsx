@@ -311,6 +311,8 @@ function ProgramsBody({
             jira={jira}
             criticalPath={view.criticalPath}
             critical={{ target, disabled: writing, toggle: (project) => showCriticalTo(project.id === target ? null : project) }}
+            // The narrowed node is this page's subject: a work stream named by the address, or the one picked program (its name is plain text on its own row).
+            own={narrowing.workStream !== null ? { kind: "workStream", id: narrowing.workStream.id } : pick?.size === 1 ? { kind: "program", id: [...pick][0] } : null}
             toolbar={
               <>
                 <BaselinePicker pick={baselinePick} onPick={onPick} current={view.baseline} disabled={writing} />

@@ -173,6 +173,8 @@ describe("Roadmap page: the critical path to a picked project", () => {
       ["1", "Invoices", "Billing", "2026-03-09 – 2026-04-10", "0 working days", "On the chain"],
       ["2", "Taxes", "Billing", "2026-02-02 – 2026-02-27", "4 working days", ""],
     ]);
+    // the program is a link to its overview (1.31)
+    expect(within(table).getAllByRole("link", { name: "Open program Billing" }).map((link) => link.getAttribute("href"))).toEqual(["/roadmap?mode=overview&programId=10", "/roadmap?mode=overview&programId=10"]);
     // the choice is a question, not a setting: nothing is stored
     expect(Object.keys(localStorage).filter((key) => key.includes("ritical"))).toEqual([]);
   });

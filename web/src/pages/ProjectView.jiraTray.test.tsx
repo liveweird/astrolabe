@@ -126,7 +126,8 @@ describe("the project page's tray milestones that Jira dates (1.16)", () => {
     // no menu, no Flags content, no key link: the row is the bar only, and its Flags cell is empty although the column exists (Build is linked)
     expect(within(grid).getByRole("columnheader", { name: "Flags" })).toBeInTheDocument();
     expect(row.querySelector("button")).toBeNull();
-    expect(row.querySelector("a")).toBeNull();
+    // the one link is the team's (1.31): no Jira key link
+    expect([...row.querySelectorAll("a")].map((link) => link.getAttribute("href"))).toEqual(["/teams/3"]);
     expect(row.querySelector("[data-flags]")).toBeNull();
     // it comes after the scheduled rows
     const texts = within(grid).getAllByRole("row").map((r) => r.textContent ?? "");

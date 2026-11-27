@@ -149,7 +149,7 @@ export function ghostRow(
           />
         ),
         // dimmed like the name: a ghost row is another project's, read-only
-        endpoint.teamName === null ? "" : <TeamNameCell key="team" name={endpoint.teamName} colour={colour} dimmed />,
+        endpoint.teamName === null ? "" : (stop: RovingTarget) => <TeamNameCell name={endpoint.teamName ?? ""} colour={colour} dimmed teamId={endpoint.teamId ?? undefined} stop={stop} />,
         "",
         null,
       ],
@@ -200,7 +200,7 @@ export function milestoneRows(
     cells: withOptional(
       [
         <NameCell key="name" milestone={milestone} mark={fresh?.has(milestone.id) === true ? t("timeline.baseline.newMark") : undefined} />,
-        <TeamNameCell key="team" name={milestone.teamName} colour={colours.get(milestone.teamId)} />,
+        (stop: RovingTarget) => <TeamNameCell name={milestone.teamName} colour={colours.get(milestone.teamId)} teamId={milestone.teamId} stop={stop} />,
         estimateText(t, milestone),
         // A function cell holds its own focusable; with no menu the cell stays a static stop, so the tab stop never lands on a missing element.
         hasMenu(milestone, canLink) ? (stop: RovingTarget) => <MilestoneMenu milestone={milestone} actions={actions} canLink={canLink} trigger={stop} /> : null,
@@ -300,9 +300,7 @@ export function jiraRows(view: ProjectView, t: TFunction, { criticalPath, flagsC
     cells: withOptional(
       [
         <AppendedRowName key="name" name={milestone.name} mark={t("timeline.jiraUnscheduledMark")} />,
-        <Text key="team" component="span" size="sm" c="dimmed">
-          {milestone.teamName}
-        </Text>,
+        (stop: RovingTarget) => <EntityLink entity={{ kind: "team", id: milestone.teamId }} name={milestone.teamName} size="sm" c="dimmed" truncate stop={stop} />,
         <Text key="estimate" component="span" size="sm" c="dimmed">
           {estimateText(t, milestone)}
         </Text>,

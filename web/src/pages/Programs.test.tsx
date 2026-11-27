@@ -174,7 +174,7 @@ describe("Programs page", () => {
     await user.click(within(grid()).getByRole("button", { name: "Work stream Platform" }));
     expect(liveText()).toContain("Platform expanded, 2 programs");
     expect(rowLabels()).toEqual(["Work stream Platform", "Program Billing", "Invoices", "Taxes", "Program Reports", "Work stream Archive", LEGACY_ROW]);
-    expect(within(rowOfLeaf("Legacy")).queryByRole("button")).toBeNull();
+    expect(within(rowOfLeaf("Legacy")).queryByRole("button", { name: /^(Program|Work stream) / })).toBeNull();
   });
 
   test("Expand all opens every node, Collapse all folds even the work streams, and both are announced", async () => {
@@ -225,7 +225,7 @@ describe("Programs page", () => {
     expect(within(within(grid()).getByRole("link", { name: "Open project Drafts" }).closest('[role="row"]') as HTMLElement).queryByRole("img")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Operations for Invoices" }));
     expect(await screen.findByRole("menuitem", { name: "Open project Invoices" })).toBeInTheDocument();
-    expect(screen.getAllByRole("menuitem").map((item) => item.getAttribute("aria-label"))).toEqual(["Show critical path to this project: Invoices", "Dependencies of Invoices", "Open project Invoices"]);
+    expect(screen.getAllByRole("menuitem").map((item) => item.getAttribute("aria-label"))).toEqual(["Show critical path to this project: Invoices", "Dependencies of Invoices", "Open project Invoices", "Open person Ola Owner"]);
     // The text path of the arrows: an in-page action opening the dependency panel narrowed to the project (`Programs.dependencies.test.tsx`), for a viewer with no right as well.
     expect(screen.getByRole("menuitem", { name: "Dependencies of Invoices" })).not.toHaveAttribute("href");
   });

@@ -15,6 +15,8 @@ import type { BarId, RovingTarget, TimelineBarData, TimelineColumn, TimelineRowD
 import { PLAN_ZOOMS, type TimelineScale, type Zoom } from "../utils/timelineScale";
 import { BaselineRowName } from "./BaselineParts";
 import { CriticalPathItem, DependenciesItem, FlagCountsCell, OpenProjectItem, ProjectLink, TargetWindowItems, type WindowActions } from "./PlanProjectCells";
+import EntityLink from "./EntityLink";
+import OpenEntityItem from "./OpenEntityItem";
 import RowActionsMenu from "./RowActionsMenu";
 import Timeline, { type TimelineHandle } from "./Timeline";
 import TimelineArrows from "./TimelineArrows";
@@ -22,21 +24,34 @@ import TimelineArrows from "./TimelineArrows";
 /** The sticky left columns: 448 px in all (the roll-up counts of a work stream run to three digits - found on the sample plan - hence the much wider Flags column than the roadmap's 64 px). */
 const COLUMN_WIDTHS = { name: 272, flags: 120, actions: 56 } as const;
 
+/**
+ * A name cell's links sit in their own flex items (never one run of text beside other text: axe `link-in-text-block` would ask the theme's underline-on-hover
+ * links for an underline); the whitespace between the items keeps the cell's text reading "Name Owner". The owner shrinks first.
+ */
+const FLEX_FIRST = { minWidth: 0 } as const;
+const FLEX_LAST = { minWidth: 0, flexShrink: 1000 } as const;
+
 /** The indent per tree level, and the width of the chevron's slot (a row with nothing to expand keeps the slot, so the names line up). */
 const INDENT = 16;
 const CHEVRON_SLOT = 22;
 
+/** The node the page is narrowed to (a work stream by `workStreamId`, a sole picked program): its own row names it, so its name is plain text there. */
+export type OwnNode = { kind: "workStream" | "program"; id: number };
+
 /**
- * The name of a tree row: the chevron button of an expandable node (`aria-expanded`; its name tells the level - "Work stream X" / "Program Y" -
- * and it is the ONE roving stop of the cell), then the name with the owner dimmed after it. A node with no children shows an empty slot and its
- * cell is the stop itself (`stop` is then absent).
+ * The name of a tree row (1.31): the chevron button of an expandable node (`aria-expanded`; its name tells the level - "Work stream X" / "Program Y" - and it is
+ * the ONE roving stop of the cell), then the name as the link to the work stream's or program's overview (the pointer's link: the row menu's "Open ..." item is
+ * the keyboard's) with the owner, a link too, dimmed after it. A node with no children has no chevron: its name is the cell's stop (`stop`), plain text for the
+ * node the page is narrowed to (`own`, rule 1).
  */
-function NodeLabel({ row, onToggle, stop }: { row: NodeRow; onToggle: (key: string) => void; stop?: RovingTarget }) {
+function NodeLabel({ row, own, onToggle, stop }: { row: NodeRow; own: OwnNode | null; onToggle: (key: string) => void; stop: RovingTarget }) {
   const { t } = useTranslation();
   const stream = row.kind === "workStream";
+  const chevron = row.childCount > 0;
+  const name = { entity: { kind: row.kind, id: row.id }, name: row.name, fw: stream ? 700 : 600, current: own?.kind === row.kind && own.id === row.id } as const;
   return (
     <Group gap={4} wrap="nowrap" style={{ minWidth: 0, paddingLeft: stream ? 0 : INDENT }}>
-      {row.childCount > 0 ? (
+      {chevron ? (
         <ActionIcon
           size="sm"
           data-node-key={row.key}
@@ -50,36 +65,46 @@ function NodeLabel({ row, onToggle, stop }: { row: NodeRow; onToggle: (key: stri
       ) : (
         <span aria-hidden="true" style={{ width: CHEVRON_SLOT, flex: "none" }} />
       )}
-      <Text component="span" size="sm" truncate style={{ minWidth: 0 }}>
-        <Text span fw={stream ? 700 : 600}>
-          {row.name}
-        </Text>
-        {row.kind === "workStream" && row.closed && (
-          <Text span c="dimmed">
-            {" "}
+      <Text component="span" size="sm" truncate style={FLEX_FIRST}>
+        {chevron ? <EntityLink {...name} secondary /> : <EntityLink {...name} stop={stop} />}
+      </Text>
+      {row.kind === "workStream" && row.closed && (
+        <>
+          {" "}
+          <Text component="span" size="sm" c="dimmed" style={{ flex: "none" }}>
             ({t("programs.closed")})
           </Text>
-        )}
-        <Text span c="dimmed">
-          {" "}
-          {row.ownerName}
-        </Text>
+        </>
+      )}{" "}
+      <Text component="span" size="sm" truncate style={FLEX_LAST}>
+        <EntityLink entity={{ kind: "person", id: row.ownerPersonId }} name={row.ownerName} c="dimmed" secondary />
       </Text>
     </Group>
   );
 }
 
-/** The name cell of a project row: indented under its program, the name as the link into the project (the roving stop), the owner dimmed. */
+/** A node row's menu: "Open ..." for its owner and, while the chevron holds the cell's stop, for its name (the keyboard's way to the links the pointer has). */
+function NodeMenu({ row, own, stop }: { row: NodeRow; own: OwnNode | null; stop: RovingTarget }) {
+  const { t } = useTranslation();
+  const named = row.childCount > 0 && !(own?.kind === row.kind && own.id === row.id);
+  return (
+    <RowActionsMenu label={t("common.table.operationsAria", { name: row.name })} trigger={{ ...stop, "data-operations-for": row.key }}>
+      {named && <OpenEntityItem entity={{ kind: row.kind, id: row.id }} name={row.name} />}
+      <OpenEntityItem entity={{ kind: "person", id: row.ownerPersonId }} name={row.ownerName} />
+    </RowActionsMenu>
+  );
+}
+
+/** The name cell of a project row: indented under its program, the name as the link into the project (the roving stop), the owner dimmed after it (the pointer's link). */
 function ProjectLabel({ project, stop }: { project: RoadmapProject; stop: RovingTarget }) {
   return (
     <Group gap={4} wrap="nowrap" style={{ minWidth: 0, paddingLeft: 2 * INDENT }}>
       <span aria-hidden="true" style={{ width: CHEVRON_SLOT, flex: "none" }} />
-      <Text component="span" size="sm" truncate style={{ minWidth: 0 }}>
+      <Text component="span" size="sm" truncate style={FLEX_FIRST}>
         <ProjectLink project={project} stop={stop} />
-        <Text span c="dimmed">
-          {" "}
-          {project.ownerName}
-        </Text>
+      </Text>{" "}
+      <Text component="span" size="sm" truncate style={FLEX_LAST}>
+        <EntityLink entity={{ kind: "person", id: project.ownerPersonId }} name={project.ownerName} c="dimmed" secondary />
       </Text>
     </Group>
   );
@@ -143,6 +168,7 @@ export default function ProgramsTimeline({
   jira,
   criticalPath,
   critical,
+  own,
 }: {
   links: readonly RoadmapLink[];
   /** The view's `teams` (active teams with milestones): the names of a project's Flow-pending teams. */
@@ -171,6 +197,8 @@ export default function ProgramsTimeline({
   criticalPath: RoadmapCriticalPath | undefined;
   /** The row menu's critical-path item: the page's target, whether a write is in flight, and the toggle. */
   critical: { target: number | null; disabled: boolean; toggle: (project: RoadmapProject) => void };
+  /** The work stream or program the page is narrowed to, whose own row shows its name as plain text; `null` = none. */
+  own: OwnNode | null;
 }) {
   const { t } = useTranslation();
   const { holidays, failed: holidaysFailed } = useHolidays();
@@ -193,8 +221,8 @@ export default function ProgramsTimeline({
     if (isNodeRow(row)) {
       return {
         id: row.key,
-        // A node with something to expand puts its chevron button on the roving stop; a leaf node is a static cell (the cell is the stop).
-        cells: [row.childCount > 0 ? (stop: RovingTarget) => <NodeLabel row={row} onToggle={onToggle} stop={stop} /> : <NodeLabel key="name" row={row} onToggle={onToggle} />, <FlagCountsCell key="flags" counts={row.flags} />, ""],
+        // A node with something to expand puts its chevron button on the roving stop, a leaf node its name; the menu holds the "Open ..." items of the links out of the tab order.
+        cells: [(stop: RovingTarget) => <NodeLabel row={row} own={own} onToggle={onToggle} stop={stop} />, <FlagCountsCell key="flags" counts={row.flags} />, (stop: RovingTarget) => <NodeMenu row={row} own={own} stop={stop} />],
         bars: summaryBars(row, t, rowConflicts.get(row.key) ?? 0, holdsCritical.has(row.key)),
       };
     }
@@ -210,6 +238,7 @@ export default function ProgramsTimeline({
             <TargetWindowItems project={project} actions={windowActions} />
             <DependenciesItem project={project} />
             <OpenProjectItem project={project} />
+            <OpenEntityItem entity={{ kind: "person", id: project.ownerPersonId }} name={project.ownerName} />
           </RowActionsMenu>
         ),
       ],

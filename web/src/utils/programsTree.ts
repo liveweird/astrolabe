@@ -25,6 +25,7 @@ type NodeBase = {
   key: string;
   id: number;
   name: string;
+  ownerPersonId: number;
   ownerName: string;
   /** The derived span over the node's projects (a work stream's over its shown programs'); `null` while none is scheduled. */
   span: DateSpan | null;
@@ -104,7 +105,7 @@ export function treeRows(view: ProgramsView, pick: ReadonlySet<number> | null, o
   for (const { stream, programs, span, flags, baseline } of shownStreams(view, pick)) {
     const key = streamKey(stream.id);
     const expanded = programs.length > 0 && open.has(key);
-    rows.push({ kind: "workStream", key, id: stream.id, name: stream.name, ownerName: stream.ownerName, closed: stream.endDate !== null, span, flags, baseline, childCount: programs.length, expanded });
+    rows.push({ kind: "workStream", key, id: stream.id, name: stream.name, ownerPersonId: stream.ownerPersonId, ownerName: stream.ownerName, closed: stream.endDate !== null, span, flags, baseline, childCount: programs.length, expanded });
     if (!expanded) continue;
     for (const program of programs) {
       const programRowKey = programKey(program.id);
@@ -116,6 +117,7 @@ export function treeRows(view: ProgramsView, pick: ReadonlySet<number> | null, o
         key: programRowKey,
         id: program.id,
         name: program.name,
+        ownerPersonId: program.ownerPersonId,
         ownerName: program.ownerName,
         workStreamId: stream.id,
         span: program.span,

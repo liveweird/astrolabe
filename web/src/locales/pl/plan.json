@@ -22,8 +22,6 @@
     "tableAria": "Strumienie pracy, programy i projekty",
     "streamAria": "Strumień pracy {{name}}",
     "programAria": "Program {{name}}",
-    "streamKind": "Strumień pracy",
-    "programKind": "Program",
     "programs_one": "{{count}} program",
     "programs_few": "{{count}} programy",
     "programs_many": "{{count}} programów",

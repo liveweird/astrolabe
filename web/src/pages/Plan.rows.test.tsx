@@ -69,7 +69,7 @@ test("renders ONE table: a row per node in the server's order with its parent, c
   expect(rows[3]).toHaveTextContent("Not set");
 });
 
-test("a closed work stream shows the Closed badge and its dates; an open one does not; a childless one is plain text with its kind said", async () => {
+test("a closed work stream shows the Closed badge and its dates; an open one does not; a childless one has no disclosure button, its kind said by its link", async () => {
   renderWithProviders(<Plan />);
   await findPlanTree();
   expect(screen.getAllByText("Closed")).toHaveLength(1);
@@ -78,7 +78,7 @@ test("a closed work stream shows the Closed badge and its dates; an open one doe
   expect(within(legacy).getByText("2024-01-01 – 2025-12-31")).toBeInTheDocument();
   expect(within(legacy).getByText("0 programs")).toBeInTheDocument();
   expect(within(legacy).queryByRole("button", { name: /Work stream Legacy/ })).not.toBeInTheDocument();
-  expect(within(legacy).getByText("Work stream")).toBeInTheDocument();
+  expect(within(legacy).getByRole("link", { name: "Open work stream Legacy" })).toHaveAttribute("href", "/roadmap?mode=overview&workStreamId=2");
   // A closed stream still takes programs.
   expect(screen.getByRole("button", { name: "New program in Legacy" })).toBeInTheDocument();
 });

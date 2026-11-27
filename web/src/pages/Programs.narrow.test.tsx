@@ -35,12 +35,12 @@ const project = (id: number, name: string, programId: number, programName: strin
 });
 
 const none = { warnings: 0, infos: 0 };
-const BILLING: ProgramsProgram = { id: 10, name: "Billing", ownerName: "Pat Program", span: { start: "2026-03-02", end: "2026-04-10" }, flags: none, projects: [project(1, "Invoices", 10, "Billing", 1, "Platform")] };
-const REPORTS: ProgramsProgram = { id: 11, name: "Reports", ownerName: "Rita Reports", span: { start: "2026-03-02", end: "2026-04-10" }, flags: none, projects: [project(3, "Dashboards", 11, "Reports", 1, "Platform")] };
-const LEGACY: ProgramsProgram = { id: 12, name: "Legacy", ownerName: "Leo Legacy", span: null, flags: none, projects: [] };
-const PLATFORM: ProgramsWorkStream = { id: 1, name: "Platform", ownerName: "Sam Stream", startDate: "2026-01-05", endDate: null, span: { start: "2026-03-02", end: "2026-04-10" }, flags: none, programs: [BILLING, REPORTS] };
-const ARCHIVE: ProgramsWorkStream = { id: 2, name: "Archive", ownerName: "Ava Archive", startDate: "2025-01-06", endDate: null, span: null, flags: none, programs: [LEGACY] };
-const EMPTY: ProgramsWorkStream = { id: 3, name: "Fresh", ownerName: "Fay Fresh", startDate: "2026-01-05", endDate: null, span: null, flags: none, programs: [] };
+const BILLING: ProgramsProgram = { id: 10, name: "Billing", ownerPersonId: 5, ownerName: "Pat Program", span: { start: "2026-03-02", end: "2026-04-10" }, flags: none, projects: [project(1, "Invoices", 10, "Billing", 1, "Platform")] };
+const REPORTS: ProgramsProgram = { id: 11, name: "Reports", ownerPersonId: 5, ownerName: "Rita Reports", span: { start: "2026-03-02", end: "2026-04-10" }, flags: none, projects: [project(3, "Dashboards", 11, "Reports", 1, "Platform")] };
+const LEGACY: ProgramsProgram = { id: 12, name: "Legacy", ownerPersonId: 5, ownerName: "Leo Legacy", span: null, flags: none, projects: [] };
+const PLATFORM: ProgramsWorkStream = { id: 1, name: "Platform", ownerPersonId: 5, ownerName: "Sam Stream", startDate: "2026-01-05", endDate: null, span: { start: "2026-03-02", end: "2026-04-10" }, flags: none, programs: [BILLING, REPORTS] };
+const ARCHIVE: ProgramsWorkStream = { id: 2, name: "Archive", ownerPersonId: 5, ownerName: "Ava Archive", startDate: "2025-01-06", endDate: null, span: null, flags: none, programs: [LEGACY] };
+const EMPTY: ProgramsWorkStream = { id: 3, name: "Fresh", ownerPersonId: 5, ownerName: "Fay Fresh", startDate: "2026-01-05", endDate: null, span: null, flags: none, programs: [] };
 
 let view: ProgramsView;
 

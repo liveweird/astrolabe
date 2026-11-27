@@ -288,7 +288,15 @@ table.table {
   column-gap: var(--mantine-spacing-xs);
 }
 
-/* The disclosure button holds the chevron and the name; a childless node and a project keep the chevron's room so names line up. */
+/* The name's row (1.31): the chevron-only disclosure button, then the name's link beside it. */
+.planTreeNameRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* The disclosure button holds the chevron (the Plan's pinned section title holds its text too); a childless node and a project keep the chevron's room so names line up. */
 .planTreeToggle {
   display: inline-flex;
   align-items: baseline;
@@ -296,6 +304,12 @@ table.table {
   min-width: 0;
   text-align: start;
   border-radius: var(--mantine-radius-sm);
+}
+
+/* A chevron-only button (the Plan tree's): padding brings the target to 24 px. */
+.planTreeToggle:has(> svg:only-child) {
+  padding: 4px;
+  margin: -4px;
 }
 
 .planTreeToggle svg {

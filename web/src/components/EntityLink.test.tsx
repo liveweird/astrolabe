@@ -25,6 +25,19 @@ describe("EntityLink", () => {
     expect(screen.getByRole("link", { name })).toHaveAttribute("href", href);
   });
 
+  test("a bare link takes its surroundings' font; an explicit size keeps its own", () => {
+    renderWithProviders(
+      <>
+        <EntityLink entity={{ kind: "team", id: 3 }} name="Bare" />
+        <EntityLink entity={{ kind: "team", id: 4 }} name="Sized" size="xs" />
+        <EntityLink entity={null} name="Plain" />
+      </>,
+    );
+    expect(screen.getByRole("link", { name: "Open team Bare" })).toHaveAttribute("data-inherit", "true");
+    expect(screen.getByRole("link", { name: "Open team Sized" })).not.toHaveAttribute("data-inherit");
+    expect(screen.getByText("Plain")).toHaveAttribute("data-inherit", "true");
+  });
+
   test("children replace the visible text, the accessible name stays the entity's", () => {
     renderWithProviders(
       <EntityLink entity={{ kind: "team", id: 3 }} name="Backend">
