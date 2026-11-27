@@ -38,8 +38,12 @@ export default function HomeProjectsTable({ projects }: { projects: HomeMe["proj
               <Table.Td>
                 <EntityLink entity={{ kind: "project", id: project.id }} name={project.name} size="sm" fw={500} />
               </Table.Td>
-              <Table.Td>{project.programName}</Table.Td>
-              <Table.Td>{project.ownerName}</Table.Td>
+              <Table.Td>
+                <EntityLink entity={{ kind: "program", id: project.programId }} name={project.programName} size="sm" />
+              </Table.Td>
+              <Table.Td>
+                <EntityLink entity={{ kind: "person", id: project.ownerPersonId }} name={project.ownerName} size="sm" />
+              </Table.Td>
               <Table.Td>{project.rankPosition ?? t("roadmap.unrankedDivider")}</Table.Td>
               <Table.Td ta="right">{project.milestones}</Table.Td>
               <Table.Td ta="right">

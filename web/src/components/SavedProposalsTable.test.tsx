@@ -52,6 +52,15 @@ describe("SavedProposalsTable", () => {
     expect(within(other).getByText("—")).toBeInTheDocument();
   });
 
+  test("who saved it is the person's page while the login has an active person, plain text when it has none; the teams are text (the list cannot tell a gone team)", async () => {
+    items = [{ ...SAVED, createdBy: { userId: 3, name: "Ada", personId: 9 } }, { ...OTHER, createdBy: { userId: 4, name: "Bob", personId: null } }];
+    renderWithProviders(<SavedProposalsTable />);
+    const table = await screen.findByRole("table", { name: "Saved proposals" });
+    expect(await within(table).findByRole("link", { name: "Open person Ada" })).toHaveAttribute("href", "/people/9");
+    expect(within(table).getByText("Bob")).toBeInTheDocument();
+    expect(within(table).queryByRole("link", { name: /Open (person Bob|team )/ })).toBeNull();
+  });
+
   test("an empty list says so", async () => {
     items = [];
     renderWithProviders(<SavedProposalsTable />);

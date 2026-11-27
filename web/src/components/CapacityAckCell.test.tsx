@@ -4,6 +4,7 @@ import { renderWithProviders, screen } from "../test/render";
 import { GONE_ROW, acknowledgedRow, differsRow, staleAcknowledgedRow } from "../test/flow";
 import type { CapacityAcknowledge } from "../hooks/useCapacityAcknowledge";
 import CapacityAckCell, { CapacityAckOrphanNotice, type CapacityAckContext } from "./CapacityAckCell";
+import { textContent } from "../test/textContent";
 
 function hook(over: Partial<CapacityAcknowledge> = {}): CapacityAcknowledge {
   return { busyKey: null, notice: null, run: vi.fn(), ...over };
@@ -28,7 +29,7 @@ describe("CapacityAckCell", () => {
     const ack = context();
     const row = acknowledgedRow(differsRow());
     renderWithProviders(<CapacityAckCell row={row} ack={ack} neighbours={NEIGHBOURS} />);
-    expect(screen.getByText("Acknowledged by Ada Manager on 2026-11-08")).toHaveAttribute("title", "2026-11-08 10:00");
+    expect(screen.getByText(textContent("Acknowledged by Ada Manager on 2026-11-08"))).toHaveAttribute("title", "2026-11-08 10:00");
     expect(screen.queryByRole("button", { name: /^Acknowledge/ })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Unacknowledge E2E Flow Sprint 2" }));
     expect(ack.hook.run).toHaveBeenCalledWith({ kind: "unacknowledge", bindingId: 5, row }, NEIGHBOURS);
@@ -41,14 +42,21 @@ describe("CapacityAckCell", () => {
 
   test("a stale acknowledgement says it changed since, and the row (open again) offers Acknowledge", () => {
     renderWithProviders(<CapacityAckCell row={staleAcknowledgedRow(differsRow())} ack={context()} neighbours={[]} />);
-    expect(screen.getByText("Acknowledged on 2026-11-08 by Ada Manager · changed since")).toBeInTheDocument();
+    expect(screen.getByText(textContent("Acknowledged on 2026-11-08 by Ada Manager · changed since"))).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Acknowledge E2E Flow Sprint 2" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Unacknowledge/ })).not.toBeInTheDocument();
   });
 
+  test("who acknowledged is the person's page when the login has an active person", () => {
+    const row = acknowledgedRow(differsRow());
+    renderWithProviders(<CapacityAckCell row={{ ...row, acknowledgement: { ...row.acknowledgement!, byPersonId: 4 } }} ack={context()} neighbours={[]} />);
+    expect(screen.getByRole("link", { name: "Open person Ada Manager" })).toHaveAttribute("href", "/people/4");
+    expect(screen.getByText(textContent("Acknowledged by Ada Manager on 2026-11-08"))).toBeInTheDocument();
+  });
+
   test("without can.acknowledge there is no button, but the state is still told", () => {
     renderWithProviders(<CapacityAckCell row={acknowledgedRow(differsRow())} ack={context({ can: { acknowledge: false } })} neighbours={[]} />);
-    expect(screen.getByText("Acknowledged by Ada Manager on 2026-11-08")).toBeInTheDocument();
+    expect(screen.getByText(textContent("Acknowledged by Ada Manager on 2026-11-08"))).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 

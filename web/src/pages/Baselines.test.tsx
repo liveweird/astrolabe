@@ -66,7 +66,9 @@ describe("Baselines page", () => {
     expect(await screen.findByRole("link", { name: "Compare Q2 commitment with the plan" })).toHaveAttribute("href", "/baselines/5");
     expect(screen.getByText("After replanning")).toBeInTheDocument();
     expect(screen.getByText("2026-11-02 14:30")).toBeInTheDocument();
+    // who took it: plain text while the login has no active person (here), its person's page otherwise (CreatorName)
     expect(screen.getByText("Ada Admin")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Open person Ada Admin" })).not.toBeInTheDocument();
     expect(screen.getByText("40")).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Taken (UTC)" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Take baseline" })).not.toBeInTheDocument();

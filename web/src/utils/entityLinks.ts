@@ -30,3 +30,6 @@ export function entityPath(ref: EntityRef): string {
       return editUserPath(ref.id);
   }
 }
+
+/** A ref to an entity whose id may be unknown (a person a login has none of, a node a document does not name): `null` then, which `EntityLink` shows as plain text. */
+export const refOf = (kind: Exclude<EntityRef["kind"], "milestone">, id: number | null | undefined): EntityRef | null => (id == null ? null : { kind, id });

@@ -1,9 +1,11 @@
+import { Fragment } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge, Stack, Table, Text } from "@mantine/core";
 import type { DeviationConnection, DeviationItem } from "../api/deviations";
 import type { Acknowledge } from "../hooks/useAcknowledge";
 import { ageText, deviationKindLabel, deviationSentence, goneBadge, isLineOpen, itemAckKeys } from "../utils/deviations";
 import { formatDateTime } from "../utils/formatDate";
+import { refOf } from "../utils/entityLinks";
 import DeviationAckCell, { DeviationAckAll } from "./DeviationAckCell";
 import JiraKeyWithPrevious from "./JiraKeyWithPrevious";
 import JiraRollupText from "./JiraRollupText";
@@ -15,11 +17,18 @@ const GONE_BADGE = { movedOut: "deviations.jira.goneMovedOut", notListed: "devia
 
 const levelWord = (kind: DeviationItem["level"]) => `jira.mapping.level.${kind.toLowerCase() as "program" | "project" | "milestone"}` as const;
 
-/** The plan node's name (a project's, and a milestone's through its project, link to the project page; a program has no page) and where it sits. */
+/**
+ * The plan node's name and where it sits (1.31: every name a link to its page - a program's to the Roadmap overview narrowed to it, a milestone's to its project's
+ * page): under it the level and the team, then the project, program and work stream it sits under, each its own link.
+ */
 function PlanCell({ item }: { item: DeviationItem }) {
   const { t } = useTranslation();
   const { node } = item;
-  const context = [node.kind === "MILESTONE" ? node.projectName : null, node.kind === "PROGRAM" ? null : node.programName, node.workStreamName].filter((part): part is string => Boolean(part)).join(" · ");
+  const context = [
+    node.kind === "MILESTONE" && node.projectName ? { key: "project", name: node.projectName, entity: refOf("project", node.projectId) } : null,
+    node.kind !== "PROGRAM" && node.programName ? { key: "program", name: node.programName, entity: refOf("program", node.programId) } : null,
+    node.workStreamName ? { key: "workStream", name: node.workStreamName, entity: refOf("workStream", node.workStreamId) } : null,
+  ].filter((part) => part !== null);
   return (
     <>
       {node.kind === "PROJECT" ? (
@@ -32,17 +41,27 @@ function PlanCell({ item }: { item: DeviationItem }) {
           fw={500}
         />
       ) : (
-        <Text size="sm" fw={500}>
-          {node.name}
-        </Text>
+        <EntityLink entity={node.kind === "PROGRAM" ? { kind: "program", id: node.id } : null} name={node.name} size="sm" fw={500} />
       )}
       <Text size="xs" c="dimmed">
         {t(levelWord(item.level))}
-        {node.teamName ? ` · ${t("deviations.node.team", { name: node.teamName })}` : ""}
+        {node.teamName && (
+          <>
+            {" · "}
+            <EntityLink entity={refOf("team", node.teamId)} name={node.teamName} size="xs" c="dimmed">
+              {t("deviations.node.team", { name: node.teamName })}
+            </EntityLink>
+          </>
+        )}
       </Text>
-      {context !== "" && (
+      {context.length > 0 && (
         <Text size="xs" c="dimmed">
-          {context}
+          {context.map((part, index) => (
+            <Fragment key={part.key}>
+              {index > 0 && " · "}
+              <EntityLink entity={part.entity} name={part.name} size="xs" c="dimmed" />
+            </Fragment>
+          ))}
         </Text>
       )}
     </>

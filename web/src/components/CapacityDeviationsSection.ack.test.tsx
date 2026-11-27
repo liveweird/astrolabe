@@ -7,6 +7,7 @@ import { CAPACITY_CONNECTION, acknowledgedRow, capacityItem, capacityView, diffe
 import type { CapacityDeviationView } from "../api/capacityDeviations";
 import type { DeviationFilter } from "../api/deviations";
 import CapacityDeviationsSection from "./CapacityDeviationsSection";
+import { textContent } from "../test/textContent";
 
 // The per-sprint acknowledge (1.9) on the Deviations page's Capacity from Flow section; the section's other mechanics are in CapacityDeviationsSection.test.tsx.
 const VIEW_URL = "/api/v1/views/capacity-deviations";
@@ -75,7 +76,7 @@ describe("CapacityDeviationsSection: the acknowledge", () => {
     renderSection({ all: true });
     const table = await screen.findByRole("table", { name: "Capacity differences between the plan and Flow" });
     expect(within(table).getByRole("button", { name: "Acknowledge E2E Flow Sprint 2" })).toBeInTheDocument();
-    expect(within(table).getByText("Acknowledged by Ada Manager on 2026-11-08")).toBeInTheDocument();
+    expect(within(table).getByText(textContent("Acknowledged by Ada Manager on 2026-11-08"))).toBeInTheDocument();
     expect(within(table).getByRole("button", { name: "Unacknowledge E2E Flow Sprint 3" })).toBeInTheDocument();
   });
 
@@ -83,7 +84,7 @@ describe("CapacityDeviationsSection: the acknowledge", () => {
     doc = capacityView({ items: [capacityItem({ can: { acknowledge: false }, deviations: [differsRow(), acknowledgedRow(differsRow({ sprintId: 90003 }))] })] });
     renderSection({ all: true });
     const table = await screen.findByRole("table", { name: "Capacity differences between the plan and Flow" });
-    expect(within(table).getByText("Acknowledged by Ada Manager on 2026-11-08")).toBeInTheDocument();
+    expect(within(table).getByText(textContent("Acknowledged by Ada Manager on 2026-11-08"))).toBeInTheDocument();
     expect(within(table).queryByRole("button")).not.toBeInTheDocument();
   });
 
@@ -142,7 +143,7 @@ describe("CapacityDeviationsSection: the acknowledge", () => {
   test("a stale acknowledgement reads 'changed since' and the row counts as open", async () => {
     doc = capacityView({ items: [capacityItem({ can: { acknowledge: true }, deviations: [staleAcknowledgedRow(differsRow())] })] });
     renderSection();
-    expect(await screen.findByText("Acknowledged on 2026-11-08 by Ada Manager · changed since")).toBeInTheDocument();
+    expect(await screen.findByText(textContent("Acknowledged on 2026-11-08 by Ada Manager · changed since"))).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Differences from Flow" })).toHaveTextContent("1 warning");
   });
 

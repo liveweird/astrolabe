@@ -17,6 +17,7 @@ export default function CrossTeamRunView({
   onToggle,
   onSelectAll,
   onSelectNone,
+  live = true,
 }: {
   run: CrossTeamProposal;
   check: ScheduleCheckState;
@@ -25,6 +26,8 @@ export default function CrossTeamRunView({
   onToggle: (milestoneId: number) => void;
   onSelectAll: (teamId: number) => void;
   onSelectNone: (teamId: number) => void;
+  /** False for a saved run the plan has moved on from (`CHANGED`): its teams, projects and milestones may be gone, so their names are not links. */
+  live?: boolean;
 }) {
   return (
     <Stack gap="lg">
@@ -42,6 +45,7 @@ export default function CrossTeamRunView({
           onToggle={onToggle}
           onSelectAll={onSelectAll}
           onSelectNone={onSelectNone}
+          live={live}
         />
       ))}
     </Stack>

@@ -3,6 +3,7 @@ import { screen } from "@testing-library/react";
 import TeamPageHeader from "./TeamPageHeader";
 import type { TeamView } from "../api/teams";
 import { renderWithProviders } from "../test/render";
+import { textContent } from "../test/textContent";
 
 const team = (over: Partial<TeamView["team"]> = {}): TeamView["team"] => ({
   id: 1,
@@ -31,6 +32,20 @@ describe("TeamPageHeader: the colour swatch (1.29)", () => {
     expect(swatch).toHaveAttribute("aria-hidden", "true");
     expect(swatch.nextElementSibling).toBe(heading);
     expect(heading).toHaveTextContent(/^Payments$/);
+  });
+});
+
+describe("TeamPageHeader: the manager (1.31)", () => {
+  test("the manager's name leads to the person's page, inside the line that still says 'Manager:'", () => {
+    renderHeader(team());
+    expect(screen.getByRole("link", { name: "Open person Cara New" })).toHaveAttribute("href", "/people/12");
+    expect(screen.getByText(textContent("Manager: Cara New"))).toBeInTheDocument();
+  });
+
+  test("a team without a manager says so and links nothing", () => {
+    renderHeader(team({ managerPersonId: null, managerName: null }));
+    expect(screen.getByText("No manager")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Open person/ })).toBeNull();
   });
 });
 

@@ -6,6 +6,7 @@ import BaselineCompare from "./BaselineCompare";
 import { headingOutline } from "../test/headings";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
+import { textContent } from "../test/textContent";
 
 type FetchMock = ReturnType<typeof vi.fn>;
 
@@ -27,7 +28,9 @@ const VIEW = {
     {
       projectId: 1,
       name: "Checkout",
+      programId: 4,
       programName: "Payments",
+      workStreamId: 2,
       workStreamName: "Commerce",
       rankThen: 1,
       rankNow: 1,
@@ -39,7 +42,9 @@ const VIEW = {
     {
       projectId: 2,
       name: "Ledger",
+      programId: 5,
       programName: "Finance",
+      workStreamId: 2,
       workStreamName: "Commerce",
       rankThen: 2,
       rankNow: 2,
@@ -51,7 +56,9 @@ const VIEW = {
     {
       projectId: 3,
       name: "Estimates only",
+      programId: 5,
       programName: "Finance",
+      workStreamId: 2,
       workStreamName: "Commerce",
       rankThen: null,
       rankNow: null,
@@ -105,7 +112,7 @@ describe("Baseline comparison page", () => {
     renderPage();
     expect(await screen.findByRole("heading", { level: 2, name: "Q2 commitment" })).toBeInTheDocument();
     expect(screen.getByText("After replanning")).toBeInTheDocument();
-    expect(screen.getByText("Taken 2026-11-02 14:30 UTC by Ada Admin · Plan revision 40 · 120 milestones · 12 projects")).toBeInTheDocument();
+    expect(screen.getByText(textContent("Taken 2026-11-02 14:30 UTC by Ada Admin · Plan revision 40 · 120 milestones · 12 projects"))).toBeInTheDocument();
     expect(screen.queryByText("The plan has not changed since this baseline.")).not.toBeInTheDocument();
     const later = screen.getAllByText("2 end later")[0];
     expect(later.closest(".mantine-Badge-root")).toHaveAttribute("data-variant", "light");
@@ -143,7 +150,7 @@ describe("Baseline comparison page", () => {
     renderPage();
     const project = (await screen.findByRole("link", { name: "Open project Checkout" })).closest("tr")!;
     expect(screen.getByRole("link", { name: "Open project Checkout" })).toHaveAttribute("href", "/projects/1");
-    expect(within(project).getByText("Payments › Commerce")).toBeInTheDocument();
+    expect(within(project).getByText(textContent("Payments › Commerce"))).toBeInTheDocument();
     expect(within(project).getByText("start 5 working days later, end 3 working days later")).toBeInTheDocument();
     expect(project).toHaveTextContent("2043-01-05 – 2043-01-16");
     expect(project).toHaveTextContent("2043-01-12 – 2043-01-21");
@@ -171,6 +178,31 @@ describe("Baseline comparison page", () => {
     const removed = rowOf("Refund");
     expect(within(removed).getByText("Removed")).toBeInTheDocument();
     expect(removed).toHaveTextContent("2043-01-14 – 2043-01-16");
+  });
+
+  test("against the live plan the live names are links: the project, its program and work stream, a live milestone and its team; a removed milestone is text", async () => {
+    renderPage();
+    const project = (await screen.findByRole("link", { name: "Open project Checkout" })).closest("tr")!;
+    expect(within(project).getByRole("link", { name: "Open program Payments" })).toHaveAttribute("href", "/roadmap?mode=overview&programId=4");
+    expect(within(project).getByRole("link", { name: "Open work stream Commerce" })).toHaveAttribute("href", "/roadmap?mode=overview&workStreamId=2");
+    const cart = rowOf("Cart");
+    expect(within(cart).getByRole("link", { name: "Open milestone Cart" })).toHaveAttribute("href", "/projects/1?milestone=10");
+    expect(within(cart).getByRole("link", { name: "Open team Web" })).toHaveAttribute("href", "/teams/1");
+    // a milestone with no live side (removed) is a name of what no longer exists: plain text, its team too
+    expect(within(rowOf("Refund")).queryByRole("link")).toBeNull();
+    // the person who took the baseline has no active person here (no personId): plain text
+    expect(screen.queryByRole("link", { name: "Open person Ada Admin" })).toBeNull();
+  });
+
+  test("a project that is gone (REMOVED) and the people: its frozen names and ids are text, a baseline taken by a login with a person links to the person", async () => {
+    const gone = { ...VIEW.projects[0], movement: { kind: "REMOVED", startDays: null, endDays: null, estimateDelta: null }, span: null };
+    mockFetch.mockResolvedValue(
+      jsonResponse(200, { ...VIEW, baseline: { ...BASELINE, createdBy: { userId: 1, name: "Ada Admin", personId: 8 } }, projects: [gone], milestones: [] }),
+    );
+    renderPage();
+    expect(await screen.findByRole("link", { name: "Open person Ada Admin" })).toHaveAttribute("href", "/people/8");
+    expect(screen.queryByRole("link", { name: /Open (project|program|work stream) / })).toBeNull();
+    expect(screen.getByText("Checkout")).toBeInTheDocument();
   });
 
   test("an estimate-only change is a changed row", async () => {

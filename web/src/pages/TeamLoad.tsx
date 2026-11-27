@@ -16,7 +16,7 @@ import { useTeamColours } from "../hooks/useTeamColours";
 import { earlierWeekCount, matchesWarning, parseTeamLoadFilter, teamLoadFilterParams } from "../utils/teamLoadFilters";
 import type { TeamColour } from "../utils/teamColours";
 import EntityLink from "../components/EntityLink";
-import { entityPath } from "../utils/entityLinks";
+import { entityPath, refOf } from "../utils/entityLinks";
 
 const CHOICES = ["all", "overloaded", "wip", "any"] as const;
 type Choice = (typeof CHOICES)[number];
@@ -55,7 +55,7 @@ function TeamLoadTableRow({ row, colour }: { row: TeamLoadRow; colour: TeamColou
       </Table.Td>
       <Table.Td>
         <Text size="sm" c={row.managerName === null ? "dimmed" : undefined}>
-          {row.managerName ?? t("teams.noManager")}
+          {row.managerName === null ? t("teams.noManager") : <EntityLink entity={refOf("person", row.managerPersonId)} name={row.managerName} />}
         </Text>
       </Table.Td>
       <Table.Td ta="right">

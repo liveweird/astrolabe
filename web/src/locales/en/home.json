@@ -73,6 +73,6 @@
     "jiraAria": "{{deviations}}: team {{name}}",
     "notScheduledAria": "{{count}} not scheduled: {{name}}",
     "conflictsAria": "{{figure}}: {{name}}",
-    "nodeOnRoadmapAria": "Open {{name}} on the roadmap"
+    "nodeProjectsAria": "{{count}} on the roadmap: {{name}}"
   }
 }

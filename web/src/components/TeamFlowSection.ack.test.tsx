@@ -6,6 +6,7 @@ import { GONE_ROW, acknowledgedRow, capacityItem, capacityView, differsRow, link
 import type { CapacityDeviationView } from "../api/capacityDeviations";
 import type { FlowTeamPanel } from "../api/flow";
 import TeamFlowSection from "./TeamFlowSection";
+import { textContent } from "../test/textContent";
 
 // The per-sprint acknowledge (1.9) from the team page's Flow section; the section's other mechanics are in TeamFlowSection.test.tsx.
 const PANEL_URL = "/api/v1/teams/1/flow";
@@ -73,7 +74,7 @@ describe("TeamFlowSection: acknowledging a sprint from the team page", () => {
     serve(mockFetch, { capacity: capacityView({ items: [itemOf([staleAcknowledgedRow(differsRow())])] }) });
     renderSection();
     expect(await within(await factsRow()).findByText("Differs from Flow for 1 sprint")).toBeInTheDocument();
-    expect(await screen.findByText("Acknowledged on 2026-11-08 by Ada Manager · changed since")).toBeInTheDocument();
+    expect(await screen.findByText(textContent("Acknowledged on 2026-11-08 by Ada Manager · changed since"))).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Acknowledge E2E Flow Sprint 2" })).toBeInTheDocument();
   });
 
@@ -138,7 +139,7 @@ describe("TeamFlowSection: acknowledging a sprint from the team page", () => {
     await waitFor(() => expect(count(mockFetch, ACK_KEY)).toBe(1));
     const post = mockFetch.mock.calls.find(([url, init]) => url === "/api/v1/integrations/flow/team-bindings/5/acknowledge" && (init as RequestInit).method === "POST");
     expect(JSON.parse((post?.[1] as RequestInit).body as string)).toEqual({ sprintId: null, fingerprint: GONE_ROW.fingerprint });
-    expect(await screen.findByText("Acknowledged by Ada Manager on 2026-11-08")).toBeInTheDocument();
+    expect(await screen.findByText(textContent("Acknowledged by Ada Manager on 2026-11-08"))).toBeInTheDocument();
     await userEvent.click(await screen.findByRole("button", { name: "Unacknowledge the team's own row" }));
     await waitFor(() => expect(count(mockFetch, "DELETE /api/v1/integrations/flow/team-bindings/5/acknowledge")).toBe(1));
     expect(await screen.findByRole("button", { name: "Acknowledge the team's own row" })).toBeInTheDocument();

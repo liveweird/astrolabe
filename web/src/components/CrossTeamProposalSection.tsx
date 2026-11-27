@@ -2,6 +2,7 @@ import { Group, Stack, Text, Title } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import type { CrossTeamProposalTeam } from "../api/scheduleProposals";
 import type { ScheduleCheckState } from "../utils/scheduleProposal";
+import EntityLink from "./EntityLink";
 import ProposalTable from "./ProposalTable";
 import TeamWeeklyLoad from "./TeamWeeklyLoad";
 
@@ -25,6 +26,7 @@ export default function CrossTeamProposalSection({
   onToggle,
   onSelectAll,
   onSelectNone,
+  live = true,
 }: {
   team: CrossTeamSectionTeam;
   asOf: string;
@@ -37,13 +39,16 @@ export default function CrossTeamProposalSection({
   onToggle: (milestoneId: number) => void;
   onSelectAll: (teamId: number) => void;
   onSelectNone: (teamId: number) => void;
+  /** False for a stored run whose plan has moved (a team, project or milestone may be gone since): their names are then plain text, not links. */
+  live?: boolean;
 }) {
   const { t } = useTranslation();
   return (
     <Stack gap="xs">
       <Group gap="sm" align="baseline">
         <Title order={3} size="h4">
-          {team.name}
+          {/* In a heading the link keeps the heading's own accessible name (the team's name), so the outline and "Platform" headings stay what they were. */}
+          <EntityLink entity={{ kind: "team", id: team.teamId }} name={team.name} aria-label={team.name} current={!live} inherit />
         </Title>
         <Text size="sm" c="dimmed">
           {t("scheduleProposals.section.placed", { position, total })}
@@ -54,6 +59,7 @@ export default function CrossTeamProposalSection({
         label={t("scheduleProposals.section.tableAria", { name: team.name })}
         selected={selected}
         applying={applying}
+        live={live}
         check={check}
         onToggle={onToggle}
         onSelectAll={() => onSelectAll(team.teamId)}

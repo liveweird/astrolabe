@@ -244,7 +244,7 @@ test("idle gaps: a five-working-day hole in the schedule is hatched, counted and
 const PICK_KEY = "astrolabe.viewSettings.planning.programPick";
 
 /** A timeline row's cell holding the Slack figure of a team-page milestone: the cell whose text is the figure (the other cells never read "critical path" or "working days"). */
-const teamSlackOf = (page: Page, name: string) => page.getByRole("grid", { name: "Team milestone timeline" }).getByRole("row").filter({ has: page.getByRole("rowheader", { name: new RegExp(`^${name}`) }) });
+const teamSlackOf = (page: Page, name: string) => page.getByRole("grid", { name: "Team milestone timeline" }).getByRole("row").filter({ has: page.getByRole("rowheader").filter({ hasText: new RegExp(`^${name}`) }) });
 
 test("the administrator reads the critical chain on P's team page: x1 and y1 of the other team as dimmed rows with their arrows, p1 critical, a table of the two critical arrows, the toggle shared with the project page", async ({ page }) => {
   const world = await seedWorld();
@@ -288,7 +288,8 @@ test("the administrator reads the critical chain on P's team page: x1 and y1 of 
     await expect(row.getByRole("link", { name: `Open team ${teamX.name}` })).toHaveAttribute("href", `/teams/${teamX.id}`);
     await expect(row.getByRole("link", { name: `Open project ${project.name}` })).toHaveAttribute("href", `/projects/${project.id}`);
     await expect(row.getByRole("gridcell").filter({ hasText: "0 critical path" })).toHaveCount(1);
-    await expect(row.getByRole("button")).toHaveCount(0); // read-only: no handle, no menu, no draggable bar
+    await expect(row.getByRole("button")).toHaveCount(1); // read-only: no handle, no draggable bar; the one button is the menu holding "Open milestone" (1.31)
+    await expect(row.getByRole("link", { name: `Open milestone ${member.name}` })).toHaveAttribute("href", new RegExp(`^/projects/${project.id}\\?milestone=${member.id}$`));
   }
 
   // The emphasis: p1's bar is critical and says so, p2's is not; the ghost bars are critical, dimmed (the ghost tone) and name the chain they are on.

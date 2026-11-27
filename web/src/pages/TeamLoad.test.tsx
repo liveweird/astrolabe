@@ -89,6 +89,8 @@ describe("Team load page", () => {
     expect(headingOutline()).toEqual([[2, "Team load"]]);
     expect(teamNames()).toEqual(["Backend", "Frontend", "Data", "Mobile"]);
     expect(within(table).getByText("Alex Rivera")).toBeInTheDocument();
+    // the manager's name leads to the person's page (1.31; the page is folded into Teams next, so this is the one link added here)
+    expect(within(table).getByRole("link", { name: "Open person Alex Rivera" })).toHaveAttribute("href", "/people/9");
     expect(loadReads()).toHaveLength(1);
   });
 

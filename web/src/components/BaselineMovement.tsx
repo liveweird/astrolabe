@@ -67,7 +67,10 @@ export default function BaselineMovement({ baseline, live, scope }: { baseline: 
                 <Table.Tbody>
                   {shown.map((row) => (
                     <Table.Tr key={row.key}>
-                      <Table.Td>{row.name}</Table.Td>
+                      <Table.Td>
+                        {/* A row with a live side, or one that moved to another team, is a milestone that still exists; a removed one stays text. */}
+                        <EntityLink entity={row.live !== null || row.movedTo !== null ? { kind: "milestone", id: row.key, projectId: row.projectId } : null} name={row.name} size="sm" />
+                      </Table.Td>
                       {team && (
                         <Table.Td>
                           {row.projectName !== null && (

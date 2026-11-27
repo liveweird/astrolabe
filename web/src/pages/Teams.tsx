@@ -25,6 +25,7 @@ import { saveErrorMessage } from "../utils/saveError";
 import { teamPath } from "../utils/teamLinks";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import EntityLink from "../components/EntityLink";
+import { refOf } from "../utils/entityLinks";
 
 const SORT_FIELDS = ["name", "updatedAt"] as const;
 type SortField = (typeof SORT_FIELDS)[number];
@@ -131,9 +132,13 @@ export default function Teams() {
                   </Text>
                 </Table.Td>
                 <Table.Td>
-                  <Text size="sm" c={team.managerName ? undefined : "dimmed"}>
-                    {team.managerName ?? "—"}
-                  </Text>
+                  {team.managerName === null ? (
+                    <Text size="sm" c="dimmed">
+                      —
+                    </Text>
+                  ) : (
+                    <EntityLink entity={refOf("person", team.managerPersonId)} name={team.managerName} size="sm" />
+                  )}
                 </Table.Td>
                 <Table.Td style={{ width: 1 }} ta="right">
                   {admin && (

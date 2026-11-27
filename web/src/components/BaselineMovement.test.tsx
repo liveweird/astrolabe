@@ -42,6 +42,25 @@ describe("BaselineMovement", () => {
     expect(screen.getByRole("table", { name: "Movement since the baseline" })).toBeInTheDocument();
   });
 
+  test("a live milestone's name is a link to it on its project's page; one that moved to another team still is; a removed one is plain text", async () => {
+    const user = userEvent.setup();
+    const baseline: MilestoneBaseline = {
+      name: "Q1 plan",
+      milestones: [entry(1, move("MOVED", 5, 5))],
+      removed: [
+        { milestoneId: 8, projectId: 7, name: "Gone one", teamId: 1, teamName: "Payments", estimateMd: 3, start: "2027-01-25", end: "2027-01-29" },
+        { milestoneId: 9, projectId: 7, name: "Moved one", teamId: 1, teamName: "Payments", estimateMd: 3, start: "2027-01-25", end: "2027-01-29", now: { teamId: 2, teamName: "Identity" } },
+      ],
+    };
+    renderWithProviders(<BaselineMovement baseline={baseline} live={[live(1, "Late one")]} scope="team" />);
+    await user.click(screen.getByRole("button", { name: "Show the movement" }));
+    const table = screen.getByRole("table", { name: "Movement since the baseline" });
+    expect(within(table).getByRole("link", { name: "Open milestone Late one" })).toHaveAttribute("href", "/projects/7?milestone=1");
+    expect(within(table).getByRole("link", { name: "Open milestone Moved one" })).toHaveAttribute("href", "/projects/7?milestone=9");
+    expect(within(table).getByText("Gone one")).toBeInTheDocument();
+    expect(within(table).queryByRole("link", { name: "Open milestone Gone one" })).toBeNull();
+  });
+
   test("Changed only is on by default and treats an estimate-only change as changed", async () => {
     const user = userEvent.setup();
     renderWithProviders(<BaselineMovement baseline={BASELINE} live={LIVE} scope="project" />);

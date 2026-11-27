@@ -93,13 +93,15 @@ describe("TeamCriticalChain", () => {
       ["tg-upAlphaPlatform", "tg-nearBetaPlatform", "Finish → Start (FS)", "0 working days"],
     ]);
     expect(within(rows[2]).getAllByRole("link").map((link) => [link.getAttribute("href"), link.getAttribute("aria-label")])).toEqual([
+      ["/projects/71?milestone=1", "Open milestone tg-up"],
       ["/projects/71", "Open project Alpha"],
       ["/teams/9", "Open team Platform"],
+      ["/projects/72?milestone=2", "Open milestone tg-near"],
       ["/projects/72", "Open project Beta"],
       ["/teams/9", "Open team Platform"],
     ]);
     // a whole project has its project link and no team link
-    expect(within(rows[1]).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/projects/3", "/projects/71", "/teams/9"]);
+    expect(within(rows[1]).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/projects/3", "/projects/71?milestone=1", "/projects/71", "/teams/9"]);
   });
 
   test("the team's own critical link is listed beside the block's; one that is not critical is not", async () => {

@@ -4,7 +4,7 @@ import { Alert, Button, Group, Stack, Text } from "@mantine/core";
 import type { DeviationItem, DeviationLine } from "../api/deviations";
 import type { Acknowledge } from "../hooks/useAcknowledge";
 import { deviationAckAllKey, deviationAckKey, deviationKindLabel, splitLines } from "../utils/deviations";
-import { formatDate, formatDateTime } from "../utils/formatDate";
+import AckSentence from "./AckSentence";
 import FormErrorAlert from "./FormErrorAlert";
 
 /**
@@ -39,24 +39,12 @@ export default function DeviationAckCell({ item, line, ack, neighbours }: { item
   const key = deviationAckKey(item.bindingId, line.kind);
   const busy = ack.busyKey !== null;
   const notice = ack.notice?.key === key ? ack.notice : null;
-  const date = acknowledgement === null ? "" : formatDate(acknowledgement.at);
-  const by = acknowledgement?.by ?? null;
   const jiraKey = item.jira.key;
   const kind = deviationKindLabel(line.kind, t);
   const current = acknowledgement?.current === true;
-  const sentence =
-    acknowledgement === null
-      ? null
-      : acknowledgement.current
-        ? by === null ? t("deviations.ack.doneUnknown", { date }) : t("deviations.ack.done", { name: by, date })
-        : by === null ? t("deviations.ack.staleUnknown", { date }) : t("deviations.ack.stale", { name: by, date });
   return (
     <Stack gap={6} align="flex-start">
-      {sentence !== null && acknowledgement !== null && (
-        <Text size="sm" title={formatDateTime(acknowledgement.at)}>
-          {sentence}
-        </Text>
-      )}
+      {acknowledgement !== null && <AckSentence acknowledgement={acknowledgement} />}
       {item.can.acknowledge && !current && (
         <Button size="compact-sm" variant="default" data-ack-for={key} aria-label={t("deviations.ack.acknowledgeLineAria", { key: jiraKey, kind })} aria-disabled={busy || undefined} data-disabled={busy || undefined} onClick={() => ack.run({ kind: "acknowledge", item, line }, neighbours)}>
           {t("deviations.ack.acknowledge")}

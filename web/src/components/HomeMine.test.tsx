@@ -168,20 +168,34 @@ describe("HomeMine: Yours", () => {
     expect(table.getAllByRole("link")).toHaveLength(1);
   });
 
-  test("programs and work streams link to the Roadmap filtered to them; a closed work stream says so; one link follows the table", () => {
+  test("programs and work streams lead to the Roadmap overview narrowed to them, their projects figure to the filtered Roadmap; a closed work stream says so; one link follows the table", () => {
     renderMine(viewWith(homeMe({ workStreams: [STREAM, { ...STREAM, id: 2, name: "Legacy", endDate: "2026-01-31" }], programs: [PROGRAM] })));
     const table = within(screen.getByRole("table", { name: "Your programs and work streams" }));
     expect(table.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Name", "Level", "In", "Owner", "Programs", "Projects", "Flags"]);
     expect(table.getAllByText("Platform")).toHaveLength(2); // the stream's name, and the program's "In"
     expect(table.getAllByText("Alex Example")).toHaveLength(3); // each work stream's Owner is the person (two streams); the program's is its own ownerName
     expect(table.getByText("Legacy (closed)")).toBeInTheDocument();
-    expect(table.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/roadmap?mode=prioritization&workStreamId=1", "/roadmap?mode=prioritization&workStreamId=2", "/roadmap?mode=prioritization&programId=3"]);
+    // In document order: each row's name, then (a program) its work stream, the owner and the projects figure.
+    const links = table.getAllByRole("link").map((link) => `${link.getAttribute("aria-label")} -> ${link.getAttribute("href")}`);
+    expect(links).toEqual([
+      "Open work stream Platform -> /roadmap?mode=overview&workStreamId=1", "Open person Alex Example -> /people/12", "20 on the roadmap: Platform -> /roadmap?mode=prioritization&workStreamId=1",
+      "Open work stream Legacy (closed) -> /roadmap?mode=overview&workStreamId=2", "Open person Alex Example -> /people/12", "20 on the roadmap: Legacy (closed) -> /roadmap?mode=prioritization&workStreamId=2",
+      "Open program Core -> /roadmap?mode=overview&programId=3", "Open work stream Platform -> /roadmap?mode=overview&workStreamId=1", "Open person Alex Example -> /people/5", "5 on the roadmap: Core -> /roadmap?mode=prioritization&programId=3",
+    ]);
     expect(table.getAllByText("Work stream")).toHaveLength(2);
     const programRow = within(table.getByText("Program", { selector: "td" }).closest("tr") as HTMLElement);
     expect(programRow.getByText("Core")).toBeInTheDocument();
     expect(programRow.getByText("Platform")).toBeInTheDocument();
     expect(programRow.getByText("3 infos")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open the roadmap overview" })).toHaveAttribute("href", "/roadmap?mode=overview");
+  });
+
+  test("the projects table's program and owner are links to the Roadmap overview narrowed to the program and to the person's page", () => {
+    renderMine(viewWith(homeMe({ projects: [PROJECT, INHERITED_PROJECT] })));
+    const table = within(screen.getByRole("table", { name: "Your projects" }));
+    expect(table.getAllByRole("link", { name: "Open program Core" })[0]).toHaveAttribute("href", "/roadmap?mode=overview&programId=3");
+    expect(table.getAllByRole("link", { name: "Open person Alex Example" })[0]).toHaveAttribute("href", "/people/5");
+    expect(table.getByRole("link", { name: "Open project Audit" })).toHaveAttribute("href", "/projects/8");
   });
 
   describe("the owner of each row", () => {
@@ -328,20 +342,18 @@ describe("HomeMine: Yours", () => {
       expect(screen.queryByRole("link", { name: /not scheduled/ })).not.toBeInTheDocument();
     });
 
-    test("a work stream's and a program's name link to the Roadmap filtered to it, named with the visible text", () => {
+    test("a work stream's and a program's name link to the Roadmap overview narrowed to it, named with the visible text; the projects figure keeps the filtered Roadmap", () => {
       renderMine(viewWith(homeMe({ workStreams: [STREAM, { ...STREAM, id: 2, name: "Legacy", endDate: "2026-01-31" }], programs: [PROGRAM] })));
-      expect(screen.getByRole("link", { name: "Open Platform on the roadmap" })).toHaveAttribute("href", "/roadmap?mode=prioritization&workStreamId=1");
-      expect(screen.getByRole("link", { name: "Open Legacy (closed) on the roadmap" })).toHaveAttribute("href", "/roadmap?mode=prioritization&workStreamId=2");
-      const program = screen.getByRole("link", { name: "Open Core on the roadmap" });
-      expect(program).toHaveAttribute("href", "/roadmap?mode=prioritization&programId=3");
-      expect(program).toHaveTextContent("Core");
+      expect(screen.getByRole("link", { name: "Open work stream Legacy (closed)" })).toHaveTextContent("Legacy (closed)");
+      expect(screen.getByRole("link", { name: "Open program Core" })).toHaveTextContent("Core");
     });
 
-    test("a work stream or program with no project is plain text: the Roadmap has nothing to filter it to", () => {
+    test("a work stream or program with no project keeps its name link (the overview says it is empty) and has no projects figure link: a zero is plain text", () => {
       renderMine(viewWith(homeMe({ workStreams: [{ ...STREAM, projects: 0 }], programs: [{ ...PROGRAM, projects: 0 }] })));
       const table = within(screen.getByRole("table", { name: "Your programs and work streams" }));
-      expect(table.queryByRole("link")).not.toBeInTheDocument();
-      expect(table.getByText("Core")).toBeInTheDocument();
+      expect(table.getByRole("link", { name: "Open program Core" })).toBeInTheDocument();
+      expect(table.queryByRole("link", { name: /on the roadmap/ })).not.toBeInTheDocument();
+      expect(table.getAllByText("0")).toHaveLength(2);
     });
 
     test("'Open the projects you own yourself on the roadmap' carries the person's id and shows only beside a listed project that is direct", () => {
@@ -440,7 +452,8 @@ describe("HomeMine: Yours", () => {
     expect(screen.getByRole("link", { name: "Otwórz przegląd roadmapy" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Otwórz na roadmapie projekty, których jesteś osobiście właścicielem/ką" })).toHaveAttribute("href", "/roadmap?mode=prioritization&ownerPersonId=12");
     expect(screen.getByRole("link", { name: "Niezaplanowane (2): Ledger" })).toHaveAttribute("href", "/projects/7?milestones=unscheduled");
-    expect(screen.getByRole("link", { name: "Otwórz Platform na roadmapie" })).toHaveAttribute("href", "/roadmap?mode=prioritization&workStreamId=1");
+    expect(screen.getAllByRole("link", { name: "Otwórz strumień pracy Platform" })[0]).toHaveAttribute("href", "/roadmap?mode=overview&workStreamId=1");
+    expect(screen.getByRole("link", { name: "20 na roadmapie: Platform" })).toHaveAttribute("href", "/roadmap?mode=prioritization&workStreamId=1");
     expect(within(screen.getByRole("table", { name: "Twoje zespoły" })).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([
       "Zespół",
       "Kamienie milowe",

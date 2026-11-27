@@ -12,6 +12,7 @@ import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import { savedScheduleProposalPath } from "../utils/scheduleProposalLinks";
 import ConfirmDeleteModal from "./ConfirmDeleteModal";
+import CreatorName from "./CreatorName";
 import EmptyState from "./EmptyState";
 import ErrorAlert from "./ErrorAlert";
 import ScrollRegion from "./ScrollRegion";
@@ -89,15 +90,14 @@ export default function SavedProposalsTable() {
                       {proposal.name}
                     </Anchor>
                   </Table.Td>
+                  {/* The teams are the run's as named at the save: one may be gone since and the list has no state to say so, so they are text here; the saved page links them while it is current. */}
                   <Table.Td>{proposal.teams.map((team) => team.name).join(", ")}</Table.Td>
                   <Table.Td style={NO_WRAP}>{proposal.asOf}</Table.Td>
                   <Table.Td ta="right" style={NO_WRAP}>
                     {t("scheduleProposals.saved.moves", { selected: proposal.selectedCount, total: proposal.moveCount })}
                   </Table.Td>
                   <Table.Td>
-                    <Text size="sm" c={proposal.createdBy ? undefined : "dimmed"}>
-                      {proposal.createdBy?.name ?? "—"}
-                    </Text>
+                    <CreatorName creator={proposal.createdBy} />
                   </Table.Td>
                   <Table.Td style={NO_WRAP}>{formatDateTime(proposal.createdAt)}</Table.Td>
                   <Table.Td style={{ width: 1, whiteSpace: "nowrap" }} ta="right">

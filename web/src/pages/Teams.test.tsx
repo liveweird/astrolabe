@@ -103,7 +103,7 @@ describe("Teams page", () => {
     expect(await screen.findByRole("link", { name: "Open team Payments" })).toHaveAttribute("href", "/teams/1");
     expect(screen.getByText("Money movers")).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Manager" })).toBeInTheDocument();
-    expect(screen.getByText("Mia Manager")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open person Mia Manager" })).toHaveAttribute("href", "/people/7"); // the manager is a person
     expect(screen.queryByRole("columnheader", { name: "Members" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /new team/i })).not.toBeInTheDocument();
     // The read-only list never opens the editor, so it never runs the people search either.

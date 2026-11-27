@@ -3,7 +3,6 @@ import { useLocation, useNavigate, useParams, useSearchParams } from "react-rout
 import { Button, Group, Select, Stack, Switch, Table, Text, Title, VisuallyHidden } from "@mantine/core";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
 import { baselineViewKey, getBaselineView, isUnknownBaseline, type Baseline, type BaselineView } from "../api/baselines";
 import { ApiError } from "../api/http";
 import BaselineCapacitySection from "../components/BaselineCapacitySection";
@@ -20,9 +19,11 @@ import { baselinesPath } from "../utils/baselineLinks";
 import { compareGroups, compareTeams, estimateText, rankSentence, type CompareFilters } from "../utils/baselineCompare";
 import { movementSentence, movementStatus, movementTotalsParts, signedDays } from "../utils/baselineMovement";
 import { formatDateTime } from "../utils/formatDate";
+import { refOf } from "../utils/entityLinks";
 import { projectPath, roadmapPath } from "../utils/planLinks";
 import { loadErrorMessage } from "../utils/saveError";
 import EntityLink from "../components/EntityLink";
+import EntitySentence from "../components/EntitySentence";
 
 const NO_WRAP = { whiteSpace: "nowrap" } as const;
 /** The status column shrinks to its badge (a Badge ellipsises in a squeezed cell, so it also keeps its full width: `miw`); the name column keeps room for a project's lines. */
@@ -36,16 +37,30 @@ function Span({ span }: { span: { start: string; end: string } | null }) {
   return span === null ? <>—</> : <DateRange start={span.start} end={span.end} />;
 }
 
-/** One baseline's facts as the line reads: when, by whom, its plan revision, its counts; `side` ("Then: X" / "Now: X") leads it in the two-baseline mode. */
-function factsLine(baseline: Baseline, t: TFunction, side?: string): string {
+/** One baseline's facts as the line reads: when, by whom (the person's page), its plan revision, its counts; `side` ("Then: X" / "Now: X") leads it in the two-baseline mode. */
+function FactsLine({ baseline, side }: { baseline: Baseline; side?: string }) {
+  const { t } = useTranslation();
   const when = formatDateTime(baseline.createdAt);
-  return [
-    ...(side === undefined ? [] : [side]),
-    baseline.createdBy ? t("baselines.compare.taken", { when, name: baseline.createdBy.name }) : t("baselines.compare.takenAnonymous", { when }),
+  const { createdBy } = baseline;
+  const counts = [
     t("baselines.compare.revision", { revision: baseline.planRevision }),
     t("baselines.compare.milestones", { count: baseline.milestoneCount }),
     t("baselines.compare.projects", { count: baseline.projectCount }),
-  ].join(" · ");
+  ];
+  return (
+    <Text size="sm">
+      {side === undefined ? "" : `${side} · `}
+      {createdBy === null ? (
+        t("baselines.compare.takenAnonymous", { when })
+      ) : (
+        <EntitySentence
+          text={(marks) => t("baselines.compare.taken", { when, name: marks.by })}
+          slots={{ by: <EntityLink entity={refOf("person", createdBy.personId)} name={createdBy.name} /> }}
+        />
+      )}
+      {` · ${counts.join(" · ")}`}
+    </Text>
+  );
 }
 
 /**
@@ -57,8 +72,8 @@ function Facts({ view }: { view: BaselineView }) {
   const { baseline, against } = view;
   return (
     <Stack gap={2} role="group" aria-label={t("baselines.compare.factsAria")}>
-      <Text size="sm">{factsLine(baseline, t, against && t("baselines.compare.sideThen", { name: baseline.name }))}</Text>
-      {against && <Text size="sm">{factsLine(against, t, t("baselines.compare.sideNow", { name: against.name }))}</Text>}
+      <FactsLine baseline={baseline} side={against && t("baselines.compare.sideThen", { name: baseline.name })} />
+      {against && <FactsLine baseline={against} side={t("baselines.compare.sideNow", { name: against.name })} />}
       {against && against.planRevision === baseline.planRevision && (
         <Text size="sm" c="dimmed">
           {t("baselines.compare.sameRevision")}
@@ -255,13 +270,21 @@ function Comparison({ id }: { id: number }) {
               groups.map(({ project, milestones }) => {
                 const counts = movementTotalsParts(project.counts, t);
                 const rank = rankSentence(project, t);
+                // Only against the live plan is a project that is not REMOVED known to be live (its program and work stream are then its current ones); the frozen side's ids may be gone.
+                const live = sides === null && project.movement.kind !== "REMOVED";
                 return (
                   <Table.Tbody key={project.projectId}>
                     <Table.Tr>
                       <Table.Th scope="row">
-                        <EntityLink entity={{ kind: "project", id: project.projectId }} name={project.name} fw={600} size="sm" />
+                        <EntityLink entity={live ? { kind: "project", id: project.projectId } : null} name={project.name} fw={600} size="sm" />
                         <Text size="xs" c="dimmed" fw={400}>
-                          {t("baselines.compare.location", { program: project.programName, workStream: project.workStreamName })}
+                          <EntitySentence
+                            text={(marks) => t("baselines.compare.location", { program: marks.program, workStream: marks.workStream })}
+                            slots={{
+                              program: <EntityLink entity={live ? { kind: "program", id: project.programId } : null} name={project.programName} size="xs" c="dimmed" fw={400} />,
+                              workStream: <EntityLink entity={live ? { kind: "workStream", id: project.workStreamId } : null} name={project.workStreamName} size="xs" c="dimmed" fw={400} />,
+                            }}
+                          />
                         </Text>
                         {project.movement.kind !== "UNCHANGED" && (
                           <Text size="xs" c="dimmed" fw={400}>
@@ -298,11 +321,14 @@ function Comparison({ id }: { id: number }) {
                       <Table.Tr key={row.milestoneId}>
                         <Table.Td ps="xl">
                           <Text size="sm">
-                            {row.name}
+                            {/* A milestone that still exists (it has a live side) and is read against the live plan leads to its project's page; a removed one, or a frozen side, stays text. */}
+                            <EntityLink entity={live && row.live !== null ? { kind: "milestone", id: row.milestoneId, projectId: row.projectId } : null} name={row.name} size="sm" />
                             <VisuallyHidden> {t("baselines.compare.inProject", { project: project.name })}</VisuallyHidden>
                           </Text>
                         </Table.Td>
-                        <Table.Td style={NO_WRAP}>{row.teamName}</Table.Td>
+                        <Table.Td style={NO_WRAP}>
+                          <EntityLink entity={sides === null && row.live !== null ? { kind: "team", id: row.teamId } : null} name={row.teamName} size="sm" />
+                        </Table.Td>
                         <Table.Td><Figures figures={row.frozen} /></Table.Td>
                         <Table.Td><Figures figures={row.live} /></Table.Td>
                         <Table.Td ta="right">{signedDays(row.movement.startDays)}</Table.Td>

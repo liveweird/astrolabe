@@ -6,6 +6,7 @@ import type { CapacityDeviation } from "../api/capacityDeviations";
 import type { CapacityAcknowledge } from "../hooks/useCapacityAcknowledge";
 import type { CapacityAckContext } from "./CapacityAckCell";
 import CapacityDeviationList from "./CapacityDeviationList";
+import { textContent } from "../test/textContent";
 
 const ROW_2 = differsRow();
 const ROW_3 = differsRow({ sprintId: 90003, sprintName: "E2E Flow Sprint 3", start: "2047-02-04", end: "2047-02-15", planMd: 44, flowMd: 48 });
@@ -69,7 +70,7 @@ describe("CapacityDeviationList with the acknowledge", () => {
   test("without can.acknowledge the sentences stand alone, the acknowledged state included", () => {
     renderWithProviders(<CapacityDeviationList deviations={[ROW_2, acknowledgedRow(ROW_3)]} ack={ack({ can: { acknowledge: false } })} />);
     expect(screen.queryByRole("button", { name: /cknowledge/ })).not.toBeInTheDocument();
-    expect(screen.getByText("Acknowledged by Ada Manager on 2026-11-08")).toBeInTheDocument();
+    expect(screen.getByText(textContent("Acknowledged by Ada Manager on 2026-11-08"))).toBeInTheDocument();
   });
 
   test("the folded line counts the OPEN sprints and the table carries the acknowledgement column and a cell per sprint", async () => {

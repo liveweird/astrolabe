@@ -270,7 +270,7 @@ test("a pinned milestone keeps its dates: the manager pins c, proposes, c is not
   await openTeam(page, world);
 
   // Pin c (its row menu; only a scheduled row offers it): the PUT lands, the live region says so, the bar's name ends ", pinned" and a hidden "pinned" follows the name.
-  const cRow = timeline(page).getByRole("row").filter({ has: page.getByRole("rowheader", { name: new RegExp(`^${world.c.name}`) }) });
+  const cRow = timeline(page).getByRole("row").filter({ has: page.getByRole("rowheader").filter({ hasText: new RegExp(`^${world.c.name}`) }) });
   await Promise.all([
     page.waitForResponse((r) => r.request().method() === "PUT" && r.url().endsWith(`/api/v1/milestones/${world.c.id}/pin`) && r.ok()),
     rowOperation(page, world.c.name, `Pin dates of ${world.c.name}`),

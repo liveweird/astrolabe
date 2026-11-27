@@ -10,6 +10,7 @@ import { ACCEPT_URL, block, CHECK_URL, ids, move, RUN, RUN_URL, SAVED_RECORD, SA
 import { headingOutline } from "../test/headings";
 import { jsonResponse, routeFetch } from "../test/http";
 import { renderWithProviders } from "../test/render";
+import { textContent } from "../test/textContent";
 
 // A saved cross-team proposal's page: the stored run and check as the server kept them, the state, who may tick and accept, Propose again.
 
@@ -70,7 +71,7 @@ describe("a saved proposal the viewer may accept", () => {
     expect(headingOutline()).toEqual([[2, "Q1 plan"], [3, "Platform"], [4, "Proposed load"], [3, "Payments"], [4, "Proposed load"]]);
     expect(badge()).toHaveTextContent("Current");
     expect(screen.getByText("The plan still matches this proposal.")).toBeInTheDocument();
-    expect(screen.getByText("Saved by Ada on 2042-01-05 09:30 · as of 2042-01-05 · teams: Platform, Payments · 2 of 3 moves ticked · plan revision 12")).toBeInTheDocument();
+    expect(screen.getByText(textContent("Saved by Ada on 2042-01-05 09:30 · as of 2042-01-05 · teams: Platform, Payments · 2 of 3 moves ticked · plan revision 12"))).toBeInTheDocument();
     expect(screen.getByText("Placed in 1 pass · settled")).toBeInTheDocument();
     for (const [name, checked] of [["x1", true], ["x2", false], ["y1", true]] as const) {
       const box = screen.getByRole("checkbox", { name: `Accept ${name}` });
@@ -85,6 +86,16 @@ describe("a saved proposal the viewer may accept", () => {
     expect(screen.queryByText("Checking the ticked moves…")).toBeNull();
     expect(screen.queryByRole("button", { name: "Discard" })).toBeNull();
     expect(screen.queryByText(/Computed for/)).toBeNull();
+  });
+
+  test("who saved it is the person's page when the login has one, the teams are links while the plan still matches (the section headings keep their names)", async () => {
+    record = { ...CURRENT, createdBy: { userId: 3, name: "Ada", personId: 9 } };
+    renderPage();
+    await screen.findByRole("button", { name: "Accept selected across teams (2)" });
+    expect(screen.getByRole("link", { name: "Open person Ada" })).toHaveAttribute("href", "/people/9");
+    // the facts line and the two section headings each link the team
+    expect(screen.getAllByRole("link", { name: "Open team Platform" }).map((link) => link.getAttribute("href"))).toEqual(["/teams/1"]);
+    expect(screen.getByRole("heading", { level: 3, name: "Platform" })).toContainElement(screen.getByRole("link", { name: "Platform" }));
   });
 
   test("a changed selection asks the server's live check, and the stored ticks are the stored check again with no further request", async () => {
@@ -176,6 +187,9 @@ describe("a saved proposal that changes or goes away under the page", () => {
     expect(screen.getByRole("checkbox", { name: "Accept x1" })).toBeDisabled();
     expect(screen.getByRole("checkbox", { name: "Accept x1" })).toBeChecked();
     expect(screen.getByText(/can no longer be accepted/)).toBeInTheDocument();
+    // a team named in a stored run may be gone once the plan has moved: its names turn to text, in the facts and in the headings
+    expect(screen.queryByRole("link", { name: /^Open (team|milestone|project) / })).toBeNull();
+    expect(screen.getByRole("heading", { level: 3, name: "Platform" })).toBeInTheDocument();
   });
 
   test("a 404 refetch (deleted, or pruned by the 21st save) shows not-found over the copy kept before: no run, no Accept, and the copy is dropped", async () => {

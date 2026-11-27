@@ -5,6 +5,7 @@ import { jsonResponse } from "../test/http";
 import { endLater, renamed, startEarlier, stamped, view } from "../test/deviations";
 import type { DeviationItem } from "../api/deviations";
 import { AT, STALE_PROBLEM, ackHarness, row } from "../test/deviationsAckHarness";
+import { textContent } from "../test/textContent";
 
 const TABLE = "Differences between the plan and Jira";
 const fingerprint = (id: number) => String(id).repeat(64).slice(0, 64);
@@ -34,7 +35,7 @@ describe("Deviations page - per-line acknowledge, Acknowledge all (N) and Withdr
     expect(JSON.parse(writes()[0][1].body as string)).toEqual({ fingerprint: fingerprint(1), kind: "START_DIFFERS" });
     const button = await screen.findByRole("button", { name: "Unacknowledge E2E-3: Start" });
     await waitFor(() => expect(button).toHaveFocus());
-    expect(screen.getByText("Acknowledged by Ada Lovelace on 2026-11-06")).toBeInTheDocument();
+    expect(screen.getByText(textContent("Acknowledged by Ada Lovelace on 2026-11-06"))).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Acknowledge E2E-3: End" })).toBeInTheDocument();
     // One open line left: its own button only.
     expect(screen.queryByRole("button", { name: /^Acknowledge all/ })).not.toBeInTheDocument();
@@ -48,7 +49,7 @@ describe("Deviations page - per-line acknowledge, Acknowledge all (N) and Withdr
     // E2E-4: one open line and one stale stamp = two open lines; nothing currently acknowledged.
     expect(screen.getByRole("button", { name: "Acknowledge all (2) open deviations of E2E-4" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Withdraw all .* of E2E-4/ })).not.toBeInTheDocument();
-    expect(screen.getByText("Acknowledged on 2026-11-06 by Ada Lovelace · changed since")).toBeInTheDocument();
+    expect(screen.getByText(textContent("Acknowledged on 2026-11-06 by Ada Lovelace · changed since"))).toBeInTheDocument();
   });
 
   test("Acknowledge all POSTs the fingerprint with NO kind, then offers Withdraw all (N) on the same key and keeps the focus there", async () => {
@@ -103,7 +104,7 @@ describe("Deviations page - per-line acknowledge, Acknowledge all (N) and Withdr
   test("without can.acknowledge the lines and their acknowledgements are read, but no button is offered", async () => {
     h.doc = view({ items: [withLines(1, "E2E-3", [stamped(endLater(3)), stamped(startEarlier()), renamed()], { can: { acknowledge: false } })] });
     renderPage("/deviations?all=true");
-    expect(await screen.findAllByText("Acknowledged by Ada Lovelace on 2026-11-06")).toHaveLength(2);
+    expect(await screen.findAllByText(textContent("Acknowledged by Ada Lovelace on 2026-11-06"))).toHaveLength(2);
     const table = screen.getByRole("table", { name: TABLE });
     expect(within(table).queryByRole("button")).not.toBeInTheDocument();
   });

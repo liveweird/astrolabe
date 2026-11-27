@@ -72,14 +72,12 @@ function Summary({ proposal, check }: { proposal: ProposalContent; check?: Propo
   );
 }
 
-/** The milestone's name with its project as the way into the project page (the team timeline's own link, same accessible name). */
-function MilestoneCell({ name, projectId, projectName }: { name: string; projectId: number; projectName: string }) {
+/** The milestone's name (a link to it on its project's page) with its project as the way into the project page (the team timeline's own links, same accessible names). */
+function MilestoneCell({ id, name, projectId, projectName, live }: { id: number; name: string; projectId: number; projectName: string; live: boolean }) {
   return (
     <Stack gap={0}>
-      <Text size="sm" fw={500}>
-        {name}
-      </Text>
-      <EntityLink entity={{ kind: "project", id: projectId }} name={projectName} size="xs" />
+      <EntityLink entity={{ kind: "milestone", id, projectId }} name={name} size="sm" fw={500} current={!live} />
+      <EntityLink entity={{ kind: "project", id: projectId }} name={projectName} size="xs" current={!live} />
     </Stack>
   );
 }
@@ -129,12 +127,14 @@ function MoveRow({
   move,
   checked,
   disabled,
+  live,
   onToggle,
 }: {
   proposal: ProposalContent;
   move: ScheduleProposalMove;
   checked: boolean;
   disabled: boolean;
+  live: boolean;
   onToggle: (milestoneId: number) => void;
 }) {
   const { t } = useTranslation();
@@ -144,7 +144,7 @@ function MoveRow({
         <Checkbox checked={checked} disabled={disabled} onChange={() => onToggle(move.milestoneId)} aria-label={t("teams.proposal.acceptRowAria", { name: move.name })} />
       </Table.Td>
       <Table.Td>
-        <MilestoneCell name={move.name} projectId={move.projectId} projectName={move.projectName} />
+        <MilestoneCell id={move.milestoneId} name={move.name} projectId={move.projectId} projectName={move.projectName} live={live} />
       </Table.Td>
       <Table.Td style={NO_WRAP}>{move.from === null ? t("teams.proposal.unscheduled") : t("teams.proposal.span", { start: move.from.start, end: move.from.end })}</Table.Td>
       <Table.Td style={NO_WRAP}>
@@ -162,7 +162,7 @@ function MoveRow({
 }
 
 /** The milestones the proposal could not place, each with the reason in words; they have no checkbox (there is nothing to accept). */
-function UnplacedRows({ unplaced, asOf }: { unplaced: readonly ScheduleProposalUnplaced[]; asOf: string }) {
+function UnplacedRows({ unplaced, asOf, live }: { unplaced: readonly ScheduleProposalUnplaced[]; asOf: string; live: boolean }) {
   const { t } = useTranslation();
   return (
     <Table.Tbody>
@@ -175,7 +175,7 @@ function UnplacedRows({ unplaced, asOf }: { unplaced: readonly ScheduleProposalU
         <Table.Tr key={entry.milestoneId}>
           <Table.Td aria-hidden />
           <Table.Td>
-            <MilestoneCell name={entry.name} projectId={entry.projectId} projectName={entry.projectName} />
+            <MilestoneCell id={entry.milestoneId} name={entry.name} projectId={entry.projectId} projectName={entry.projectName} live={live} />
           </Table.Td>
           <Table.Td colSpan={COLUMNS - 2}>{t(`teams.proposal.unplaced.${entry.reason}`, { date: asOf, weeks: PROPOSAL_HORIZON_WEEKS })}</Table.Td>
         </Table.Tr>
@@ -199,6 +199,7 @@ export default function ProposalTable({
   onSelectNone,
   check,
   label,
+  live = true,
 }: {
   proposal: ProposalContent;
   selected: ReadonlySet<number>;
@@ -209,6 +210,8 @@ export default function ProposalTable({
   check?: ProposalCheckNote;
   /** The table's accessible name; several tables on one page (the cross-team sections) each name their team. */
   label?: string;
+  /** False for a saved run the plan has moved on from: its milestones and projects may be gone, so their names are text, not links. */
+  live?: boolean;
 }) {
   const { t } = useTranslation();
   const total = proposal.moves.length;
@@ -242,10 +245,10 @@ export default function ProposalTable({
           </Table.Thead>
           <Table.Tbody>
             {proposal.moves.map((move) => (
-              <MoveRow key={move.milestoneId} proposal={proposal} move={move} checked={selected.has(move.milestoneId)} disabled={applying} onToggle={onToggle} />
+              <MoveRow key={move.milestoneId} proposal={proposal} move={move} checked={selected.has(move.milestoneId)} disabled={applying} live={live} onToggle={onToggle} />
             ))}
           </Table.Tbody>
-          {proposal.unplaced.length > 0 && <UnplacedRows unplaced={proposal.unplaced} asOf={proposal.asOf} />}
+          {proposal.unplaced.length > 0 && <UnplacedRows unplaced={proposal.unplaced} asOf={proposal.asOf} live={live} />}
         </Table>
       </ScrollRegion>
     </>

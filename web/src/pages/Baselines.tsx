@@ -8,6 +8,7 @@ import { BASELINE_CAP, deleteBaseline, type Baseline } from "../api/baselines";
 import { ApiError } from "../api/http";
 import BaselineEditorModal from "../components/BaselineEditorModal";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
+import CreatorName from "../components/CreatorName";
 import DestructiveMenuItem from "../components/DestructiveMenuItem";
 import EmptyState from "../components/EmptyState";
 import ErrorAlert from "../components/ErrorAlert";
@@ -129,9 +130,7 @@ export default function Baselines() {
                   <Table.Td style={NO_WRAP}>{formatDateTime(baseline.createdAt)}</Table.Td>
                   <Table.Td ta="right">{baseline.planRevision}</Table.Td>
                   <Table.Td>
-                    <Text size="sm" c={baseline.createdBy ? undefined : "dimmed"}>
-                      {baseline.createdBy?.name ?? "—"}
-                    </Text>
+                    <CreatorName creator={baseline.createdBy} />
                   </Table.Td>
                   <Table.Td ta="right">{baseline.milestoneCount}</Table.Td>
                   <Table.Td ta="right">{baseline.projectCount}</Table.Td>

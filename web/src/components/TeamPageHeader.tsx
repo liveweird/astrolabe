@@ -3,6 +3,9 @@ import { Button, Text } from "@mantine/core";
 import { IconPencil } from "@tabler/icons-react";
 import type { TeamView } from "../api/teams";
 import { teamsPath } from "../utils/teamLinks";
+import { refOf } from "../utils/entityLinks";
+import EntityLink from "./EntityLink";
+import EntitySentence from "./EntitySentence";
 import PageHeader from "./PageHeader";
 import TeamFlags from "./TeamFlags";
 import TeamSwatch from "./TeamSwatch";
@@ -25,7 +28,14 @@ export default function TeamPageHeader({ team, admin, onEdit }: { team: TeamView
             </Text>
           )}
           <Text span display="block">
-            {team.managerName ? t("teams.managerLine", { name: team.managerName }) : t("teams.noManager")}
+            {team.managerName === null ? (
+              t("teams.noManager")
+            ) : (
+              <EntitySentence
+                text={(marks) => t("teams.managerLine", { name: marks.manager })}
+                slots={{ manager: <EntityLink entity={refOf("person", team.managerPersonId)} name={team.managerName} /> }}
+              />
+            )}
           </Text>
         </>
       }

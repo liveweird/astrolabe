@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { Fragment, useEffect, useMemo, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Alert, Button, Group, Stack, VisuallyHidden } from "@mantine/core";
@@ -8,6 +8,8 @@ import { ApiError } from "../api/http";
 import { getSavedProposal, savedProposalKey, type SavedProposalRecord } from "../api/savedProposals";
 import CrossTeamRunView from "../components/CrossTeamRunView";
 import EditPageLoadState from "../components/EditPageLoadState";
+import EntityLink from "../components/EntityLink";
+import EntitySentence from "../components/EntitySentence";
 import FormErrorAlert from "../components/FormErrorAlert";
 import PageHeader from "../components/PageHeader";
 import SavedProposalState from "../components/SavedProposalState";
@@ -16,6 +18,7 @@ import { movesOf, useCrossTeamProposal } from "../hooks/useCrossTeamProposal";
 import { useProposalFocus } from "../hooks/useProposalFocus";
 import { useScheduleCheck } from "../hooks/useScheduleCheck";
 import { useStatusAnnouncer } from "../hooks/useStatusAnnouncer";
+import { refOf } from "../utils/entityLinks";
 import { formatDateTime } from "../utils/formatDate";
 import { localIsoDate } from "../utils/isoDate";
 import { loadErrorMessage } from "../utils/saveError";
@@ -111,16 +114,31 @@ function SavedBody({ record }: { record: SavedProposalRecord }) {
     if (error && preview !== null) errorRef.current?.focus();
   }, [error, preview]);
 
-  const by = record.createdBy?.name;
-  const facts = t(by === undefined ? "scheduleProposals.saved.factsAnonymous" : "scheduleProposals.saved.facts", {
-    name: by,
-    when: formatDateTime(record.createdAt),
-    asOf: record.asOf,
-    teams: record.teams.map((team) => team.name).join(", "),
-    selected: record.selectedCount,
-    total: record.moveCount,
-    revision: record.planRevision,
-  });
+  const by = record.createdBy;
+  // A team, project or milestone named in a stored run may be gone once the plan has moved (`CHANGED`): the names are links only while the plan still matches.
+  const planMatches = record.state === "CURRENT";
+  const teamLinks = record.teams.map((team, index) => (
+    <Fragment key={team.id}>
+      {index > 0 && ", "}
+      <EntityLink entity={{ kind: "team", id: team.id }} name={team.name} current={!planMatches} />
+    </Fragment>
+  ));
+  const facts = (
+    <EntitySentence
+      text={(marks) =>
+        t(by === null ? "scheduleProposals.saved.factsAnonymous" : "scheduleProposals.saved.facts", {
+          name: marks.by,
+          when: formatDateTime(record.createdAt),
+          asOf: record.asOf,
+          teams: marks.teams,
+          selected: record.selectedCount,
+          total: record.moveCount,
+          revision: record.planRevision,
+        })
+      }
+      slots={{ by: by === null ? "" : <EntityLink entity={refOf("person", by.personId)} name={by.name} />, teams: teamLinks }}
+    />
+  );
   const discard = () => {
     if (flow.discard()) offered.current = false;
   };
@@ -155,7 +173,7 @@ function SavedBody({ record }: { record: SavedProposalRecord }) {
       <ProposalNotes proposal={flow} />
       {run !== null && (
         <Stack gap="lg">
-          <CrossTeamRunView run={run} check={check} selected={ticked} applying={!editable || flow.applying} onToggle={flow.toggle} onSelectAll={flow.selectAll} onSelectNone={flow.selectNone} />
+          <CrossTeamRunView run={run} check={check} selected={ticked} applying={!editable || flow.applying} onToggle={flow.toggle} onSelectAll={flow.selectAll} onSelectNone={flow.selectNone} live={planMatches} />
           {editable && (
             <>
               {error && (

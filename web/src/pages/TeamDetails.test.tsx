@@ -12,6 +12,7 @@ import { READ_ONLY_PANEL } from "../test/flow";
 import { headingOutline } from "../test/headings";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
+import { textContent } from "../test/textContent";
 import { applyTeamOrder, applyTeamSchedule } from "../utils/teamViewUpdate";
 
 const TOKEN_KEY = "astrolabe.auth.token";
@@ -261,7 +262,8 @@ describe("Team view page", () => {
       [3, "Idle gaps"],
     ]);
     expect(screen.getByText("Money movers")).toBeInTheDocument();
-    expect(screen.getByText("Manager: Cara New")).toBeInTheDocument();
+    expect(screen.getByText(textContent("Manager: Cara New"))).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open person Cara New" })).toHaveAttribute("href", "/people/12");
     const facts = screen.getByRole("group", { name: "Team facts" });
     expect(within(facts).getByText("4 milestones")).toBeInTheDocument();
     expect(within(facts).getByText("3 scheduled")).toBeInTheDocument();

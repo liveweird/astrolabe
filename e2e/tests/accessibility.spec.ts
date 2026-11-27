@@ -119,7 +119,7 @@ function registerTeamChainScan(scheme: Scheme, fixture: () => { teamId: number; 
     const timeline = page.getByRole("grid", { name: "Team milestone timeline" });
     await expect(page.getByRole("button", { name: "Critical path", exact: true })).toHaveAttribute("aria-pressed", "true");
     await expect(timeline.getByRole("columnheader", { name: "Slack" })).toBeVisible();
-    await expect(timeline.getByRole("rowheader", { name: new RegExp(`^${ghostName}`) })).toBeVisible();
+    await expect(timeline.getByRole("rowheader").filter({ hasText: new RegExp(`^${ghostName}`) })).toBeVisible();
     await expect(timeline.getByRole("img", { name: new RegExp(`^${ghostName}, .*on the critical chain of .*, read-only$`) })).toHaveAttribute("data-critical", "true");
     await expect(page.locator('[data-arrow][data-critical="true"]').first()).toBeAttached();
     await expect(page.getByRole("heading", { level: 3, name: "Critical chain" })).toBeVisible();

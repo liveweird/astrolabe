@@ -109,6 +109,7 @@
       "moveBottom": "Move to bottom",
       "moveBottomAria": "Move to bottom: {{name}}",
       "openProject": "Open project",
+      "openMilestone": "Open milestone",
       "resetOrder": "Reset order",
       "resetConfirm": "Reset",
       "addPeriod": "Add period",

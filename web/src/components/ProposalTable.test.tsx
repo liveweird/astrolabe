@@ -143,6 +143,16 @@ describe("ProposalTable", () => {
     expect(rowOf("tp-a")).toHaveAttribute("data-hover", "true");
   });
 
+  test("a move's and an unplaced milestone's name is a link to it on its project's page, the project's name the link beside it", () => {
+    const unplaced = [{ milestoneId: 20, name: "tp-x", projectId: 7, projectName: "Invoices", reason: "NO_CAPACITY" as const }];
+    renderWithProviders(<Harness proposal={proposalOf({ unplaced })} />);
+    const a = within(rowOf("tp-a"));
+    expect(a.getByRole("link", { name: "Open milestone tp-a" })).toHaveAttribute("href", "/projects/7?milestone=1");
+    expect(a.getByRole("link", { name: "Open project Invoices" })).toHaveAttribute("href", "/projects/7");
+    const x = within(screen.getByText("tp-x").closest("tr") as HTMLElement);
+    expect(x.getByRole("link", { name: "Open milestone tp-x" })).toHaveAttribute("href", "/projects/7?milestone=20");
+  });
+
   test("every move is ticked: Accept all is checked", () => {
     renderWithProviders(<Harness proposal={proposalOf()} />);
     expect(screen.getByRole("checkbox", { name: "Accept all" })).toBeChecked();

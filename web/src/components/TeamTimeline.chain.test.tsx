@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
 import { act, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import TeamTimeline, { type TeamActions } from "./TeamTimeline";
 import TimelineDndContext from "./TimelineDndContext";
 import type { DependencyEndpoint, ProjectDependency } from "../api/dependencies";
@@ -157,12 +158,13 @@ describe("TeamTimeline with the critical chain", () => {
     expect(arrows()).toEqual([]);
   });
 
-  test("on: the members are rows after the team's own, in chain order (start, end, name), each read-only: no row handle, no menu, no estimate", () => {
+  test("on: the members are rows after the team's own, in chain order (start, end, name), each read-only: no row handle, no estimate, and a menu with nothing but 'Open milestone'", () => {
     renderTimeline(viewOf(), true);
     expect(bodyRows().map((row) => row.querySelector('[role="rowheader"]')?.textContent)).toEqual(["tp-a", "tp-b", "Project Gamma", "tg-upPlatform", "tg-nearPlatform"]);
-    // only the team's two rows have a handle and a menu
+    // only the team's two rows have a handle; a ghost milestone's menu (1.31) is the keyboard's way to the milestone and holds that one item, a whole project's row has no menu
     expect(document.querySelectorAll("[data-row-handle]")).toHaveLength(2);
-    expect(screen.getAllByRole("button", { name: /^Operations for / })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: /^Operations for / }).map((button) => button.getAttribute("aria-label"))).toEqual(["Operations for tp-a", "Operations for tp-b", "Operations for tg-up", "Operations for tg-near"]);
+    expect(within(rowOf("Project Gamma")).queryByRole("button")).toBeNull();
     // columns: Milestone, Project, Estimate, Slack, Operations - a ghost row keeps them all
     expect(within(grid()).getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["Milestone", "Project", "Estimate", "Slack", "Operations"]);
     // the project, an empty estimate, "0 critical path" and an empty operations cell (the fifth gridcell is the bar's track)
@@ -175,6 +177,20 @@ describe("TeamTimeline with the critical chain", () => {
     expect(within(rowOf("tg-up")).getByRole("link", { name: "Open project Alpha" })).toHaveAttribute("href", "/projects/70");
     expect(within(rowOf("Project Gamma")).queryByRole("link", { name: /Open team/ })).toBeNull();
     expect(within(rowOf("Project Gamma")).getByRole("link", { name: "Open project Gamma" })).toHaveAttribute("href", "/projects/72");
+  });
+
+  test("a ghost milestone's name is a pointer-only link to the milestone, the team stays the cell's one stop, and the row menu opens the milestone for the keyboard", async () => {
+    const user = userEvent.setup();
+    renderTimeline(viewOf(), true);
+    const row = rowOf("tg-up");
+    const name = within(row).getByRole("link", { name: "Open milestone tg-up" });
+    expect(name).toHaveAttribute("href", "/projects/70?milestone=91");
+    // the pointer's link is out of the grid's tab order; the team link is the cell's roving stop
+    expect(name).toHaveAttribute("tabindex", "-1");
+    expect(name).not.toHaveAttribute("data-grid-pos");
+    expect(within(row).getByRole("link", { name: "Open team Platform" })).toHaveAttribute("data-grid-pos");
+    await user.click(within(row).getByRole("button", { name: "Operations for tg-up" }));
+    expect(await screen.findByRole("menuitem", { name: "Open milestone tg-up" })).toHaveAttribute("href", "/projects/70?milestone=91");
   });
 
   test("a ghost bar is gray (ghost tone), emphasised, and says whose chain it is on - the team's projects it serves - and that it is read-only", () => {

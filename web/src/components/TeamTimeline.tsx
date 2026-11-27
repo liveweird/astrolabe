@@ -38,13 +38,12 @@ const COLUMN_WIDTHS = { name: 220, project: 150, estimate: 120, flags: 130, slac
  * The name with the description as dimmed text after it; one line (rows are a fixed height), the cell clips the rest. A row a preview appends is
  * marked "(new)"; `sinceBaseline` marks a milestone the picked baseline did not know; `note` (1.3) is a tray row's "Jira: start to end".
  */
-function NameCell({ milestone, isNew = false, sinceBaseline = false, note }: { milestone: TeamMilestone; isNew?: boolean; sinceBaseline?: boolean; note?: string }) {
+function NameCell({ milestone, isNew = false, sinceBaseline = false, note, stop }: { milestone: TeamMilestone; isNew?: boolean; sinceBaseline?: boolean; note?: string; stop?: RovingTarget }) {
   const { t } = useTranslation();
   return (
     <Text component="span" size="sm" truncate>
-      <Text span fw={500}>
-        {milestone.name}
-      </Text>
+      {/* The name leads to the milestone on its project's page (1.31); in the grid it is the name cell's one stop (`stop`), in the tray's table an ordinary link. */}
+      <EntityLink entity={{ kind: "milestone", id: milestone.id, projectId: milestone.projectId }} name={milestone.name} size="sm" fw={500} stop={stop} />
       {milestone.pinned && <PinMark />}
       {isNew && (
         <Text span c="dimmed">
@@ -75,12 +74,12 @@ function NameCell({ milestone, isNew = false, sinceBaseline = false, note }: { m
 }
 
 /** A timeline row's name cell: with `placement` (the viewer may reorder) the row's pointer-only drag handle comes first. */
-function RowNameCell({ milestone, placement, sinceBaseline }: { milestone: TeamMilestone; placement: { index: number; count: number } | null; sinceBaseline: boolean }) {
-  if (placement === null) return <NameCell milestone={milestone} sinceBaseline={sinceBaseline} />;
+function RowNameCell({ milestone, placement, sinceBaseline, stop }: { milestone: TeamMilestone; placement: { index: number; count: number } | null; sinceBaseline: boolean; stop: RovingTarget }) {
+  if (placement === null) return <NameCell milestone={milestone} sinceBaseline={sinceBaseline} stop={stop} />;
   return (
     <Group gap={4} wrap="nowrap" style={{ minWidth: 0 }}>
       <TimelineRowHandle id={milestone.id} label={milestone.name} position={placement.index + 1} count={placement.count} />
-      <NameCell milestone={milestone} sinceBaseline={sinceBaseline} />
+      <NameCell milestone={milestone} sinceBaseline={sinceBaseline} stop={stop} />
     </Group>
   );
 }
@@ -201,7 +200,9 @@ export default function TeamTimeline({
   const rows: TimelineRowData[] = view.scheduled.map((milestone, index) => ({
     id: milestone.id,
     cells: withOptional([
-      <RowNameCell key="name" milestone={milestone} placement={view.team.can.editOrder && !previewing ? { index, count } : null} sinceBaseline={fresh?.has(milestone.id) === true} />,
+      (stop: RovingTarget) => (
+        <RowNameCell milestone={milestone} placement={view.team.can.editOrder && !previewing ? { index, count } : null} sinceBaseline={fresh?.has(milestone.id) === true} stop={stop} />
+      ),
       (stop: RovingTarget) => (
         <EntityLink entity={{ kind: "project", id: milestone.projectId }} name={milestone.projectName} size="sm" truncate title={milestone.projectName} stop={stop} />
       ),
@@ -263,7 +264,7 @@ export default function TeamTimeline({
     rows.push({
       id: milestone.id,
       cells: withOptional([
-        <NameCell key="name" milestone={milestone} isNew />,
+        (stop: RovingTarget) => <NameCell milestone={milestone} isNew stop={stop} />,
         (stop: RovingTarget) => (
           <EntityLink entity={{ kind: "project", id: milestone.projectId }} name={milestone.projectName} size="sm" truncate title={milestone.projectName} stop={stop} />
         ),

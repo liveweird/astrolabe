@@ -119,8 +119,9 @@ describe("PlanDependenciesPanel: the list", () => {
     expect(within(violated).getByRole("link", { name: "Open project Billing" })).toHaveAttribute("href", "/projects/6");
     expect(within(violated).getByRole("link", { name: "Open team Backend" })).toHaveAttribute("href", "/teams/4");
     expect(within(violated).getByRole("link", { name: "Open team Frontend" })).toHaveAttribute("href", "/teams/7");
-    // The whole-project successor has a project link and no team link; the predecessor milestone has both.
-    expect(within(open).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/projects/8", "/teams/9", "/projects/8"]);
+    // The predecessor milestone links itself (its project's page with the row marked), its project and its team; the whole-project successor has a project link and no team link.
+    expect(within(open).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/projects/8?milestone=20", "/projects/8", "/teams/9", "/projects/8"]);
+    expect(within(open).getByRole("link", { name: "Open milestone Scoping" })).toHaveAttribute("href", "/projects/8?milestone=20");
     // A link's accessible name contains its visible text.
     for (const link of within(table).getAllByRole("link")) {
       expect(link.getAttribute("aria-label") ?? "").toContain(link.textContent ?? "");

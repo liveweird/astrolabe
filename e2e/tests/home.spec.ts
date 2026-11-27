@@ -154,6 +154,10 @@ test("the Home page shows a person the projects, teams, programs and work stream
   await expect(streamRow.getByRole("cell").nth(5)).toHaveText("2");
   await expect(streamRow.getByText("1 warning", { exact: true })).toBeVisible();
   await expect(streamRow.getByText("1 info", { exact: true })).toBeVisible();
+  // A node's name leads to the Roadmap overview narrowed to it, its projects figure to the filtered Roadmap, its owner to the person's page.
+  await expect(streamRow.getByRole("link", { name: `Open work stream ${world.stream}`, exact: true })).toHaveAttribute("href", /^\/roadmap\?mode=overview&workStreamId=\d+$/);
+  await expect(streamRow.getByRole("link", { name: `2 on the roadmap: ${world.stream}`, exact: true })).toHaveAttribute("href", /^\/roadmap\?mode=prioritization&workStreamId=\d+$/);
+  await expect(streamRow.getByRole("link", { name: `Open person ${world.personName}`, exact: true })).toHaveAttribute("href", /^\/people\/\d+$/);
   const programRow = bodyRows(nodes).nth(1);
   await expect(programRow.getByRole("cell").nth(0)).toHaveText(world.program);
   await expect(programRow.getByRole("cell").nth(1)).toHaveText("Program");
@@ -162,6 +166,7 @@ test("the Home page shows a person the projects, teams, programs and work stream
   await expect(programRow.getByRole("cell").nth(5)).toHaveText("2");
   await expect(programRow.getByText("1 warning", { exact: true })).toBeVisible();
   await expect(programRow.getByText("1 info", { exact: true })).toBeVisible();
+  await expect(programRow.getByRole("link", { name: `Open program ${world.program}`, exact: true })).toHaveAttribute("href", /^\/roadmap\?mode=overview&programId=\d+$/);
   await expect(page.getByRole("link", { name: "Open the roadmap overview", exact: true })).toBeVisible();
   await expect(page.getByText(/^Listed below: what you own, everything under a work stream or program you own/)).toBeVisible();
   expect(await axeViolations(page)).toEqual([]);

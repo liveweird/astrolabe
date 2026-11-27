@@ -104,10 +104,22 @@ describe("JiraBindingsSection", () => {
     expect(key.getAttribute("rel")).toContain("noopener");
     expect(within(table).getByText("Gone from Jira")).toBeInTheDocument();
     expect(within(table).getAllByText("Ola Owner")).toHaveLength(2);
-    // The project's name is the link into its page; a milestone's binding carries only the project's name, so it is plain text.
-    expect(within(table).getByRole("link", { name: "Open project Invoices" })).toHaveAttribute("href", "/projects/7");
+    // "linked by": plain text while the login has no active person
+    expect(within(table).queryByRole("link", { name: /Open person/ })).toBeNull();
+    // Every name is a link to its page (1.31): the milestone's with its project's page, the project (its own row and the milestone's context), the program and the work stream.
+    expect(within(table).getByRole("link", { name: "Open milestone Milestone 1" })).toHaveAttribute("href", "/projects/7?milestone=11");
+    expect(within(table).getAllByRole("link", { name: "Open project Invoices" }).map((link) => link.getAttribute("href"))).toEqual(["/projects/7", "/projects/7"]);
+    expect(within(table).getAllByRole("link", { name: "Open program Billing" })[0]).toHaveAttribute("href", "/roadmap?mode=overview&programId=4");
+    expect(within(table).getAllByRole("link", { name: "Open work stream Platform" })[0]).toHaveAttribute("href", "/roadmap?mode=overview&workStreamId=1");
     expect(screen.getByRole("heading", { level: 3, name: "Links to plan items" })).toBeInTheDocument();
     expect(listCalls()[0]).toMatchObject({ connectionId: "1", page: "1", sort: "issueKey" });
+  });
+
+  test("who linked a node is the person's page when the login has an active person", async () => {
+    rows = [binding(1, { createdBy: { userId: 1, name: "Ola Owner", personId: 6 } })];
+    renderWithProviders(<JiraBindingsSection connection={CONNECTION} />);
+    const table = await screen.findByRole("table", { name: "Links to plan items" });
+    expect(await within(table).findByRole("link", { name: "Open person Ola Owner" })).toHaveAttribute("href", "/people/6");
   });
 
   test("the level filter and the name filter go to the server as level= and q=", async () => {
@@ -189,7 +201,8 @@ describe("JiraBindingsSection", () => {
     const planCalls = () => mockFetch.mock.calls.filter(([url]) => url === "/api/v1/views/plan").length;
     const rowOf = async (name: string) => {
       const table = await screen.findByRole("table", { name: "Links to plan items" });
-      return (await within(table).findByText(name)).closest("tr") as HTMLElement;
+      // By the row's own button: the program's name is also a context link in the rows under it.
+      return (await within(table).findByRole("button", { name: `Unlink: ${name}` })).closest("tr") as HTMLElement;
     };
 
     test("a program row and a project row have the button, a milestone row has none, and the plan view is read once", async () => {

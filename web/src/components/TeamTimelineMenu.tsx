@@ -4,7 +4,7 @@ import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TeamMilestone, TeamView } from "../api/teams";
 import type { BaselineRow } from "../utils/baselineOverlay";
-import { projectPath } from "../utils/planLinks";
+import { milestonePath, projectPath } from "../utils/planLinks";
 import type { RovingTarget } from "../utils/timelineModel";
 import MoveItems from "./MoveItems";
 import RowActionsMenu from "./RowActionsMenu";
@@ -112,6 +112,21 @@ export function OpenProjectMenu({ row, trigger }: { row: Pick<BaselineRow, "name
   return (
     <RowActionsMenu label={t("common.table.operationsAria", { name: row.name })} trigger={trigger}>
       <OpenProjectItem projectId={row.projectId} />
+    </RowActionsMenu>
+  );
+}
+
+/**
+ * The menu of a critical chain's ghost row (1.31): the keyboard's way to the member's milestone. The name in the row's name cell is a link for the pointer
+ * only (the cell's one stop is the member's team), so the same destination is the menu's one item.
+ */
+export function OpenMilestoneMenu({ name, projectId, id, trigger }: { name: string; projectId: number; id: number; trigger: RovingTarget }) {
+  const { t } = useTranslation();
+  return (
+    <RowActionsMenu label={t("common.table.operationsAria", { name })} trigger={trigger}>
+      <Menu.Item component={RouterLink} to={milestonePath(projectId, id)} leftSection={<IconExternalLink size={14} />} aria-label={t("common.entity.open.milestone", { name })}>
+        {t("teams.view.action.openMilestone")}
+      </Menu.Item>
     </RowActionsMenu>
   );
 }

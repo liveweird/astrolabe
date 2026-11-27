@@ -1,28 +1,13 @@
 import { Stack, Table, Text, Title } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 import type { TeamCriticalChain as ChainBlock, TeamView } from "../api/teams";
-import { criticalArrowRows, type CriticalArrowRow } from "../utils/teamChain";
-import { DependencyLagText } from "./DependencyCells";
+import { criticalArrowRows } from "../utils/teamChain";
+import { DependencyEndCell, DependencyLagText } from "./DependencyCells";
 import ScrollRegion from "./ScrollRegion";
 import TableDisclosure from "./TableDisclosure";
-import EntityLink from "./EntityLink";
 
 const NO_WRAP = { whiteSpace: "nowrap" } as const;
 const TABLE_MAX_HEIGHT = 420;
-
-/** One end: its name (a whole project is worded "Project X"), under it its project and, for a milestone, its team - each a real link to its page. */
-function EndCell({ end }: { end: CriticalArrowRow["predecessor"] }) {
-  const { t } = useTranslation();
-  return (
-    <Stack gap={2}>
-      <Text size="sm">{end.kind === "PROJECT" ? t("project.dependency.wholeProject", { name: end.name }) : end.name}</Text>
-      <EntityLink entity={{ kind: "project", id: end.projectId }} name={end.projectName} size="xs" />
-      {end.teamId !== null && end.teamName !== null && (
-        <EntityLink entity={{ kind: "team", id: end.teamId }} name={end.teamName} size="xs" />
-      )}
-    </Stack>
-  );
-}
 
 /**
  * The note under the timeline's title while the toggle is on (`id` is what the toggle's `aria-describedby` names): the figures are toward each milestone's
@@ -88,10 +73,10 @@ export default function TeamCriticalChain({ view, chain }: { view: Pick<TeamView
               {rows.map((row) => (
                 <Table.Tr key={row.id}>
                   <Table.Td>
-                    <EndCell end={row.predecessor} />
+                    <DependencyEndCell end={row.predecessor} />
                   </Table.Td>
                   <Table.Td>
-                    <EndCell end={row.successor} />
+                    <DependencyEndCell end={row.successor} />
                   </Table.Td>
                   <Table.Td style={NO_WRAP}>{t(`project.dependency.type.${row.type}`)}</Table.Td>
                   <Table.Td style={NO_WRAP}>

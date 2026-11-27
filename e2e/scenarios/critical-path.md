@@ -57,8 +57,8 @@
    - *Expected*: the toggle is pressed, the view is requested with `?criticalChain=true`, and a **Slack** column appears: p1 reads "0 critical path" (it drives
      P's end), p2 "10 working days"; the note says slack and the critical path are measured toward the end of the milestone's own project.
    - *Expected*: the timeline now has four rows: after p1 and p2 come y1 (the other team's milestone that drives p1) and x1 (two links away, through project Y),
-     dimmed, each with the other team and its own project as links (to `/teams/:id` and `/projects/:id`), "0 critical path" in the Slack column, and no handle,
-     menu or draggable bar. p2 is on no chain, so nothing more is added.
+     dimmed, each with the other team and its own project as links (to `/teams/:id` and `/projects/:id`) and the milestone's own name a link to `/projects/:id?milestone=:id`,
+     "0 critical path" in the Slack column, and no handle or draggable bar (the row's one button is its menu, holding "Open milestone"). p2 is on no chain, so nothing more is added.
    - *Expected*: p1's bar (a movable button for the administrator) is named "..., on the critical path" and carries `data-critical="true"`; p2's does not; the two
      ghost bars are read-only images with the ghost tone and `data-critical="true"`, named "<name>, <team>, <project>, <dates>, on the critical chain of <P>, read-only".
    - *Expected*: exactly FIVE elements on the page carry the flag (p1's bar, the two ghost bars and the two arrows, both critical and not violated: x1 -> y1 from the

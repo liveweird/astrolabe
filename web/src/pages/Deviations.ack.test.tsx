@@ -8,6 +8,7 @@ import { roadmapViewKey } from "../api/roadmap";
 import { projectViewKey } from "../hooks/useMilestoneSchedule";
 import { teamViewKey } from "../hooks/useTeamSchedule";
 import { AT, ackHarness, acknowledged, isPrefix, keyArraysOf, keysOf, row } from "../test/deviationsAckHarness";
+import { textContent } from "../test/textContent";
 
 describe("Deviations page - acknowledge and unacknowledge", () => {
   const h = ackHarness();
@@ -74,7 +75,7 @@ describe("Deviations page - acknowledge and unacknowledge", () => {
       await user.click(await screen.findByRole("button", { name: "Acknowledge E2E-3: End" }));
       const button = await screen.findByRole("button", { name: "Unacknowledge E2E-3: End" });
       await waitFor(() => expect(button).toHaveFocus());
-      expect(screen.getByText("Acknowledged by Ada Lovelace on 2026-11-06")).toBeInTheDocument();
+      expect(screen.getByText(textContent("Acknowledged by Ada Lovelace on 2026-11-06"))).toBeInTheDocument();
     });
 
     test("a row the user has no rights on gets no button, and neither does a clean one under 'all'", async () => {
@@ -151,7 +152,7 @@ describe("Deviations page - acknowledge and unacknowledge", () => {
     test("a stale acknowledgement reads 'changed since', the item is open again, and Acknowledge is offered (not Unacknowledge)", async () => {
       h.doc = view({ items: [row(1, "E2E-3", { deviations: [stamped(endLater(3), { current: false })] })] });
       renderPage();
-      expect(await screen.findByText("Acknowledged on 2026-11-06 by Ada Lovelace · changed since")).toBeInTheDocument();
+      expect(await screen.findByText(textContent("Acknowledged on 2026-11-06 by Ada Lovelace · changed since"))).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Acknowledge E2E-3: End" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Unacknowledge E2E-3: End" })).not.toBeInTheDocument();
     });

@@ -31,6 +31,24 @@ describe("CrossTeamProposalSection", () => {
     expect(screen.queryByRole("table", { name: "Proposed weekly load of Payments" })).toBeNull();
   });
 
+  test("the team's name in its heading is a link to the team that keeps the heading's own name; a stored run the plan moved on from shows it as text", () => {
+    const first = renderWithProviders(
+      <CrossTeamProposalSection team={TEAM} asOf="2042-01-05" position={2} total={3} selected={new Set()} applying={false} check={IDLE} onToggle={vi.fn()} onSelectAll={vi.fn()} onSelectNone={vi.fn()} />,
+    );
+    const heading = screen.getByRole("heading", { level: 3, name: "Payments" });
+    expect(within(heading).getByRole("link", { name: "Payments" })).toHaveAttribute("href", "/teams/2");
+    expect(screen.getByRole("link", { name: "Open milestone y1" })).toHaveAttribute("href", "/projects/7?milestone=21");
+    first.unmount();
+    renderWithProviders(
+      <CrossTeamProposalSection team={TEAM} asOf="2042-01-05" position={2} total={3} selected={new Set()} applying={false} check={IDLE} onToggle={vi.fn()} onSelectAll={vi.fn()} onSelectNone={vi.fn()} live={false} />,
+    );
+    expect(screen.getByRole("heading", { level: 3, name: "Payments" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Payments/ })).toBeNull();
+    // the milestones and projects of such a run are text too
+    expect(screen.getByText("y1")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^Open (milestone|project) / })).toBeNull();
+  });
+
   test("the move rows show the server's dates; a checkbox toggles ITS milestone", async () => {
     const user = userEvent.setup();
     const { onToggle } = renderSection();

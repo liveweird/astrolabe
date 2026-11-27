@@ -69,7 +69,7 @@ function MineTables({ me, ownOnly, onOwnOnlyChange }: { me: HomeMe; ownOnly: boo
       {nodes && (
         <TableBlock title={t("home.mine.nodes")}>
           {me.workStreams.length + programs.length > 0 ? (
-            <HomeNodesTable workStreams={me.workStreams} programs={programs} personName={me.name} />
+            <HomeNodesTable workStreams={me.workStreams} programs={programs} personId={me.personId} personName={me.name} />
           ) : (
             <Text size="sm">{t("home.mine.ownOnlyNoPrograms")}</Text>
           )}

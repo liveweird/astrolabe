@@ -94,6 +94,12 @@ describe("Deviations page", () => {
       [3, "Differences"],
     ]);
     expect(within(table).getByRole("link", { name: "Open milestone Checkout page" })).toHaveAttribute("href", "/projects/7?milestone=11");
+    // every name of the plan cell is a link (1.31): the team (its visible text says "Team ..."), the project, program and work stream the milestone sits under
+    expect(within(table).getByRole("link", { name: "Open team Backend" })).toHaveAttribute("href", "/teams/3");
+    expect(within(table).getByRole("link", { name: "Open team Backend" })).toHaveTextContent("Team Backend");
+    expect(within(table).getByRole("link", { name: "Open project Invoices" })).toHaveAttribute("href", "/projects/7");
+    expect(within(table).getByRole("link", { name: "Open program Billing" })).toHaveAttribute("href", "/roadmap?mode=overview&programId=70");
+    expect(within(table).getByRole("link", { name: "Open work stream Platform" })).toHaveAttribute("href", "/roadmap?mode=overview&workStreamId=700");
     const key = within(table).getByRole("link", { name: /E2E-3/ });
     expect(key).toHaveAttribute("href", "https://acme.atlassian.net/browse/E2E-3");
     expect(key.getAttribute("rel")).toContain("noopener");

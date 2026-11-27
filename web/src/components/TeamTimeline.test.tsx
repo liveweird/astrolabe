@@ -122,6 +122,18 @@ afterEach(() => {
 });
 
 describe("TeamTimeline without a proposal", () => {
+  test("a milestone's name is a link to it on its project's page and is the name cell's one roving stop; the project's link is the next cell's", () => {
+    renderTimeline(viewOf());
+    const row = rowOf("tp-a");
+    const name = within(row).getByRole("link", { name: "Open milestone tp-a" });
+    expect(name).toHaveAttribute("href", "/projects/7?milestone=1");
+    expect(name).toHaveTextContent("tp-a");
+    expect(name).toHaveAttribute("data-grid-pos");
+    expect(within(row).getByRole("link", { name: "Open project Invoices" })).toHaveAttribute("href", "/projects/7");
+    // the tray's table has its own links (an ordinary tab stop each), the same destinations
+    expect(within(screen.getByRole("table", { name: "Unscheduled milestones of the team" })).getByRole("link", { name: "Open milestone tp-x" })).toHaveAttribute("href", "/projects/7?milestone=3");
+  });
+
   test("is the page it was: editable bars, the row handle, idle bands, the weekly strip, no proposal bar", () => {
     renderTimeline(viewOf());
     expect(bodyRows()).toHaveLength(2);
@@ -417,6 +429,8 @@ describe("TeamTimeline with tray milestones that Jira dates (1.16)", () => {
     renderTimeline(viewOf({ scheduled: [linked, B], unscheduled: [Y] }), undefined, true, WINDOW);
     expect(within(rowOf("tp-y")).getAllByRole("gridcell")).toHaveLength(within(rowOf("tp-a")).getAllByRole("gridcell").length);
     expect(within(grid()).getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["Milestone", "Project", "Estimate", "Flags", "Slack", "Operations"]);
-    expect(rowOf("tp-y").querySelector("[data-flags], a")).toBeNull();
+    // the Flags and Slack cells hold nothing (the name and the project are links now, the tray milestone being a live one)
+    expect(within(rowOf("tp-y")).getAllByRole("gridcell").slice(2, 4).map((cell) => cell.textContent)).toEqual(["", ""]);
+    expect(rowOf("tp-y").querySelector("[data-flags]")).toBeNull();
   });
 });

@@ -6,6 +6,7 @@ import BaselineCompare from "./BaselineCompare";
 import { headingOutline } from "../test/headings";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
+import { textContent } from "../test/textContent";
 
 // 1.7: the comparison page's "Compare against" picker - the page's baseline is "then", the URL's ?against= is "now" (another baseline), the
 // sides are named, the timeline shortcuts are hidden, the rank movement is a sentence on the project row.
@@ -21,7 +22,9 @@ const UNKNOWN = { type: "urn:astrolabe:problem:unknown-baseline", title: "Bad Re
 const project = (over: object) => ({
   projectId: 1,
   name: "Checkout",
+  programId: 4,
   programName: "Payments",
+  workStreamId: 2,
   workStreamName: "Commerce",
   rankThen: 3,
   rankNow: 5,
@@ -105,8 +108,8 @@ describe("Baseline comparison page, two baselines", () => {
 
   test("a link with ?against= asks for it, names both sides in the facts and the column headers and hides the timeline shortcuts", async () => {
     renderPage("/baselines/5?against=9");
-    expect(await screen.findByText(/^Then: Q2 commitment · Taken 2026-11-02 14:30 UTC by Ada Admin · Plan revision 40 · 120 milestones · 12 projects$/)).toBeInTheDocument();
-    expect(screen.getByText("Now: Q3 commitment · Taken 2026-11-09 08:00 UTC · Plan revision 52 · 130 milestones · 13 projects")).toBeInTheDocument();
+    expect(await screen.findByText(textContent("Then: Q2 commitment · Taken 2026-11-02 14:30 UTC by Ada Admin · Plan revision 40 · 120 milestones · 12 projects"))).toBeInTheDocument();
+    expect(screen.getByText(textContent("Now: Q3 commitment · Taken 2026-11-09 08:00 UTC · Plan revision 52 · 130 milestones · 13 projects"))).toBeInTheDocument();
     expect(viewUrls).toEqual(["/api/v1/views/baseline/5?against=9"]);
     expect(await screen.findByDisplayValue("Q3 commitment (plan revision 52)")).toBe(screen.getByRole("combobox", { name: "Compare against" }));
     expect(screen.getByRole("heading", { level: 2, name: "Q2 commitment" })).toBeInTheDocument();
@@ -122,8 +125,10 @@ describe("Baseline comparison page, two baselines", () => {
 
   test("the rank movement is a sentence on the project row: both ranked, from unranked; unchanged and new projects say nothing", async () => {
     renderPage("/baselines/5?against=9");
-    await screen.findByText("Then: Q2 commitment · Taken 2026-11-02 14:30 UTC by Ada Admin · Plan revision 40 · 120 milestones · 12 projects");
-    const rowgroup = (name: string) => screen.getByRole("link", { name: `Open project ${name}` }).closest("tbody")!;
+    await screen.findByText(textContent("Then: Q2 commitment · Taken 2026-11-02 14:30 UTC by Ada Admin · Plan revision 40 · 120 milestones · 12 projects"));
+    // Against another baseline both sides are frozen (a project may be gone since): the names are text, never links.
+    expect(screen.queryByRole("link", { name: /^Open (project|program|work stream|milestone|team) / })).toBeNull();
+    const rowgroup = (name: string) => screen.getByText(name).closest("tbody")!;
     expect(within(rowgroup("Checkout")).getByText("Unranked → rank 2")).toBeInTheDocument();
     expect(within(rowgroup("Ledger")).queryByText(/Rank|rank/)).toBeNull();
     expect(within(rowgroup("Fresh")).queryByText(/→/)).toBeNull();

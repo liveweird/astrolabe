@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { screen, waitFor, within } from "../test/render";
 import { DEV_CONNECTION, endLater, startEarlier, stamped, view } from "../test/deviations";
 import { ackHarness, row } from "../test/deviationsAckHarness";
+import { textContent } from "../test/textContent";
 
 describe("Deviations page - the Status filter, totals and empty Open list", () => {
   const h = ackHarness();
@@ -115,7 +116,7 @@ describe("Deviations page - the Status filter, totals and empty Open list", () =
     renderPage("/deviations?acknowledged=true");
     expect(await screen.findByRole("button", { name: "Unacknowledge E2E-3: End" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Acknowledge E2E-3: Start" })).toBeInTheDocument();
-    expect(screen.getByText("Acknowledged by Ada Lovelace on 2026-11-06")).toBeInTheDocument();
+    expect(screen.getByText(textContent("Acknowledged by Ada Lovelace on 2026-11-06"))).toBeInTheDocument();
     // One line of each state: no batch button.
     expect(screen.queryByRole("button", { name: /all \(/ })).not.toBeInTheDocument();
   });

@@ -2,11 +2,13 @@ import { describe, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { MantineProvider } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import type { DeviationItem, DeviationLine } from "../api/deviations";
 import type { Acknowledge } from "../hooks/useAcknowledge";
 import { endLater, item, renamed, startEarlier, stamped } from "../test/deviations";
 import { theme } from "../theme";
 import DeviationAckCell, { DeviationAckAll, DeviationAckOrphanNotice } from "./DeviationAckCell";
+import { textContent } from "../test/textContent";
 
 const AT = Date.UTC(2026, 10, 6, 12, 30);
 
@@ -14,7 +16,7 @@ const ack = (over: Partial<Acknowledge> = {}): Acknowledge => ({ busyKey: null, 
 const can = { can: { acknowledge: true } };
 const wrap = (children: React.ReactNode) => (
   <MantineProvider env="test" theme={theme}>
-    {children}
+    <MemoryRouter>{children}</MemoryRouter>
   </MantineProvider>
 );
 
@@ -50,12 +52,22 @@ describe("a line's acknowledgement cell: the button matrix (can x none / current
 describe("a line's acknowledgement cell: the words", () => {
   test("a current acknowledgement says who and when (the date in UTC, the exact time in the title)", () => {
     renderLine(stamped(endLater(3)), can);
-    expect(screen.getByText("Acknowledged by Ada Lovelace on 2026-11-06")).toHaveAttribute("title", "2026-11-06 12:30");
+    expect(screen.getByText(textContent("Acknowledged by Ada Lovelace on 2026-11-06"))).toHaveAttribute("title", "2026-11-06 12:30");
+  });
+
+  test("who acknowledged is the person's page when the login has an active person, plain text when it has none", () => {
+    const linked = renderLine(stamped(endLater(3), { byPersonId: 9 }), can);
+    expect(screen.getByRole("link", { name: "Open person Ada Lovelace" })).toHaveAttribute("href", "/people/9");
+    expect(screen.getByText(textContent("Acknowledged by Ada Lovelace on 2026-11-06"))).toBeInTheDocument();
+    linked.unmount();
+    renderLine(stamped(endLater(3)), can);
+    expect(screen.queryByRole("link", { name: /Open person/ })).toBeNull();
+    expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
   });
 
   test("a stale acknowledgement says it was changed since, and a deleted acknowledger is left out, never made up", () => {
     const { unmount } = renderLine(stamped(endLater(3), { current: false }), can);
-    expect(screen.getByText("Acknowledged on 2026-11-06 by Ada Lovelace · changed since")).toBeInTheDocument();
+    expect(screen.getByText(textContent("Acknowledged on 2026-11-06 by Ada Lovelace · changed since"))).toBeInTheDocument();
     unmount();
     const nameless = renderLine(stamped(endLater(3), { by: null }));
     expect(screen.getByText("Acknowledged on 2026-11-06")).toBeInTheDocument();

@@ -8,10 +8,10 @@ import { ghostRowId } from "../utils/dependencyArrows";
 import { orderedMembers } from "../utils/teamChain";
 import { teamTint, type TeamColour } from "../utils/teamColours";
 import type { RovingTarget, TimelineBarData, TimelineRowData } from "../utils/timelineModel";
-import { AppendedRowName, BaselineRowName } from "./BaselineParts";
+import { BaselineRowName } from "./BaselineParts";
 import JiraRowMenu from "./JiraRowMenu";
 import SlackCell from "./SlackCell";
-import { OpenProjectItem, OpenProjectMenu } from "./TeamTimelineMenu";
+import { OpenMilestoneMenu, OpenProjectItem, OpenProjectMenu } from "./TeamTimelineMenu";
 import EntityLink from "./EntityLink";
 
 /*
@@ -93,10 +93,15 @@ export function jiraTrayAppendedRows(appended: readonly BaselineRow[], ctx: Appe
     id: jiraTrayRowId(milestone.id),
     cells: withOptional(
       [
-        <AppendedRowName key="name" name={milestone.name} mark={t("timeline.jiraUnscheduledMark")} />,
-        <Text key="project" component="span" size="sm" c="dimmed" truncate title={milestone.projectName}>
-          {milestone.projectName}
-        </Text>,
+        // A tray milestone is a live one: its name and its project lead to their pages (the baseline's rows above are frozen and stay text).
+        (stop: RovingTarget) => (
+          <Text component="span" size="sm" c="dimmed" truncate>
+            <EntityLink entity={{ kind: "milestone", id: milestone.id, projectId: milestone.projectId }} name={milestone.name} c="dimmed" stop={stop} /> {t("timeline.jiraUnscheduledMark")}
+          </Text>
+        ),
+        (stop: RovingTarget) => (
+          <EntityLink entity={{ kind: "project", id: milestone.projectId }} name={milestone.projectName} size="sm" c="dimmed" truncate title={milestone.projectName} stop={stop} />
+        ),
         <Text key="estimate" component="span" size="sm" c="dimmed">
           {estimateText(t, milestone)}
         </Text>,
@@ -110,8 +115,8 @@ export function jiraTrayAppendedRows(appended: readonly BaselineRow[], ctx: Appe
 
 /**
  * The critical chain's ghost rows (1.27): another team's milestone, or a whole project a chain link names, that lies on the chain through this team's
- * work - read-only (no menu, no handle, no estimate), dimmed, one gray bar that says it is on the chain, "0 critical path" in the Slack column. The way on is the
- * member's team (a link after its name; "Project X" has none) and its project; ids are the project page's ghost ids (`ghostRowId`). `projectNames` names the
+ * work - read-only (no handle, no estimate; a milestone's menu holds only "Open milestone"), dimmed, one gray bar that says it is on the chain, "0 critical path" in the Slack column. The way on is the
+ * member's team (a link after its name; "Project X" has none), its project and the milestone itself (the name's link, pointer only); ids are the project page's ghost ids (`ghostRowId`). `projectNames` names the
  * team's projects for the bar's "on the critical chain of"; a milestone member's bar takes its own team's colour from `colours` (1.29; a project member, or a team the
  * lookup lacks, stays neutral gray; the team's name is in the same row).
  */
@@ -131,9 +136,8 @@ export function chainGhostRows(
     const { teamId, teamName } = member;
     return (stop: RovingTarget) => (
       <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
-        <Text component="span" size="sm" c="dimmed" truncate>
-          {member.name}
-        </Text>
+        {/* The cell's one stop is the team (the way on); the milestone's link is the pointer's, its keyboard path is the row menu's "Open milestone" (D4). */}
+        <EntityLink entity={{ kind: "milestone", id: member.id, projectId: member.projectId }} name={member.name} size="sm" c="dimmed" truncate secondary />
         <EntityLink entity={{ kind: "team", id: teamId }} name={teamName} size="sm" c="dimmed" truncate stop={stop} />
       </Group>
     );
@@ -158,7 +162,9 @@ export function chainGhostRows(
             <EntityLink entity={{ kind: "project", id: member.projectId }} name={member.projectName} size="sm" c="dimmed" truncate title={member.projectName} stop={stop} />
           ),
           "",
-          null,
+          member.kind === "MILESTONE" && member.teamId !== null && member.teamName !== null
+            ? (stop: RovingTarget) => <OpenMilestoneMenu name={member.name} projectId={member.projectId} id={member.id} trigger={stop} />
+            : null,
         ],
         null,
         slack,

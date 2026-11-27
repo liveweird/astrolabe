@@ -1,11 +1,11 @@
 import { useEffect, useRef } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
-import { Button, Group, Stack, Text } from "@mantine/core";
+import { Button, Group, Stack } from "@mantine/core";
 import type { CapacityDeviation, CapacityDeviationCan } from "../api/capacityDeviations";
 import type { CapacityAcknowledge } from "../hooks/useCapacityAcknowledge";
 import { capacityAckAllKey, capacityAckKey, isOpen } from "../utils/capacityDeviations";
-import { formatDate, formatDateTime } from "../utils/formatDate";
+import AckSentence from "./AckSentence";
 import { AckNoticeAlert } from "./DeviationAckCell";
 
 /** What a list needs to offer the acknowledge on its rows: the item's `can`, the binding the rows belong to (and its team's name, for "Acknowledge all") and the write's state machine. */
@@ -33,23 +33,11 @@ export default function CapacityAckCell({ row, ack, neighbours }: { row: Capacit
   const key = capacityAckKey(bindingId, row.detail.sprintId);
   const busy = hook.busyKey !== null;
   const notice = hook.notice?.key === key ? hook.notice : null;
-  const date = acknowledgement === null ? "" : formatDate(acknowledgement.at);
-  const by = acknowledgement?.by ?? null;
-  const sentence =
-    acknowledgement === null
-      ? null
-      : acknowledgement.current
-        ? by === null ? t("deviations.ack.doneUnknown", { date }) : t("deviations.ack.done", { name: by, date })
-        : by === null ? t("deviations.ack.staleUnknown", { date }) : t("deviations.ack.stale", { name: by, date });
   const sprint = rowName(row, t);
   const open = isOpen(row);
   return (
     <Stack gap={6} align="flex-start">
-      {sentence !== null && acknowledgement !== null && (
-        <Text size="sm" title={formatDateTime(acknowledgement.at)}>
-          {sentence}
-        </Text>
-      )}
+      {acknowledgement !== null && <AckSentence acknowledgement={acknowledgement} />}
       {can.acknowledge && open && (
         <Button size="compact-sm" variant="default" data-ack-for={key} aria-label={t("deviations.capacity.ack.acknowledgeAria", { sprint })} aria-disabled={busy || undefined} data-disabled={busy || undefined} onClick={() => hook.run({ kind: "acknowledge", bindingId, row }, neighbours)}>
           {t("deviations.ack.acknowledge")}

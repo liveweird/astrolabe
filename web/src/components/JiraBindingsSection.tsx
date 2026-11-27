@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge, Button, Group, Select, Stack, Table, Text, Title } from "@mantine/core";
 import { IconFileImport, IconLink, IconLinkOff } from "@tabler/icons-react";
@@ -11,11 +11,13 @@ import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useClampPage } from "../hooks/usePagedSort";
 import { useRegistryListControls } from "../hooks/useRegistryListControls";
 import { goneBadge } from "../utils/deviations";
+import { refOf, type EntityRef } from "../utils/entityLinks";
 import { formatDateTime } from "../utils/formatDate";
 import type { ImportRoot } from "../utils/jiraImport";
 import { rootOfBinding } from "../utils/jiraImportRoot";
 import { refreshJiraAndTimelines } from "../utils/queryRefresh";
 import ClearableTextInput from "./ClearableTextInput";
+import CreatorName from "./CreatorName";
 import JiraBindDialog from "./JiraBindDialog";
 import JiraImportModal from "./JiraImportModal";
 import JiraKeyWithPrevious from "./JiraKeyWithPrevious";
@@ -46,22 +48,36 @@ const GONE_BADGE = { movedOut: "jira.bindings.goneMovedOut", notListed: "jira.bi
 
 const levelWord = (kind: JiraLevel) => `jira.mapping.level.${kind.toLowerCase() as "program" | "project" | "milestone"}` as const;
 
-/** The node's name (a project's is the link into its page) with where it sits, dimmed. A milestone's binding carries the project's NAME only, so it is not a link. */
+/**
+ * The node's name with where it sits, dimmed (1.31: every name a link to its page - a program's to the Roadmap overview narrowed to it, a milestone's to its
+ * project's page, so the milestone's own binding needs its project's id, which the binding carries). A name whose id the binding does not carry is plain text.
+ */
 function NodeCell({ binding }: { binding: JiraBinding }) {
   const { node } = binding;
-  const context = [node.projectName, node.programName, node.workStreamName].filter((part): part is string => Boolean(part)).join(" · ");
+  const own: EntityRef | null =
+    node.kind === "PROJECT"
+      ? { kind: "project", id: node.id }
+      : node.kind === "PROGRAM"
+        ? { kind: "program", id: node.id }
+        : node.projectId == null
+          ? null
+          : { kind: "milestone", id: node.id, projectId: node.projectId };
+  const context = [
+    node.projectName ? { key: "project", name: node.projectName, entity: refOf("project", node.projectId) } : null,
+    node.programName ? { key: "program", name: node.programName, entity: refOf("program", node.programId) } : null,
+    node.workStreamName ? { key: "workStream", name: node.workStreamName, entity: refOf("workStream", node.workStreamId) } : null,
+  ].filter((part) => part !== null);
   return (
     <>
-      {node.kind === "PROJECT" ? (
-        <EntityLink entity={{ kind: "project", id: node.id }} name={node.name} size="sm" fw={500} />
-      ) : (
-        <Text size="sm" fw={500}>
-          {node.name}
-        </Text>
-      )}
-      {context !== "" && (
+      <EntityLink entity={own} name={node.name} size="sm" fw={500} />
+      {context.length > 0 && (
         <Text size="xs" c="dimmed">
-          {context}
+          {context.map((part, index) => (
+            <Fragment key={part.key}>
+              {index > 0 && " · "}
+              <EntityLink entity={part.entity} name={part.name} size="xs" c="dimmed" />
+            </Fragment>
+          ))}
         </Text>
       )}
     </>
@@ -203,7 +219,7 @@ export default function JiraBindingsSection({ connection }: { connection: JiraCo
               <Text size="sm">{formatDateTime(row.createdAt)}</Text>
             </Table.Td>
             <Table.Td>
-              <Text size="sm">{row.createdBy?.name ?? "—"}</Text>
+              <CreatorName creator={row.createdBy} />
             </Table.Td>
             <Table.Td style={{ width: 1 }} ta="right">
               <Group gap="xs" wrap="nowrap" justify="flex-end">
