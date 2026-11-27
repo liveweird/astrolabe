@@ -213,14 +213,19 @@ describe("Timeline frame", () => {
 
     const scroller = screen.getByRole("region", { name: "Project timeline" });
     stubViewport(560, 300);
-    await user.click(screen.getByRole("button", { name: "Today" }));
+    await user.click(screen.getByRole("button", { name: "Scroll to today" }));
     // today = day 9 of the range: x = 9 * 28 = 252, centre = 252 + 14; the track part of the viewport is 560 - 260 = 300 wide
     expect(scroller.scrollLeft).toBe(252 + 14 - 150);
   });
 
-  test("Today is disabled when today lies outside the range", () => {
-    renderWithProviders(<Harness today="2027-01-01" />);
-    expect(screen.getByRole("button", { name: "Today" })).toBeDisabled();
+  test("Scroll to today is disabled, with the reason as its title, when today lies outside the range", () => {
+    const { unmount } = renderWithProviders(<Harness today="2027-01-01" />);
+    const disabled = screen.getByRole("button", { name: "Scroll to today" });
+    expect(disabled).toBeDisabled();
+    expect(disabled).toHaveAttribute("title", "Today is outside the dates shown");
+    unmount();
+    renderWithProviders(<Harness />);
+    expect(screen.getByRole("button", { name: "Scroll to today" })).not.toHaveAttribute("title");
   });
 
   test("a whole-timeline band and a row band are decorations with a title", () => {
@@ -2176,8 +2181,8 @@ describe("the critical-path highlight (v0.7)", () => {
     renderWithProviders(<Harness toolbar={<button type="button">Page control</button>} />);
     const group = screen.getByRole("group", { name: "Timeline controls" });
     const labels = within(group).getAllByRole("button").map((b) => b.textContent);
-    expect(labels).toEqual(expect.arrayContaining(["Today", "Page control"]));
-    expect(labels.indexOf("Page control")).toBeGreaterThan(labels.indexOf("Today"));
+    expect(labels).toEqual(expect.arrayContaining(["Scroll to today", "Page control"]));
+    expect(labels.indexOf("Page control")).toBeGreaterThan(labels.indexOf("Scroll to today"));
   });
 
   test("an emphasised bar carries data-critical on the editable and the read-only bar, whatever its tone; the others carry nothing", () => {

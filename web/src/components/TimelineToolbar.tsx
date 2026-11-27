@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
 import { Button, Group, SegmentedControl } from "@mantine/core";
+import { IconTarget } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import type { Zoom } from "../utils/timelineScale";
 
-/** The Timeline's controls: the zoom (the page's `zooms`), "Today" (scrolls today into the middle of the track) and the page's own `children` after them. */
+/** The Timeline's controls: the zoom (the page's `zooms`), "Scroll to today" (scrolls today into the middle of the track) and the page's own `children` after them. */
 export default function TimelineToolbar({
   zoom,
   zooms,
@@ -34,7 +35,14 @@ export default function TimelineToolbar({
         onChange={(value) => onZoomChange(value as Zoom)}
         data={zooms.map((value) => ({ value, label: t(`timeline.zoom.${value}`) }))}
       />
-      <Button size="compact-sm" variant="default" onClick={onToday} disabled={todayDisabled}>
+      <Button
+        size="compact-sm"
+        variant="default"
+        leftSection={<IconTarget size={14} />}
+        onClick={onToday}
+        disabled={todayDisabled}
+        title={todayDisabled ? t("timeline.todayOutOfRange") : undefined}
+      >
         {t("timeline.today")}
       </Button>
       {children}

@@ -7,7 +7,8 @@
     "quarter": "Kwartał",
     "year": "Rok"
   },
-  "today": "Dziś",
+  "today": "Przewiń do dziś",
+  "todayOutOfRange": "Dziś jest poza pokazanym zakresem dat",
   "todayTag": "Dziś",
   "holidayTitle": "Święto państwowe: {{name}}",
   "holidaysInView": "Widoczne święta państwowe: {{list}}",

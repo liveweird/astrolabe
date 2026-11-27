@@ -133,7 +133,7 @@ describe("Roadmap page: the Jira dates", () => {
     renderWithProviders(<Roadmap />);
     await waitForGrid();
     const picker = screen.getByRole("combobox", { name: "Baseline" });
-    const today = screen.getByRole("button", { name: "Today" });
+    const today = screen.getByRole("button", { name: "Scroll to today" });
     expect(today.compareDocumentPosition(picker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(picker.compareDocumentPosition(toggle()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
