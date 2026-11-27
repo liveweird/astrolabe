@@ -169,7 +169,7 @@ const AUTHED_PAGES: { path: string; heading: string; settled?: Settled }[] = [
   {
     path: "/teams",
     heading: "Teams",
-    // 1.32 (Team load folded in): the table, or the sentence a plan without teams says; the weeks table below it is not waited for.
+    // 1.32 (Team load folded in): the table, or the sentence a plan without teams says.
     settled: async (page) => {
       await expect(page.getByRole("table", { name: "Teams", exact: true }).or(page.getByText("No teams yet", { exact: true }))).toBeVisible();
     },

@@ -5,6 +5,9 @@ import { IconPencil, IconTrash } from "@tabler/icons-react";
 import type { TeamLoadRow, TeamLoadView } from "../api/teamLoad";
 import type { TeamColour } from "../utils/teamColours";
 import { entityPath, refOf } from "../utils/entityLinks";
+import { teamWeeklyLoadPath } from "../utils/teamLinks";
+import type { WeeklyLoadKind } from "../utils/weeklyLoadAddress";
+import BadgeLink from "./BadgeLink";
 import DestructiveMenuItem from "./DestructiveMenuItem";
 import EntityLink from "./EntityLink";
 import RowActionsMenu from "./RowActionsMenu";
@@ -12,15 +15,25 @@ import ScrollRegion from "./ScrollRegion";
 import SortHeader, { type SortDir } from "./SortHeader";
 import TeamSwatch from "./TeamSwatch";
 
-/**
- * One orange warning badge, only while positive (a zero figure is not a claim); `text` is the worded figure. `whole`: in a table cell the badge
- * keeps its whole text: its label hides overflow, so its minimum width is next to nothing and an auto-layout column would shrink it into an ellipsis.
- */
-function WarningBadge({ text, whole = false }: { text: string | null; whole?: boolean }) {
+/** One orange warning badge, only while positive (a zero figure is not a claim); `text` is the worded figure. */
+function WarningBadge({ text }: { text: string | null }) {
   return text === null ? null : (
-    <Badge color="orange" tt="none" miw={whole ? "max-content" : undefined}>
+    <Badge color="orange" tt="none">
       {text}
     </Badge>
+  );
+}
+
+/**
+ * A row's week-count badge, a link to the weeks behind it (1.36: the team page's weekly load table, opened, focused and scrolled to the first week of its `kind`; `teamWeeklyLoadPath`). Only while
+ * positive. The link's name starts with the figure and says where it goes, with the team's name (the same figure shows on every row).
+ */
+function WeeksBadge({ row, kind, color, figure }: { row: TeamLoadRow; kind: WeeklyLoadKind; color: "orange" | "gray"; figure: string | null }) {
+  const { t } = useTranslation();
+  return figure === null ? null : (
+    <BadgeLink whole to={teamWeeklyLoadPath(row.id, kind)} color={color} ariaLabel={t("teamLoad.weeklyLoadAria", { figure, name: row.name })}>
+      {figure}
+    </BadgeLink>
   );
 }
 
@@ -90,17 +103,13 @@ function TeamRow({ row, colour, admin, onEdit, onDelete }: RowProps) {
         )}
       </Table.Td>
       <Table.Td style={NO_WRAP}>
-        <WarningBadge whole text={row.overloadedWeeks > 0 ? t("teams.view.overloadedWeeks", { count: row.overloadedWeeks }) : null} />
+        <WeeksBadge row={row} kind="overloaded" color="orange" figure={row.overloadedWeeks > 0 ? t("teams.view.overloadedWeeks", { count: row.overloadedWeeks }) : null} />
       </Table.Td>
       <Table.Td style={NO_WRAP}>
-        <WarningBadge whole text={row.wipExceededWeeks > 0 ? t("teams.view.wipWeeks", { count: row.wipExceededWeeks }) : null} />
+        <WeeksBadge row={row} kind="wip" color="orange" figure={row.wipExceededWeeks > 0 ? t("teams.view.wipWeeks", { count: row.wipExceededWeeks }) : null} />
       </Table.Td>
       <Table.Td style={NO_WRAP}>
-        {row.weeksWithoutCapacity > 0 && (
-          <Badge color="gray" tt="none" miw="max-content">
-            {t("teamLoad.withoutCapacity", { count: row.weeksWithoutCapacity })}
-          </Badge>
-        )}
+        <WeeksBadge row={row} kind="nocapacity" color="gray" figure={row.weeksWithoutCapacity > 0 ? t("teamLoad.withoutCapacity", { count: row.weeksWithoutCapacity }) : null} />
       </Table.Td>
       {admin && (
         <Table.Td style={{ width: 1 }} ta="right">
@@ -125,7 +134,7 @@ function TeamRow({ row, colour, admin, onEdit, onDelete }: RowProps) {
 
 /**
  * The Teams table (1.32): one row per team of the team-load document, in the order given - the name (swatch, link, the description under it), the manager,
- * the milestones, the ones not scheduled, the three week counts, and an ADMIN's row menu. Only the name sorts (the page reverses the document's order).
+ * the milestones, the ones not scheduled, the three week counts (links to the team's weekly load table), and an ADMIN's row menu. Only the name sorts (the page reverses the document's order).
  */
 export default function TeamsTable({
   rows,

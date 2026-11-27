@@ -22,4 +22,19 @@ describe("BadgeLink", () => {
     expect(link).toHaveTextContent("3 warnings");
     expect(link).toHaveAttribute("aria-label", "3 warnings: elsewhere");
   });
+
+  test("whole keeps the text whole in a table cell (its minimum width is the content), and is off by default", () => {
+    renderWithProviders(
+      <>
+        <BadgeLink to="/a" color="orange" whole>
+          3 weeks overloaded
+        </BadgeLink>
+        <BadgeLink to="/b" color="orange">
+          2 weeks
+        </BadgeLink>
+      </>,
+    );
+    expect(screen.getByRole("link", { name: "3 weeks overloaded" })).toHaveStyle({ minWidth: "max-content" });
+    expect(screen.getByRole("link", { name: "2 weeks" })).not.toHaveStyle({ minWidth: "max-content" });
+  });
 });

@@ -48,6 +48,7 @@ import { useJiraBarsPick } from "../hooks/useJiraBarsPick";
 import { useLocalToday } from "../hooks/useLocalToday";
 import { useTeamChain } from "../hooks/useTeamChain";
 import { useTeamSchedule } from "../hooks/useTeamSchedule";
+import { useWeeklyLoadArrival } from "../hooks/useWeeklyLoadArrival";
 import { baselineDays } from "../utils/baselineOverlay";
 import { localIsoDate } from "../utils/isoDate";
 import { jiraPageRange, jiraScheduleDates } from "../utils/jiraBars";
@@ -65,7 +66,7 @@ import { defaultRange, makeScale, MILESTONE_ZOOMS, toEpochDay, type Zoom } from 
 type Scheduling = { milestone: TeamMilestone; revision: number };
 
 /**
- * The team view (`/teams/:id`): the team's facts, its scheduled milestones on the shared timeline under the weekly load strip, the
+ * The team view (`/teams/:id`; `?load=overloaded|wip|nocapacity|weeks` opens its weekly load table, focuses it and marks the first such week: `useWeeklyLoadArrival`): the team's facts, its scheduled milestones on the shared timeline under the weekly load strip, the
  * Unscheduled tray, the Capacity section and the Weekly load table (the strip's accessible surface). What each control offers comes
  * from the view's `team.can:{…}` flags, never the session's roles: the team's manager or an ADMIN schedules, orders and edits the
  * capacity. Two write paths: the dates (`useTeamSchedule`, the project view's, generalised) and the team's order (`useTeamOrder`, its
@@ -120,6 +121,10 @@ function TeamPage({ id }: { id: number }) {
   const [seen, setSeen] = useState<SeenRange | null>(null);
   // "Today" is the viewer's own calendar day (their local date), not UTC: the today line and the Schedule button agree with their wall calendar.
   const today = useLocalToday();
+  // 1.36: `?load=overloaded|wip|nocapacity|weeks` (the Teams table's week badges) opens the weekly load table, focuses it and scrolls to the first week of that kind once the
+  // view has been read AND the Flow section above the table has its final height (its reads are answered: it grows when they land).
+  const [flowSettled, setFlowSettled] = useState(false);
+  const weeklyLoad = useWeeklyLoadArrival({ read: query, ready: flowSettled, view, today });
 
   if (!view) {
     const notFound = !Number.isInteger(id) || (query.error instanceof ApiError && query.error.status === 404);
@@ -261,8 +266,8 @@ function TeamPage({ id }: { id: number }) {
 
       {criticalPath && <TeamCriticalChain view={view} chain={chain} />}
       <TeamCapacity view={view} readOnly={locked} />
-      <TeamFlowSection teamId={id} importBlocked={locked} />
-      <TeamWeeklyLoad weeks={view.weeks} truncated={view.weeksTruncated} />
+      <TeamFlowSection teamId={id} importBlocked={locked} onSettled={setFlowSettled} />
+      <TeamWeeklyLoad weeks={view.weeks} truncated={view.weeksTruncated} arrival={weeklyLoad} />
       {view.scheduled.length > 0 && <IdleGaps gaps={view.idleGaps} scope="team" />}
       {/* v0.9: the accessible surface of the shadow bars, present while a baseline is picked. */}
       {view.baseline !== undefined && <BaselineMovement baseline={view.baseline} live={[...view.scheduled, ...view.unscheduled]} scope="team" />}

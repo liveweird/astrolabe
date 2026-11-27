@@ -134,7 +134,7 @@ Everything is lazy under `RequireAuth` unless noted.
   both with the dependency panel (add, edit and delete by `can`; filters in the URL; the old Dependencies page) — "Roadmap", "Programs", "The cross-team run", "Dependencies" + `timeline.md` + `projects-view.md`.
 - `/projects`, `/projects/:id` — Planning, everyone (`can`; the picker, the remembered project, `?milestone=` marks a milestone, `?milestones=unscheduled` focuses the Unscheduled section; `/milestones` redirects; Propose previews a cross-team schedule proposal for everyone, accepted only by the teams' managers) — "Project view" + `projects-view.md` + `timeline.md`.
 - `/baselines`, `/baselines/:id` — Planning, everyone (`can.manage` writes) — "Baselines".
-- `/teams` — Teams and capacity, everyone reads, ADMIN writes: ONE table of the team-load view (`?warning=`, `?past=true`; `/team-load` redirects) — "Team load"; `/teams/:id` — everyone (`team.can`) — "Teams and the team page" + `timeline.md`.
+- `/teams` — Teams and capacity, everyone reads, ADMIN writes: ONE table of the team-load view (`?warning=`; its week badges link to the team's weekly load; `/team-load` redirects) — "Team load"; `/teams/:id` — everyone (`team.can`; `?load=overloaded|wip|nocapacity` opens, focuses and marks the weekly load table's first such week) — "Teams and the team page" + `timeline.md`.
 - `/people`, `/people/:id` — Teams and capacity, everyone reads, ADMIN writes — "People".
 - `/public-holidays` — Teams and capacity, everyone reads, ADMIN writes — "Public holidays".
 - `/deviations` — Integrations, everyone (Refresh now ADMIN, acknowledge by `can`) — "Deviations, bindings and the Jira chips".

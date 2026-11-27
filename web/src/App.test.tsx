@@ -311,10 +311,10 @@ describe("App shell", () => {
       const table = await screen.findByRole("table", { name: "Teams" });
       expect(within(table).getByRole("link", { name: "Open team Backend" })).toBeInTheDocument();
       expect(within(table).queryByRole("link", { name: "Open team Data" })).not.toBeInTheDocument();
-      // Both parameters survived the redirect: the Show select and the switch carry them.
+      // The warning survived the redirect; the retired past parameter (1.36) is ignored: there is no switch for it.
       const user = userEvent.setup();
       await user.click(screen.getByRole("button", { name: /Filters/ }));
-      expect(screen.getByRole("switch", { name: "Include past weeks" })).toBeChecked();
+      expect(screen.queryByRole("switch", { name: "Include past weeks" })).toBeNull();
       expect(screen.getByRole("combobox", { name: "Show" })).toHaveValue("With an overloaded week");
     });
 

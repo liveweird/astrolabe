@@ -435,7 +435,7 @@ follows: `web/CLAUDE.md` "Per-feature rules". What the pages see of the componen
 ## Home
 
 Files: `pages/Home.tsx`; `api/home.ts`; `hooks/useOpenDeviationCounts.ts`; `components/HomeMine.tsx` with `HomeProjectsTable.tsx`, `HomeTeamsTable.tsx`, `HomeNodesTable.tsx`
-and `HomeFlagBadges.tsx`; `components/BadgeLink.tsx`.
+and `HomeFlagBadges.tsx`; `components/BadgeLink.tsx` (`whole` keeps the text whole in a table cell: `miw="max-content"`, since a badge's label hides overflow and an auto-layout column would shrink it into an ellipsis; the Teams table's week badges use it, with nowrap cells).
 
 ### Route and data
 
@@ -509,7 +509,7 @@ linked person may manage through the owner chain (what they own and everything u
 
 ### Where each figure leads
 
-A figure that leads somewhere is itself the link: a real `RouterLink` (`components/BadgeLink.tsx`, a light `Badge` as a link, the `DeviationCount` idiom; a text line is an `Anchor`),
+A figure that leads somewhere is itself the link: a real `RouterLink` (`components/BadgeLink.tsx`, a light `Badge` as a link, the `DeviationCount` idiom; `whole` for a badge in a table cell, so its text is never cut to an ellipsis; a text line is an `Anchor`),
 shown only when positive (zero is no claim and no link). What it says is still the document's own figure - a link changes where it leads, never what it says. Every URL comes from a
 builder (`roadmapFilteredPath`, `projectUnscheduledPath`, `teamsWarningPath`); none is assembled by hand.
 
@@ -1260,8 +1260,9 @@ The panel's co-located tests (`PlanDependenciesPanel*.test.tsx`: the list, `.add
 ## Team load
 
 Since 1.32 Team load is the Teams page (`/teams`): ONE table over the one `GET /views/team-load`. Files: `pages/Teams.tsx`; `components/TeamsTable.tsx` (`TeamsTable`, `TeamsFacts`); `api/teamLoad.ts`
-(`getTeamLoadView`); `utils/teamLoadFilters.ts` (`parseTeamLoadFilter`, `teamLoadFilterParams`, `teamsKept`, `isNarrowing`, `matchesWarning`, `matchesWeek`, `earlierWeekCount`); `utils/teamLinks.ts`
-(`teamsWarningPath(warning)`, Home's two capacity badges); `components/TeamLoadWeeks.tsx`; `components/WeekLoadCells.tsx` (`WeekStatus`; `weekLabel`, `mdText`: `utils/weekLoadText.ts`).
+(`getTeamLoadView`); `utils/teamLoadFilters.ts` (`parseTeamLoadFilter`, `teamLoadFilterParams`, `teamsKept`, `isNarrowing`, `matchesWarning`); `utils/teamLinks.ts`
+(`teamsWarningPath(warning)`, Home's two capacity badges; `teamWeeklyLoadPath(id, kind)`, the row badges); `hooks/useWeeklyLoadArrival.ts` and `utils/weeklyLoadAddress.ts` (the team page's half); `components/WeekLoadCells.tsx` (`WeekStatus`; `weekLabel`, `mdText`: `utils/weekLoadText.ts`).
+1.36: the "Weeks with a warning" section under the table (1.21) and its "Include past weeks" switch (`?past=true`, 1.22) are gone, removed on the user's word of 2026-11-27 ("yes, remove it and link the badges"): the team page's weekly load table lists every week and the badges lead there.
 
 ### Route and data
 
@@ -1275,33 +1276,23 @@ Team writes (the editor's save, a delete) refresh `["teams"]` and `["plan"]`; an
   read), only while Name or Show narrows; its count waits `FILTER_DEBOUNCE_MS` (the rows follow every key).
 - Columns: Name (`SortHeader`: asc = the document's order, desc reversed, `viewSettings.teams.sortDir`; swatch, team `EntityLink`, the description dimmed under it, one line), Manager (person link; dimmed
   "No manager"), Milestones, Not scheduled (a link to the team's page named by its row, `teamLoad.notScheduledAria`, only when positive), Overloaded and WIP (orange, only when positive; whole text: `miw="max-content"`, nowrap cells), Capacity (a gray "N weeks
-  without capacity": a team with work and no capacity can never be overloaded) and, for an ADMIN, Operations. No row says "fits"; every figure is worded; the table is a 960 px `ScrollRegion`.
+  without capacity": a team with work and no capacity can never be overloaded) and, for an ADMIN, Operations.
+  **The three week badges are links (1.36)**: each is a `BadgeLink` (`whole`) to `teamWeeklyLoadPath(id, kind)` = `/teams/:id?load=overloaded|wip|nocapacity` (each badge its own kind), named `teamLoad.weeklyLoadAria` ("3 weeks overloaded: open the weekly load of team Backend": the figure first,
+  then where it goes, the team's name because every row shows the same figures). All three count weeks the team page's weekly table lists (its "No capacity" weeks are the gray one's). The facts line's team totals stay plain badges. No row says "fits"; every figure is worded; the table is a 960 px `ScrollRegion`.
 - States: loading (`LoadingBlock`, no facts and no claim), a failed first read (`ErrorAlert` "Could not load the teams", no claim; a failed re-read keeps the rows under it), no team (`totals.teams === 0`),
-  nothing matches (not truncated; "Show every team" clears Name and Show, keeps past) and `truncated` (one dimmed line with the rows shown).
+  nothing matches (not truncated; "Show every team" clears Name and Show) and `truncated` (one dimmed line with the rows shown).
 
 ### Filters
 
-Name, Show and Include past weeks sit in the `FilterPanel` (its badge counts all three), applied in the browser over the rows read, so none makes a second read.
+Name and Show sit in the `FilterPanel` (its badge counts both), applied in the browser over the rows read, so neither makes a second read.
 
-- **Name** is page state: a folded (case and accents) substring of the team's name as you type, not in the URL, not remembered; it narrows the table AND the weeks (`teamsKept`).
+- **Name** is page state: a folded (case and accents) substring of the team's name as you type, not in the URL, not remembered; it narrows the table (`teamsKept`).
 - `warning` = `overloaded` | `wip` | `any` (absent or unknown = every team; `any`: an overloaded week or one over the WIP limit; weeks without capacity are a fact), `?warning=`, `replace`.
-- `past` (`?past=true`, the exact word) is the "Include past weeks" `Switch` (`teamLoad.filter.past`). Each change keeps the others.
-
-### Weeks with a warning
-
-Under the table an h3, one dimmed sentence and the table "Weeks with a warning, by team" (`ScrollRegion`, min width 720, max height 420, sticky header): one row per team and week, in the document's order -
-Team (the same link; tests and e2e scope by table), Week, Load, Capacity, In progress (peak), Status. The weeks are the document's `warningWeeks` (the team page's `WeekLoad`, no `flowCapacity`), as they arrive.
-
-- **From this week on.** The weeks from `currentWeekStart` on (the server's UTC Monday, never the browser's clock; a week ON it stays; ISO dates compare as text) unless `past=true`, which lists every listed
-  week (`teamLoad.weeks.intro`; the default `introFrom` names the week with `weekLabel`).
-- **The hidden count.** A dimmed `teamLoad.weeks.earlier` line counts what the date hides (`earlierWeekCount`, over the teams Name and Show keep), shown whether or not the section is; absent with `past=true`,
-  when nothing is hidden and while there is no answer. The date only HIDES weeks: the table's counts, the facts and Home still count every week.
-- The weeks follow Name and Show (`matchesWeek`) from the same read. The section is ABSENT when no week is left (no "no warnings" claim), while the read runs and after a failed first read; a failed re-read keeps it.
-- `warningWeeksTruncated` shows one dimmed `teamLoad.weeks.truncated` line (N = the weeks listed), under the section or alone, so a short list is never read as "none".
+- A `?past=true` of an old link (1.22 to 1.35) is simply ignored; the next `?warning=` change replaces the query without it.
 
 ### Tests
 
-`Teams.test.tsx` (registry), `Teams.focus.test.tsx`, `Teams.load.test.tsx`, `Teams.weeks.test.tsx` (helpers `test/teamsPage.tsx`, `test/teamsRegistry.tsx`; fixtures `test/teamLoad.ts`).
+`Teams.test.tsx` (registry), `Teams.focus.test.tsx`, `Teams.load.test.tsx` (the table, the filters and the badge links, EN and PL) (helpers `test/teamsPage.tsx`, `test/teamsRegistry.tsx`; fixtures `test/teamLoad.ts`).
 
 ## Baselines
 
@@ -1915,6 +1906,14 @@ period takes effect on ANY date (no weekday rule: a weekend date applies from th
 - **Capacity dialog.** The `NumberInput`s use `clampBehavior="none"`: Mantine's default clamps `0` to the `min` of 1 on blur, silently making an invalid WIP limit valid.
 - **The weekly load table** (`TeamWeeklyLoad.tsx`, behind a `TableDisclosure`) is the accessible surface of the decorative strip: load, capacity ("—" when none), peak WIP and the verdict in words
   (orange "Overloaded · +X MD", orange "Over WIP limit", gray "OK" / "No capacity", plus the "Differs from Flow" badge).
+  - **Its address (1.36).** `/teams/:id?load=overloaded|wip|nocapacity|weeks` (`teamWeeklyLoadPath(id, kind)`, `utils/weeklyLoadAddress.ts`; the Teams table's week badges, each with its own kind; `weeks` = open, no particular week) is
+    `hooks/useWeeklyLoadArrival.ts`, mirroring `useMilestoneArrival`. It acts once the page has SETTLED: the view's query is `isSuccess && !isFetching` AND the Flow section above the table has its final height (`TeamFlowSection`'s
+    `onSettled`: its panel read, and for a linked team its capacity comparison, answered or failed - the section grows when they land, which would push the table off-screen; waiting is the simplest dependable option, a background re-read does not unsettle it). A read still running or failed does nothing and keeps the address.
+    Then the disclosure OPENS for this visit (the page controls it through `TeamWeeklyLoad`'s `arrival`; never remembered, so nothing is written), taken once per history entry (the entry's key is the latch, set during render, so a Hide click
+    right after is final) and the parameter is dropped with a `replace` (the others kept). With the table mounted open (a second step), the `ScrollRegion` is scrolled to the centre, ITS OWN scroller is moved so the first week of the kind
+    (`firstWeekOf`: the first at or after this week - the Monday of the viewer's local day, as the page's other "today" - else the LATEST of that kind before it, the nearest past week) sits under the sticky header and is itself brought into view (`scrollIntoView({block:"nearest"})`, for a viewport shorter than the 420 px region), that row is marked (`data-load-week`, `aria-current="true"`,
+    `.rowCurrent`, the project page's mark; it stays until another arrival) and the region takes the focus (the section's heading, `tabIndex={-1}`, when no week is listed). Any other value of `load` is ignored. The open table is the
+    user's afterwards. The cross-team page's per-team tables take no `arrival`.
 - A `source === "FLOW"` row gets a gray "Flow" badge titled with the sprint; the period editor says a saved edit makes the period hand-entered.
 
 ### Baseline overlay and Jira markers

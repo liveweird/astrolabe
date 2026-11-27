@@ -4,7 +4,7 @@
 import type { Page } from "@playwright/test";
 import { apiAsAdmin, createUserViaUi, deleteUserRow, deleteViaApi, expect, login, openFilters, rowOperation, signOut, test, uniqueText } from "./helpers";
 
-/** A team's name link in the Teams table (since 1.32 the weeks table below names a team with a warning again, so a page-wide match could be two). */
+/** A team's name link in the Teams table (the Teams page's links to a team: its name, and since 1.36 the week-count badges, whose names start otherwise). */
 const teamLink = (page: Page, name: string) => page.getByRole("table", { name: "Teams", exact: true }).getByRole("link", { name: `Open team ${name}`, exact: true });
 
 // Rows the first test seeds through the API, deleted in reverse order (the team before the person who manages it).

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge, Button, Group, Stack, Table, Text, Title } from "@mantine/core";
 import { IconDownload, IconLink, IconLinkOff } from "@tabler/icons-react";
@@ -130,9 +130,11 @@ function FlowLinked({
  * Flow" when it left the document, a note while the connection is disabled), **Import capacity…**, **Unlink** (an in-page confirm) and the
  * observed roster, and its **Capacity vs Flow** row and lines (`TeamFlowCapacity`, from the Deviations document asked for this team), where the team's
  * manager or an ADMIN acknowledges one sprint at a time (the item's `can.acknowledge`; `useCapacityAcknowledge`). What each control offers is the panel's `can`, never the session's roles. `importBlocked` (a schedule proposal is open) keeps
- * the capacity import closed: a capacity change would void the proposal's premise. Nothing here calls Flow.
+ * the capacity import closed: a capacity change would void the proposal's premise. `onSettled` (1.36) tells the page when the section's height is final - the panel
+ * answered (or failed) and, for a linked team, so did the capacity comparison - for the page's scroll to the weekly table below it; it follows the first answers (a background re-read does
+ * not unsettle it). Nothing here calls Flow.
  */
-export default function TeamFlowSection({ teamId, importBlocked = false }: { teamId: number; importBlocked?: boolean }) {
+export default function TeamFlowSection({ teamId, importBlocked = false, onSettled }: { teamId: number; importBlocked?: boolean; onSettled?: (settled: boolean) => void }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -164,6 +166,11 @@ export default function TeamFlowSection({ teamId, importBlocked = false }: { tea
     // Agreement is only claimed for a connection that is enabled and CURRENT; a team whose Flow was never mirrored has neither.
     current: linked !== null && !staleFlowConnection({ enabled: linked.connectionEnabled, status: linked.status }),
   };
+
+  const settled = !panel.isPending && (linked === null || !deviations.isPending);
+  useEffect(() => {
+    onSettled?.(settled);
+  }, [onSettled, settled]);
 
   // An open proposal (or one being requested) closes the import and does not let it come back on its own.
   if (importBlocked && importing) setImporting(false);

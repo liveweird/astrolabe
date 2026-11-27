@@ -1,7 +1,6 @@
 {
   "filter": {
-    "warning": "Pokaż",
-    "past": "Pokaż też minione tygodnie"
+    "warning": "Pokaż"
   },
   "warning": {
     "all": "Wszystkie zespoły",
@@ -27,18 +26,5 @@
   "showAll": "Pokaż wszystkie zespoły",
   "truncated": "Lista pokazuje pierwsze {{count}} zespołów.",
   "notScheduledAria": "Niezaplanowane ({{count}}): zespół {{name}}",
-  "weeks": {
-    "title": "Tygodnie z ostrzeżeniem",
-    "intro": "Tygodnie, z których biorą się obie liczby ostrzeżeń, zespół po zespole, od najstarszego: obciążenie na tle przepustowości i najwięcej kamieni milowych w toku. Wszystkie tygodnie zespołu pokazuje jego strona.",
-    "introFrom": "Tygodnie, z których biorą się obie liczby ostrzeżeń, od tygodnia {{week}}, zespół po zespole, od najstarszego: obciążenie na tle przepustowości i najwięcej kamieni milowych w toku. Wszystkie tygodnie zespołu pokazuje jego strona.",
-    "earlier_one": "Nie pokazujemy tu {{count}} wcześniejszego tygodnia. Włącz „Pokaż też minione tygodnie”, aby go zobaczyć.",
-    "earlier_few": "Nie pokazujemy tu {{count}} wcześniejszych tygodni. Włącz „Pokaż też minione tygodnie”, aby je zobaczyć.",
-    "earlier_many": "Nie pokazujemy tu {{count}} wcześniejszych tygodni. Włącz „Pokaż też minione tygodnie”, aby je zobaczyć.",
-    "earlier_other": "Nie pokazujemy tu {{count}} wcześniejszego tygodnia. Włącz „Pokaż też minione tygodnie”, aby go zobaczyć.",
-    "tableAria": "Tygodnie z ostrzeżeniem według zespołów",
-    "truncated_one": "Lista nie zawiera wszystkich tygodni: mieści {{count}} tydzień: najpierw tygodnie od bieżącego (od najbliższego), potem wcześniejsze (od najpóźniejszego).",
-    "truncated_few": "Lista nie zawiera wszystkich tygodni: mieści {{count}} tygodnie: najpierw tygodnie od bieżącego (od najbliższego), potem wcześniejsze (od najpóźniejszego).",
-    "truncated_many": "Lista nie zawiera wszystkich tygodni: mieści {{count}} tygodni: najpierw tygodnie od bieżącego (od najbliższego), potem wcześniejsze (od najpóźniejszego).",
-    "truncated_other": "Lista nie zawiera wszystkich tygodni: mieści {{count}} tygodnia: najpierw tygodnie od bieżącego (od najbliższego), potem wcześniejsze (od najpóźniejszego)."
-  }
+  "weeklyLoadAria": "{{figure}}: otwórz tygodniowe obciążenie zespołu {{name}}"
 }

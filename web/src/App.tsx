@@ -265,7 +265,7 @@ export default function App() {
             <Route path="milestones" element={<LegacyMilestonesRedirect />} />
             {/* 1.29: the Dependencies page is the Roadmap's dependency panel; an old link or bookmark opens it with its filters. */}
             <Route path="dependencies" element={<LegacyDependenciesRedirect />} />
-            {/* 1.32: Team load is folded into the Teams page; an old link or bookmark keeps its ?warning= and ?past= filters. */}
+            {/* 1.32: Team load is folded into the Teams page; an old link or bookmark keeps its ?warning= filter (an old ?past= is ignored since 1.36). */}
             <Route path="team-load" element={<LegacyRedirect to={teamsPath} />} />
             <Route path="baselines" element={<Baselines />} />
             <Route path="baselines/:id" element={<BaselineCompare />} />

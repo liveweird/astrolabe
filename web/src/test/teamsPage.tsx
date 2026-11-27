@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 // -- test scaffolding: helpers beside a small component; fast-refresh is irrelevant under vitest
-// Shared scaffolding of the Teams page's load and weeks tests (`pages/Teams.load.test.tsx`, `pages/Teams.weeks.test.tsx`): the page at /teams with the
+// Shared scaffolding of the Teams page's load tests (`pages/Teams.load.test.tsx`): the page at /teams with the
 // location it ended at, and the reads of the team-load document itself.
 import type { QueryClient } from "@tanstack/react-query";
 import { Route, Routes, useLocation, useNavigationType } from "react-router-dom";

@@ -182,14 +182,15 @@ describe("Teams page: the load figures", () => {
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 
-  test("the filter badge counts the name, the warning and the switch", async () => {
+  test("the filter badge counts the name and the warning; a retired ?past=true counts for nothing and has no switch", async () => {
     const user = userEvent.setup();
     renderTeamsPage("/teams?warning=wip&past=true");
     await table();
-    expect(screen.getByRole("button", { name: /Filters/ })).toHaveTextContent("2");
+    expect(screen.getByRole("button", { name: /Filters/ })).toHaveTextContent("1");
     await openFilters(user);
+    expect(screen.queryByRole("switch")).toBeNull();
     await user.type(screen.getByLabelText("Name"), "d");
-    expect(screen.getByRole("button", { name: /Filters/ })).toHaveTextContent("3");
+    expect(screen.getByRole("button", { name: /Filters/ })).toHaveTextContent("2");
   });
 
   test("a team's name links to its page", async () => {
@@ -232,6 +233,31 @@ describe("Teams page: the load figures", () => {
     expect(within(teams).queryByText(/fits/i)).toBeNull();
   });
 
+  test("each positive week count is a link to the team's weekly load table, with its own kind in the address, named by its figure and where it goes (1.36)", async () => {
+    renderTeamsPage();
+    await table();
+    const backend = screen.getByRole("link", { name: "Open team Backend" }).closest("tr")!;
+    const overloaded = within(backend).getByRole("link", { name: "3 weeks overloaded: open the weekly load of team Backend" });
+    expect(overloaded).toHaveAttribute("href", "/teams/3?load=overloaded");
+    expect(overloaded).toHaveTextContent("3 weeks overloaded");
+    expect(within(backend).getByRole("link", { name: "1 week over WIP limit: open the weekly load of team Backend" })).toHaveAttribute("href", "/teams/3?load=wip");
+    const mobile = screen.getByRole("link", { name: "Open team Mobile" }).closest("tr")!;
+    const gray = within(mobile).getByRole("link", { name: "6 weeks without capacity: open the weekly load of team Mobile" });
+    expect(gray).toHaveAttribute("href", "/teams/6?load=nocapacity");
+    // A zero figure is no badge and so no link; the facts line's team totals are plain badges (not per team).
+    expect(within(mobile).queryAllByRole("link", { name: /weekly load/ })).toHaveLength(1);
+    const group = screen.getByRole("group", { name: "The teams in figures" });
+    expect(within(group).queryByRole("link")).toBeNull();
+  });
+
+  test("the links' names are Polish in Polish, the figure worded with its plural", async () => {
+    await i18n.changeLanguage("pl");
+    renderTeamsPage();
+    await screen.findByRole("table", { name: "Zespoły" });
+    expect(screen.getByRole("link", { name: "3 tygodnie przeciążone: otwórz tygodniowe obciążenie zespołu Backend" })).toHaveAttribute("href", "/teams/3?load=overloaded");
+    expect(screen.getByRole("link", { name: "2 tygodnie ponad limitem WIP: otwórz tygodniowe obciążenie zespołu Data" })).toHaveAttribute("href", "/teams/5?load=wip");
+  });
+
   test("no team at all says so, with no filter claim", async () => {
     answer = () => jsonResponse(200, teamLoadView([]));
     renderTeamsPage();
@@ -240,14 +266,14 @@ describe("Teams page: the load figures", () => {
     expect(screen.queryByText("No team matches the filters")).toBeNull();
   });
 
-  test("a filter nothing matches says so and 'Show every team' clears Name and Show but keeps the past switch", async () => {
+  test("a filter nothing matches says so and 'Show every team' clears Name and Show", async () => {
     const user = userEvent.setup();
     answer = () => jsonResponse(200, teamLoadView([QUIET]));
-    renderTeamsPage("/teams?warning=overloaded&past=true");
+    renderTeamsPage("/teams?warning=overloaded");
     expect(await screen.findByText("No team matches the filters")).toBeInTheDocument();
     expect(screen.queryByText("No teams yet")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Show every team" }));
-    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent(/^\/teams\?past=true$/));
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent(/^\/teams$/));
     expect(await table()).toBeInTheDocument();
     // A name that matches nothing is cleared by the same button.
     await openFilters(user);

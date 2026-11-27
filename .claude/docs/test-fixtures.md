@@ -255,8 +255,7 @@ Files: `e2e/tests/home.spec.ts`; prefix `e2e-home-*`.
 
 Files: `e2e/tests/team-load.spec.ts` (prefix `e2e-load-*`), `e2e/tests/roadmap.spec.ts`, `e2e/tests/roadmap-overview.spec.ts`. Seeded per test and removed in the afterEach (the project first).
 
-- `team-load.spec.ts` (April 2027): one team with 1 man-day a week and one 10 man-day milestone, so its one week is overloaded whatever a holiday does. The first test opens the old `/team-load?warning=overloaded` (it redirects; at most 200 teams) and the plan-wide team counts are asserted present, never as values. The second test reads the same world's row in the "Weeks with a warning" table and the team page; both open `?past=true`, because the page lists the weeks from the server's current week on and a fixed April 2027 week would vanish by default once it is behind the run.
-- A third test seeds a second, run-dated world of the same shape (capacity from the Monday four weeks before the run's UTC week; overloaded weeks three weeks before and after): the later week is listed by default, "Include past weeks" brings back the earlier one.
+- `team-load.spec.ts` (April 2027): one team with 1 man-day a week and one 10 man-day milestone, so its one week is overloaded whatever a holiday does. The first test opens the old `/team-load?warning=overloaded` (it redirects; at most 200 teams) and the plan-wide team counts are asserted present, never as values. The second test (1.36) clicks the team row's overloaded badge and reads the team page, whose weekly load table is open and focused and lists every week, so the fixed April 2027 week never expires.
 - `roadmap.spec.ts` seeds a program with a flagged project and a plain one (a second test checks Home's unranked figure and `?severity=WARNING`); `roadmap-overview.spec.ts` uses `seedPlan` with a stored pick of the other program.
 
 ### The e2e dependency-list world

@@ -7,7 +7,7 @@ import { mdText } from "../utils/weekLoadText";
  * A week's verdicts as words — never colour alone: ORANGE "Overloaded · +2.50 MD" and/or ORANGE "Over WIP limit" (both warnings, nothing
  * moves), else a gray "OK" or, when the team has no capacity yet that week, a gray "No capacity". A week the server marks `flowCapacity`
  * (1.9: an open Flow capacity deviation's held days meet it) adds "Differs from Flow" beside the verdict — orange for WARNING, gray for INFO.
- * Shared by the team page's weekly table and the Teams page's weeks with a warning (the same cells, 1.21); the text helpers sit in
+ * Used by the weekly load table (`TeamWeeklyLoad`; the Teams page's own weeks table, 1.21, is gone since 1.36); the text helpers sit in
  * `utils/weekLoadText.ts` (fast refresh: a component file exports components only).
  */
 export function WeekStatus({ week }: { week: WeekLoad }) {

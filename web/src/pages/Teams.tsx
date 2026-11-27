@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Button, Select, Stack, Switch, Text } from "@mantine/core";
+import { Button, Select, Stack, Text } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { IconPlus, IconUsersGroup } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -17,7 +17,6 @@ import LoadingBlock from "../components/LoadingBlock";
 import PageHeader from "../components/PageHeader";
 import type { SortDir } from "../components/SortHeader";
 import TeamEditorModal from "../components/TeamEditorModal";
-import TeamLoadWeeks from "../components/TeamLoadWeeks";
 import TeamsTable, { TeamsFacts } from "../components/TeamsTable";
 import { useDeleteConfirm } from "../hooks/useDeleteConfirm";
 import { useDialogFocus } from "../hooks/useDialogFocus";
@@ -27,7 +26,7 @@ import { useTeamColours } from "../hooks/useTeamColours";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import { teamPath } from "../utils/teamLinks";
-import { earlierWeekCount, isNarrowing, parseTeamLoadFilter, teamLoadFilterParams, teamsKept } from "../utils/teamLoadFilters";
+import { isNarrowing, parseTeamLoadFilter, teamLoadFilterParams, teamsKept } from "../utils/teamLoadFilters";
 
 const CHOICES = ["all", "overloaded", "wip", "any"] as const;
 type Choice = (typeof CHOICES)[number];
@@ -38,12 +37,11 @@ const isSortDir = (value: unknown) => value === "asc" || value === "desc";
  * The Teams page (`/teams`, 1.32: the Team load page folded into it): ONE table of every team with its manager, milestones, the ones not scheduled and
  * its overloaded, over-WIP and without-capacity weeks, from the one unpaged `GET /views/team-load` (at most 200 rows, `truncated` says so; the colour
  * comes from the cached teams read, no view names it). Everyone reads it; an ADMIN also creates, edits and deletes teams (a modal per team, the row's kebab).
- * "Show" (`?warning=`) and "Include past weeks" (`?past=true`) live in the URL (a change `replace`s the entry, so Home's two capacity badges, the old
- * `/team-load` address, a reload and Back all restore the view); the Name filter is page state (as you type, not in the URL, not remembered). The filters only
- * hide rows and weeks: the facts line always shows the document's totals, and "Showing N of M teams" says when the table is narrower than the document.
- * Under the table, "Weeks with a warning" (`components/TeamLoadWeeks.tsx`) lists the weeks behind the two warning figures for the teams shown (1.21), from the
- * DOCUMENT's `currentWeekStart` on (the server's Monday, never the browser's clock) unless `past` asks for the earlier ones; while they are hidden one dimmed
- * line counts them. Only the name sorts; descending reverses the document's order, and the direction is remembered.
+ * "Show" (`?warning=`) lives in the URL (a change `replace`s the entry, so Home's two capacity badges, the old `/team-load` address, a reload and Back all
+ * restore the view); the Name filter is page state (as you type, not in the URL, not remembered). The filters only hide rows: the facts line always shows the
+ * document's totals, and "Showing N of M teams" says when the table is narrower than the document. The weeks behind the warning figures are on each team's
+ * page (1.36: the badges of a row link to its weekly load table, `teamWeeklyLoadPath`; the "Weeks with a warning" section of 1.21 is gone). Only the name sorts;
+ * descending reverses the document's order, and the direction is remembered.
  */
 export default function Teams() {
   const { t } = useTranslation();
@@ -78,7 +76,6 @@ export default function Teams() {
   });
 
   const choose = (choice: Choice) => setParams(teamLoadFilterParams({ ...filter, warning: choice === "all" ? undefined : choice }), { replace: true });
-  const choosePast = (past: boolean) => setParams(teamLoadFilterParams({ ...filter, past: past ? true : undefined }), { replace: true });
   const all = data?.teams ?? [];
   const narrowing = { warning: filter.warning, name };
   const kept = teamsKept(all, narrowing);
@@ -86,9 +83,6 @@ export default function Teams() {
   // Only the ANNOUNCED count waits for typing to pause (the rows follow every keystroke); an emptied name is announced at once.
   const [settledName] = useDebouncedValue(name.trim(), FILTER_DEBOUNCE_MS);
   const announced = { warning: filter.warning, name: name.trim() === "" ? "" : settledName };
-  // The weeks the page lists start at the document's own current week (the server's), unless the switch asks for the earlier ones.
-  const from = filter.past === true ? undefined : data?.currentWeekStart;
-  const hiddenWeeks = data === undefined || from === undefined ? 0 : earlierWeekCount(kept, filter.warning, from);
   // An empty list is a claim about a READ: made only from an answer, never over a failed refresh.
   const settled = data !== undefined && !isError;
 
@@ -107,7 +101,7 @@ export default function Teams() {
         }
       />
 
-      <FilterPanel activeFilterCount={(name.trim() === "" ? 0 : 1) + (filter.warning === undefined ? 0 : 1) + (filter.past === true ? 1 : 0)} storageKey="teams">
+      <FilterPanel activeFilterCount={(name.trim() === "" ? 0 : 1) + (filter.warning === undefined ? 0 : 1)} storageKey="teams">
         <ClearableTextInput label={t("common.field.name")} value={name} onChange={setName} clearLabel={t("common.filter.clearName")} />
         <Select
           label={t("teamLoad.filter.warning")}
@@ -116,7 +110,6 @@ export default function Teams() {
           onChange={(selected) => selected !== null && choose(selected as Choice)}
           allowDeselect={false}
         />
-        <Switch label={t("teamLoad.filter.past")} checked={filter.past === true} onChange={(event) => choosePast(event.currentTarget.checked)} pb={6} />
       </FilterPanel>
 
       {isError && <ErrorAlert error={error} title={t("teams.loadFailed")} />}
@@ -160,19 +153,6 @@ export default function Teams() {
       {data?.truncated && (
         <Text size="sm" c="dimmed">
           {t("teamLoad.truncated", { count: data.teams.length })}
-        </Text>
-      )}
-      {data && <TeamLoadWeeks rows={kept} warning={filter.warning} from={from} />}
-      {hiddenWeeks > 0 && (
-        // Shown whether or not the section is: a team with "3 weeks overloaded" and no week below is never a riddle.
-        <Text size="sm" c="dimmed">
-          {t("teamLoad.weeks.earlier", { count: hiddenWeeks })}
-        </Text>
-      )}
-      {data?.warningWeeksTruncated && (
-        // Whenever the document was cut, also when the section is absent or short: an absent list is never read as "none".
-        <Text size="sm" c="dimmed">
-          {t("teamLoad.weeks.truncated", { count: data.teams.reduce((sum, row) => sum + row.warningWeeks.length, 0) })}
         </Text>
       )}
 
