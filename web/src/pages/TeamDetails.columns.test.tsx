@@ -151,13 +151,13 @@ const renderPage = () => renderWithProviders(<Routes><Route path="/teams/:id" el
 const timeline = () => screen.findByRole("grid", { name: "Team milestone timeline" });
 const headers = (grid: HTMLElement) => within(grid).getAllByRole("columnheader").map((header) => header.textContent);
 const toggle = () => screen.getByRole("button", { name: /^(Hide|Show) columns$/ });
-const chevron = () => screen.getByRole("button", { name: "Choose columns" });
+const chevron = () => screen.getByRole("button", { name: /^Choose columns/ });
 const arrows = () => document.querySelectorAll("[data-arrow]").length;
 const cellCounts = (grid: HTMLElement) => within(grid).getAllByRole("row").slice(1).map((row) => row.querySelectorAll('[role="rowheader"], [role="gridcell"]').length);
 
 async function menuItems(user: ReturnType<typeof userEvent.setup>) {
   await user.click(chevron());
-  const menu = await screen.findByRole("menu", { name: "Choose columns" });
+  const menu = await screen.findByRole("menu", { name: /^Choose columns/ });
   return within(menu).getAllByRole("menuitemcheckbox");
 }
 

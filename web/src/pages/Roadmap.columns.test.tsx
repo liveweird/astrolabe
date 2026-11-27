@@ -65,7 +65,7 @@ afterEach(() => {
 const timeline = () => screen.findByRole("grid", { name: "Roadmap timeline" });
 const headers = (grid: HTMLElement) => within(grid).getAllByRole("columnheader").map((header) => header.textContent);
 const toggle = () => screen.getByRole("button", { name: /^(Hide|Show) columns$/ });
-const chevron = () => screen.getByRole("button", { name: "Choose columns" });
+const chevron = () => screen.getByRole("button", { name: /^Choose columns/ });
 /** The cells of every body row: the left cells (row header and grid cells) plus the track. */
 const cellCounts = (grid: HTMLElement) => within(grid).getAllByRole("row").slice(1).map((row) => row.querySelectorAll('[role="rowheader"], [role="gridcell"]').length);
 
@@ -76,7 +76,7 @@ describe("the Roadmap's Prioritization columns", () => {
     const grid = await timeline();
     expect(headers(grid)).toEqual(["#", "Project", "Flags", "Operations"]);
     await user.click(chevron());
-    const menu = await screen.findByRole("menu", { name: "Choose columns" });
+    const menu = await screen.findByRole("menu", { name: /^Choose columns/ });
     expect(within(menu).getAllByRole("menuitemcheckbox").map((item) => [item.textContent, item.getAttribute("aria-checked")])).toEqual([["Flags", "true"]]);
     expect(localStorage.getItem(KEY)).toBeNull();
   });

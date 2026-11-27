@@ -7,13 +7,17 @@ import type { TimelineColumnView } from "../utils/timelineColumns";
 /**
  * The Gantt's "Hide columns" control (`timeline.md` "Hidden columns"), the page's `toolbar` slot: a disclosure button that collapses every column
  * the page offers (and brings them back) joined to a chevron that opens a menu of checkboxes, one per column. The menu shows what is DRAWN, stays
- * open on a tick (several picks in a row) and leaves on Tab like the row menus. Nothing to hide, nothing drawn.
+ * open on a tick (several picks in a row) and leaves on Tab like the row menus. While any offered column is not drawn the chevron says how many ("2 hidden",
+ * also in its name). Nothing to hide, nothing drawn.
  */
 export default function TimelineColumnsControl({ view }: { view: TimelineColumnView }) {
   const { t } = useTranslation();
   const tabExit = useMenuTabExit();
   if (view.offered.length === 0) return null;
   const drawn = view.offered.filter((column) => !view.hidden.has(column.id)).map((column) => column.id);
+  const hiddenCount = view.offered.length - drawn.length;
+  const hiddenText = hiddenCount > 0 ? t("timeline.columns.hiddenCount", { count: hiddenCount }) : null;
+  const chooseLabel = hiddenCount > 0 ? t("timeline.columns.chooseHidden", { count: hiddenCount }) : t("timeline.columns.choose");
   return (
     <Button.Group aria-label={t("timeline.columns.aria")}>
       <Button size="compact-sm" variant="default" aria-expanded={!view.allHidden} onClick={view.toggleAll}>
@@ -21,7 +25,7 @@ export default function TimelineColumnsControl({ view }: { view: TimelineColumnV
       </Button>
       <Menu {...tabExit.menu}>
         <Menu.Target>
-          <Button size="compact-sm" variant="default" aria-label={t("timeline.columns.choose")}>
+          <Button size="compact-sm" variant="default" aria-label={chooseLabel} leftSection={hiddenText}>
             <IconChevronDown size={14} />
           </Button>
         </Menu.Target>

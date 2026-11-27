@@ -127,14 +127,14 @@ const renderPage = () => renderWithProviders(<Routes><Route path="/projects/:id"
 const timeline = () => screen.findByRole("grid", { name: "Milestone timeline" });
 const headers = (grid: HTMLElement) => within(grid).getAllByRole("columnheader").map((header) => header.textContent);
 const toggle = () => screen.getByRole("button", { name: /^(Hide|Show) columns$/ });
-const chevron = () => screen.getByRole("button", { name: "Choose columns" });
+const chevron = () => screen.getByRole("button", { name: /^Choose columns/ });
 const arrows = () => document.querySelectorAll("[data-arrow]").length;
 /** The cells of every body row: the left cells (row header and grid cells) plus the track. */
 const cellCounts = (grid: HTMLElement) => within(grid).getAllByRole("row").slice(1).map((row) => row.querySelectorAll('[role="rowheader"], [role="gridcell"]').length);
 
 async function menuItems(user: ReturnType<typeof userEvent.setup>) {
   await user.click(chevron());
-  const menu = await screen.findByRole("menu", { name: "Choose columns" });
+  const menu = await screen.findByRole("menu", { name: /^Choose columns/ });
   return within(menu).getAllByRole("menuitemcheckbox");
 }
 
@@ -211,6 +211,7 @@ describe("the project page's hideable columns", () => {
     expect(headers(grid)).toEqual(["Milestone", "Team", "Operations"]);
     const items = await menuItems(user);
     expect(items.map((item) => [item.textContent, item.getAttribute("aria-checked")])).toEqual([["Team", "true"], ["Estimate", "false"], ["Slack", "false"]]);
+    expect(chevron()).toHaveAccessibleName("Choose columns · 2 hidden");
   });
 
   test("with a baseline, a link's arrow and the critical path on, every row has the drawn columns plus the track, and the arrows do not change", async () => {

@@ -18,7 +18,11 @@
     "aria": "Columns",
     "hide": "Hide columns",
     "show": "Show columns",
-    "choose": "Choose columns"
+    "choose": "Choose columns",
+    "chooseHidden_one": "Choose columns · {{count}} hidden",
+    "chooseHidden_other": "Choose columns · {{count}} hidden",
+    "hiddenCount_one": "{{count}} hidden",
+    "hiddenCount_other": "{{count}} hidden"
   },
   "criticalToggle": "Critical path",
   "pinned": "pinned",

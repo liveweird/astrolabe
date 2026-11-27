@@ -74,7 +74,8 @@ const scroller = (page: Page, label: string) => page.getByRole("region", { name:
 const headers = (grid: Locator) => grid.getByRole("columnheader");
 const hideColumns = (page: Page) => page.getByRole("button", { name: "Hide columns", exact: true });
 const showColumns = (page: Page) => page.getByRole("button", { name: "Show columns", exact: true });
-const chooseColumns = (page: Page) => page.getByRole("button", { name: "Choose columns", exact: true });
+// The chevron carries a count in its name while a column is not drawn ("Choose columns · 2 hidden"), so it is found by its start.
+const chooseColumns = (page: Page) => page.getByRole("button", { name: /^Choose columns/ });
 const columnItem = (page: Page, name: string) => page.getByRole("menuitemcheckbox", { name, exact: true });
 
 async function openProject(page: Page): Promise<Locator> {
@@ -160,6 +161,9 @@ test("the project page hides its extra columns, brings one back from the menu an
   await expect(columnItem(page, "Team")).toHaveAttribute("aria-checked", "true");
   await expect(columnItem(page, "Estimate")).toBeVisible();
   await expect(chooseColumns(page)).toHaveAttribute("aria-expanded", "true");
+  // Estimate is still not drawn: the chevron says so, in its text and its name (while collapsed it said "2 hidden").
+  await expect(chooseColumns(page)).toHaveText("1 hidden");
+  await expect(page.getByRole("button", { name: "Choose columns · 1 hidden", exact: true })).toBeVisible();
   await expect(team).toBeVisible();
   await expect(estimate).toHaveCount(0);
   await expect(headers(grid)).toHaveText(["Milestone", "Team", "Operations"]);

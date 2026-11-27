@@ -4,6 +4,7 @@ import TimelineColumnsControl from "./TimelineColumnsControl";
 import { useTimelineColumns } from "../hooks/useTimelineColumns";
 import type { TimelineColumnView } from "../utils/timelineColumns";
 import type { TimelineColumn } from "../utils/timelineModel";
+import i18n from "../i18n";
 import { act, renderWithProviders, screen, waitFor, within } from "../test/render";
 
 const COLUMNS: TimelineColumn[] = [
@@ -25,7 +26,7 @@ function Harness({ columns = COLUMNS }: { columns?: TimelineColumn[] }) {
 }
 
 const toggle = () => screen.getByRole("button", { name: /^(Hide|Show) columns$/ });
-const chevron = () => screen.getByRole("button", { name: "Choose columns" });
+const chevron = () => screen.getByRole("button", { name: /^Choose columns/ });
 
 beforeEach(() => localStorage.clear());
 afterEach(() => vi.useRealTimers());
@@ -56,7 +57,7 @@ describe("TimelineColumnsControl", () => {
     const user = userEvent.setup();
     renderWithProviders(<Harness />);
     await user.click(chevron());
-    const menu = await screen.findByRole("menu", { name: "Choose columns" });
+    const menu = await screen.findByRole("menu", { name: /^Choose columns/ });
     const items = within(menu).getAllByRole("menuitemcheckbox");
     expect(items.map((item) => [item.textContent, item.getAttribute("aria-checked")])).toEqual([
       ["Team", "true"],
@@ -88,6 +89,51 @@ describe("TimelineColumnsControl", () => {
     await user.click(chevron());
     const items = await screen.findAllByRole("menuitemcheckbox");
     expect(items.map((item) => item.getAttribute("aria-checked"))).toEqual(["false", "false"]);
+  });
+
+  test("the chevron says how many columns are not drawn, in its text and its name, and only then", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Harness />);
+    expect(chevron()).toHaveAccessibleName("Choose columns");
+    expect(chevron()).not.toHaveTextContent(/hidden/);
+    await user.click(chevron());
+    await user.click(await screen.findByRole("menuitemcheckbox", { name: "Team" }));
+    expect(chevron()).toHaveTextContent("1 hidden");
+    expect(chevron()).toHaveAccessibleName("Choose columns · 1 hidden");
+    await user.click(screen.getByRole("menuitemcheckbox", { name: "Estimate" }));
+    expect(chevron()).toHaveTextContent("2 hidden");
+    expect(chevron()).toHaveAccessibleName("Choose columns · 2 hidden");
+    await user.click(screen.getByRole("menuitemcheckbox", { name: "Team" }));
+    await user.click(screen.getByRole("menuitemcheckbox", { name: "Estimate" }));
+    expect(chevron()).toHaveAccessibleName("Choose columns");
+    expect(chevron()).not.toHaveTextContent(/hidden/);
+  });
+
+  test("a collapsed timeline counts every offered column, and the toggle's own label is unchanged", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Harness />);
+    await user.click(toggle());
+    expect(toggle()).toHaveTextContent("Show columns");
+    expect(chevron()).toHaveTextContent("2 hidden");
+    expect(chevron()).toHaveAccessibleName("Choose columns · 2 hidden");
+    await user.click(toggle());
+    expect(chevron()).toHaveAccessibleName("Choose columns");
+  });
+
+  test("the Polish count takes the plural form of its number", async () => {
+    await i18n.changeLanguage("pl");
+    try {
+      const five = ["a", "b", "c", "d", "e"].map((id) => ({ id, header: id.toUpperCase(), width: 50, hideable: true }));
+      const counts: [number, string][] = [[1, "1 ukryta"], [2, "2 ukryte"], [5, "5 ukrytych"]];
+      for (const [count, text] of counts) {
+        const view: TimelineColumnView = { hidden: new Set(five.slice(0, count).map((c) => c.id)), offered: five, allHidden: false, toggleAll: vi.fn(), setShown: vi.fn() };
+        const { unmount } = renderWithProviders(<TimelineColumnsControl view={view} />);
+        expect(screen.getByRole("button", { name: `Wybierz kolumny · ${text}` })).toHaveTextContent(text);
+        unmount();
+      }
+    } finally {
+      await i18n.changeLanguage("en");
+    }
   });
 
   test("a click reports the ticked ids to the view", async () => {

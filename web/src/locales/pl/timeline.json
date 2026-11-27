@@ -18,7 +18,15 @@
     "aria": "Kolumny",
     "hide": "Ukryj kolumny",
     "show": "Pokaż kolumny",
-    "choose": "Wybierz kolumny"
+    "choose": "Wybierz kolumny",
+    "chooseHidden_one": "Wybierz kolumny · {{count}} ukryta",
+    "chooseHidden_few": "Wybierz kolumny · {{count}} ukryte",
+    "chooseHidden_many": "Wybierz kolumny · {{count}} ukrytych",
+    "chooseHidden_other": "Wybierz kolumny · {{count}} ukrytej",
+    "hiddenCount_one": "{{count}} ukryta",
+    "hiddenCount_few": "{{count}} ukryte",
+    "hiddenCount_many": "{{count}} ukrytych",
+    "hiddenCount_other": "{{count}} ukrytej"
   },
   "criticalToggle": "Ścieżka krytyczna",
   "pinned": "terminy przypięte",

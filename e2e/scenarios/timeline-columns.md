@@ -13,7 +13,7 @@
 3. They open "Choose columns".
    - *Expected*: the menu offers Team and Estimate, both unticked (it shows what is drawn).
 4. They tick Team.
-   - *Expected*: the menu stays open with Team ticked; the Team header is back and Estimate is not; the headers are Milestone, Team, Operations; the toggle reads "Hide columns" again. Escape closes the menu.
+   - *Expected*: the menu stays open with Team ticked; the "Choose columns" chevron reads "1 hidden" and is named "Choose columns · 1 hidden" (Estimate is not drawn; with both hidden it read "2 hidden"); the Team header is back and Estimate is not; the headers are Milestone, Team, Operations; the toggle reads "Hide columns" again. Escape closes the menu.
 5. They reload the page.
    - *Expected*: the headers are still Milestone, Team, Operations.
 6. They press "Hide columns", then "Show columns".
