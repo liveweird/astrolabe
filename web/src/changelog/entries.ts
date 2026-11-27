@@ -17,6 +17,28 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.33.0",
+    date: "2026-11-27",
+    en: `**Schedule proposals on the Gantts**
+
+- The project page and the Roadmap's overview now preview a schedule proposal. Propose (a click, never automatic) runs the cross-team proposal and draws it on the timeline in dashed bars: on the project page the moved milestones, "(new)" rows for the unscheduled ones the proposal places, and the project's proposed span; on the overview the projects, programs and work streams whose dates would move, plus a table of the projects that would move. Nothing changes until you accept.
+- The project page runs the teams of the project's milestones and says how its end would move ("If every team's moves are accepted, the project ends on … , N working days earlier/later"). The overview runs the teams of the projects it shows (more than 50 teams: narrow the program or work stream pick first). While a proposal is open the dates cannot be written: the schedule actions on the project page and the target windows on the overview are read-only.
+- Everyone may preview a proposal. Accepting moves only the teams you manage (administrators: every team); the sections of other teams stay a read-only preview, and a viewer who may accept nothing sees only the preview. After one manager accepts, other open copies of the run ask for a new proposal. Save is offered only to who may accept every team of the run.
+- The Schedule proposals page and its navigation item are gone; its old addresses (and a saved proposal's) open the Roadmap overview. Saved proposals are listed under the overview's timeline ("Saved proposals", hidden until opened) and open there with the same bars and section; a manager of one of a current saved proposal's teams may accept their teams' moves from it. The team page keeps its own proposal.
+- **Proposals saved before this version can no longer be opened; propose and save them again.**
+- API (\`/api/v1\`): \`POST /schedule-proposals\` and \`/check\` are open to every login (no \`403\`); \`POST /schedule-proposals/accept\` takes an optional \`acceptTeamIds\` (a subset of the run's teams, absent = all of them) and checks the caller against those only; the proposal lists \`projects[]\`, the projects whose span it would move (before, after, the end's shift in working days); a run and an accept share one limit of 30 a minute per user (\`429\`); a saved proposal's \`can.accept\` is true for ADMIN or a manager of at least one of its teams (while current).
+- Stored data: a saved schedule proposal's format changes (see above). Nothing else changes.`,
+    pl: `**Propozycje harmonogramu na wykresach Gantta**
+
+- Strona projektu i Przegląd roadmapy pokazują teraz podgląd propozycji harmonogramu. „Zaproponuj harmonogram” (kliknięcie, nigdy automatycznie) uruchamia propozycję dla wielu zespołów i rysuje ją na osi czasu przerywanymi paskami: na stronie projektu przesunięte kamienie milowe, wiersze „(nowy)” dla niezaplanowanych kamieni, które propozycja umieszcza, oraz proponowany zakres projektu; w przeglądzie projekty, programy i strumienie pracy, których terminy by się przesunęły, oraz tabelę projektów, które by się przesunęły. Nic się nie zmienia, dopóki nie zaakceptujesz.
+- Strona projektu uruchamia propozycję dla zespołów kamieni milowych projektu i mówi, jak przesunąłby się jego koniec („Jeśli ruchy wszystkich zespołów zostaną zaakceptowane, projekt zakończy się …, N dni roboczych wcześniej/później”). Przegląd uruchamia ją dla zespołów pokazanych projektów (powyżej 50 zespołów: najpierw zawęź wybór programu lub strumienia pracy). Gdy propozycja jest otwarta, nie można zapisywać dat: akcje harmonogramu na stronie projektu i okna docelowe w przeglądzie są tylko do odczytu.
+- Podgląd propozycji może zobaczyć każdy/a. Akceptacja przesuwa tylko zespoły, którymi zarządzasz (administratorzy/rki: wszystkie zespoły); sekcje innych zespołów pozostają podglądem tylko do odczytu, a kto nie może zaakceptować niczego, widzi tylko podgląd. Gdy jedna osoba kierująca zaakceptuje swoją część, inne otwarte kopie przebiegu proszą o nową propozycję. „Zapisz” jest dostępne tylko komuś, kto może zaakceptować wszystkie zespoły przebiegu.
+- Strona „Propozycje harmonogramu” i jej pozycja w menu zniknęły; jej dawne adresy (także zapisanej propozycji) otwierają Przegląd roadmapy. Zapisane propozycje są wymienione pod osią czasu przeglądu („Zapisane propozycje”, domyślnie zwinięte) i otwierają się tam z tymi samymi paskami i sekcją; kierownik/czka jednego z zespołów aktualnej zapisanej propozycji może z niej zaakceptować ruchy swoich zespołów. Strona zespołu zachowuje własną propozycję.
+- **Propozycji zapisanych przed tą wersją nie da się już otworzyć; zaproponuj je i zapisz ponownie.**
+- API (\`/api/v1\`): \`POST /schedule-proposals\` i \`/check\` są otwarte dla każdego loginu (bez \`403\`); \`POST /schedule-proposals/accept\` przyjmuje opcjonalne \`acceptTeamIds\` (podzbiór zespołów przebiegu, brak = wszystkie) i sprawdza uprawnienia tylko wobec nich; propozycja zawiera \`projects[]\`, czyli projekty, których zakres by się przesunął (przed, po, przesunięcie końca w dniach roboczych); przebieg i akceptacja mają wspólny limit 30 na minutę na użytkownika/czkę (\`429\`); \`can.accept\` zapisanej propozycji jest prawdziwe dla ADMIN-a lub kierownika/czki co najmniej jednego z jej zespołów (gdy jest aktualna).
+- Zapisane dane: zmienia się format zapisanej propozycji harmonogramu (patrz wyżej). Poza tym nic się nie zmienia.`,
+  },
+  {
     version: "1.32.0",
     date: "2026-11-27",
     en: `**Team load is part of Teams**
