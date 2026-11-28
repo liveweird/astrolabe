@@ -17,6 +17,24 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.38.0",
+    date: "2026-11-28",
+    en: `**Schedule proposals: choose the teams, plan together from a team page, bars that follow the ticks**
+
+- **Choose the run's teams:** on the project page and the Roadmap overview, "Teams in the run" starts from the page's teams and takes any other team; "Use this page's teams" goes back. A manager who picks only their own teams can save the run.
+- **Plan together from a team page:** beside Propose, "Plan together with" (and "Add linked teams") runs one proposal over this team and the teams you choose. The other teams' milestones linked to this team's work that the proposal moves appear as dimmed rows with their proposed dates. Accept takes the ticked moves of every team you manage. Left empty, Propose works as before.
+- **Dashed bars follow the ticks:** unticking a move removes its dashed bar on all three pages, and the project bars, "Projects whose dates would move" and the project page's end date follow too. A move you cannot tick keeps its bar.
+- **Fixed:** coming back to a team page right after scheduling elsewhere could save its order from an out-of-date list; the page now loads fresh first.
+- Proposals saved before 1.38 can no longer be opened: delete them and run again.`,
+    pl: `**Propozycje harmonogramu: wybór zespołów, wspólne planowanie ze strony zespołu, paski zgodne z zaznaczeniem**
+
+- **Wybór zespołów przebiegu:** na stronie projektu i w przeglądzie Roadmapy pole „Zespoły w przebiegu” zaczyna od zespołów strony i przyjmuje każdy inny zespół; „Użyj zespołów tej strony” przywraca domyślny wybór. Menedżer, który wybierze tylko swoje zespoły, może zapisać przebieg.
+- **Wspólne planowanie ze strony zespołu:** obok „Zaproponuj” pole „Planuj razem z” (oraz „Dodaj powiązane zespoły”) uruchamia jedną propozycję dla tego zespołu i wybranych zespołów. Kamienie milowe innych zespołów powiązane z pracą tego zespołu, które propozycja przesuwa, pojawiają się jako przygaszone wiersze z proponowanymi datami. „Akceptuj” przyjmuje zaznaczone ruchy każdego zespołu, którym kierujesz. Gdy pole jest puste, „Zaproponuj” działa jak dotąd.
+- **Przerywane paski zgodne z zaznaczeniem:** odznaczenie ruchu usuwa jego przerywany pasek na wszystkich trzech stronach; paski projektów, „Projekty, których daty by się zmieniły” i data końca na stronie projektu też za tym podążają. Ruch, którego nie możesz zaznaczyć, zachowuje pasek.
+- **Poprawka:** powrót na stronę zespołu tuż po zaplanowaniu czegoś gdzie indziej mógł zapisać kolejność z nieaktualnej listy; strona najpierw wczytuje świeże dane.
+- Propozycji zapisanych przed wersją 1.38 nie można już otworzyć: usuń je i uruchom ponownie.`,
+  },
+  {
     version: "1.37.0",
     date: "2026-11-27",
     en: `**The walkthrough's polish: where the Gantts open, links that look like links, a fuller person page**

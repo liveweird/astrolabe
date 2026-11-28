@@ -13,6 +13,19 @@ Owns: what each version shipped, newest first: its scope, the user's answers, th
 
 Newest first. Each version: its scope, the user's answers, the defaults that still bind and what was not built; the commits, the plans (they live outside the repository) and the test runs are in git. "No migration" means the preceding schema still applies. Every release leaves "nothing is written to Jira or Flow" true.
 
+### v1.38.0 — choose the run's teams, plan together from a team page, bars that follow the ticks
+
+The four `[next]` items the user promoted on 2026-11-27 ("go ahead with all four as 1.38"), with four answers on 2026-11-28 (each the recommended option): Q1 "Plan together, there" (a cross-team run started on the team page), Q2 "Linked ones the run moves" (dimmed rows for the other teams' linked milestones the run moves), Q3 "Milestones and projects" (project-level bars follow the ticks too, from the server; saved proposals read UNREADABLE once), Q4 "Any team, all pages" (the run's team picker). 
+A minor bump; the server changes only the check's answer; no migration (schema 35). Built overnight; plan by the architect, step 0 moved the web's proposal docs into `proposals-web.md`.
+
+- **Stale team page** (`web-internals.md` "Critical path and the pin"): `refreshQueriesAfterMutation` REMOVES the inactive `["plan","team"]` views whenever a refresh covers them (replaces `dropInactiveSiblings`); a rank write refreshes them too. Only another person's or tab's write relies on refetch-on-mount.
+- **Choose the run's teams** (`proposals-web.md` "The team picker"): `RunTeamsPicker` + `useRunTeams`, default = the page's set (an untouched picker posts exactly what it did), at most 50, at least one; not drawn while a run is requested or open.
+- **Bars follow the ticks** (`proposals-web.md` "Shared checks", `scheduling.md` "The check"): `ScheduleCheckResponse.projects` (the ticked subset's derived spans, same snapshot); `STORED_PROPOSAL_FORMAT` 4. The overview's projects table keeps the run's rows ("Unchanged" when the ticks no longer move one); the last answer stays while a newer check runs.
+- **Plan together from the team page** (`proposals-web.md` "The team page"): `useTeamProposals` (empty picker = the per-team proposal, unchanged), `TeamRunSection`, `teamRunPreview`; the run's accept patches the mounted team view first (`onAccepted`).
+- **Defaults taken overnight** (the user's standing "recommended default"): the "outside the current pick" note only for a chosen set or a saved run (a default run stays quiet, as in 1.37); the picker hidden while a run is open (a disabled picker's pills failed dark-mode contrast); "Propose again" on the project page keeps the project's current teams or the chosen set;
+  project-level bars follow the ticks only for a viewer who may tick EVERY move (a manager of some of the run's teams keeps the run's project bars, BACKLOG `[new]`); the end sentence reads "If the ticked moves are accepted…" when it follows the ticks.
+- **Not built:** a saved proposal opened read-only on the team page (Q1 b), only the chain rows or every moved milestone as rows (Q2 b, c), milestone bars only (Q3 b), the picker on the overview only or narrowing only (Q4 b, c).
+
 ### v1.37.0 — the 1.35 walkthrough's five
 
 The five "(1.35 walkthrough)" items the user promoted to `[next]` on 2026-11-27 ("go ahead with all five as 1.37"), with three answers (each the recommended option): every Gantt opens around today, else at its work; links in tables and Gantt left panes are brand cyan, underlined on hover and focus; every toolbar control takes the zoom switch's small size. A minor bump; web, e2e and docs only (the spec changes only in `info.version`); no migration.

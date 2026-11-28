@@ -15,7 +15,7 @@ Scale assumed: about 15 teams, 5 work streams, 20 programs, 100 projects, 1,000 
 
 ## Roadmap
 
-Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.37.0**. Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-visible fix between two increments is a patch bump. One row a version (patches ride their minor's row); the scope only, the detail is in `release-history.md`.
+Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.38.0**. Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-visible fix between two increments is a patch bump. One row a version (patches ride their minor's row); the scope only, the detail is in `release-history.md`.
 
 ### 0.1 to 0.9: the plan
 
@@ -83,6 +83,7 @@ Each increment gets its own plan (architect) before implementation; only v0.1.0 
 | **1.35.0 The 1.34 walkthrough fixes** | The Teams figures whole; no sideways scroll at 390 px (the tray scrolls in its box, a narrow Gantt fits its columns, session only); "N hidden" on Choose columns; clipped Gantt headers; web and e2e only |
 | **1.36.0 Less repetition, a compact header** | The project page's Milestones table and the Teams page's warning weeks removed (Home's link lands on Unscheduled; the badges open the team's weekly load at the week); titles compact, descriptions behind an ⓘ, facts visible; web and e2e only |
 | **1.37.0 The walkthrough's five** | Every Gantt opens around today, else at its work; one small toolbar size; table and left-pane links brand cyan; a person's page lists what they manage and own; a proposal opens on its heading; web and e2e only |
+| **1.38.0 Proposals: teams, together, ticks** | Choose a run's teams on every page; plan together from a team page (the other teams' linked moves as dimmed rows); dashed bars, project bars included, follow the ticks (`STORED_PROPOSAL_FORMAT` 4); a left team page never writes from a stale list |
 
 ## Domain decisions taken with the user
 
@@ -196,6 +197,7 @@ The standing rules the pages after 1.16 follow; the answers with their rejected 
 - **Where every Gantt opens, and one toolbar size (the user's answers of 2026-11-27, 1.35 walkthrough).** Every Gantt (the project and team pages, the Roadmap's two modes) opens with today about a quarter of the visible grid from its left edge; if no bar falls in that first screen it opens at the first bar instead, so the grid is never empty; an address that names a target (`?milestone=`) still wins, and the header's Today pill is never cut.
   Every Gantt toolbar control takes the small size of the Week / Month / Quarter switch; Add dependency and Add period too (`timeline.md` "Where a Gantt opens", "The toolbar").
   Assumptions taken: the first bar is the next work after the screen, else the earliest bar; "bars" are the drawn bars of the rows a default body shows.
+- **Schedule-proposal runs (the user's answers of 2026-11-28, 1.38).** A run's teams are the page's by default and the viewer may choose any (all three pages); a team page plans together with the teams it chooses (the other teams' linked milestones the run moves shown as dimmed rows; accept = every ticked team the viewer manages); dashed bars, project bars included, follow the ticks (`proposals-web.md`).
 - **Filters live in the address.** The address always holds the filters shown; a link naming a filter is shown as written and not remembered; opening a page from the menu restores what the user last set; only the user's own change is remembered (Roadmap 1.19 Q1 a, Programs 1.21 Q1; Dependencies keep theirs in the address only, as Team load did before 1.32 folded it into Teams, whose filters work the same way).
 - **One staleness rule.** A Jira source is stale when its server-derived state is not `CURRENT` or its mapping does not fit; the chips, the Deviations banner, the dated "no deviations" claim, Flow's section and the plan pages' facts line ("Jira data may be out of date") all use it (1.17 Q1 and Q2).
 - **A deploy notice.** The build writes its commit into `index.html`; the shell compares it with the bundle's own and shows a notice with a Reload button at the top of every page, with no way to dismiss it (1.17 Q4, Q5).
