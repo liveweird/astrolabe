@@ -413,7 +413,7 @@ follows: `web/CLAUDE.md` "Per-feature rules". What the pages see of the componen
 - Dependency arrows are `TimelineArrowData[]` (`from`/`to` `{row, bar, kind: START|END}`, `violated`, `label`) drawn by `components/TimelineArrows.tsx` through the
   `overlay={(geometry) => …}` slot: decorative (`aria-hidden`; the page's table is the accessible surface), gray, RED when `violated`, only for mounted rows
   and from committed dates. Tests read `data-arrow`/`data-violated`/`data-tone`, never colour.
-  Reference (`timeline.md`): "Arrows", "The baseline overlay", "The Jira markers"; the dashed proposal bars: `proposals-web.md` "The proposal preview".
+  Reference (`timeline.md`): "Arrows", "The baseline overlay", "The Jira markers"; the dashed proposal bars: `proposals-preview.md` "The proposal preview".
 - **Row drag.** The one `TimelineDndContext` has a fourth drag kind, `kind: "row"` (no `@dnd-kit/sortable`; a `DragOverlay` card plus an insertion line show the slot, so it reaches unmounted rows): a pointer-only,
   `aria-hidden` handle (one cell, one roving stop) plus the row menu as the keyboard path (`timeline.announce.*Row`). The page passes `onReorder(id, slot) → boolean`; absent, no reordering. Reference: "Row drag".
 - **Public holidays.** `holidays?: {date, name}[]` is the dictionary, any range; every page passes `useHolidays()`. Reference: "Public holidays".
@@ -1865,7 +1865,7 @@ Both are the shared pieces, fed from the team view alone (`timeline.md` "The bas
   - The appended rows' menu (`TeamTimelineRows.tsx`, the pure builders; `timeline.md` "Appended rows for the tray") offers "Schedule on Jira's dates" only while `team.can.schedule` holds, no proposal
     previews and Jira's two dates are in order; it is `lock.guarded`, writes the REAL dates through the page's one schedule write path, then focuses the milestone's own row (`useRowMenuFocus`).
 
-The schedule proposal and its checks: `proposals-web.md` "The team page" and "Shared checks".
+The schedule proposal and its checks: `proposals-web.md` "The team page" and `proposals-preview.md` "Shared checks".
 
 ### The team page: Flow
 
