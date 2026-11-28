@@ -51,7 +51,7 @@ r2dbc-pool = "1.0.2.RELEASE"
 # reactor-pool 1.0.8 (a reactor-core 3.5-era pairing, NOT the release train reactor-core actually
 # resolves to). Moving this line moves reactor-netty, so keep it in step with the `netty` pin above
 # (read reactor-netty's Netty version off its published pom).
-reactor-bom = "2025.0.8"
+reactor-bom = "2026.0.0"
 swagger-request-validator = "3.0.0"
 testcontainers = "2.0.5"
 # Test-only (the Jira sync, v1.1.0): the in-JVM stub fixture (JiraStubServer.kt) runs the real sample-data/jira-stub mappings through the
