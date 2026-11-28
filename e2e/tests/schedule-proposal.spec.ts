@@ -1,6 +1,7 @@
 // The schedule proposal (v0.8) on the team page (/teams/:id), in 2042: the team's manager asks for a proposal, reads the moves and the proposed
 // weekly load beside the dashed bars, and accepts all of it, some of it, or all of it while one milestone was rescheduled under the open
-// preview (that one is skipped, the others land); the project OWNER, who is not the manager, has no Propose button; and (1.7) a milestone the manager
+// preview (that one is skipped, the others land); the project OWNER, who is not the manager, previews the same proposal (1.39: the cross-team run over the team,
+// dashed bars and the preview note, no tick, no Accept); and (1.7) a milestone the manager
 // pins is not among the moves, the summary counts it, and it moves again once unpinned.
 // Owns: its throwaway users, people, team (with ONE capacity period from Monday 2042-01-06, 10 MD/week, WIP limit 2), work stream, program,
 // project, three milestones and the link between two of them (unique `e2e-sp-*` names), all seeded through the API and deleted by the
@@ -9,7 +10,7 @@
 // team's first capacity period whatever today is.
 import { randomUUID } from "node:crypto";
 import type { APIRequestContext, Page } from "@playwright/test";
-import { apiAsAdmin, deleteViaApi, expect, login, rowOperation, test, uniqueText } from "./helpers";
+import { apiAsAdmin, axeViolations, deleteViaApi, expect, login, rowOperation, test, uniqueText } from "./helpers";
 
 // The holiday dictionary is global, and a schedule proposal's scope token carries it: a holiday written while a proposal is open can stale the accept (409
 // `stale-scope`, when it changes an accepted date). Specs that write the dictionary or compare the figures never run at the same time (a named lock holds the whole file's run).
@@ -257,18 +258,46 @@ test("a milestone rescheduled after the proposal is skipped and the others land"
   await expect(tray(page)).toHaveCount(0);
 });
 
-test("the project owner reads the team page without the Propose schedule button", async ({ page }) => {
+test("the project owner previews the team's proposal: the dashed bars and the preview note, no tick and no Accept", async ({ page }) => {
   const world = await seedWorld();
   await world.api.dispose();
 
   await login(page, world.owner.email, world.owner.password);
   await openTeam(page, world);
-  // The page is the same read-only one the owner always sees: c's bar is a read-only image and nothing proposes.
+  // The page is the same read-only one the owner always sees: c's bar is a read-only image, the tray names who schedules.
   await expect(page.getByRole("img", { name: new RegExp(`^${world.c.name}, .*, 2042-03-03 to 2042-03-04, .*, read-only$`) })).toBeVisible();
   await expect(page.getByText("manager or an administrator schedules them")).toBeVisible();
-  await expect(proposeButton(page)).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /^Propose/ })).toHaveCount(0);
-  await expect(page.getByRole("heading", { level: 3, name: "Proposed schedule" })).toHaveCount(0);
+  // Propose is theirs too, once the rights are read: it is the cross-team run over this one team (the per-team route would answer 403).
+  await expect(proposeButton(page)).toBeEnabled();
+  const [response] = await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "POST" && /\/api\/v1\/schedule-proposals$/.test(r.url())),
+    proposeButton(page).click(),
+  ]);
+  expect(response.status(), await response.text()).toBe(200);
+  expect(response.request().postDataJSON()).toMatchObject({ teamIds: [world.teamId] });
+  const heading = page.getByRole("heading", { level: 3, name: "Schedule proposal" });
+  await expect(heading).toBeFocused();
+  await expect(page.getByText(/^This is a preview\./)).toBeVisible();
+  // The three dashed bars of the manager's proposal, and this team's table open with every box disabled and unticked.
+  await expect(page.locator('[data-tone="proposal"]')).toHaveCount(3);
+  await expect(page.getByRole("img", { name: `Proposed: ${world.b.name}, 2042-01-06 to 2042-01-13, read-only` })).toBeVisible();
+  await expect(page.getByRole("img", { name: `Proposed: ${world.c.name}, 2042-01-14 to 2042-01-15, read-only` })).toBeVisible();
+  const table = page.getByRole("table", { name: `Proposed moves of ${world.team}` });
+  await expect(table).toBeVisible();
+  for (const milestone of [world.a, world.b, world.c]) {
+    const box = table.getByRole("checkbox", { name: `Accept ${milestone.name}` });
+    await expect(box).toBeDisabled();
+    await expect(box).not.toBeChecked();
+  }
+  await expect(page.getByRole("button", { name: /^Accept selected/ })).toHaveCount(0);
+  // The pointer still rests where Propose was: park it on the section heading so no row is hover-tinted for the scan.
+  await heading.hover();
+  expect(await axeViolations(page)).toEqual([]);
+  // Discard closes the preview and gives Propose the focus back; the per-team route was never asked.
+  await page.getByRole("button", { name: "Discard", exact: true }).click();
+  await expect(heading).toHaveCount(0);
+  await expect(page.locator('[data-tone="proposal"]')).toHaveCount(0);
+  await expect(proposeButton(page)).toBeFocused();
 });
 
 test("a pinned milestone keeps its dates: the manager pins c, proposes, c is not among the moves and the summary counts it, then unpins it", async ({ page }) => {

@@ -21,7 +21,7 @@ export type CrossTeamSectionTeam = Omit<CrossTeamProposalTeam, "weeks"> & { week
  * `acceptable` (1.33) says whether the viewer may accept THIS team's moves; absent = the section as the pages for managers have always had it. Given,
  * the section is collapsible (open where the viewer may accept; a closed one renders no table), its header carries the count of weeks with a
  * warning (an orange badge, over the weeks shown), and a team the viewer may not accept shows the run "if this team's manager accepts" with its
- * checkboxes disabled and, unless `readOnlyNote` is false, one sentence saying so (the table's group is described by it). The badge counts the weeks
+ * checkboxes disabled and, unless `readOnlyNote` is false, one sentence saying so (the table's group is described by it); it starts collapsed unless `startOpen`. The badge counts the weeks
  * SHOWN: for a team the viewer may not accept those are the team's whole weeks after the run, not only the moves in view (a project slice).
  */
 export default function CrossTeamProposalSection({
@@ -38,6 +38,7 @@ export default function CrossTeamProposalSection({
   live = true,
   acceptable,
   readOnlyNote = true,
+  startOpen = false,
 }: {
   team: CrossTeamSectionTeam;
   asOf: string;
@@ -55,9 +56,11 @@ export default function CrossTeamProposalSection({
   acceptable?: boolean;
   /** False when the run says once, above its sections, that the viewer may accept none of them. */
   readOnlyNote?: boolean;
+  /** Open on mount even where the viewer may not accept the team (the team page's own team, 1.39). */
+  startOpen?: boolean;
 }) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(acceptable !== false);
+  const [open, setOpen] = useState(acceptable !== false || startOpen);
   const warnings = acceptable === undefined ? 0 : warningWeekCount(team.weeks);
   const noteId = useId();
   const noted = acceptable === false && readOnlyNote;

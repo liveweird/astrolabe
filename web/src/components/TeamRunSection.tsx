@@ -40,7 +40,7 @@ export default function TeamRunSection({ proposal, busy, headingRef }: { proposa
         {t("programs.proposal.kept")}
       </Text>
       <Text size="sm" c="dimmed">
-        {t("teams.run.intro")}
+        {together.canAccept ? t("teams.run.intro") : t("teams.run.introPreview")}
       </Text>
       {/* A first rights read that failed leaves nothing acceptable (the run is a preview): say so, as the overview and the project page do. */}
       {rights.error !== null && rights.acceptable.size === 0 && (
@@ -57,6 +57,7 @@ export default function TeamRunSection({ proposal, busy, headingRef }: { proposa
         onSelectAll={together.selectAll}
         onSelectNone={together.selectNone}
         acceptable={rights.acceptable}
+        openTeamId={proposal.proposal?.teamId}
       />
       {error && (
         <FormErrorAlert ref={errorRef} tabIndex={-1}>

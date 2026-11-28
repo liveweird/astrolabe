@@ -222,7 +222,7 @@ describe("Propose with nothing chosen", () => {
 });
 
 describe("the picker row", () => {
-  test("offers every other team (not this one), a reset that clears, and is not drawn without team.can.schedule", async () => {
+  test("offers every other team (not this one), a reset that clears, and is drawn for everyone", async () => {
     const user = await opened(userEvent.setup());
     await user.click(picker());
     expect((await screen.findAllByRole("option")).map((option) => option.textContent)).toEqual(["Beta", "Gamma", "Delta"]);
@@ -254,19 +254,100 @@ describe("the picker row", () => {
     expect(screen.queryByRole("button", { name: "Add linked teams" })).toBeNull();
   });
 
-  test("without team.can.schedule neither Propose nor the picker is there", async () => {
-    mockFetch = routeFetch({
-      "GET /api/v1/views/team/1": () => viewOf({ team: { ...viewOf().team, can: { schedule: false, editCapacity: false, editOrder: false } } }),
-      "GET /api/v1/teams/1/flow": READ_ONLY_PANEL,
-      "GET /api/v1/public-holidays": { items: [] },
-      "GET /api/v1/teams": TEAM_LIST,
-      "GET /api/v1/baselines": { items: [], can: { manage: false } },
-    });
-    vi.stubGlobal("fetch", mockFetch);
-    renderWithProviders(<Routes><Route path="/teams/:id" element={<TeamDetails />} /></Routes>, { route: "/teams/1" });
-    await screen.findByRole("grid", { name: "Team milestone timeline" });
-    expect(screen.queryByRole("button", { name: "Propose schedule" })).toBeNull();
-    expect(screen.queryByRole("combobox", { name: "Plan together with" })).toBeNull();
+  test("without team.can.schedule Propose and the picker are there all the same (1.39: everyone previews)", async () => {
+    stranger();
+    await opened(userEvent.setup());
+    expect(picker()).toBeEnabled();
+  });
+});
+
+/** The viewer may not schedule this team: the page's flags are off (their ticks come from the rights read, `manages`). */
+function stranger() {
+  const view = viewOf();
+  mockFetch = routeFetch({
+    "GET /api/v1/views/team/1": () => ({ ...view, team: { ...view.team, can: { schedule: false, editCapacity: false, editOrder: false } } }),
+    "GET /api/v1/teams/1/flow": READ_ONLY_PANEL,
+    "GET /api/v1/public-holidays": { items: [] },
+    "GET /api/v1/teams": TEAM_LIST,
+    "GET /api/v1/baselines": { items: [], can: { manage: false } },
+    [`GET ${TEAMS_URL}`]: () => (rightsFail ? jsonResponse(500, { title: "Boom", status: 500 }) : { items: manages.map((id) => ({ id, name: `Team ${id}` })), truncated: false }),
+    [`POST ${RUN_URL}`]: (call) => {
+      const { teamIds } = call.json() as { teamIds: number[] };
+      return { ...RUN, teams: RUN.teams.filter((team) => teamIds.includes(team.teamId)) };
+    },
+    [`POST ${CHECK_URL}`]: { teams: [], projects: [] },
+    [`POST ${ACCEPT_URL}`]: () => acceptWith(),
+  });
+  vi.stubGlobal("fetch", mockFetch);
+}
+
+describe("the preview for a viewer who may not schedule this team (1.39)", () => {
+  test("Propose runs the cross-team run over this team alone: a preview with this team's table open, the dashed bars, no tick and no Accept, and Discard", async () => {
+    manages = [];
+    stranger();
+    const user = await opened(userEvent.setup());
+    await user.click(proposeButton());
+    await screen.findByRole("heading", { level: 3, name: "Schedule proposal" });
+    expect(posted(RUN_URL)).toEqual([{ asOf: localIsoDate(), teamIds: [1] }]);
+    expect(posted(PER_TEAM_URL)).toEqual([]);
+    expect(screen.getByText(/^This is a preview\./)).toBeInTheDocument();
+    // the intro is the preview's: nothing to tick, nothing to accept
+    expect(screen.getByText(/Nothing changes\.$/)).toBeInTheDocument();
+    expect(screen.queryByText(/follow the moves you tick/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Accept selected/ })).toBeNull();
+    // this team's table is open although none of it is theirs; every move keeps its dashed bar and no box is ticked
+    const box = await screen.findByRole("checkbox", { name: "Accept tr-b" });
+    expect(box).toBeDisabled();
+    expect(box).not.toBeChecked();
+    expect(screen.getByRole("img", { name: "Proposed: tr-b, 2042-03-02 to 2042-03-03, read-only" })).toHaveAttribute("data-tone", "proposal");
+    expect(mockFetch.mock.calls.filter(([u]) => String(u) === CHECK_URL)).toHaveLength(0);
+    await user.click(screen.getByRole("button", { name: "Discard" }));
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Schedule proposal" })).toBeNull());
+    expect(proposeButton()).toHaveFocus();
+  });
+
+  test("a rights read that fails leaves a preview and says so: no Accept, no tick", async () => {
+    manages = [];
+    rightsFail = true;
+    stranger();
+    const user = await opened(userEvent.setup());
+    await user.click(proposeButton());
+    await screen.findByRole("heading", { level: 3, name: "Schedule proposal" });
+    expect(screen.getByText("Could not read which teams you manage; this is a preview only.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Accept selected/ })).toBeNull();
+    expect(await screen.findByRole("checkbox", { name: "Accept tr-b" })).toBeDisabled();
+  });
+
+  test("chosen teams they manage none of are a preview all the same: the run over them all, no tick, no Accept", async () => {
+    manages = [];
+    stranger();
+    const user = await opened(userEvent.setup());
+    await choose(user, "Beta");
+    await waitFor(() => expect(proposeButton()).toBeEnabled());
+    await user.click(proposeButton());
+    await screen.findByRole("heading", { level: 3, name: "Schedule proposal" });
+    expect(posted(RUN_URL)).toEqual([{ asOf: localIsoDate(), teamIds: [1, 2] }]);
+    expect(screen.getByText(/^This is a preview\./)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Accept selected/ })).toBeNull();
+    expect(posted(ACCEPT_URL)).toEqual([]);
+    expect(screen.queryAllByRole("checkbox", { checked: true })).toEqual([]);
+  });
+
+  test("with a team they manage chosen, only that team's moves are ticked and accepted; this team's table is open and a preview", async () => {
+    manages = [2];
+    stranger();
+    const user = await opened(userEvent.setup());
+    await choose(user, "Beta");
+    await waitFor(() => expect(proposeButton()).toBeEnabled());
+    await user.click(proposeButton());
+    await screen.findByRole("heading", { level: 3, name: "Schedule proposal" });
+    expect(posted(RUN_URL)).toEqual([{ asOf: localIsoDate(), teamIds: [1, 2] }]);
+    expect(await screen.findByRole("checkbox", { name: "Accept tr-b" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Accept bt-linked" })).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Accept selected (2)" }));
+    await waitFor(() => expect(posted(ACCEPT_URL)).toHaveLength(1));
+    expect(posted(ACCEPT_URL)[0]).toMatchObject({ teamIds: [1, 2], acceptTeamIds: [2], items: [{ milestoneId: 21 }, { milestoneId: 22 }] });
+    expect(posted(PER_TEAM_URL)).toEqual([]);
   });
 });
 

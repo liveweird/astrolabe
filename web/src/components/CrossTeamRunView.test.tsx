@@ -106,6 +106,15 @@ describe("CrossTeamRunView for the viewer who may accept nothing", () => {
     expect(screen.queryByText(/if this team's manager accepts/i)).toBeNull();
   });
 
+  test("openTeamId (the team page's own team) keeps that one table open, the others collapsed, every checkbox still disabled", () => {
+    renderRun({ acceptable: new Set(), selected: new Set(), openTeamId: 2 });
+    const table = screen.getByRole("table", { name: "Proposed moves of Payments" });
+    expect(screen.getByRole("button", { name: "Hide the moves of Payments" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.queryByRole("table", { name: "Proposed moves of Platform" })).toBeNull();
+    for (const checkbox of within(table).getAllByRole("checkbox")) expect(checkbox).toBeDisabled();
+    expect(screen.getAllByText(/This is a preview/)).toHaveLength(1);
+  });
+
   test("the run's own link verdicts stay (no overlay: nothing is ticked, yet nothing is stripped)", async () => {
     const user = userEvent.setup();
     const run: CrossTeamProposal = { ...RUN, teams: [block(1, "Platform", RUN.teams[0].moves), block(2, "Payments", [move(21, "y1", "2042-01-12", "2042-01-14")], { dependencies: [violatedLink()] })] };

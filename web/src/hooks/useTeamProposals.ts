@@ -23,6 +23,8 @@ const NO_TEAMS: number[] = [];
  *   page. This team's moves and those of every other run team the viewer may accept (`useProposalRights`) are tickable and ticked; the other teams' sections are read-only. The accept is the
  *   run's one accept (`acceptTeamIds` = the teams of the ticked moves); `onAccepted` puts the accepted dates of THIS team into the page's own cached view before the refresh (a mounted page
  *   would otherwise build its next order write on a list that lacks a milestone the run just scheduled). No Save here (the Roadmap overview's).
+ * **A viewer without `can.schedule` (1.39)** previews: their Propose is always the run (over this team alone when they chose none; the per-team route stays 403), they read the rights before it (so "nothing is
+ * acceptable" is known and no Accept flashes), may tick only the moves of chosen teams they manage, and the check overlays this team's block only where they may accept it.
  * `used` is the form of the last Propose: it can only change while nothing is requested or open (the picker is not drawn then), so the notes and the open section always belong to one hook.
  * `proposal` is THIS team's block of the open run in the per-team proposal's shape (`revision`, `scopeHash` and `asOf` of the run), so the lock, the focus, the range and the check read the same
  * field in both forms. `shown` is what the timeline and the table draw: the check's verdicts for the ticked moves and the dashed bars that follow the ticks.
@@ -32,8 +34,12 @@ export function useTeamProposals(teamId: number, announce: (text: string) => voi
   const queryClient = useQueryClient();
   const others = useRunTeams(NO_TEAMS);
   const [used, setUsed] = useState<"alone" | "together">("alone");
-  // Read only once the viewer plans with other teams: the page's own proposal needs no rights (the page's flag decides, as always).
-  const rights = useProposalRights(others.chosen);
+  // A viewer without `can.schedule` (1.39) may still preview: the run over this team alone (the per-team route keeps its 403), whatever they chose.
+  const manager = view?.team.can.schedule === true;
+  // Read only when a run is asked for: teams chosen, or a viewer who may not schedule this team (the run needs the rights to know nothing of theirs is acceptable, so no Accept flashes).
+  // A manager running alone needs none (the page's flag decides, as always).
+  const needsRun = others.chosen || (view !== undefined && !manager);
+  const rights = useProposalRights(needsRun);
   const alone = useScheduleProposal(teamId, announce, loading, baseline, chain);
   const together = useCrossTeamProposal(announce, {
     acceptable: rights.acceptable,
@@ -70,12 +76,14 @@ export function useTeamProposals(teamId: number, announce: (text: string) => voi
         : teamRunPreview({ teamId, dependencies, run, projects: followed.projects, selected, tickable, chainRows: new Set((chainMembers ?? []).map(ghostRowId)) }),
     [run, dependencies, teamId, followed.projects, selected, tickable, chainMembers],
   );
-  const shown = open === null ? null : { ...overlayCheck(open, check, teamId), drawn: drawnMoves(open.moves, selected, run === null ? undefined : tickable) };
+  // The check describes the viewer's ticks: it overlays this team's block only when those ticks can be this team's (alone, or a team the viewer may accept), else the block is the run's own preview.
+  const overlaid = run === null || rights.acceptable.has(teamId);
+  const shown = open === null ? null : { ...(overlaid ? overlayCheck(open, check, teamId) : open), drawn: drawnMoves(open.moves, selected, run === null ? undefined : tickable) };
 
   const chosen = others.ids;
   const linked = useMemo(() => (dependencies === undefined ? NO_TEAMS : linkedTeamIds(dependencies, teamId)), [dependencies, teamId]);
   const tooMany = chosen.length + 1 > MAX_RUN_TEAMS;
-  const waiting = chosen.length > 0 && !rights.ready;
+  const waiting = needsRun && !rights.ready;
   const proposable = !tooMany && !waiting;
   const locked = open !== null || requesting;
 
@@ -107,7 +115,7 @@ export function useTeamProposals(teamId: number, announce: (text: string) => voi
     propose: (): boolean => {
       if (locked) return false;
       // The form changes only once a request really started: a refused Propose leaves the previous run's notes where they are.
-      if (chosen.length === 0) {
+      if (chosen.length === 0 && manager) {
         const sent = alone.propose();
         if (sent) setUsed("alone");
         return sent;

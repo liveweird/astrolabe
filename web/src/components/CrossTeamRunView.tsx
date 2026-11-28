@@ -23,7 +23,7 @@ const linksOfMoves = <T extends { moves: CrossTeamProposalTeam["moves"]; depende
  * collapsed, read-only and show the run as it would be "if that team's manager accepts" (the check's verdicts and load, which describe the
  * viewer's ticks, overlay only the sections of acceptable teams); a viewer who may accept none of the shown teams reads one sentence above them
  * instead of one per section (and none at all when the slice has no section). `projectId` narrows the sections to one project's moves (`projectSlice`;
- * `projectMilestoneIds` keeps its `unchanged` and `pinned` figures) and the links to those touching a kept move.
+ * `projectMilestoneIds` keeps its `unchanged` and `pinned` figures; `openTeamId` (1.39) keeps one team's table open for a viewer who may accept nothing) and the links to those touching a kept move.
  */
 export default function CrossTeamRunView({
   run,
@@ -37,6 +37,7 @@ export default function CrossTeamRunView({
   acceptable,
   projectId,
   projectMilestoneIds,
+  openTeamId,
 }: {
   run: CrossTeamProposal;
   check: ScheduleCheckState;
@@ -50,6 +51,8 @@ export default function CrossTeamRunView({
   acceptable?: ReadonlySet<number>;
   projectId?: number;
   projectMilestoneIds?: ReadonlySet<number>;
+  /** The team whose table starts open even when the viewer may not accept it (the team page's own team). */
+  openTeamId?: number;
 }) {
   const { t } = useTranslation();
   const sections = projectSlice(run, projectId, projectMilestoneIds);
@@ -86,6 +89,7 @@ export default function CrossTeamRunView({
             live={live}
             acceptable={acceptable === undefined ? undefined : own}
             readOnlyNote={!none}
+            startOpen={team.teamId === openTeamId}
           />
         );
       })}

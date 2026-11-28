@@ -394,7 +394,7 @@ describe("Team view page", () => {
     expect(document.querySelector("[data-flow-badge]")).toBeNull();
   });
 
-  test("a stranger reads the page without a single control: no Add period, no Move items, no Schedule, no Reset, read-only bars", async () => {
+  test("a stranger reads the page without a single write control: no Add period, no Move items, no Schedule, no Reset, read-only bars (Propose schedule is theirs too: a preview, 1.39)", async () => {
     localStorage.setItem(ROLES_KEY, "[]");
     view = viewOf({ team: { ...viewOf().team, can: { schedule: false, editCapacity: false, editOrder: false } } });
     const user = userEvent.setup();

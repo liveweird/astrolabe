@@ -119,7 +119,8 @@ export function useCrossTeamProposal(announce: (text: string) => void, options: 
       setSelected(new Set(moves.filter((move) => tickableNow.has(move.milestoneId) && (kept === null ? (initialTicks?.(move) ?? true) : kept.has(move.milestoneId))).map((move) => move.milestoneId)));
       setRescoped(kept !== null && sayRescoped.current);
       // ONE sentence: two announcements in one batch would keep only the last. A run that did not settle says so after the ready sentence.
-      const ready = t("teams.proposal.ready", { count: restricted ? tickableNow.size : moves.length });
+      // A pure preview (nothing the viewer may tick) announces the moves it shows, not "0 moves".
+      const ready = t("teams.proposal.ready", { count: restricted && tickableNow.size > 0 ? tickableNow.size : moves.length });
       announce(result.settled ? ready : `${ready}. ${t("scheduleProposals.facts.unsettled", { count: result.passes })}`);
     },
     onError: () => {

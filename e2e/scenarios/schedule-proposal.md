@@ -61,11 +61,18 @@ the week of 01-13 loads 1 + 2 = 3 of 10 (the server's answer agrees; checked by 
      administrator's dates (2042-02-04 to 2042-02-05) once the page has reloaded the view, and not at its proposed ones; b is a bar at 2042-01-06 to
      2042-01-13 and c at 2042-01-14 to 2042-01-15; the tray is gone.
 
-## Scenario: the project owner reads the team page without the Propose schedule button
+## Scenario: the project owner previews the team's proposal: the dashed bars and the preview note, no tick and no Accept
 
 1. The project's owner (not the team's manager) signs in and opens the team's page.
    - *Expected*: c's bar is a read-only image ("..., 2042-03-03 to 2042-03-04, ..., read-only"); the tray tells that the team's manager or an
-     administrator schedules; there is no **Propose schedule** button (nor any button starting with "Propose") and no Proposed schedule section.
+     administrator schedules; **Propose schedule** is there and enabled once the rights are read.
+2. They press **Propose schedule**.
+   - *Expected*: the request is the cross-team run over this team alone (`POST /schedule-proposals`, `teamIds` = the team; the per-team route is not used); the **Schedule proposal** section opens
+     with its heading focused; "This is a preview. None of the moves shown is yours to accept…" is there; the same three dashed bars as the manager's proposal are drawn (b 2042-01-06 to
+     01-13, a 01-06 to 01-09, c 01-14 to 01-15); the team's own table ("Proposed moves of <team>") is open with a disabled, unticked checkbox on every move; there is no **Accept selected**;
+     the page has no WCAG A/AA violation.
+3. They press **Discard**.
+   - *Expected*: the section and the dashed bars go and **Propose schedule** has the focus back.
 
 ## Scenario: a pinned milestone keeps its dates: the manager pins c, proposes, c is not among the moves and the summary counts it, then unpins it
 

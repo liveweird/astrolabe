@@ -209,11 +209,12 @@ describe("the Propose schedule button", () => {
     expect(proposeButton()).toBeEnabled();
   });
 
-  test("is absent without team.can.schedule, even for an ADMIN session (the view's flag is the rule)", async () => {
+  test("is drawn without team.can.schedule too (1.39: a preview, the run over this team; never the per-team route), and enabled once the rights are read", async () => {
     view = viewOf({ team: { ...viewOf().team, can: { schedule: false, editCapacity: false, editOrder: false } } });
     renderPage();
     await screen.findByRole("grid", { name: "Team milestone timeline" });
-    expect(proposeButton()).toBeNull();
+    await waitFor(() => expect(proposeButton()).toBeEnabled());
+    expect(proposalPosts()).toEqual([]);
   });
 
   test("is absent while the team has no milestones", async () => {

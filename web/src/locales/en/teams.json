@@ -291,6 +291,7 @@
     "addLinked": "Add linked teams",
     "reset": "Plan this team alone",
     "intro": "Dashed bars on the timeline show the proposed dates; the other teams' milestones and projects that this team's links name and the run moves are dimmed rows under the team's own. Link warnings and the proposed load follow the moves you tick. Nothing changes until you accept.",
+    "introPreview": "Dashed bars on the timeline show the proposed dates; the other teams' milestones and projects that this team's links name and the run moves are dimmed rows under the team's own. Nothing changes.",
     "ghostBarAria": "{{name}}, {{team}}, {{project}}, {{start}} to {{end}}, linked to this team's work",
     "ghostProjectBarAria": "Project {{name}}, {{start}} to {{end}}, linked to this team's work"
   }

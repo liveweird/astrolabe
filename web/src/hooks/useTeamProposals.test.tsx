@@ -263,3 +263,84 @@ describe("together (teams chosen)", () => {
     expect(bodies(ORDER_URL)).toEqual([{ milestoneIds: [5, 6, 7], expectedRevision: 1 }]);
   });
 });
+
+type Fetch = (url: string, init?: RequestInit) => Promise<Response>;
+
+describe("a viewer who may not schedule this team (1.39)", () => {
+  const ONLY_THIS_TEAM: CrossTeamProposal = { ...RUN, teams: [RUN.teams[0]] };
+
+  async function stranger(chosen: number[] = []) {
+    VIEW = { ...VIEW, team: { ...VIEW.team, can: { schedule: false, editCapacity: false, editOrder: false } } } as TeamView;
+    const rendered = await page();
+    if (chosen.length > 0) act(() => rendered.result.current.proposals.picker.onChange(chosen));
+    await waitFor(() => expect(rendered.result.current.proposals.waitingFor).toBeNull());
+    return rendered;
+  }
+
+  test("Propose asks the run over this team alone, never the per-team route (403); the rights are read first, so nothing is tickable and no Accept is offered", async () => {
+    manages = [2];
+    const { result } = await stranger();
+    expect(calls(TEAMS_URL)).toHaveLength(1);
+    const impl = mockFetch.getMockImplementation() as Fetch;
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => (url === RUN_URL ? Promise.resolve(jsonResponse(200, ONLY_THIS_TEAM)) : impl(url, init)));
+    act(() => {
+      expect(result.current.proposals.propose()).toBe(true);
+    });
+    await waitFor(() => expect(result.current.proposals.proposal).not.toBeNull());
+    expect(bodies(RUN_URL)).toEqual([{ asOf: "2042-01-05", teamIds: [1] }]);
+    expect(calls(PER_TEAM_URL)).toHaveLength(0);
+    expect(result.current.proposals.run).not.toBeNull();
+    expect(result.current.proposals.together.canAccept).toBe(false);
+    // a pure preview announces the moves it shows, not "0 moves"
+    expect(announce).toHaveBeenCalledWith("Proposed schedule ready: 1 move");
+    expect([...result.current.proposals.selected]).toEqual([]);
+    expect(result.current.proposals.accept()).toBe(false);
+    expect(calls(ACCEPT_URL)).toHaveLength(0);
+    // nothing of theirs is ticked, yet the proposal is drawn whole: the check does not overlay this team's block (that would be the plan as it is, no proposed load)
+    expect(result.current.proposals.shown?.weeks).toEqual(RUN.teams[0].weeks);
+    expect(result.current.proposals.shown?.drawn.map((m) => m.milestoneId)).toEqual([6]);
+    expect(calls(CHECK_URL)).toHaveLength(0);
+  });
+
+  test("Propose waits for the rights while they are read", async () => {
+    VIEW = { ...VIEW, team: { ...VIEW.team, can: { schedule: false, editCapacity: false, editOrder: false } } } as TeamView;
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const impl = mockFetch.getMockImplementation() as Fetch;
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => (url === TEAMS_URL ? held.then(() => jsonResponse(200, { items: [], truncated: false })) : impl(url, init)));
+    const { result } = await page();
+    expect(result.current.proposals.waitingFor).toBe("rights");
+    expect(result.current.proposals.proposable).toBe(false);
+    act(() => {
+      expect(result.current.proposals.propose()).toBe(false);
+    });
+    expect(calls(RUN_URL)).toHaveLength(0);
+    act(() => release());
+    await waitFor(() => expect(result.current.proposals.proposable).toBe(true));
+  });
+
+  test("with chosen teams they manage, those moves are ticked and accepted (acceptTeamIds = those teams); this team's block stays the run's own preview", async () => {
+    manages = [2];
+    const { result } = await stranger([2]);
+    act(() => void result.current.proposals.propose());
+    await waitFor(() => expect(result.current.proposals.proposal).not.toBeNull());
+    expect(bodies(RUN_URL)).toEqual([{ asOf: "2042-01-05", teamIds: [1, 2] }]);
+    expect([...result.current.proposals.selected]).toEqual([21]);
+    // none of the viewer's ticks is this team's: untick Beta's move, the check says "none" and still must not blank this team's proposed load
+    act(() => result.current.proposals.toggle(21));
+    expect(result.current.proposals.shown?.weeks).toEqual(RUN.teams[0].weeks);
+    act(() => result.current.proposals.toggle(21));
+    act(() => void result.current.proposals.accept());
+    await waitFor(() => expect(bodies(ACCEPT_URL)).toHaveLength(1));
+    expect(bodies(ACCEPT_URL)[0]).toMatchObject({ teamIds: [1, 2, 3], acceptTeamIds: [2], items: [{ milestoneId: 21 }] });
+  });
+
+  test("a viewer who may schedule it keeps the per-team proposal with nothing chosen, and the rights are not read", async () => {
+    const { result } = await page();
+    act(() => void result.current.proposals.propose());
+    await waitFor(() => expect(result.current.proposals.proposal).not.toBeNull());
+    expect(calls(TEAMS_URL)).toHaveLength(0);
+    expect(calls(RUN_URL)).toHaveLength(0);
+    expect(bodies(PER_TEAM_URL)).toHaveLength(1);
+  });
+});
