@@ -13,7 +13,7 @@ export const sameRun = (a: Pick<CrossTeamProposal, "asOf" | "revision" | "scopeH
 export const sameIds = (ticked: ReadonlySet<number>, ids: readonly number[]): boolean => ticked.size === ids.length && ids.every((id) => ticked.has(id));
 
 /**
- * The check state of the STORED ticks: every move ticked = the run's own verdicts (the server stores no check then); a subset = the check the
+ * The check state of the STORED ticks: every move ticked = the run's own verdicts (the server stores no check then); a subset = the check (with its `projects`) the
  * server stored with the save, already answered (never pending, never failed).
  */
 export function storedCheckState(record: Pick<SavedProposalRecord, "check" | "selectedMilestoneIds" | "moveCount">): ScheduleCheckState {
@@ -21,6 +21,7 @@ export function storedCheckState(record: Pick<SavedProposalRecord, "check" | "se
   return {
     mode: all ? "all" : "some",
     byTeam: all || record.check === null ? null : new Map(record.check.teams.map((team) => [team.teamId, team])),
+    projects: all || record.check === null ? null : record.check.projects,
     pending: false,
     failed: false,
   };

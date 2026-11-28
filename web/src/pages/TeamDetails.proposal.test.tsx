@@ -811,6 +811,26 @@ describe("the ticked-subset check (1.8)", () => {
     expect(checkPosts()).toEqual([{ teamIds: [1], items: [{ milestoneId: 3, startDate: "2027-06-07", endDate: "2027-06-10" }] }]);
   });
 
+  test("the dashed bars follow the ticks: an unticked move loses its bar but keeps its row and its table entry, and ticking it again brings the bar back", async () => {
+    const user = userEvent.setup();
+    await openPreview(user);
+    expect(proposalBars()).toHaveLength(2);
+    await user.click(screen.getByRole("checkbox", { name: "Accept tp-tray" }));
+    expect(proposalBars()).toHaveLength(1);
+    expect(screen.queryByRole("img", { name: /^Proposed: tp-tray/ })).toBeNull();
+    expect(screen.getByRole("img", { name: "Proposed: tp-b, 2027-06-14 to 2027-06-16, read-only" })).toBeInTheDocument();
+    // nothing jumps under the pointer: the "(new)" row and the table entry are still there
+    expect(within(grid()).getAllByRole("row").some((row) => /tp-tray/.test(row.textContent ?? "") && /\(new\)/.test(row.textContent ?? ""))).toBe(true);
+    expect(screen.getByRole("checkbox", { name: "Accept tp-tray" })).not.toBeChecked();
+    await user.click(screen.getByRole("checkbox", { name: "Accept all" }));
+    expect(proposalBars()).toHaveLength(2);
+    await user.click(screen.getByRole("checkbox", { name: "Accept all" }));
+    expect(proposalBars()).toHaveLength(0);
+    await user.click(screen.getByRole("checkbox", { name: "Accept tp-tray" }));
+    expect(screen.getByRole("img", { name: "Proposed: tp-tray, 2027-06-07 to 2027-06-10, read-only" })).toBeInTheDocument();
+    await settle();
+  });
+
   test("a failed check says so inline, never as a toast or an alert, and the proposal's own verdicts stay", async () => {
     const broken = link(1, end(2, "tp-b"), end(50, "Checkout page"), "OK", "VIOLATED");
     proposalAnswer = jsonResponse(200, proposalOf({ dependencies: [broken] }));

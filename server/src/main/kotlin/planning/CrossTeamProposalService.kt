@@ -129,15 +129,18 @@ internal suspend fun CrossTeamSnapshot.assembleProposal(revision: Long, asOf: Lo
 
 /**
  * The check document of the hypothetical spans [items] describe over this snapshot, one block per team of [teamIds] in that order
- * ([ScheduleKernels.checkMany]; a 400 for an item whose milestone is not on a run team, [hypotheticalSpans]).
+ * ([ScheduleKernels.checkMany]; a 400 for an item whose milestone is not on a run team, [hypotheticalSpans]) and the projects whose
+ * span those spans change ([SpanKernels.projectSpanChanges] over them, exactly the run's own derivation, in the same snapshot).
  */
 internal suspend fun CrossTeamSnapshot.checkResponse(teamIds: List<UInt>, items: List<ValidatedBatchItem>): ScheduleCheckResponse {
-    val checks = ScheduleKernels.checkMany(checkInputs(), hypotheticalSpans(items))
+    val spans = hypotheticalSpans(items)
+    val checks = ScheduleKernels.checkMany(checkInputs(), spans)
     return ScheduleCheckResponse(
-        teamIds.map { teamId ->
+        teams = teamIds.map { teamId ->
             val check = checks.getValue(teamId)
             ScheduleCheckTeam(teamId, check.weeks.map { it.toView() }, check.weeksTruncated, proposalLinks(links, check))
         },
+        projects = proposalProjects(SpanKernels.projectSpanChanges(plan, spans, calendar)),
     )
 }
 

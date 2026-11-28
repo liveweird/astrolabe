@@ -106,7 +106,7 @@ const proposalBarOf = (proposed: ReadonlyMap<number, TimelineBarData>, milestone
  * inside the page's `TimelineDndContext`. Nothing here decides rights or checks — the view's `can` flags and the server's `check` do.
  *
  * With a `proposal` the timeline PREVIEWS it, read-only: every moved milestone that has a row gets a second, proposal-toned bar
- * beside its current one, a tray milestone the proposal schedules gets a row APPENDED after the scheduled ones (only the proposal bar,
+ * beside its current one (the proposal's `drawn` moves only, 1.38: an unticked move of the viewer's has none, its row stays), a tray milestone the proposal schedules gets a row APPENDED after the scheduled ones (only the proposal bar,
  * "(new)" after its name), the strip shows the proposed load instead, the current bars lose their handles, the row handles are gone and
  * the idle bands (about the current schedule) are not drawn. Arrows stay on the current bars; none ends on a proposal bar.
  *
@@ -176,7 +176,7 @@ export default function TeamTimeline({
     const slack = milestone === null ? (own ?? "") : <SlackCell key="slack" slackDays={milestone.slackDays} critical={milestone.critical} />;
     return [...cells.slice(0, -1), ...(flagsColumn ? [flags] : []), ...(criticalPath ? [slack] : []), ...cells.slice(-1)];
   };
-  const proposed = proposalBars(proposal?.moves ?? [], t);
+  const proposed = proposalBars(proposal?.drawn ?? proposal?.moves ?? [], t);
   const columns: TimelineColumn[] = [
     { id: "name", header: t("project.column.milestone"), width: COLUMN_WIDTHS.name },
     { id: "project", header: t("teams.view.column.project"), width: COLUMN_WIDTHS.project, hideable: true },

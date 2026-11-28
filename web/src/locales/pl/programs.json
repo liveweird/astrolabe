@@ -90,6 +90,8 @@
     "projectsTitle": "Projekty, których terminy by się przesunęły",
     "noProjectMoves": "Terminy żadnego projektu by się nie przesunęły.",
     "newly": "Nowo zaplanowany",
+    "stays": "Bez zmian",
+    "wontMove": "Nie przesunie się",
     "endSame": "Koniec bez zmian",
     "column": {
       "project": "Projekt",

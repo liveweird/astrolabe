@@ -70,6 +70,8 @@
     "projectsTitle": "Projects whose dates would move",
     "noProjectMoves": "No project's dates would move.",
     "newly": "Newly scheduled",
+    "stays": "Unchanged",
+    "wontMove": "Would not move",
     "endSame": "End unchanged",
     "column": {
       "project": "Project",

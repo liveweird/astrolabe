@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next";
-import type { ScheduleCheckTeam } from "../api/scheduleProposals";
+import type { CrossTeamProposal, ScheduleCheckTeam } from "../api/scheduleProposals";
 import type { ScheduleProposal, ScheduleProposalEnd, ScheduleProposalLink, ScheduleProposalMove, SkippedSchedule, TeamScheduleBatchResponse } from "../api/teams";
 import type { TimelineBarData } from "./timelineModel";
 
@@ -12,7 +12,10 @@ import type { TimelineBarData } from "./timelineModel";
  * The part of a proposal the team timeline draws: the moved milestones' proposed spans and the weekly load AFTER accepting the ticked
  * ones. `weeks` is absent when nothing is ticked: the strip then keeps the current load.
  */
-export type TeamProposalView = Pick<ScheduleProposal, "moves"> & Partial<Pick<ScheduleProposal, "weeks">>;
+export type TeamProposalView = Pick<ScheduleProposal, "moves"> & Partial<Pick<ScheduleProposal, "weeks">> & {
+  /** The moves that get a dashed bar (`drawnMoves`: the ticked ones and those the viewer cannot tick); absent = every move. The rows and the range keep covering `moves`. */
+  drawn?: readonly ScheduleProposalMove[];
+};
 
 /** What the proposal table reads: the figures, the moves, the unplaced rows and the link verdicts - never the revision, hash, team or weeks. */
 export type ProposalContent = Pick<ScheduleProposal, "asOf" | "moves" | "unchanged" | "unplaced" | "pinned" | "dependencies">;
@@ -50,6 +53,13 @@ function proposalBar(move: ScheduleProposalMove, t: TFunction): TimelineBarData 
     tone: "proposal",
   };
 }
+
+/**
+ * The moves that keep a dashed bar (1.38): the TICKED ones and those the viewer cannot tick (`tickable` = the ids they may; absent = every move is theirs to tick,
+ * the team page). An unticked move of the viewer's draws none: its row and table entry stay, so nothing jumps under the pointer.
+ */
+export const drawnMoves = (moves: readonly ScheduleProposalMove[], selected: ReadonlySet<number>, tickable?: ReadonlySet<number>): ScheduleProposalMove[] =>
+  moves.filter((move) => selected.has(move.milestoneId) || (tickable !== undefined && !tickable.has(move.milestoneId)));
 
 /** The proposal bars by milestone id (a second bar in the milestone's row). */
 export function proposalBars(moves: readonly ScheduleProposalMove[], t: TFunction): Map<number, TimelineBarData> {
@@ -140,6 +150,8 @@ export function outcomeSentence(outcome: ProposalOutcome, t: TFunction): string 
 export type ScheduleCheckState = {
   mode: "all" | "some" | "none";
   byTeam: ReadonlyMap<number, Pick<ScheduleCheckTeam, "weeks" | "weeksTruncated" | "dependencies">> | null;
+  /** The projects whose span the ticked moves change (`some`, once answered; else `null`): `overlayProjects` reads it. */
+  projects: CrossTeamProposal["projects"] | null;
   /** The ticks changed (or the answer is on its way): the verdicts shown are the proposal's own. */
   pending: boolean;
   /** The check for the current ticks failed: the verdicts shown are the proposal's own. */

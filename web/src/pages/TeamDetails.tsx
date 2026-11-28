@@ -55,7 +55,7 @@ import { jiraPageRange, jiraScheduleDates } from "../utils/jiraBars";
 import { teamMarks } from "../utils/jiraMarks";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { loadErrorMessage } from "../utils/saveError";
-import { overlayCheck, proposalDays } from "../utils/scheduleProposal";
+import { drawnMoves, overlayCheck, proposalDays } from "../utils/scheduleProposal";
 import { growSeenRange, type SeenRange } from "../utils/seenRange";
 import { chainDays } from "../utils/teamChain";
 import { teamsPath } from "../utils/teamLinks";
@@ -229,7 +229,7 @@ function TeamPage({ id }: { id: number }) {
               busy={busy}
               actions={actions}
               label={t("teams.view.timelineAria")}
-              proposal={shown ?? undefined}
+              proposal={shown === null ? undefined : { ...shown, drawn: drawnMoves(shown.moves, proposal.selected) }}
               jira={jiraWindowNow}
               criticalPath={criticalPath}
               timelineRef={timelineRef}

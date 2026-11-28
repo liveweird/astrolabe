@@ -119,6 +119,7 @@ const RUN: CrossTeamProposal = {
 let project: ProjectViewDocument;
 let rights: { id: number; name: string }[];
 let runAnswer: () => unknown;
+let checkAnswer: () => unknown;
 let mockFetch: ReturnType<typeof routeFetch>;
 
 beforeEach(() => {
@@ -129,6 +130,7 @@ beforeEach(() => {
   rights = TEAMS;
   dndProps = null;
   runAnswer = () => RUN;
+  checkAnswer = () => ({ teams: [] });
   mockFetch = routeFetch({
     "GET /api/v1/views/project/7": () => project,
     "GET /api/v1/public-holidays": { items: [] },
@@ -137,7 +139,7 @@ beforeEach(() => {
     "GET /api/v1/baselines": { items: [], can: { manage: false } },
     "GET /api/v1/schedule-proposals/teams": () => ({ items: rights, truncated: false }),
     "POST /api/v1/schedule-proposals": () => runAnswer(),
-    "POST /api/v1/schedule-proposals/check": { teams: [] },
+    "POST /api/v1/schedule-proposals/check": () => checkAnswer(),
     "POST /api/v1/schedule-proposals/accept": { revision: 13, accepted: [1, 2, 3], skipped: [] },
     "PUT /api/v1/milestones/:id/schedule": () => ({ revision: 11 }),
   });
@@ -322,6 +324,61 @@ describe("what the open proposal draws", () => {
     expect(rowsOf()).toEqual(before);
     await waitFor(() => expect(proposeButton()).toHaveFocus());
     expect(bodies("POST", RUN_URL)).toHaveLength(1);
+  });
+});
+
+describe("the dashed bars and the end follow the ticks (1.38)", () => {
+  const summaryBars = () => proposalBars().filter((label) => label?.startsWith("Proposed: Invoices"));
+  const rowTexts = () => within(grid()).getAllByRole("row").map((row) => row.textContent ?? "");
+
+  test("an unticked move loses its bar but keeps its row; the summary bar and the sentence become the server's answer for the ticked moves", async () => {
+    // Rollout (the tray milestone the run places) unticked: the project then ends with Discovery, as the check says
+    checkAnswer = () => ({
+      teams: [],
+      projects: [{ projectId: 7, name: "Invoices", before: { start: "2027-01-04", end: "2027-01-15" }, after: { start: "2027-01-11", end: "2027-01-22" }, endShiftDays: 5 }],
+    });
+    const user = userEvent.setup();
+    await proposed(user);
+    expect(proposalBars()).toHaveLength(4);
+    await user.click(screen.getByRole("checkbox", { name: "Accept Rollout" }));
+    expect(proposalBars().join("|")).not.toMatch(/Rollout/);
+    expect(proposalBars()).toHaveLength(3);
+    expect(rowTexts().some((text) => text.includes("Rollout") && text.includes("(new)"))).toBe(true);
+    expect(screen.getByRole("checkbox", { name: "Accept Rollout" })).not.toBeChecked();
+    await waitFor(() => expect(summaryBars()).toEqual(["Proposed: Invoices, 2027-01-11 to 2027-01-22, read-only"]));
+    // the sentence speaks of the ticked moves now, not of every team's
+    expect(screen.getByText("If the ticked moves are accepted, the project would end on 2027-01-22 instead of 2027-01-15, 5 working days later.")).toBeInTheDocument();
+    expect(screen.queryByText(/If every team's moves are accepted/)).toBeNull();
+    // ticking it again is every move ticked: the run's own span, no further request needed
+    await user.click(screen.getByRole("checkbox", { name: "Accept Rollout" }));
+    expect(summaryBars()).toEqual(["Proposed: Invoices, 2027-01-11 to 2027-01-29, read-only"]);
+    expect(proposalBars()).toHaveLength(4);
+    expect(screen.getByText("If every team's moves are accepted, the project would end on 2027-01-29 instead of 2027-01-15, 10 working days later.")).toBeInTheDocument();
+  });
+
+  test("while the check is on its way the run's own span stays; nothing ticked: no dashed bar at all, no project move, every row stays", async () => {
+    const user = userEvent.setup();
+    await proposed(user);
+    const rows = rowTexts();
+    await user.click(screen.getByRole("checkbox", { name: "Accept Rollout" }));
+    // the check has not been asked yet (300 ms debounce): the run's span
+    expect(summaryBars()).toEqual(["Proposed: Invoices, 2027-01-11 to 2027-01-29, read-only"]);
+    await user.click(screen.getByRole("checkbox", { name: "Accept Discovery" }));
+    await user.click(screen.getByRole("checkbox", { name: "Accept Build" }));
+    expect(proposalBars()).toEqual([]);
+    expect(rowTexts()).toEqual(rows);
+    expect(screen.getByText("The project's dates would not change.")).toBeInTheDocument();
+  });
+
+  test("a move of a team the viewer cannot tick keeps its dashed bar whatever is ticked, and the summary span stays the run's", async () => {
+    rights = [TEAMS[0]];
+    const user = userEvent.setup();
+    await proposed(user);
+    await user.click(screen.getByRole("checkbox", { name: "Accept Discovery" }));
+    await user.click(screen.getByRole("checkbox", { name: "Accept Rollout" }));
+    // Alpha's two moves are unticked; Beta's Build is not the viewer's to tick, so it stays drawn. The check answers for the ticked moves alone, so a viewer who may not tick every
+    // move of the project keeps the run's own summary span.
+    expect(proposalBars().sort()).toEqual(["Proposed: Build, 2027-01-11 to 2027-01-15, read-only", "Proposed: Invoices, 2027-01-11 to 2027-01-29, read-only"]);
   });
 });
 

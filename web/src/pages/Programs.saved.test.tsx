@@ -22,6 +22,12 @@ const STORED_CHECK = {
     { teamId: 2, weeks: [], weeksTruncated: false, dependencies: [] },
     { teamId: 3, weeks: [], weeksTruncated: false, dependencies: [] },
   ],
+  // a2 stays unticked: Taxes ends where b1 puts it, its start stays.
+  projects: [
+    { projectId: 1, name: "Invoices", before: { start: "2042-03-02", end: "2042-04-10" }, after: { start: "2042-03-09", end: "2042-04-17" }, endShiftDays: 5 },
+    { projectId: 2, name: "Taxes", before: { start: "2042-05-04", end: "2042-06-05" }, after: { start: "2042-05-04", end: "2042-06-19" }, endShiftDays: 10 },
+    { projectId: 3, name: "Dashboards", before: { start: "2042-08-03", end: "2042-09-04" }, after: { start: "2042-08-10", end: "2042-09-11" }, endShiftDays: 5 },
+  ],
 };
 const CURRENT: SavedProposalRecord = {
   ...SAVED_RECORD,
@@ -93,7 +99,7 @@ beforeEach(() => {
       return runAnswer;
     },
     [`POST ${ACCEPT_URL}`]: () => acceptAnswer,
-    [`POST ${CHECK_URL}`]: { teams: STORED_CHECK.teams.map((team) => ({ ...team, weeks: [week("2042-01-05", 4)] })) },
+    [`POST ${CHECK_URL}`]: { teams: STORED_CHECK.teams.map((team) => ({ ...team, weeks: [week("2042-01-05", 4)] })), projects: STORED_CHECK.projects },
   });
   vi.stubGlobal("fetch", mockFetch);
   localStorage.setItem("astrolabe.auth.token", "fake-token");
@@ -104,6 +110,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
   localStorage.clear();
 });
+
+/** The "after" cell of Taxes in "Projects whose dates would move". */
+const taxesAfter = () => {
+  const row = within(screen.getByRole("table", { name: "Projects whose dates would move" })).getAllByRole("row").find((r) => r.textContent?.startsWith("Taxes"));
+  return row === undefined ? null : within(row).getAllByRole("cell")[2].textContent;
+};
 
 /** The overview at the saved proposal's address; resolves once the run is open. */
 async function opened(route = "/roadmap?mode=overview&proposal=5", queryClient?: QueryClient) {
@@ -133,8 +145,18 @@ describe("a saved proposal the viewer may accept", () => {
     expect(screen.getByRole("table", { name: "Projects whose dates would move" })).toBeInTheDocument();
     // the stored ticks are the stored check's: no live check is asked
     expect(posts(CHECK_URL)).toEqual([]);
+    // the project spans are the stored check's `projects` (a2 stays unticked, so Taxes keeps its start), not the run's
+    expect(taxesAfter()).toBe("2042-05-04 to 2042-06-19");
     expect(screen.getAllByRole("status").map((region) => region.textContent).join(" ")).toContain("Saved proposal “Q1 plan” opened.");
     expect(where()).toBe("?mode=overview&proposal=5");
+  });
+
+  test("a viewer who may accept nothing still sees a saved partial selection's project spans from its stored check (the save was complete: every team)", async () => {
+    rights = [];
+    record = { ...CURRENT, can: { accept: false, delete: true } };
+    await opened();
+    expect(taxesAfter()).toBe("2042-05-04 to 2042-06-19");
+    expect(posts(CHECK_URL)).toEqual([]);
   });
 
   test("a changed tick asks the server's live check; the stored ticks are the stored check again with no further request", async () => {
@@ -449,7 +471,7 @@ describe("opening from the list", () => {
       "GET /api/v1/schedule-proposals/teams": () => ({ items: rights, truncated: false }),
       [`GET ${SAVED_URL}`]: { items: [SAVED, second] },
       [`GET ${SAVED_URL}/:id`]: (call) => (call.params.id === "5" ? CURRENT : { ...CURRENT, id: 6, name: "Q2 plan" }),
-      [`POST ${CHECK_URL}`]: { teams: STORED_CHECK.teams },
+      [`POST ${CHECK_URL}`]: { teams: STORED_CHECK.teams, projects: STORED_CHECK.projects },
     });
     vi.stubGlobal("fetch", mockFetch);
     const user = userEvent.setup();

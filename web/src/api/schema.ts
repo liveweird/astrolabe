@@ -1350,7 +1350,7 @@ export interface paths {
         put?: never;
         /**
          * Check the link verdicts and the weekly load for the ticked subset of a proposal (a computation, nothing is stored)
-         * @description Computes which dependency links would be violated, and how loaded each week would be, if only the given `items` were accepted: the ticked subset of a proposal. Nothing is written and the plan revision does not move. Any authenticated caller; order as for the run: the body decodes first, `teamIds` shape `400`, every listed team active else `404` (naming the missing ids), then the rest of the shape `400`; a milestone that is not an active milestone of a listed team is `400` too. Each listed team's dates are its stored dates with exactly the items applied (an item without dates removes the milestone's); every other milestone keeps its stored dates, so a successor ticked without its predecessor is judged against the predecessor's stored dates. There is no `asOf`. The verdicts are the proposal's own, so the answer for a proposal's dates equals its `weeks` and `dependencies`; items an accept would skip (`STALE`, `NO_WORKING_DAY`) are not anticipated.
+         * @description Computes which dependency links would be violated, and how loaded each week would be, if only the given `items` were accepted: the ticked subset of a proposal. Nothing is written and the plan revision does not move. Any authenticated caller; order as for the run: the body decodes first, `teamIds` shape `400`, every listed team active else `404` (naming the missing ids), then the rest of the shape `400`; a milestone that is not an active milestone of a listed team is `400` too. Each listed team's dates are its stored dates with exactly the items applied (an item without dates removes the milestone's); every other milestone keeps its stored dates, so a successor ticked without its predecessor is judged against the predecessor's stored dates. There is no `asOf`. The verdicts are the proposal's own, so the answer for a proposal's dates equals its `weeks` and `dependencies`; `projects` lists the projects whose derived span those dates change, as the run's own `projects` does (the ticked items' dates, the stored dates of every other milestone; a project the items leave with no dates is not listed); items an accept would skip (`STALE`, `NO_WORKING_DAY`) are not anticipated.
          */
         post: operations["checkCrossTeamSchedule"];
         delete?: never;
@@ -5486,6 +5486,8 @@ export interface components {
         ScheduleCheckResponse: {
             /** @description One block per requested team, in the REQUEST's order. */
             teams: components["schemas"]["ScheduleCheckTeam"][];
+            /** @description The projects whose derived span the ticked items would change, ascending by id; none when no project's span changes. Computed as the run's `projects` is, over every milestone of the project: the ticked items' dates, the stored dates of every other one. */
+            projects: components["schemas"]["ScheduleProposalProject"][];
         };
         /** @description One team's verdicts for the dates the ticked items would give the listed teams. */
         ScheduleCheckTeam: {

@@ -13,7 +13,7 @@ import TeamNameCell from "./TeamNameCell";
 
 /**
  * The project timeline while a schedule proposal previews (1.33): the rows `ProjectTimeline` built, made read-only (no bar is editable), each moved milestone's row given a
- * second dashed bar (the team page's idiom, the whole run's moves of THIS project whatever is ticked), the summary row given the project's proposed span
+ * second dashed bar (the team page's idiom: the `drawn` moves of THIS project - the ticked ones and those the viewer cannot tick, 1.38), the summary row given the project's proposed span
  * (`proposal:project`), and a "(new)" row appended for every tray milestone the run places (proposal bar only). The idle bands are the caller's to drop.
  */
 export function previewRows(
@@ -23,7 +23,7 @@ export function previewRows(
   t: TFunction,
   { colours, flagsColumn, criticalPath }: { colours: ReadonlyMap<number, TeamColour>; flagsColumn: boolean; criticalPath: boolean },
 ): TimelineRowData[] {
-  const proposed = proposalBars(preview.moves, t);
+  const proposed = proposalBars(preview.drawn ?? preview.moves, t);
   const summary = projectRowId(view.project.id);
   const dashed = preview.project === undefined ? undefined : proposedSpanBar("project", view.project.name, preview.project.after, t);
   const drawn = rows.map((row) => {

@@ -345,6 +345,8 @@ class ScheduleCheckTest {
                 assertEquals(block.weeksTruncated, verdict.weeksTruncated)
                 assertEquals(block.dependencies, verdict.dependencies, "dependencies of ${block.teamId}")
             }
+            assertTrue(run.projects.isNotEmpty(), "the run moves the project's span")
+            assertEquals(run.projects, answer.projects, "every move ticked: the projects are the run's own")
         }
 
     @Test
@@ -369,5 +371,77 @@ class ScheduleCheckTest {
                 it.getString(1) to it.getString(2)
             },
         )
+    }
+
+    @Test
+    fun `the projects follow the ticked subset - each tick's span, the stored dates of the rest, none when nothing changes`() =
+        testApplication {
+            val r = pairWorld("scj")
+            val admin = r.w.admin.client
+            val other = TestPlan.project(r.w.programId, r.w.projectOwner.personId!!)
+            val x1 = TestPlan.milestone(other, r.t.teamId, planName("x1"), 2.0)
+            val a1Move = item(r.a1, "2027-02-01", "2027-02-02")
+            val b1Move = item(r.b1, "2027-02-03", "2027-02-03")
+            val x1Move = item(x1, "2027-02-08", "2027-02-09")
+            fun ScheduleCheckResponse.spanOf(projectId: UInt) = projects.singleOrNull { it.projectId == projectId }
+
+            // Both pair moves ticked: the project's span is the run's (a1 stored 03-01..03-02 before, b1 unscheduled).
+            val both = admin.verdicts(r.both, listOf(a1Move, b1Move))
+            assertEquals(listOf(r.w.projectId), both.projects.map { it.projectId })
+            val whole = both.projects.single()
+            assertEquals("2027-03-01", whole.before?.start)
+            assertEquals("2027-03-02", whole.before?.end)
+            assertEquals("2027-02-01", whole.after.start)
+            assertEquals("2027-02-03", whole.after.end)
+            assertTrue(whole.name.isNotBlank() && (whole.endShiftDays ?: 0) < 0, "named, and the end moves earlier")
+
+            // a1 alone: b1 keeps its stored (no) dates, so the project is a1's span. b1 alone: a1 keeps its stored dates.
+            val first = admin.verdicts(r.both, listOf(a1Move)).spanOf(r.w.projectId)
+            assertEquals("2027-02-01" to "2027-02-02", first?.after?.start to first?.after?.end)
+            val second = admin.verdicts(r.both, listOf(b1Move)).spanOf(r.w.projectId)
+            assertEquals("2027-02-03" to "2027-03-02", second?.after?.start to second?.after?.end)
+
+            // A tick of another project lists that project (newly scheduled: no before, no shift) and no other.
+            val elsewhere = admin.verdicts(r.both, listOf(x1Move))
+            assertEquals(listOf(other), elsewhere.projects.map { it.projectId })
+            assertEquals(null, elsewhere.projects.single().before)
+            assertEquals(null, elsewhere.projects.single().endShiftDays)
+            val twoTicks = admin.verdicts(r.both, listOf(x1Move, a1Move))
+            assertEquals(listOf(r.w.projectId, other).sorted(), twoTicks.projects.map { it.projectId })
+
+            // No move changes a span: the items are the stored dates, so no project is listed.
+            assertEquals(emptyList(), admin.verdicts(r.both, listOf(item(r.a1, "2027-03-01", "2027-03-02"))).projects)
+        }
+
+    @Test
+    fun `an unschedule pair shrinks the project's span, or leaves it unlisted when nothing else of it has dates`() = testApplication {
+        val r = pairWorld("scq")
+        val admin = r.w.admin.client
+        val late = TestPlan.milestone(r.w.projectId, r.t.teamId, planName("late"), 2.0)
+        TestPlan.schedule(late, "2027-04-01", "2027-04-02")
+
+        // a1 (03-01..03-02) unscheduled while `late` keeps 04-01..04-02: the span shrinks to `late`'s, the end moves later.
+        val shrunk = admin.verdicts(r.both, listOf(item(r.a1, null, null))).projects.single()
+        assertEquals(r.w.projectId, shrunk.projectId)
+        assertEquals("2027-03-01" to "2027-04-02", shrunk.before?.start to shrunk.before?.end)
+        assertEquals("2027-04-01" to "2027-04-02", shrunk.after.start to shrunk.after.end)
+        assertTrue((shrunk.endShiftDays ?: 0) == 0, "both end on 04-02: only the start moves")
+
+        // Both dated milestones unscheduled: nothing of the project has dates, so the project is not listed.
+        val none = admin.verdicts(r.both, listOf(item(r.a1, null, null), item(late, null, null)))
+        assertEquals(emptyList(), none.projects)
+    }
+
+    @Test
+    fun `a milestone of a team outside the request keeps its stored dates in the project's span`() = testApplication {
+        val r = pairWorld("scy")
+        val admin = r.w.admin.client
+        val outside = TestTeams.seed(planName("scy-out"), null)
+        val o1 = TestPlan.milestone(r.w.projectId, outside, planName("o1"), 2.0)
+        TestPlan.schedule(o1, "2027-05-03", "2027-05-04")
+
+        val listed = admin.verdicts(listOf(r.t.teamId), listOf(item(r.a1, "2027-02-01", "2027-02-02"))).projects.single()
+        assertEquals("2027-03-01" to "2027-05-04", listed.before?.start to listed.before?.end)
+        assertEquals("2027-02-01" to "2027-05-04", listed.after.start to listed.after.end, "a1 moved, o1 (outside team) stays stored")
     }
 }

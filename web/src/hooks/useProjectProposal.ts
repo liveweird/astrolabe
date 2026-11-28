@@ -3,12 +3,14 @@ import { useTranslation } from "react-i18next";
 import type { ProjectView } from "../api/milestones";
 import type { MilestoneActions } from "../components/MilestoneMenu";
 import { previewDays, type ProjectPreview } from "../utils/planProposal";
+import { drawnMoves } from "../utils/scheduleProposal";
 import { movesOf, useCrossTeamProposal } from "./useCrossTeamProposal";
 import { useProposalFocus } from "./useProposalFocus";
 import { useProposalLock } from "./useProposalLock";
 import { useProposalRights } from "./useProposalRights";
 import { MAX_RUN_TEAMS, useRunTeams } from "./useRunTeams";
 import { useScheduleCheck } from "./useScheduleCheck";
+import { useTickedProjects } from "./useTickedProjects";
 
 /**
  * The project page's schedule proposal (1.33): ONE cross-team run over the teams that work on the project's milestones (the distinct teams of its scheduled and unscheduled
@@ -46,9 +48,18 @@ export function useProjectProposal(projectId: number, { view, announce, pending 
   const teamIds = runTeams.ids;
   const tooMany = teamIds.length > MAX_RUN_TEAMS;
   const milestoneIds = useMemo(() => new Set(milestones.map((milestone) => milestone.id)), [milestones]);
+  // The bars follow the ticks (1.38): a dashed bar for a ticked move and for one the viewer cannot tick, the summary span the server's own answer for the ticked moves (the last
+  // answer stays while a newer one is on its way). The check answers for the ticked moves alone, so the span follows the ticks only for a viewer who may tick EVERY move of this project.
+  const { selected, tickable, canAccept } = flow;
+  const projectMoves = useMemo(() => (run === null ? [] : movesOf(run).filter((move) => move.projectId === projectId)), [run, projectId]);
+  const ticksAll = canAccept && projectMoves.every((move) => tickable.has(move.milestoneId));
+  const followed = useTickedProjects(run, check, ticksAll);
+  // Every move of this project ticked IS the run's own entry (other projects' moves never touch this span), so the check's mode - counted over every move of the run - is not asked.
+  const everyTicked = ticksAll && projectMoves.every((move) => selected.has(move.milestoneId));
+  const entry = (everyTicked ? run?.projects : followed.projects)?.find((project) => project.projectId === projectId);
   const preview = useMemo<ProjectPreview | undefined>(
-    () => (run === null ? undefined : { moves: movesOf(run).filter((move) => move.projectId === projectId), project: run.projects.find((project) => project.projectId === projectId) }),
-    [run, projectId],
+    () => (run === null ? undefined : { moves: projectMoves, project: entry, drawn: drawnMoves(projectMoves, selected, tickable) }),
+    [run, projectMoves, entry, selected, tickable],
   );
   // The run's moves in other projects: how many, and the teams that carry them (the section names them, offers none).
   const others = useMemo(() => {
@@ -75,8 +86,10 @@ export function useProjectProposal(projectId: number, { view, announce, pending 
     others,
     /** What the timeline draws of the run (`undefined` while no run is open). */
     preview,
-    /** The dates the page's range must cover. */
-    days: previewDays(preview),
+    /** The summary span and the end sentence describe the TICKED moves (the server's check), not every move of the run. */
+    ticked: followed.ticked && !everyTicked,
+    /** The dates the page's range must cover: every move and the run's own span of the project, whatever is ticked (the range never moves under a tick). */
+    days: previewDays(preview === undefined ? undefined : { moves: preview.moves, project: run?.projects.find((project) => project.projectId === projectId) }),
     /** Propose may be clicked now. */
     proposable,
     /** A run is requested or open: the page's date writes are locked. */

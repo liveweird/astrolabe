@@ -44,9 +44,9 @@ object SpanKernels {
      * EVERY milestone of [plan] (the plan-wide facts, stored spans): `before` over the stored ones, `after` over each milestone's span
      * in [afterByTeam] (run team id -> milestone id -> span, `ScheduleProposalResult.spansAfter`; a run team's milestone absent from
      * its map has no dates) and, for a team OUTSIDE the run (no entry), its stored span. A project is listed only when `before !=
-     * after`; the end shift is in working days ([endShiftInWorkingDays]) and null when the project had no span before. A project the
-     * run would leave with no span at all is skipped: the kernel keeps every scheduled milestone dated, so it cannot occur. Pure; the
-     * order of [plan] does not matter.
+     * after`; the end shift is in working days ([endShiftInWorkingDays]) and null when the project had no span before. A project left
+     * with no span at all is skipped (a run's kernel keeps every scheduled milestone dated, so only the check, whose items may
+     * unschedule, can leave one: the project then simply is not listed). Pure; the order of [plan] does not matter.
      */
     internal fun projectSpanChanges(
         plan: Collection<PlanMilestoneFact>,

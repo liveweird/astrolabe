@@ -64,6 +64,7 @@ export function useScheduleCheck({
   return {
     mode,
     byTeam: some && settled && query.data ? new Map(query.data.teams.map((team) => [team.teamId, team])) : null,
+    projects: some && settled && query.data ? query.data.projects : null,
     pending: some && (!settled || query.isFetching || cancelled),
     failed: some && settled && query.isError && !query.data,
   };

@@ -53,9 +53,10 @@ The run, counted by hand on the Monday-to-Friday calendar (no holiday): team X i
    - *Expected*: both moves are ticked (**Accept selected (2)**) and team Y's table shows no "Conflict" badge.
 2. They untick x1.
    - *Expected*: the ticked-subset check request succeeds; the button reads **Accept selected (1)**; y1's Links cell shows the red "Conflict" badge and
-     "would violate: must start on 2048-03-04 or later (link from <project> › <x1>)" — x1 stays in March and ends 03-03, so y1 at 01-08 would precede it.
+     "would violate: must start on 2048-03-04 or later (link from <project> › <x1>)" — x1 stays in March and ends 03-03, so y1 at 01-08 would precede it; the "Projects whose dates would move"
+     table follows the tick (the server's answer for the ticked moves): the project's row stays and its proposed span reads 2048-01-08 to 2048-03-03.
 3. They tick x1 again.
-   - *Expected*: the button reads **(2)** again; every move is ticked, so the run's own verdicts are exact (no check request) and y1's row carries no badge and no "must start on".
+   - *Expected*: the button reads **(2)** again; every move is ticked, so the run's own verdicts are exact (no check request), the table reads 2048-01-06 to 2048-01-08 again, and y1's row carries no badge and no "must start on".
 
 ## Scenario: a manager of one team accepts that team's moves alone, and the other team's section is a preview
 

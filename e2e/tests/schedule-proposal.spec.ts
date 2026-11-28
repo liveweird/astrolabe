@@ -218,6 +218,12 @@ test("the manager accepts some of the proposal and the rest stays as it was", as
   await expect(table.getByRole("checkbox", { name: `Accept ${world.a.name}` })).toBeChecked();
   await expect(table.getByRole("checkbox", { name: `Accept ${world.c.name}` })).toBeChecked();
   await expect(table.getByRole("checkbox", { name: "Accept all" })).toHaveJSProperty("indeterminate", true);
+  // The dashed bars follow the ticks: b's is gone while its row and its table entry stay, a's and c's stay.
+  await expect(page.locator('[data-tone="proposal"]')).toHaveCount(2);
+  await expect(page.getByRole("img", { name: new RegExp(`^Proposed: ${world.b.name}, `) })).toHaveCount(0);
+  await expect(page.getByRole("img", { name: new RegExp(`^Proposed: ${world.a.name}, `) })).toBeVisible();
+  await expect(page.getByRole("img", { name: new RegExp(`^Proposed: ${world.c.name}, `) })).toBeVisible();
+  await expect(table.getByRole("checkbox", { name: `Accept ${world.b.name}` })).not.toBeChecked();
   await accept(page, 2);
 
   // a and c landed at their proposed dates; b is still in the tray, and its link to c reads nothing (an unscheduled end is no conflict).

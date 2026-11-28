@@ -40,9 +40,11 @@ Wednesday 01-06, exactly eight weeks, 40 working days earlier.
    - *Expected*: the run opens with the same sentence about the project's end; **Accept selected (1)**: `y1` is ticked, team X's section is collapsed and read-only.
 2. They read team Y's section.
    - *Expected*: the check answers for exactly the ticked move: `x1` stays in March, so `y1`'s row shows the red "Conflict" ("must start on 2049-03-04 or later") - a warning, not a refusal.
-3. They look at the tray.
+3. They untick `y1`, then tick it again.
+   - *Expected*: unticked, `y1`'s dashed bar is gone (two dashed bars are left: `x1`'s, which is team X's and not the viewer's to tick, and the summary row's) while its "(new)" row stays; ticked again, the three dashed bars are back and the button reads **Accept selected (1)**.
+4. They look at the tray.
    - *Expected*: `y1`'s **Schedule** button is disabled while the proposal is open.
-4. They press **Accept selected (1)**.
+5. They press **Accept selected (1)**.
    - *Expected*: one request naming both run teams and team Y alone as the accepted one, with one item (`y1`); the answer holds one accepted and no skipped milestone; the note "1 scheduled" is shown and
      the section and the dashed bars are gone; the API shows `y1` on 2049-01-06 and `x1` still on 2049-03-02 to 2049-03-03.
 

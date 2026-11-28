@@ -23,6 +23,7 @@ import io.ktor.server.testing.testApplication
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -95,6 +96,8 @@ class SavedProposalTest {
             .body<ScheduleCheckResponse>()
         val record = s.both.client.get("$SAVED_PATH/${summary.id}").body<SavedProposalRecord>()
         assertEquals(expected, record.check)
+        assertEquals(expected.projects, record.check?.projects, "the stored check carries the ticked subset's project spans")
+        assertNotEquals(run.projects, record.check?.projects, "b2 stays unticked, so the project's end is not the run's")
         assertEquals(ticked.sorted(), record.selectedMilestoneIds)
     }
 

@@ -118,7 +118,7 @@ export default function OverviewProposalSection({ proposal, announce, onShowAll 
             {t("programs.proposal.intro")}
           </Text>
           <OutsidePickNote count={proposal.outside} onShowAll={onShowAll} />
-          <OverviewProposalProjects projects={run.projects} />
+          <OverviewProposalProjects projects={run.projects} moving={proposal.projects} />
           <CrossTeamRunView
             run={run}
             check={check}

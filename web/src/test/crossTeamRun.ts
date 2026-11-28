@@ -88,6 +88,6 @@ export const SAVED_RECORD: SavedProposalRecord = {
   state: "CURRENT",
   selectedMilestoneIds: [11, 21],
   proposal: RUN,
-  check: { teams: [{ teamId: 1, weeks: [week("2042-01-05", 2)], weeksTruncated: false, dependencies: [] }, { teamId: 2, weeks: [week("2042-01-12", 8)], weeksTruncated: false, dependencies: [] }] },
+  check: { teams: [{ teamId: 1, weeks: [week("2042-01-05", 2)], weeksTruncated: false, dependencies: [] }, { teamId: 2, weeks: [week("2042-01-12", 8)], weeksTruncated: false, dependencies: [] }], projects: [{ projectId: 7, name: "Invoices", before: { start: "2042-01-06", end: "2042-01-14" }, after: { start: "2042-01-06", end: "2042-01-08" }, endShiftDays: -4 }] },
   can: { accept: true, delete: true },
 };

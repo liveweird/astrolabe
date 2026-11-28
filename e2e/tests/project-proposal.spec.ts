@@ -183,6 +183,17 @@ test("the manager of one of the project's two teams accepts only their move: the
     await expect(y1.getByText("Conflict", { exact: true })).toBeVisible();
     await expect(y1).toContainText("must start on 2049-03-04 or later");
 
+    // The dashed bars follow the ticks: y1 unticked loses its bar (its "(new)" row stays), x1 is team X's, not the viewer's to tick, so it keeps its bar, and ticking y1 again brings its bar back.
+    await expect(page.locator('[data-tone="proposal"]')).toHaveCount(3);
+    await page.getByRole("checkbox", { name: `Accept ${world.y1.name}` }).uncheck();
+    await expect(page.locator('[data-tone="proposal"]')).toHaveCount(2);
+    await expect(page.getByRole("img", { name: new RegExp(`^Proposed: ${world.y1.name}, `) })).toHaveCount(0);
+    await expect(page.getByRole("img", { name: new RegExp(`^Proposed: ${world.x1.name}, `) })).toBeVisible();
+    await expect(timelineRow(page, world.y1).filter({ hasText: "(new)" })).toBeVisible();
+    await page.getByRole("checkbox", { name: `Accept ${world.y1.name}` }).check();
+    await expect(page.locator('[data-tone="proposal"]')).toHaveCount(3);
+    await expect(acceptButton(page, 1)).toBeVisible();
+
     // While the proposal is open the date writes are locked: the tray's Schedule button is off.
     await expect(page.getByRole("button", { name: `Schedule ${world.y1.name}`, exact: true })).toBeDisabled();
 

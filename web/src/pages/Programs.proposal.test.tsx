@@ -40,12 +40,14 @@ function dragWindow(project: RoadmapProject, days: number) {
 let view: ProgramsView;
 let rights: { id: number; name: string }[];
 let runAnswer: () => unknown;
+let checkAnswer: () => unknown;
 let mockFetch: ReturnType<typeof routeFetch>;
 
 beforeEach(() => {
   view = viewOf();
   rights = TEAMS;
   runAnswer = () => RUN;
+  checkAnswer = () => ({ teams: [] });
   dndProps = null;
   mockFetch = routeFetch({
     "GET /api/v1/teams": TEAM_LIST,
@@ -55,7 +57,7 @@ beforeEach(() => {
     "GET /api/v1/saved-schedule-proposals": { items: [] },
     "GET /api/v1/schedule-proposals/teams": () => ({ items: rights, truncated: false }),
     "POST /api/v1/schedule-proposals": () => runAnswer(),
-    "POST /api/v1/schedule-proposals/check": { teams: [] },
+    "POST /api/v1/schedule-proposals/check": () => checkAnswer(),
     "POST /api/v1/schedule-proposals/accept": { revision: 13, accepted: [11, 12, 21, 31], skipped: [] },
     "PUT /api/v1/projects/:id/target-window": () => new Response(null, { status: 204 }),
   });
@@ -228,6 +230,73 @@ describe("what the open proposal draws", () => {
       ["Dashboards", "2042-08-03 to 2042-09-04", "2042-08-10 to 2042-09-11", "5 working days later"],
     ]);
     expect(within(table).getByRole("link", { name: "Open project Taxes" })).toBeInTheDocument();
+  });
+
+  test("the bars and the table follow the ticks (1.38): unticking Gamma's only move takes the Dashboards and Reports bars off and the stream's end back to Reports' own, the table keeps its rows, from the server's check", async () => {
+    // g1 unticked: the server's answer for the other three moves
+    checkAnswer = () => ({ teams: [], projects: RUN.projects.slice(0, 2) });
+    const user = userEvent.setup();
+    await proposed(user);
+    expect(proposalBars()).toHaveLength(6);
+    await user.click(screen.getByRole("checkbox", { name: "Accept g1" }));
+    await waitFor(() => expect(proposalBars().sort()).toEqual([
+      "Proposed: Billing, 2042-03-09 to 2042-06-19, read-only",
+      "Proposed: Invoices, 2042-03-09 to 2042-04-17, read-only",
+      "Proposed: Platform, 2042-03-09 to 2042-09-04, read-only",
+      "Proposed: Taxes, 2042-04-27 to 2042-06-19, read-only",
+    ]));
+    // the table keeps the run's rows and their order: Dashboards stays, reading "Unchanged" (it sits above the ticks, so nothing jumps under the pointer)
+    const cells = () => within(screen.getByRole("table", { name: "Projects whose dates would move" })).getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent));
+    expect(cells()).toEqual([
+      ["Invoices", "2042-03-02 to 2042-04-10", "2042-03-09 to 2042-04-17", "5 working days later"],
+      ["Taxes", "2042-05-04 to 2042-06-05", "2042-04-27 to 2042-06-19", "10 working days later"],
+      ["Dashboards", "2042-08-03 to 2042-09-04", "Unchanged", "Would not move"],
+    ]);
+    // the move's own row stays in the section's table, unticked
+    expect(screen.getByRole("checkbox", { name: "Accept g1" })).not.toBeChecked();
+    // ticking it again is every move ticked: the run's projects
+    await user.click(screen.getByRole("checkbox", { name: "Accept g1" }));
+    expect(proposalBars()).toHaveLength(6);
+    expect(cells()[2]).toEqual(["Dashboards", "2042-08-03 to 2042-09-04", "2042-08-10 to 2042-09-11", "5 working days later"]);
+    // nothing ticked: no project moves, every row stays and says so (the "no project moves" sentence is for a run that moves none)
+    for (const all of screen.getAllByRole("checkbox", { name: "Accept all" })) await user.click(all);
+    expect(proposalBars()).toEqual([]);
+    expect(cells().map((row) => row[3])).toEqual(["Would not move", "Would not move", "Would not move"]);
+    expect(screen.queryByText("No project's dates would move.")).toBeNull();
+  });
+
+  test("while a newer check is on its way the LAST answered projects stay - nothing flashes back to the whole run between two ticks", async () => {
+    checkAnswer = () => ({ teams: [], projects: RUN.projects.slice(0, 2) });
+    const user = userEvent.setup();
+    await proposed(user);
+    await user.click(screen.getByRole("checkbox", { name: "Accept g1" }));
+    await waitFor(() => expect(proposalBars()).toHaveLength(4));
+    let release: (() => void) | null = null;
+    checkAnswer = () => new Promise((resolve) => (release = () => resolve({ teams: [], projects: RUN.projects.slice(0, 1) })));
+    await user.click(screen.getByRole("checkbox", { name: "Accept b1" }));
+    await waitFor(() => expect(bodies("POST", CHECK_URL)).toHaveLength(2));
+    // the answer for the new ticks is held: still the first answer's bars, never the run's six
+    expect(proposalBars()).toHaveLength(4);
+    expect(release).not.toBeNull();
+    await act(async () => (release as unknown as () => void)());
+    await waitFor(() => expect(proposalBars().sort()).toEqual([
+      "Proposed: Billing, 2042-03-09 to 2042-06-05, read-only",
+      "Proposed: Invoices, 2042-03-09 to 2042-04-17, read-only",
+      "Proposed: Platform, 2042-03-09 to 2042-09-04, read-only",
+    ]));
+  });
+
+  test("a manager of one run team previews the whole run: the server's answer covers the ticked moves alone, so the bars do not follow their ticks", async () => {
+    rights = [TEAMS[0]];
+    checkAnswer = () => ({ teams: [], projects: [] });
+    const user = userEvent.setup();
+    await proposed(user);
+    await user.click(screen.getByRole("checkbox", { name: "Accept a1" }));
+    await waitFor(() => expect(bodies("POST", CHECK_URL)).toHaveLength(1));
+    expect(bodies("POST", CHECK_URL)[0]).toMatchObject({ items: [{ milestoneId: 12 }] });
+    await waitFor(() => expect(screen.queryByText("Checking the ticked moves…")).toBeNull());
+    expect(proposalBars()).toHaveLength(6);
+    expect(within(screen.getByRole("table", { name: "Projects whose dates would move" })).getAllByRole("row")).toHaveLength(4);
   });
 
   test("a project the proposal newly schedules or only starts earlier is worded as such; a run that moves no project says so", async () => {

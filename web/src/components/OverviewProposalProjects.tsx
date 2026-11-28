@@ -21,9 +21,11 @@ function endShiftText(project: ProposedProject, t: TFunction): string {
 /**
  * "Projects whose dates would move" (1.33): the run's `projects[]` - the projects whose derived span the accepted run would change, each with its span now and after
  * and how many working days its END moves. The server computed every figure over every milestone of the project (the run teams' proposed dates, the stored dates
- * of any other team), so a project on a team outside the run is judged with its dates kept. The names are links; the table says nothing while no project moves.
+ * of any other team), so a project on a team outside the run is judged with its dates kept. The names are links; the table says nothing while the run moves no project.
+ * The ROWS and their order are the run's, whatever is ticked (the table sits above the ticks: nothing jumps); `moving` (1.38) are the entries the ticked moves still move, the
+ * server's own answer: a row whose project is not among them reads "Unchanged" / "Would not move".
  */
-export default function OverviewProposalProjects({ projects }: { projects: readonly ProposedProject[] }) {
+export default function OverviewProposalProjects({ projects, moving }: { projects: readonly ProposedProject[]; moving: readonly ProposedProject[] }) {
   const { t } = useTranslation();
   if (projects.length === 0) {
     return (
@@ -49,16 +51,19 @@ export default function OverviewProposalProjects({ projects }: { projects: reado
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {projects.map((project) => (
-              <Table.Tr key={project.projectId}>
-                <Table.Td>
-                  <EntityLink entity={{ kind: "project", id: project.projectId }} name={project.name} size="sm" fw={500} />
-                </Table.Td>
-                <Table.Td style={NO_WRAP}>{project.before === null ? t("teams.proposal.unscheduled") : t("teams.proposal.span", project.before)}</Table.Td>
-                <Table.Td style={NO_WRAP}>{t("teams.proposal.span", project.after)}</Table.Td>
-                <Table.Td>{endShiftText(project, t)}</Table.Td>
-              </Table.Tr>
-            ))}
+            {projects.map((row) => {
+              const project = moving.find((entry) => entry.projectId === row.projectId);
+              return (
+                <Table.Tr key={row.projectId}>
+                  <Table.Td>
+                    <EntityLink entity={{ kind: "project", id: row.projectId }} name={row.name} size="sm" fw={500} />
+                  </Table.Td>
+                  <Table.Td style={NO_WRAP}>{row.before === null ? t("teams.proposal.unscheduled") : t("teams.proposal.span", row.before)}</Table.Td>
+                  <Table.Td style={NO_WRAP}>{project === undefined ? t("programs.proposal.stays") : t("teams.proposal.span", project.after)}</Table.Td>
+                  <Table.Td>{project === undefined ? t("programs.proposal.wontMove") : endShiftText(project, t)}</Table.Td>
+                </Table.Tr>
+              );
+            })}
           </Table.Tbody>
         </Table>
       </ScrollRegion>

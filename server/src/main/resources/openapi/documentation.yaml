@@ -2539,6 +2539,8 @@ paths:
         dates with exactly the items applied (an item without dates removes the milestone's); every other milestone keeps its
         stored dates, so a successor ticked without its predecessor is judged against the predecessor's stored dates. There is no
         `asOf`. The verdicts are the proposal's own, so the answer for a proposal's dates equals its `weeks` and `dependencies`;
+        `projects` lists the projects whose derived span those dates change, as the run's own `projects` does (the ticked items' dates,
+        the stored dates of every other milestone; a project the items leave with no dates is not listed);
         items an accept would skip (`STALE`, `NO_WORKING_DAY`) are not anticipated.
       requestBody:
         required: true
@@ -7833,13 +7835,19 @@ components:
             `400`). Both dates or neither (the pair of nulls unschedules).
     ScheduleCheckResponse:
       type: object
-      required: [teams]
+      required: [teams, projects]
       properties:
         teams:
           type: array
           maxItems: 50
           description: One block per requested team, in the REQUEST's order.
           items: { $ref: '#/components/schemas/ScheduleCheckTeam' }
+        projects:
+          type: array
+          description: >-
+            The projects whose derived span the ticked items would change, ascending by id; none when no project's span changes. Computed
+            as the run's `projects` is, over every milestone of the project: the ticked items' dates, the stored dates of every other one.
+          items: { $ref: '#/components/schemas/ScheduleProposalProject' }
     ScheduleCheckTeam:
       type: object
       required: [teamId, weeks, weeksTruncated, dependencies]

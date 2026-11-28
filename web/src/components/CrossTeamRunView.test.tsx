@@ -9,7 +9,7 @@ import { renderWithProviders } from "../test/render";
 import type { ScheduleProposalEnd, ScheduleProposalLink } from "../api/teams";
 import type { ScheduleCheckState } from "../utils/scheduleProposal";
 
-const ALL: ScheduleCheckState = { mode: "all", byTeam: null, pending: false, failed: false };
+const ALL: ScheduleCheckState = { mode: "all", byTeam: null, projects: null, pending: false, failed: false };
 // "some": the server's answer for the ticks - Payments' load lighter and its link fine; Platform's block must NOT take it (not the viewer's to accept).
 const SOME: ScheduleCheckState = {
   mode: "some",
@@ -17,6 +17,7 @@ const SOME: ScheduleCheckState = {
     [1, { weeks: [{ ...week("2042-01-05", 1), overloaded: true }], weeksTruncated: false, dependencies: [] }],
     [2, { weeks: [week("2042-01-12", 2)], weeksTruncated: false, dependencies: [] }],
   ]),
+  projects: [],
   pending: false,
   failed: false,
 };
@@ -108,7 +109,7 @@ describe("CrossTeamRunView for the viewer who may accept nothing", () => {
   test("the run's own link verdicts stay (no overlay: nothing is ticked, yet nothing is stripped)", async () => {
     const user = userEvent.setup();
     const run: CrossTeamProposal = { ...RUN, teams: [block(1, "Platform", RUN.teams[0].moves), block(2, "Payments", [move(21, "y1", "2042-01-12", "2042-01-14")], { dependencies: [violatedLink()] })] };
-    renderRun({ run, acceptable: new Set(), selected: new Set(), check: { mode: "none", byTeam: null, pending: false, failed: false } });
+    renderRun({ run, acceptable: new Set(), selected: new Set(), check: { mode: "none", byTeam: null, projects: null, pending: false, failed: false } });
     await user.click(screen.getByRole("button", { name: "Show the moves of Payments" }));
     expect(screen.getByText("1 link would be violated")).toBeInTheDocument();
   });
@@ -188,7 +189,7 @@ describe("CrossTeamRunView project slice: figures and links", () => {
   };
 
   test("the summary counts the project's own unchanged and pinned milestones; the links are those touching a kept move, also after the check's overlay", () => {
-    const check: ScheduleCheckState = { mode: "some", byTeam: new Map([[1, { weeks: [week("2042-01-05", 3)], weeksTruncated: false, dependencies: [link(1, 11, 40), link(2, 12, 41)] }]]), pending: false, failed: false };
+    const check: ScheduleCheckState = { mode: "some", byTeam: new Map([[1, { weeks: [week("2042-01-05", 3)], weeksTruncated: false, dependencies: [link(1, 11, 40), link(2, 12, 41)] }]]), projects: [], pending: false, failed: false };
     renderRun({ run, acceptable: new Set([1]), projectId: 7, projectMilestoneIds: new Set([11, 13, 14]), check, selected: new Set([11]) });
     expect(screen.getByText("1 move · 1 newly scheduled · 1 stays · 0 could not be placed · 1 pinned")).toBeInTheDocument();
     // x1's link (11 -> 40) is shown, the other project's (12 -> 41) is not

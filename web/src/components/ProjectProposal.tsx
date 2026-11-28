@@ -14,13 +14,21 @@ import RunTeamsPicker from "./RunTeamsPicker";
 import { MAX_RUN_TEAMS } from "../hooks/useRunTeams";
 import { TOOLBAR_CONTROL_SIZE } from "../utils/timelineModel";
 
-/** What the run does to the project's own span, in one sentence (the server's `projects[]` entry, absent = its span stays). */
-function projectSentence(entry: CrossTeamProposal["projects"][number] | undefined, t: TFunction): string {
+const END_KEYS = {
+  earlier: ["project.proposal.endEarlier", "project.proposal.endEarlierTicked"],
+  later: ["project.proposal.endLater", "project.proposal.endLaterTicked"],
+} as const;
+
+/**
+ * What the run does to the project's own span, in one sentence (the server's `projects[]` entry, absent = its span stays). `ticked` (1.38): the entry is the server's check of the
+ * ticked moves, so the end sentences speak of those and not of every team's moves.
+ */
+function projectSentence(entry: CrossTeamProposal["projects"][number] | undefined, ticked: boolean, t: TFunction): string {
   if (entry === undefined) return t("project.proposal.unchanged");
   if (entry.before === null || entry.endShiftDays === null) return t("project.proposal.newly", entry.after);
   const days = entry.endShiftDays;
   if (days === 0) return t("project.proposal.endSame", { end: entry.after.end });
-  return t(days < 0 ? "project.proposal.endEarlier" : "project.proposal.endLater", { before: entry.before.end, after: entry.after.end, count: Math.abs(days) });
+  return t(END_KEYS[days < 0 ? "earlier" : "later"][ticked ? 1 : 0], { before: entry.before.end, after: entry.after.end, count: Math.abs(days) });
 }
 
 /**
@@ -98,7 +106,7 @@ export default function ProjectProposal({ proposal, announce }: { proposal: Proj
             {t("programs.proposal.kept")}
           </Text>
           <Text size="sm" fw={500}>
-            {projectSentence(proposal.preview?.project, t)}
+            {projectSentence(proposal.preview?.project, proposal.ticked, t)}
           </Text>
           <Text size="sm" c="dimmed">
             {t("project.proposal.intro")}

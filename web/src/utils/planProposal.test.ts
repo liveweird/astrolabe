@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { acceptTeamIdsOf, projectSlice, tickableMoveIds, warningWeekCount } from "./planProposal";
+import { acceptTeamIdsOf, overlayProjects, projectSlice, tickableMoveIds, warningWeekCount } from "./planProposal";
 import { block, move, RUN, week } from "../test/crossTeamRun";
 
 // Platform (1): x1 (project 7), x2 (project 9); Payments (2): y1 (project 7), y3 (project 9) + one unplaced of project 9; Billing (3): nothing of project 7.
@@ -88,5 +88,29 @@ describe("warningWeekCount", () => {
     expect(warningWeekCount([week("2042-01-05", 6)])).toBe(0);
     expect(warningWeekCount([])).toBe(0);
     expect(warningWeekCount(undefined)).toBe(0);
+  });
+});
+
+describe("overlayProjects", () => {
+  const span = (start: string, end: string) => ({ start, end });
+  const project = (projectId: number, after: { start: string; end: string }) => ({ projectId, name: `p${projectId}`, before: span("2042-01-01", "2042-01-02"), after, endShiftDays: 1 });
+  const own = { projects: [project(1, span("2042-02-01", "2042-02-05")), project(2, span("2042-03-01", "2042-03-05"))] };
+  const checked = [project(2, span("2042-03-01", "2042-03-02"))];
+
+  test("nothing the viewer may accept (a preview), or every move ticked: the run's own projects", () => {
+    expect(overlayProjects(own, { mode: "some", projects: checked }, false)).toBe(own.projects);
+    expect(overlayProjects(own, { mode: "none", projects: null }, false)).toBe(own.projects);
+    expect(overlayProjects(own, { mode: "all", projects: null }, true)).toBe(own.projects);
+  });
+
+  test("some ticked: the check's projects - the run's while the check is pending or failed", () => {
+    expect(overlayProjects(own, { mode: "some", projects: checked }, true)).toBe(checked);
+    expect(overlayProjects(own, { mode: "some", projects: [] }, true)).toEqual([]);
+    expect(overlayProjects(own, { mode: "some", projects: null }, true)).toBe(own.projects);
+  });
+
+  test("none ticked: no project moves; no run: none", () => {
+    expect(overlayProjects(own, { mode: "none", projects: null }, true)).toEqual([]);
+    expect(overlayProjects(null, { mode: "some", projects: null }, true)).toEqual([]);
   });
 });

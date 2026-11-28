@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useIsMutating, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { SAVED_PROPOSALS_KEY } from "../api/savedProposals";
@@ -172,7 +172,8 @@ export function useCrossTeamProposal(announce: (text: string) => void, options: 
   };
 
   const moves = movesOf(proposal);
-  const tickable = tickableMoveIds(proposal, acceptable, projectId);
+  // Memoized: a host derives what it draws from it, and a new set on every render would make every such derivation new too.
+  const tickable = useMemo(() => tickableMoveIds(proposal, acceptable, projectId), [proposal, acceptable, projectId]);
   const say = (count: number) => announce(t("teams.proposal.selectedOf", { selected: count, total: tickable.size }));
   const idsOf = (teamId: number) => proposal?.teams.find((team) => team.teamId === teamId)?.moves.map((move) => move.milestoneId).filter((id) => tickable.has(id)) ?? [];
 

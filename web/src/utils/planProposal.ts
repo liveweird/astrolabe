@@ -1,5 +1,6 @@
 import type { CrossTeamProposal, CrossTeamProposalTeam } from "../api/scheduleProposals";
 import type { ScheduleProposalMove, WeekLoad } from "../api/teams";
+import type { ScheduleCheckState } from "./scheduleProposal";
 
 /**
  * Pure derivations of a cross-team run on the pages that host it beside the plan (1.33): which of its moves the viewer may tick, which teams an
@@ -53,8 +54,24 @@ export function projectSlice(run: RunTeams, projectId?: number, milestoneIds?: R
 export const warningWeekCount = (weeks: readonly Pick<WeekLoad, "overloaded" | "wipExceeded">[] | undefined): number =>
   (weeks ?? []).filter((week) => week.overloaded || week.wipExceeded).length;
 
-/** The part of a run the project page's timeline draws (1.33): the moves of THIS project's milestones and the project's own entry of `projects[]` (absent = its span would not change). */
-export type ProjectPreview = { moves: readonly ScheduleProposalMove[]; project: CrossTeamProposal["projects"][number] | undefined };
+/**
+ * The projects whose span the TICKED moves change (1.38), the server's own answer: nothing acceptable (a preview) or every move ticked = the run's `projects[]`; some ticked = the check's
+ * (the run's while it is pending or failed); none ticked = none.
+ */
+export function overlayProjects(run: Pick<CrossTeamProposal, "projects"> | null, check: Pick<ScheduleCheckState, "mode" | "projects">, canAccept: boolean): CrossTeamProposal["projects"] {
+  const own = run?.projects ?? NO_PROJECTS;
+  if (!canAccept || check.mode === "all") return own;
+  return check.mode === "none" ? NO_PROJECTS : (check.projects ?? own);
+}
+
+/** One shared empty list, so "none ticked" (and no run) keeps its identity from render to render. */
+export const NO_PROJECTS: CrossTeamProposal["projects"] = [];
+
+/**
+ * The part of a run the project page's timeline draws (1.33): the moves of THIS project's milestones and the project's own entry of `projects[]` (absent = its span would not change).
+ * `drawn` (1.38) are the moves that keep a dashed bar (`drawnMoves`; absent = every move), `project` the entry that follows the ticks (`overlayProjects`).
+ */
+export type ProjectPreview = { moves: readonly ScheduleProposalMove[]; project: CrossTeamProposal["projects"][number] | undefined; drawn?: readonly ScheduleProposalMove[] };
 
 /** Every first and last proposed day of a project preview (its moves' spans and the project's span after): the page's range grows over them. */
 export const previewDays = (preview: ProjectPreview | undefined): string[] =>

@@ -118,9 +118,23 @@ class SavedProposalStateTest {
     }
 
     @Test
-    fun `a previous format reads UNREADABLE - a row saved before the run listed its projects is never decoded`() = testApplication {
-        assertEquals(3, STORED_PROPOSAL_FORMAT.toInt(), "the run document gained `projects` in format 3: raise this with the next bump")
+    fun `a previous format reads UNREADABLE - a row saved before the check listed its projects is never decoded`() = testApplication {
+        assertEquals(4, STORED_PROPOSAL_FORMAT.toInt(), "the check document gained `projects` in format 4: raise this with the next bump")
         savedWorld("ssp").assertUnreadableAt(STORED_PROPOSAL_FORMAT - 1)
+    }
+
+    @Test
+    fun `a current-format partial selection whose check lacks projects is UNREADABLE, never a 500`() = testApplication {
+        val s = savedWorld("ssr")
+        val client = s.both.client
+        val run = client.savedRun(s.pair)
+        val id = client.saveProposal(run, s.pair, selected = listOf(s.a1)).body<SavedProposalSummary>().id
+        assertEquals(CURRENT, client.record(id).state)
+        TestSavedProposals.execute("UPDATE saved_schedule_proposals SET check_document = check_document - 'projects' WHERE id = $id")
+        val record = client.record(id)
+        assertEquals(SavedProposalState.UNREADABLE, record.state)
+        assertNull(record.proposal)
+        assertNull(record.check)
     }
 
     @Test

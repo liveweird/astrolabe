@@ -43,7 +43,8 @@ the week of 01-13 loads 1 + 2 = 3 of 10 (the server's answer agrees; checked by 
 1. The manager opens the team's page and presses **Propose schedule** (the same world and proposal as above).
    - *Expected*: the section opens with all three moves ticked.
 2. They untick b.
-   - *Expected*: a and c stay ticked, the select-all box is indeterminate, and the button reads **Accept selected (2)**.
+   - *Expected*: a and c stay ticked, the select-all box is indeterminate, and the button reads **Accept selected (2)**; b's dashed bar is gone (a's and c's stay)
+     while b's table entry stays, unticked.
 3. They press **Accept selected (2)**.
    - *Expected*: the batch succeeds; the note reads "2 scheduled"; a is a bar at 2042-01-06 to 2042-01-09 and c at 2042-01-14 to 2042-01-15; b has
      no bar and is still a row of the Unscheduled tray (a has left it); the facts line names no conflict (b's link to c reads

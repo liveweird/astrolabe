@@ -5,6 +5,7 @@ import type { ScheduleProposal, ScheduleProposalEnd, ScheduleProposalLink, Sched
 import {
   acceptItems,
   changeSentence,
+  drawnMoves,
   endpointText,
   linksAtMove,
   linkTotals,
@@ -239,7 +240,7 @@ describe("overlayCheck", () => {
     weeksTruncated: false,
   };
   const checked: Pick<ScheduleCheckTeam, "weeks" | "weeksTruncated" | "dependencies"> = { weeks: [], weeksTruncated: true, dependencies: [dep(2, "OK")] };
-  const state = (over: Partial<Parameters<typeof overlayCheck>[1]>): Parameters<typeof overlayCheck>[1] => ({ mode: "some", byTeam: null, pending: false, failed: false, ...over });
+  const state = (over: Partial<Parameters<typeof overlayCheck>[1]>): Parameters<typeof overlayCheck>[1] => ({ mode: "some", byTeam: null, projects: null, pending: false, failed: false, ...over });
 
   test("every move ticked: the proposal as it is", () => {
     expect(overlayCheck(open, state({ mode: "all" }), 1)).toBe(open);
@@ -265,5 +266,20 @@ describe("overlayCheck", () => {
     expect(overlayCheck(open, state({ pending: true }), 1)).toBe(open);
     expect(overlayCheck(open, state({ failed: true }), 1)).toBe(open);
     expect(overlayCheck(open, state({ byTeam: new Map([[2, checked]]) }), 1)).toBe(open);
+  });
+});
+
+describe("drawnMoves", () => {
+  const moves = [move(1), move(2), move(3)];
+
+  test("the ticked moves keep a dashed bar, the unticked ones of the viewer's own lose it", () => {
+    expect(drawnMoves(moves, new Set([1, 3])).map((m) => m.milestoneId)).toEqual([1, 3]);
+    expect(drawnMoves(moves, new Set()).map((m) => m.milestoneId)).toEqual([]);
+    expect(drawnMoves(moves, new Set([1, 2, 3]))).toEqual(moves);
+  });
+
+  test("a move the viewer cannot tick keeps its bar, ticked or not (the ones they can tick follow the ticks)", () => {
+    expect(drawnMoves(moves, new Set([1]), new Set([1, 2])).map((m) => m.milestoneId)).toEqual([1, 3]);
+    expect(drawnMoves(moves, new Set(), new Set()).map((m) => m.milestoneId)).toEqual([1, 2, 3]);
   });
 });

@@ -21,7 +21,8 @@ const move = (milestoneId: number, start: string, end: string): ScheduleProposal
 });
 
 const MOVES = [move(1, "2042-01-07", "2042-01-09"), move(2, "2042-01-07", "2042-01-08"), move(3, "2042-01-13", "2042-01-15")];
-const ANSWER = { teams: [{ teamId: 1, weeks: [], weeksTruncated: false, dependencies: [] }] };
+const PROJECTS = [{ projectId: 7, name: "Invoices", before: null, after: { start: "2042-01-07", end: "2042-01-09" }, endShiftDays: null }];
+const ANSWER = { teams: [{ teamId: 1, weeks: [], weeksTruncated: false, dependencies: [] }], projects: PROJECTS };
 
 type Props = { selected: number[]; enabled?: boolean; revision?: number; scopeHash?: string; teamIds?: number[] };
 
@@ -74,14 +75,14 @@ describe("useScheduleCheck", () => {
   test("every move ticked is the proposal's own answer: mode all, no request, nothing pending", async () => {
     const { result } = mount({ selected: [1, 2, 3] });
     await wait(400);
-    expect(result.current).toEqual({ mode: "all", byTeam: null, pending: false, failed: false });
+    expect(result.current).toEqual({ mode: "all", byTeam: null, projects: null, pending: false, failed: false });
     expect(checkCalls()).toEqual([]);
   });
 
   test("no move ticked changes nothing: mode none, no request", async () => {
     const { result } = mount({ selected: [] });
     await wait(400);
-    expect(result.current).toEqual({ mode: "none", byTeam: null, pending: false, failed: false });
+    expect(result.current).toEqual({ mode: "none", byTeam: null, projects: null, pending: false, failed: false });
     expect(checkCalls()).toEqual([]);
   });
 
@@ -95,7 +96,7 @@ describe("useScheduleCheck", () => {
   test("some ticked: pending from the first change, one request after the 300 ms debounce with exactly the ticked items, then the answer by team", async () => {
     const { result, rerender } = mount({ selected: [1, 2, 3] });
     rerender({ selected: [1, 3] });
-    expect(result.current).toMatchObject({ mode: "some", byTeam: null, pending: true, failed: false });
+    expect(result.current).toMatchObject({ mode: "some", byTeam: null, projects: null, pending: true, failed: false });
     await wait(299);
     expect(checkCalls()).toEqual([]);
     expect(result.current.pending).toBe(true);
@@ -111,6 +112,7 @@ describe("useScheduleCheck", () => {
     });
     expect(result.current.pending).toBe(false);
     expect(result.current.byTeam?.get(1)).toEqual(ANSWER.teams[0]);
+    expect(result.current.projects).toEqual(PROJECTS);
   });
 
   test("a run of clicks inside the window is one question about the final ticks", async () => {
@@ -133,7 +135,7 @@ describe("useScheduleCheck", () => {
     await wait(299);
     rerender({ selected: [1, 2, 3] });
     await wait(450);
-    expect(result.current).toEqual({ mode: "all", byTeam: null, pending: false, failed: false });
+    expect(result.current).toEqual({ mode: "all", byTeam: null, projects: null, pending: false, failed: false });
     expect(checkCalls()).toEqual([]);
   });
 
@@ -151,7 +153,7 @@ describe("useScheduleCheck", () => {
     rerender({ selected: [2] });
     await wait(300);
     expect(result.current).toMatchObject({ byTeam: null, pending: true });
-    await act(async () => release?.(jsonResponse(200, { teams: [{ teamId: 1, weeks: [], weeksTruncated: false, dependencies: [] }] })));
+    await act(async () => release?.(jsonResponse(200, ANSWER)));
     expect(result.current.byTeam).toBeNull();
     expect(result.current.pending).toBe(true);
     await wait(300);

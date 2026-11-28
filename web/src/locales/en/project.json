@@ -265,6 +265,10 @@
     "endEarlier_other": "If every team's moves are accepted, the project would end on {{after}} instead of {{before}}, {{count}} working days earlier.",
     "endLater_one": "If every team's moves are accepted, the project would end on {{after}} instead of {{before}}, {{count}} working day later.",
     "endLater_other": "If every team's moves are accepted, the project would end on {{after}} instead of {{before}}, {{count}} working days later.",
+    "endEarlierTicked_one": "If the ticked moves are accepted, the project would end on {{after}} instead of {{before}}, {{count}} working day earlier.",
+    "endEarlierTicked_other": "If the ticked moves are accepted, the project would end on {{after}} instead of {{before}}, {{count}} working days earlier.",
+    "endLaterTicked_one": "If the ticked moves are accepted, the project would end on {{after}} instead of {{before}}, {{count}} working day later.",
+    "endLaterTicked_other": "If the ticked moves are accepted, the project would end on {{after}} instead of {{before}}, {{count}} working days later.",
     "others_one": "The run also moves {{count}} other milestone of these teams, not offered here:",
     "others_other": "The run also moves {{count}} other milestones of these teams, not offered here:",
     "discarded": "Schedule proposal discarded."

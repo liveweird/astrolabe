@@ -138,9 +138,13 @@ data class ScheduleCheckTeam(
     val dependencies: List<ScheduleProposalLink>,
 )
 
-/** The check's answer: a COMPUTATION, one block per requested team in the REQUEST's order. */
+/**
+ * The check's answer: a COMPUTATION, [teams] one block per requested team in the REQUEST's order and [projects] the projects whose
+ * derived span the ticked items would change (1.38.0, as [CrossTeamProposal.projects] is for every move; no default: a stored row
+ * without it is another format).
+ */
 @Serializable
-data class ScheduleCheckResponse(val teams: List<ScheduleCheckTeam>)
+data class ScheduleCheckResponse(val teams: List<ScheduleCheckTeam>, val projects: List<ScheduleProposalProject>)
 
 /**
  * The check's item rules, checked after the teams' 404 (the team set is already shaped, [validateTeamIds]): 1..[MAX_RUN_SCHEDULE_ITEMS]

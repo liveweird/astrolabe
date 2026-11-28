@@ -27,14 +27,15 @@ describe("storedCheckState", () => {
     const state = storedCheckState(SAVED_RECORD);
     expect(state).toMatchObject({ mode: "some", pending: false, failed: false });
     expect([...(state.byTeam?.keys() ?? [])]).toEqual([1, 2]);
+    expect(state.projects).toBe(SAVED_RECORD.check?.projects);
   });
 
   test("every move ticked is the run's own verdicts: mode all and no check", () => {
-    expect(storedCheckState({ ...SAVED_RECORD, selectedMilestoneIds: [11, 12, 21], check: null })).toEqual({ mode: "all", byTeam: null, pending: false, failed: false });
+    expect(storedCheckState({ ...SAVED_RECORD, selectedMilestoneIds: [11, 12, 21], check: null })).toEqual({ mode: "all", byTeam: null, projects: null, pending: false, failed: false });
   });
 
   test("a subset whose check is missing shows the run's own verdicts (no map) rather than inventing one", () => {
-    expect(storedCheckState({ ...SAVED_RECORD, check: null })).toMatchObject({ mode: "some", byTeam: null });
+    expect(storedCheckState({ ...SAVED_RECORD, check: null })).toMatchObject({ mode: "some", byTeam: null, projects: null });
   });
 });
 

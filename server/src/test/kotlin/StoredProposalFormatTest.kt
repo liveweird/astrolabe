@@ -33,6 +33,7 @@ class StoredProposalFormatTest {
         1 to "aa01f7b679143cc7978ea14ddb055d1bce6866c01b482ab95c6619660babc3eb",
         2 to "2fc5e33419abd2bcba1f8eeb9c1718d25621aec570f97c286bf3579e39f4e438",
         3 to "6833c65b95e00983a331ff3d41f422cdb1a6cf8fc2ac7fcf5dec29fc0777ecef",
+        4 to "6d6a6f3ef5dd4b00c89bb03b361819a575ba691440787274bda54ab6abe79d98",
     )
 
     @Test

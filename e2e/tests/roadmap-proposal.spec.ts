@@ -252,9 +252,15 @@ test("unticking the first team's move keeps it in March, and the check turns the
   await expect(y1.getByText("Conflict", { exact: true })).toBeVisible();
   await expect(y1).toContainText("must start on 2048-03-04 or later");
   await expect(y1).toContainText(world.x1.name);
+  // The project's dates follow the ticks (the server's own answer for the ticked moves): x1 stays in March, so the span is y1's day through x1's March end.
+  const moved = page.getByRole("table", { name: "Projects whose dates would move", exact: true });
+  await expect(moved).toContainText("2048-01-08 to 2048-03-03");
+  await expect(moved).not.toContainText("2048-01-06 to 2048-01-08");
+  await expect(moved.getByRole("row")).toHaveCount(2); // the header and the project's row: the rows are the run's, only their dates follow the tick
 
   // Tick it again: every move ticked, the proposal's own verdicts are exact (no check is asked) and the warning is gone.
   await page.getByRole("checkbox", { name: `Accept ${world.x1.name}` }).check();
+  await expect(moved).toContainText("2048-01-06 to 2048-01-08");
   await expect(acceptButton(page, 2)).toBeVisible();
   await expect(sectionTable(page, world.teamY).getByText("Conflict", { exact: true })).toHaveCount(0);
   await expect(y1).not.toContainText("must start on");
