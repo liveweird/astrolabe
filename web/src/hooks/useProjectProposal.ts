@@ -8,13 +8,14 @@ import { movesOf, useCrossTeamProposal } from "./useCrossTeamProposal";
 import { useProposalFocus } from "./useProposalFocus";
 import { useProposalLock } from "./useProposalLock";
 import { useProposalRights } from "./useProposalRights";
+import { useRunClosure } from "./useRunClosure";
 import { MAX_RUN_TEAMS, useRunTeams } from "./useRunTeams";
 import { useScheduleCheck } from "./useScheduleCheck";
 import { useTickedProjects } from "./useTickedProjects";
 
 /**
  * The project page's schedule proposal (1.33): ONE cross-team run over the teams that work on the project's milestones (the distinct teams of its scheduled and unscheduled
- * milestones; every other team stays fixed, no dependency closure), previewed for every login on the page's own timeline. The run is the Roadmap overview's
+ * milestones; every other team stays fixed unless the viewer adds the closure below), previewed for every login on the page's own timeline. The run is the Roadmap overview's
  * (`useCrossTeamProposal`); the project page's side of it:
  * - the slice: only THIS project's moves are offered (ticked by default, `projectId`), so the accept names exactly those and the check describes exactly those; `others` counts the
  *   run's moves of the same teams in other projects (shown, never offered here);
@@ -23,6 +24,7 @@ import { useTickedProjects } from "./useTickedProjects";
  *   dates through a dependency makes the accept stale (the server says so);
  * - `propose` is only ever a click's (the run and the accept share a per-user rate limit), and answers `false` while a schedule write runs.
  * The team set starts as the project's teams and the viewer may choose any other (`useRunTeams`, 1.38; `picker` is the props of `RunTeamsPicker`; `disabled` while a run is requested or open: the section does not draw it then).
+ * `closure` (1.39, `useRunClosure`) is the "Add the teams this project waits on" button: shown when a link into the project has its predecessor in another project, and, like the picker, not while a run is requested or open.
  * `view` is the page's view (absent while it loads: nothing is offered then).
  */
 export function useProjectProposal(projectId: number, { view, announce, pending }: { view: ProjectView | undefined; announce: (text: string) => void; pending: boolean }) {
@@ -46,6 +48,7 @@ export function useProjectProposal(projectId: number, { view, announce, pending 
   const projectTeamIds = useMemo(() => [...new Set(milestones.map((milestone) => milestone.teamId))].sort((a, b) => a - b), [milestones]);
   const runTeams = useRunTeams(projectTeamIds);
   const teamIds = runTeams.ids;
+  const closure = useRunClosure({ projectId, dependencies: view?.dependencies, ids: teamIds, set: runTeams.set, announce });
   const tooMany = teamIds.length > MAX_RUN_TEAMS;
   const milestoneIds = useMemo(() => new Set(milestones.map((milestone) => milestone.id)), [milestones]);
   // The bars follow the ticks (1.38): a dashed bar for a ticked move and for one the viewer cannot tick, the summary span the server's own answer for the ticked moves (the last
@@ -66,7 +69,7 @@ export function useProjectProposal(projectId: number, { view, announce, pending 
     const rest = (run?.teams ?? []).map((team) => ({ teamId: team.teamId, name: team.name, count: team.moves.filter((move) => move.projectId !== projectId).length })).filter((team) => team.count > 0);
     return { count: rest.reduce((sum, team) => sum + team.count, 0), teams: rest };
   }, [run, projectId]);
-  const proposable = rights.ready && teamIds.length > 0 && !tooMany && run === null && !busy && !pending;
+  const proposable = rights.ready && teamIds.length > 0 && !tooMany && run === null && !busy && !pending && !closure.reading;
   return {
     projectId,
     flow,
@@ -79,7 +82,17 @@ export function useProjectProposal(projectId: number, { view, announce, pending 
     /** The viewer chose a team set other than the project's. */
     chosenTeams: runTeams.chosen,
     /** The props of the team picker (`RunTeamsPicker`): the set, its change, the project's own teams, and `disabled` while a run is requested or open (the section draws no picker then). */
-    picker: { value: teamIds, onChange: runTeams.set, defaultIds: projectTeamIds, disabled: run !== null || busy },
+    picker: {
+      value: teamIds,
+      onChange: (ids: readonly number[]) => {
+        closure.clear();
+        runTeams.set(ids);
+      },
+      defaultIds: projectTeamIds,
+      disabled: run !== null || busy,
+    },
+    /** "Add the teams this project waits on": `visible` while a link waits on another project and no run is requested or open, `reading` while the Roadmap is read, `note` what the last click did (also announced). */
+    closure: { visible: closure.available && run === null && !busy, reading: closure.reading, note: run === null && !busy ? closure.note : null, add: closure.add },
     /** The team set involves more teams than a run takes. */
     tooMany,
     milestoneIds,
@@ -111,7 +124,12 @@ export function useProjectProposal(projectId: number, { view, announce, pending 
       (...args: A): boolean =>
         lock.locked ? lock.refuse() : commit(...args),
     /** Ask for the run over the project's teams (a click's, never automatic). */
-    propose: (): boolean => proposable && flow.propose(teamIds),
+    propose: (): boolean => {
+      if (!proposable) return false;
+      const started = flow.propose(teamIds);
+      if (started) closure.clear();
+      return started;
+    },
   };
 }
 

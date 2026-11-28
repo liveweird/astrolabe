@@ -250,6 +250,17 @@
     "deleteWith_other": "Its {{count}} dependencies will be deleted too."
   },
   "proposal": {
+    "closure": {
+      "reading": "Reading the roadmap for the teams this project waits on…",
+      "button": "Add the teams this project waits on",
+      "added_one": "Added {{count}} team this project waits on.",
+      "added_other": "Added {{count}} teams this project waits on.",
+      "none": "Nothing to add: the teams of the projects this one waits on are already in the run.",
+      "cut_one": "Added {{count}} team, then stopped: a proposal takes at most {{max}} teams, and the next project upstream would pass that. The rest of the chain is left out.",
+      "cut_other": "Added {{count}} teams, then stopped: a proposal takes at most {{max}} teams, and the next project upstream would pass that. The rest of the chain is left out.",
+      "cutNone": "Nothing added: the next project upstream would take the proposal past {{max}} teams.",
+      "failed": "The roadmap could not be read, so no teams were added. Try again."
+    },
     "covers_one": "Proposes dates for the {{count}} team that works on this project's milestones; other teams' dates are kept. Nothing changes until you accept.",
     "covers_other": "Proposes dates for the {{count}} teams that work on this project's milestones; other teams' dates are kept. Nothing changes until you accept.",
     "coversChosen_one": "Proposes dates for the {{count}} team you chose; other teams' dates are kept. Nothing changes until you accept.",

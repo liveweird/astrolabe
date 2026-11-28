@@ -1,9 +1,10 @@
 // The cross-team schedule proposal (1.8) on the project page (1.33), in 2049: ANY login previews one over the teams of the project's milestones, and the manager of ONE of the two
 // teams accepts only their move. A login that manages nothing previews (the dashed bars, the new row of the tray milestone, the sentence about the project's end) and is offered
 // no accept; the manager of team Y ticks only y1, reads the check's verdict for exactly that tick (the link from x1, which stays in March, turns into a warning), finds the date
-// writes locked while the proposal is open and accepts: the accept names team Y alone, x1 stays where it was; an axe scan of the open preview closes it.
+// writes locked while the proposal is open and accepts: the accept names team Y alone, x1 stays where it was; a project that waits on another one adds that project's team to the
+// run's picker with one click (1.39) and the run places the waiting milestone after the upstream one; an axe scan of the open preview closes it.
 // Owns: its throwaway users, people, TWO teams (each with ONE capacity period from Monday 2049-01-04, 10 MD/week, no WIP limit), work stream, program, project, two milestones and
-// the link between them (unique `e2e-pp-*` names), all deleted by the afterEach below (the project first - its milestones and link go with it - then program, work stream, teams,
+// the link between them (and, in the closure test, a third team, an upstream project with one milestone and the link into the project; unique `e2e-pp-*` names), all deleted by the afterEach below (the project first - its milestones and link go with it - then program, work stream, teams,
 // people, users). Every date it pins is in 2049, which no other spec writes a holiday in; the real clock is the proposal's `asOf`, and nothing can land before a team's first capacity period.
 import { randomUUID } from "node:crypto";
 import type { APIRequestContext, Page, Response } from "@playwright/test";
@@ -34,6 +35,8 @@ interface World {
   single: Account;
   teamX: string;
   teamY: string;
+  leadId: number;
+  programId: number;
   projectId: number;
   projectName: string;
   x1: Milestone;
@@ -101,7 +104,33 @@ async function seedWorld(): Promise<World> {
     data: { predecessor: { kind: "MILESTONE", id: x1.id }, successor: { kind: "MILESTONE", id: y1.id }, type: "FS", lagDays: 0 },
   });
   expect(link.status(), await link.text()).toBe(201);
-  return { api, owner: owner.account, single: single.account, teamX: teamX.name, teamY: teamY.name, projectId, projectName, x1, y1 };
+  return { api, owner: owner.account, single: single.account, teamX: teamX.name, teamY: teamY.name, leadId: lead, programId, projectId, projectName, x1, y1 };
+}
+
+/**
+ * The upstream project (1.39): a second project of the same program with ONE milestone `z1` (4 MD, team Z, from Monday 2049-01-04 like the others) scheduled Tuesday 2049-03-09 to
+ * Wednesday 03-10, and the finish-to-start link `z1 -> x1`, so the world's project waits on it. Over the project's own two teams alone `z1` stays fixed and `x1` could not start before
+ * 03-11; with team Z in the run, Z is placed first and `z1` moves to 2049-01-04 to 2049-01-05.
+ */
+async function seedUpstream(world: World): Promise<{ teamZ: string; teamZId: number; z1: Milestone }> {
+  const { api } = world;
+  const name = uniqueText("e2e-pp-teamz");
+  const teamZId = await seed(api, "/api/v1/teams", { name, managerPersonId: world.leadId }, "/api/v1/teams");
+  const capacity = await api.post(`/api/v1/teams/${teamZId}/capacity`, { data: { effectiveFrom: "2049-01-04", mdPerWeek: 10 } });
+  expect(capacity.status(), await capacity.text()).toBe(201);
+  const upstreamId = await seed(api, `/api/v1/programs/${world.programId}/projects`, { name: uniqueText("e2e-pp-upstream"), ownerPersonId: world.leadId }, "/api/v1/projects");
+  const created = await api.post(`/api/v1/projects/${upstreamId}/milestones`, { data: { name: uniqueText("e2e-pp-z1"), teamId: teamZId, estimateMd: 4 } });
+  expect(created.status(), await created.text()).toBe(201);
+  const z1 = (await created.json()) as Milestone;
+  const view = await api.get(`/api/v1/views/team/${teamZId}`);
+  const { revision } = (await view.json()) as { revision: number };
+  const scheduled = await api.put(`/api/v1/milestones/${z1.id}/schedule`, { data: { expectedRevision: revision, startDate: "2049-03-09", endDate: "2049-03-10" } });
+  expect(scheduled.status(), await scheduled.text()).toBe(200);
+  const link = await api.post(`/api/v1/projects/${world.projectId}/dependencies`, {
+    data: { predecessor: { kind: "MILESTONE", id: z1.id }, successor: { kind: "MILESTONE", id: world.x1.id }, type: "FS", lagDays: 0 },
+  });
+  expect(link.status(), await link.text()).toBe(201);
+  return { teamZ: name, teamZId, z1: { id: z1.id, name: z1.name } };
 }
 
 const proposeButton = (page: Page) => page.getByRole("button", { name: "Propose schedule", exact: true });
@@ -217,6 +246,51 @@ test("the manager of one of the project's two teams accepts only their move: the
   } finally {
     await api.dispose();
   }
+});
+
+test("a project that waits on another one adds that project's team to the run: the picker follows, the run covers it, and the waiting milestone is placed after the upstream one", async ({ page }) => {
+  const world = await seedWorld();
+  const upstream = await seedUpstream(world);
+  await world.api.dispose();
+  const picker = page.getByRole("combobox", { name: "Teams in the run", exact: true });
+  // Scoped to the team picker's own field (a pill has no role; the page has other multi-selects).
+  const chosen = (team: string) => page.locator(".mantine-MultiSelect-root").filter({ has: picker }).locator(".mantine-MultiSelect-pill").filter({ hasText: team });
+  const add = page.getByRole("button", { name: "Add the teams this project waits on", exact: true });
+
+  // The project waits on the upstream project (the link z1 -> x1): the button is offered, the picker holds the project's own two teams.
+  await login(page, world.owner.email, world.owner.password);
+  await openProject(page, world);
+  await expect(add).toBeEnabled();
+  await expect(chosen(world.teamX)).toHaveCount(1);
+  await expect(chosen(world.teamY)).toHaveCount(1);
+  await expect(chosen(upstream.teamZ)).toHaveCount(0);
+
+  // One click reads the Roadmap and adds the upstream project's team; the note says so, the picker has a reset.
+  await add.click();
+  await expect(note(page, "Added 1 team this project waits on.")).toBeVisible();
+  await expect(chosen(upstream.teamZ)).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Use this page's teams", exact: true })).toBeVisible();
+  await expect(page.getByText("Proposes dates for the 3 teams you chose; other teams' dates are kept.")).toBeVisible();
+
+  // The run is asked over all three teams; the button leaves with the picker while the run is open.
+  const [response] = await Promise.all([page.waitForResponse(isApi("POST", "")), proposeButton(page).click()]);
+  await expectOk(response);
+  const asked = (response.request().postDataJSON() as { teamIds: number[] }).teamIds;
+  expect(asked).toHaveLength(3);
+  expect(asked).toContain(upstream.teamZId);
+  await expect(runHeading(page)).toBeVisible();
+  await expect(add).toHaveCount(0);
+  await expect(note(page, "Added 1 team this project waits on.")).toHaveCount(0);
+  // The upstream milestone moves first (z1 to 2049-01-04..05, in another project: counted, not offered here), so x1 is placed after it: 2049-01-06 to 01-07, not after z1's March dates.
+  await expect(note(page, "The run also moves 1 other milestone of these teams, not offered here:")).toContainText(upstream.teamZ);
+  await expect(page.getByRole("img", { name: `Proposed: ${world.x1.name}, 2049-01-06 to 2049-01-07, read-only` })).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: `Accept ${upstream.z1.name}` })).toHaveCount(0);
+
+  // Discard brings the button back; the chosen set is kept.
+  await page.getByRole("button", { name: "Discard", exact: true }).click();
+  await expect(runHeading(page)).toHaveCount(0);
+  await expect(add).toBeEnabled();
+  await expect(chosen(upstream.teamZ)).toHaveCount(1);
 });
 
 test("the open preview has no WCAG A/AA violations", async ({ page }) => {

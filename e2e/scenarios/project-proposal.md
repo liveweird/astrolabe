@@ -48,6 +48,23 @@ Wednesday 01-06, exactly eight weeks, 40 working days earlier.
    - *Expected*: one request naming both run teams and team Y alone as the accepted one, with one item (`y1`); the answer holds one accepted and no skipped milestone; the note "1 scheduled" is shown and
      the section and the dashed bars are gone; the API shows `y1` on 2049-01-06 and `x1` still on 2049-03-02 to 2049-03-03.
 
+## Scenario: a project that waits on another one adds that project's team to the run: the picker follows, the run covers it, and the waiting milestone is placed after the upstream one
+
+*Extra world for this scenario only* (seeded beside the world above): team Z (`e2e-pp-teamz-*`, from Monday 2049-01-04 at 10 man-days a week), a second project of the same program with ONE
+milestone `z1` (4 MD, team Z) scheduled Tuesday 2049-03-09 to Wednesday 2049-03-10, and the finish-to-start link `z1 -> x1`, so the project waits on it. By hand: with team Z in the run, Z is
+placed first (`z1` to 2049-01-04 to 2049-01-05), X after it (`x1` two working days from 2049-01-06, so **2049-01-06 to 2049-01-07**), then Y.
+
+1. The project OWNER signs in and opens the project's page.
+   - *Expected*: **Add the teams this project waits on** is offered and enabled; the team picker holds team X and team Y, not team Z.
+2. They press **Add the teams this project waits on**.
+   - *Expected*: the note "Added 1 team this project waits on." is shown; team Z is a pill of the picker, the picker's "Use this page's teams" reset appears and the row says "Proposes dates for the 3 teams you chose".
+3. They press **Propose schedule**.
+   - *Expected*: the request names three teams, team Z among them; the run opens; the add button and the added-note are gone with the picker.
+4. They read the section and the timeline.
+   - *Expected*: the note "The run also moves 1 other milestone of these teams, not offered here:" names team Z (`z1`, a milestone of another project, has no checkbox); `x1`'s dashed bar reads 2049-01-06 to 2049-01-07, placed after the upstream milestone.
+5. They press **Discard**.
+   - *Expected*: the run is gone, the button is back and enabled, and team Z is still in the picker.
+
 ## Scenario: the open preview has no WCAG A/AA violations
 
 1. The OWNER signs in, opens the project's page and presses **Propose schedule**.

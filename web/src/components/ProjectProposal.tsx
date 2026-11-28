@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useId, useRef } from "react";
 import { Alert, Button, Group, Stack, Text, Title } from "@mantine/core";
-import { IconCheck, IconRefresh, IconWand, IconX } from "@tabler/icons-react";
+import { IconCheck, IconLink, IconRefresh, IconWand, IconX } from "@tabler/icons-react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import type { CrossTeamProposal } from "../api/scheduleProposals";
@@ -53,13 +53,15 @@ export default function ProjectProposal({ proposal, announce }: { proposal: Proj
   // Why Propose is (not) available, in the order the reasons arrive: the request, the rights read, no team.
   const hint = flow.requesting
     ? t("project.proposal.requesting")
-    : !rights.ready
-      ? t("programs.proposal.checking")
-      : proposal.tooMany
-        ? t("project.proposal.tooMany", { count: teamIds.length, max: MAX_RUN_TEAMS })
-        : teamIds.length === 0
-          ? t("programs.proposal.chooseOne")
-          : t(proposal.chosenTeams ? "project.proposal.coversChosen" : "project.proposal.covers", { count: teamIds.length });
+    : proposal.closure.reading
+      ? t("project.proposal.closure.reading")
+      : !rights.ready
+        ? t("programs.proposal.checking")
+        : proposal.tooMany
+          ? t("project.proposal.tooMany", { count: teamIds.length, max: MAX_RUN_TEAMS })
+          : teamIds.length === 0
+            ? t("programs.proposal.chooseOne")
+            : t(proposal.chosenTeams ? "project.proposal.coversChosen" : "project.proposal.covers", { count: teamIds.length });
   return (
     <Stack gap="sm">
       <Group gap="sm" align="center" wrap="wrap" data-print="hide">
@@ -67,12 +69,22 @@ export default function ProjectProposal({ proposal, announce }: { proposal: Proj
           {t("programs.proposal.propose")}
         </Button>
         {!proposal.picker.disabled && <RunTeamsPicker {...proposal.picker} />}
+        {proposal.closure.visible && (
+          <Button variant="default" size={TOOLBAR_CONTROL_SIZE} leftSection={<IconLink size={14} />} loading={proposal.closure.reading} disabled={proposal.closure.reading} onClick={() => void proposal.closure.add()}>
+            {t("project.proposal.closure.button")}
+          </Button>
+        )}
         {run === null && (
           <Text id={hintId} size="sm" c="dimmed">
             {hint}
           </Text>
         )}
       </Group>
+      {proposal.closure.note !== null && (
+        <Alert color={proposal.closure.note.failed ? "red" : "gray"} variant="light" role="note">
+          {proposal.closure.note.text}
+        </Alert>
+      )}
       {/* A first rights read that failed leaves nothing acceptable (the hook's `ready` degrades to a preview): say so. */}
       {rights.error !== null && rights.acceptable.size === 0 && (
         <Alert color="orange" variant="light" role="note">

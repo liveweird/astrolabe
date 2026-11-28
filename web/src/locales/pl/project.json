@@ -280,6 +280,21 @@
     "deleteWith_other": "Usuniemy też {{count}} zależności."
   },
   "proposal": {
+    "closure": {
+      "reading": "Odczytuję roadmapę, by znaleźć zespoły, na które ten projekt czeka…",
+      "button": "Dodaj zespoły, na które ten projekt czeka",
+      "added_one": "Dodano {{count}} zespół, na który ten projekt czeka.",
+      "added_few": "Dodano {{count}} zespoły, na które ten projekt czeka.",
+      "added_many": "Dodano {{count}} zespołów, na które ten projekt czeka.",
+      "added_other": "Dodano {{count}} zespołu, na który ten projekt czeka.",
+      "none": "Nie ma czego dodać: zespoły projektów, na które ten projekt czeka, są już w propozycji.",
+      "cut_one": "Dodano {{count}} zespół i zatrzymano: propozycja obejmuje najwyżej {{max}} zespołów, a kolejny projekt wyżej przekroczyłby ten limit. Reszta łańcucha została pominięta.",
+      "cut_few": "Dodano {{count}} zespoły i zatrzymano: propozycja obejmuje najwyżej {{max}} zespołów, a kolejny projekt wyżej przekroczyłby ten limit. Reszta łańcucha została pominięta.",
+      "cut_many": "Dodano {{count}} zespołów i zatrzymano: propozycja obejmuje najwyżej {{max}} zespołów, a kolejny projekt wyżej przekroczyłby ten limit. Reszta łańcucha została pominięta.",
+      "cut_other": "Dodano {{count}} zespołu i zatrzymano: propozycja obejmuje najwyżej {{max}} zespołów, a kolejny projekt wyżej przekroczyłby ten limit. Reszta łańcucha została pominięta.",
+      "cutNone": "Nic nie dodano: kolejny projekt wyżej przekroczyłby w propozycji limit {{max}} zespołów.",
+      "failed": "Nie udało się odczytać roadmapy, więc nie dodano żadnych zespołów. Spróbuj ponownie."
+    },
     "covers_one": "Proponuje terminy dla {{count}} zespołu pracującego nad kamieniami milowymi tego projektu; terminy pozostałych zespołów zostają bez zmian. Nic się nie zmieni, dopóki nie zaakceptujesz propozycji.",
     "covers_few": "Proponuje terminy dla {{count}} zespołów pracujących nad kamieniami milowymi tego projektu; terminy pozostałych zespołów zostają bez zmian. Nic się nie zmieni, dopóki nie zaakceptujesz propozycji.",
     "covers_many": "Proponuje terminy dla {{count}} zespołów pracujących nad kamieniami milowymi tego projektu; terminy pozostałych zespołów zostają bez zmian. Nic się nie zmieni, dopóki nie zaakceptujesz propozycji.",
