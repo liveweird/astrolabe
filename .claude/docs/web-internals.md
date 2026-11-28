@@ -413,7 +413,7 @@ follows: `web/CLAUDE.md` "Per-feature rules". What the pages see of the componen
 - Dependency arrows are `TimelineArrowData[]` (`from`/`to` `{row, bar, kind: START|END}`, `violated`, `label`) drawn by `components/TimelineArrows.tsx` through the
   `overlay={(geometry) => …}` slot: decorative (`aria-hidden`; the page's table is the accessible surface), gray, RED when `violated`, only for mounted rows
   and from committed dates. Tests read `data-arrow`/`data-violated`/`data-tone`, never colour.
-  Reference: "Arrows", "The proposal preview", "The baseline overlay", "The Jira markers".
+  Reference (`timeline.md`): "Arrows", "The baseline overlay", "The Jira markers"; the dashed proposal bars: `proposals-web.md` "The proposal preview".
 - **Row drag.** The one `TimelineDndContext` has a fourth drag kind, `kind: "row"` (no `@dnd-kit/sortable`; a `DragOverlay` card plus an insertion line show the slot, so it reaches unmounted rows): a pointer-only,
   `aria-hidden` handle (one cell, one roving stop) plus the row menu as the keyboard path (`timeline.announce.*Row`). The page passes `onReorder(id, slot) → boolean`; absent, no reordering. Reference: "Row drag".
 - **Public holidays.** `holidays?: {date, name}[]` is the dictionary, any range; every page passes `useHolidays()`. Reference: "Public holidays".
@@ -808,12 +808,7 @@ All from the view, no request of their own; the bars, the Jira window, `jiraPage
   path, and a taken change moves the focus to the milestone's own row (`useRowMenuFocus(timelineRef).keep`, the Timeline's `focusRow`).
 - The row menu's Link/Unlink item and the header button read the view; the bind dialog asks for its `connections[]` when it opens (`useJiraLinks`).
 
-### The schedule proposal on the project page
-
-Propose (`components/ProjectProposal.tsx`, state in `hooks/useProjectProposal.ts`) is a click only (the run and the accept share a per-user rate limit), after `useProposalRights`. ONE cross-team run over the distinct teams of the project's milestones, scheduled or not (other teams stay fixed, no dependency closure).
-Everyone previews: `ProjectTimeline`'s `proposal?` prop (`ProjectTimelineProposal.tsx`) draws a dashed bar on each moved row, a "(new)" row per placed tray milestone and the summary row's `proposal:project` span (`projects[]`), drops the idle bands, makes every bar and the tray read-only.
-The h3 after the tray gives the project's end ("would end on D instead of D′, N working days earlier", "would not change", "newly scheduled"), cuts `CrossTeamRunView` to this project (`projectId`), counts the run's moves of the same teams elsewhere (shown, not offered) and offers Accept selected, Propose again, Discard; no Save. Only this project's moves tick, for the teams the viewer may accept; the accept names their teams, the check describes exactly them.
-Only DATE writes lock while a run is requested or open (`lockActions`, `guardDrop`); other edits stay (one that moves dates through a link makes the accept stale, 409).
+The schedule proposal: `proposals-web.md` "The project page".
 
 ### Tests
 
@@ -1178,18 +1173,7 @@ picked away too), the row menu's `CriticalPathItem`, the panel (`RoadmapCritical
 - The panel's `shown` is the project rows on the timeline; a chain project in a folded row or outside the program pick reads `programs.critical.notShown` "(folded or not picked)", and
   the intro's last sentence is `programs.critical.intro`. "Showing the critical path to X" / "Critical path hidden" go through the page's one status region.
 
-### The schedule proposal
-
-Every login previews ONE cross-team run on the tree (the run, rights and sections: "The cross-team run" "What the viewer may accept").
-- **Propose** is a click (never automatic: run and accept share a 30/min bucket), off (the hint is its description) until the rights are read, while the address's work stream is unsettled or a window write runs, over 50 teams ("narrow the pick") or with no team. It covers
-  `overviewTeamIds`: the union of the SHOWN projects' `teamIds` (`shownProjects`, `treeRows`' own filter: pick + work stream), every team with a milestone when nothing is narrowed.
-- **Bars:** the run's `projects[]` gives a project row `proposal:<id>` (`projectTrack`'s `{proposed, locked}`; the roadmap passes none) and a node row `proposedSpan` (union, only when different),
-  `proposal:ws|pg:<id>`; `usePlanScale` covers them.
-- **Lock** (`useProposalLock`, request to Discard): window bars read-only, no draw surface or window items, `guard(commit)` refuses out loud. Dependencies stay UNLOCKED (decision): an edit bumps the
-  revision, so the accept is refused as stale and the page says so.
-- **Section** (h3 under the timeline): the teams as links, "Projects whose dates would move", `CrossTeamRunView`, Save (only when every run team is acceptable), Accept selected (N), Propose again,
-  Discard. Nothing acceptable = a preview.
-- **Saved proposals**: `?proposal=<id>` opens a stored run in this section; the "Saved proposals (N)" panel sits under it ("The cross-team run" "Saved proposals").
+The schedule proposal: `proposals-web.md` "The Roadmap overview".
 
 ### Tests
 
@@ -1365,59 +1349,7 @@ The co-located `Baseline*.test.tsx`, `useBaselines.test.tsx` and the `baseline*`
 
 ## The cross-team run
 
-Files: `api/scheduleProposals.ts`; `hooks/use{CrossTeamProposal,ProposalRights,ScheduleCheck,SavedRun,StatusAnnouncer}.ts`;
-`utils/{planProposal,scheduleProposal,savedProposal}.ts`; `components/CrossTeam{Facts,ProposalSection,RunView}.tsx`; saved: `api/savedProposals.ts`, `components/Saved{ProposalsPanel,ProposalsTable,RunHeader,ProposalState}.tsx`, `SaveProposalModal.tsx`.
-
-There is no page of its own (gone in 1.33 with its nav leaf). The run is previewed on the Roadmap overview ("Programs" "The schedule proposal" - the host, the bars, the lock) and accepts the
-ticked moves in ONE plan write (`scheduling.md` "The cross-team run"). `/schedule-proposals` redirects to `/roadmap?mode=overview` (`LegacyRedirect`, `carry={false}`), `/schedule-proposals/saved/:id` to the
-overview with `proposal=<id>` (`LegacySavedProposalRedirect`, `legacySavedProposalTarget`; a malformed id: the overview alone).
-
-### The run
-
-`useCrossTeamProposal` is the team page's `useScheduleProposal` state machine over a run.
-
-- `propose(teamIds)` (local `asOf`; a run with no move anywhere opens nothing and leaves the team page's two notes), ONE `selected` set over every team's move ids (milestone ids are
-  global), `toggle`, `selectAll/selectNone(teamId)` (acts on THAT team; the status region says "n of N selected"), `discard()` (not while the accept runs), `dismiss()`.
-- `accept()` posts `{expectedRevision, scopeHash, teamIds (the run's blocks), acceptTeamIds, items}` for the ticked moves of all sections on the write key `["schedule-proposals","accept"]`. A synchronous in-flight ref makes a double click ONE request; a second accept or Propose while it runs is refused out loud (`refused`, `project.busy` announced).
-- On success the preview closes, `["plan"]` and `["roadmap"]` refresh and `outcome` is the inline note ("N scheduled · M skipped: reasons", `teams.proposal.reason.*`; no toast).
-- `409 stale-revision` closes the run (reload note); **`409 stale-scope`** closes it, re-proposes the SAME teams once and keeps the ticks of the moves that still exist (`rescoped`, orange note); any other failure is the inline `FormErrorAlert` (focused), the run open.
-- The host owns the ONE polite status region the hook announces into; `useProposalFocus` focuses the section's heading on open ("Saved proposals" below), Propose on close.
-
-### What the viewer may accept
-
-Every login previews a run; only the teams of `GET /schedule-proposals/teams` have moves to tick.
-- `useProposalRights()` over `["schedule-proposals","teams"]` → `{acceptable: Set<teamId>, ready, error}`; a host asks for no run before `ready`; a first load that fails is `ready` and empty (a preview) with `error` set.
-- `useCrossTeamProposal(announce, {acceptable, projectId, initialTicks})`: only the moves of acceptable teams (of `projectId`) are TICKABLE (`tickableMoveIds`): default ticks
-  (`initialTicks` narrows them), `toggle`, select all/none and "n of N" follow; `accept()` adds `acceptTeamIds` (`acceptTeamIdsOf`; none without `acceptable`). `canAccept` false =
-  a preview: no Accept, `enabled: false` for `useScheduleCheck` (no check request). The run and accept share a 30/min per-user bucket (a 429 = `common.error.tooManyRequests`).
-- `CrossTeamRunView acceptable projectId`: other teams' sections are collapsed (`TableDisclosure`: no table while closed), read-only ("Shown as it would be if this team's manager
-  accepts…", checkboxes disabled) and keep the run's own verdicts (`overlayCheck` and the check state reach acceptable sections only); an orange badge counts a section's
-  overloaded or over-WIP weeks (`warningWeekCount`); with none acceptable ONE "This is a preview" sentence replaces the per-section ones. `projectSlice` keeps a project's moves and
-  unplaced rows (`unchanged`/`pinned` only for `projectMilestoneIds`); the run view keeps the links touching them.
-
-### The sections
-
-- `CrossTeamFacts` (`role="note"`): gray "Placed in N pass(es) · settled"; an ORANGE Alert when `!settled` (`scheduleProposals.facts.unsettled_*`: the teams depend on each other in a loop; the dates shown are the last pass's).
-- One `CrossTeamProposalSection` per block of `teams[]` in PLACEMENT order: an h3 (the team's name, a dimmed "placed n of N"), the team page's `ProposalTable` (named per team through `label`) and, collapsed, `TeamWeeklyLoad` with `labels` (an h4 "Proposed load").
-- **The ticked-subset check is `useScheduleCheck`** over ALL the run's team ids and moves; `overlayCheck(block, check, teamId)` gives a section the verdicts and load of the ticked moves (all = the run's own, none = no new warnings, some = the check's answer). Closing the run drops the `["plan","schedule-check"]` queries.
-
-### Saved proposals
-
-A saved run is the SERVER's own re-computation (`scheduling.md` "Saved proposals"): no document is sent, none recomputed. `SAVED_PROPOSALS_KEY`: an accept, a stale refusal and a delete refresh it; a delete or a 404 drops the record's copy.
-
-- **Save proposal** (beside Accept, one move ticked, only when every run team is acceptable): `SaveProposalModal` posts the name, `asOf`, teams, `revision`, `scopeHash` and the ticks. A `409` is inline (focus on **Propose again**) = `proposeAgain(teamIds, ticks, rescoped?)`. `open(run, ticks)` takes a stored run, no request.
-- **`SavedProposalsPanel`**, an h3 "Saved proposals (N)" under the overview's timeline: the count is the list's own (read always, ≤ 20, no documents), the table (`SavedProposalsTable`: Delete by the row's `can.delete`) sits in a controlled `TableDisclosure`, hidden by default, remembered under `roadmap.savedProposalsOpen`. A name links to the CURRENT address with `proposal=<id>` set (`withProposal`: the pick and the narrowing stay).
-- **`useSavedRun`** (in `useOverviewProposal`) reads `?proposal=` (the saved list's links and the old page's redirect set it): once the rights are read the stored run opens in the overview's own run (`flow.open`), under an h3 "Saved proposal: name" (`SavedRunHeader`: the facts, a state badge `data-state`, green CURRENT else gray).
-  `can.accept` AND CURRENT AND `asOf` = today make it acceptable: ticks editable, the stored `check` for the stored ticks (no request), the live one for any other; else the stored ticks are read-only (a refetch that turns it CHANGED takes the Accept away).
-  A fresh run (Propose again, a stale scope) is the viewer's own (`sameRun`: Save returns). The accept names the ticked teams (`acceptTeamIds`).
-- **Opening lands on the top, one rule for every run** (fresh or saved; team page, project page, overview; `useProposalFocus(run, busy)`): the section's h3 (`headingRef`, `tabIndex={-1}`, `ANCHORED_HEADING_STYLE`, whose scroll margin clears the 56 px header) is scrolled to the top (`scrollIntoView({block:"start"})`) and focused with `preventScroll`.
-  No control takes the focus on open (Discard/Close, a tall section's LAST control, scrolled the page to its bottom). An opening is the run object (the latch, cleared on close): a tick, a refetch, a failed accept or a window focus never lands again; Propose again (plan unchanged too), a stale refusal's fresh run, another saved proposal or the same one reopened after Close do. A saved run opens once its record is read. Vertical scroll only.
-- **The open one is marked**: `SavedProposalsTable`'s row of the run on screen (`openId` = `saved.record.id`; a failed read marks nothing) takes `aria-current="true"` and `.rowCurrent`, cleared with the run.
-- It ends with **Close** (Discard once fresh), an accept, a stale refusal, Back or a mode switch (`RoadmapModes` drops `proposal`): the parameter leaves the address. A 404 (also a malformed id), an `UNREADABLE` record (saved by an earlier version) or a failed read opens nothing, says so in a dismissible note (`SavedNotice`) and drops the parameter.
-
-### Tests
-
-Co-located: `Programs.{proposal,saved,save}.test.tsx`, `Saved*`, `CrossTeam*`, `useCrossTeamProposal*`, `planProposal` (fixtures `test/{crossTeamRun,overviewRun}.ts`); e2e `roadmap-proposal.spec.ts`.
+The run, what the viewer may accept, the sections and the saved proposals: `proposals-web.md` "The cross-team run".
 
 ## Deviations, bindings and the Jira chips
 
@@ -1931,49 +1863,7 @@ Both are the shared pieces, fed from the team view alone (`timeline.md` "The bas
   - The appended rows' menu (`TeamTimelineRows.tsx`, the pure builders; `timeline.md` "Appended rows for the tray") offers "Schedule on Jira's dates" only while `team.can.schedule` holds, no proposal
     previews and Jira's two dates are in order; it is `lock.guarded`, writes the REAL dates through the page's one schedule write path, then focuses the milestone's own row (`useRowMenuFocus`).
 
-### The schedule proposal
-
-A third write path, `hooks/useScheduleProposal.ts` (the generated view: `timeline.md` "The proposal preview"). "Propose schedule" (timeline header, `team.can.schedule`) POSTs the viewer's local day as
-`asOf`. A proposal with something to show opens the **Proposed schedule section** (`components/TeamProposal.tsx`, h3, under the timeline before the Unscheduled tray; its summary line, table and
-unplaced rows are `components/ProposalTable.tsx`, a controlled, action-free table over the structural `ProposalContent`, which the cross-team page composes once per team); one with nothing to show
-(nothing to propose / no capacity: add a period first) opens nothing and says so in a note. The page is read-only while a proposal is requested or open (`hooks/useProposalLock.ts`).
-
-- **The section** is controlled by the hook (`selected`, `toggle`, `selectAll`, `selectNone`, `accept`, `discard`).
-  - A summary line ("3 moves · 1 newly scheduled · 2 stay · 1 could not be placed"), a RED "N links would be violated" badge for links violated AFTER and not before (a gray "N links stay violated" for
-    those violated both times: `linkTotals`).
-  - The table (`teams.proposal.tableAria`): a header "Accept all" `Checkbox` (`indeterminate` while only some rows are ticked), a per-row `Checkbox` "Accept {{name}}"; Milestone with the project as a
-    link, Current, Proposed with its working days, Change = `changeSentence`, Links = `linksAtMove`: "would violate: <link> must start on <date> or later" (start or end by the link type,
-    `requiredEdge`: FS/SS start, FF/SF end) in red with a red "Conflict" badge, "resolves: link with ..." gray, nothing for an unchanged link.
-  - A "Could not be placed" row group with the reason in words (no capacity after {{date}}, the request's `asOf` / no room within the 520-week horizon, `PROPOSAL_HORIZON_WEEKS`; no checkbox).
-  - **Accept selected (N)** (primary; disabled at zero or while ANY write of the page runs) and **Discard** (disabled while the accept runs). The intro says the link warnings and the proposed load follow the ticks.
-- **Announcements.** Accept all / none are announced in the page's one polite region ("2 of 3 selected"); a per-row tick is a self-announcing checkbox. **What an accept came to** is a dismissible
-  `role="note"` line lasting until the next action (`ProposalNotes` under the timeline header, green; orange when something was skipped: "3 scheduled · 1 skipped: rescheduled in the meantime"), as are
-  the whole-batch stale refusal and the re-proposal after a `stale-scope` refusal. The status region is the single announcer (never an `Alert` with its implicit `role="alert"`); no success toast on accept.
-- **Failures.** A 403/404/400 of the accept is a `FormErrorAlert` INSIDE the open section above the actions (the preview stays open, the selection is kept) and takes the focus (the disabled Accept
-  would otherwise drop it to the body); a propose's failure shows under the timeline header while no preview is open.
-- **Focus** (`hooks/useProposalFocus.ts`): the section's heading on open ("The cross-team run" "Saved proposals"); Propose gets it back after Discard, an accept or a stale refusal, once no write runs (a disabled button cannot take it).
-
-### The scope check and the ticked-subset check
-
-- **The scope check.** The accept sends the proposal's `scopeHash`; on a `409 stale-scope` (`isStaleScope`; the team's plan changed since the proposal, nothing was written) the hook closes the
-  preview, requests a fresh proposal at once (a fresh `asOf`), refreshes `["plan"]`, and the new preview keeps the ticks of the milestones that were ticked and still move (`keptTicks`: the old
-  selection intersected with the new moves; a move new to the page starts unticked) with an orange dismissible `role="note"` `teams.proposal.rescoped` (`rescoped`). The fresh preview is a new opening (its heading takes the focus;
-  nothing waits for `applying`). A fresh proposal with nothing to show leaves the usual note instead. The whole-batch `stale-revision` 409 keeps the "reloaded, propose again" note.
-- **The ticked-subset check.** The proposal's link verdicts (`dependencies`) and proposed load (`weeks`) describe EVERY move accepted, so they would lie once some moves are unticked.
-  `hooks/useScheduleCheck.ts` (`{teamIds, revision, scopeHash, moves, selected, enabled}`; the cross-team page reuses it with the run's teams) asks the server (`checkSchedule`,
-  `api/scheduleProposals.ts`: `POST /schedule-proposals/check {teamIds:[team], items}`, a computation) for the verdicts of exactly the ticked moves, and ONLY while some but not all are ticked: all
-  ticked IS the proposal's own answer and none ticked changes nothing, so neither sends a request.
-  - The ticks are debounced 300 ms (`useDebouncedValue` over their JSON); the query is keyed `["plan", "schedule-check", sorted teamIds, revision, scopeHash, items]` by the DEBOUNCED ticks and runs
-    only once they have caught up with the current ones, so an answer for an older selection is never shown for the current one.
-  - It returns `ScheduleCheckState {mode: all|some|none, byTeam, pending, failed}` and `overlayCheck(open, check, teamId)` (`utils/scheduleProposal.ts`, pure) turns the open proposal into what the
-    page shows: all = the proposal as it is; none = the plan as it is (only the links already violated BEFORE remain, the gray "N links stay violated", no new warning, and no `weeks`: the strip keeps
-    the CURRENT load, so `TeamProposalView.weeks` is optional); some = the check's `dependencies`/`weeks`/`weeksTruncated` for the team once they are in.
-  - While the check is pending (the debounce window and the request count; a check cancelled by a write's `cancelQueries(["plan"])` is asked again, never left "Checking…") or has failed, the
-    all-accepted verdicts stay and `ProposalTable` says so in one dimmed line under the summary (`teams.proposal.checking` / `checkFailed`; visible only, never a toast or an alert, no announcement:
-    the status region already speaks on select all/none). So unticking a predecessor turns the ticked successor's Links cell and the summary badge red BEFORE the accept.
-  - `TeamDetails` hands the overlaid proposal to both `TeamProposal` and `TeamTimeline`; the accept still sends the selected moves exactly as before (the check is a query, `teamWriteKey` is
-    untouched); closing the preview drops the check queries, so the refresh after an accept re-asks none. `ProposalNotes` takes the structural `ProposalFlow` (`utils/scheduleProposal.ts`), so a second
-    hook fits it.
+The schedule proposal and its checks: `proposals-web.md` "The team page" and "Shared checks".
 
 ### The team page: Flow
 

@@ -55,6 +55,7 @@ const CEILINGS = [
   { files: ["e2e/README.md"], bytes: 45_000 },
   { files: [".claude/docs/build-times.md"], bytes: 41_000 },
   { files: [".claude/docs/sync.md"], bytes: 35_000 },
+  { files: [".claude/docs/proposals-web.md"], bytes: 29_000 },
   { files: [".claude/docs/ci.md"], bytes: 22_000 },
   { files: [".claude/docs/conventions.md"], bytes: 12_000 },
 ];

@@ -166,6 +166,7 @@ disagree, the doc wins. The always-loaded set (this file plus the two imports) s
 | `.claude/docs/team-colours.md` | a team's colour: the palette, assignment, storage, who edits, where it shows |
 | `.claude/docs/projects-view.md` | the Projects page: the picker, the bare `/projects`, the remembered project, its empty states |
 | `.claude/docs/scheduling.md` | the auto-proposal and the cross-team run: kernels, scope token, ledger, accept, check |
+| `.claude/docs/proposals-web.md` | any schedule proposal in the web app: the team page's, the project page's and the Roadmap overview's runs, saved proposals, the ticked-subset check, the Gantt preview |
 | `.claude/docs/timeline.md` | the shared `Timeline*` component and Gantt-like pages: approach, measured figures |
 | `.claude/docs/test-fixtures.md` | any server test fixture, the harness, fork warm-up, OpenAPI conformance internals, e2e scenario files, Schemathesis |
 | `.claude/docs/web-internals.md` | any `web/` page's mechanics (per page, nav order), the transport/session layer, i18n, colour tokens/logo, changelog |
