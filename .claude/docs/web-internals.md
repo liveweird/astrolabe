@@ -830,6 +830,7 @@ Files: `pages/Roadmap.tsx`;
   `utils/roadmapFilterParams.ts`, `utils/roadmapCritical.ts`, `utils/planTrack.ts`.
 - Components: `RoadmapTimeline` (the rows, bars, bands, the row menu, the arrows - inside the page's `TimelineDndContext`), `RoadmapFlagPanel`, `RoadmapFilters`,
   `RoadmapCriticalPicker`, `RoadmapCriticalChain`, `UpstreamTable`, `BaselineTotals`, `JiraBarsToggle`, `TargetWindowModal`, `PlanProjectCells`.
+- **A schedule preview (1.39):** Prioritization runs the overview's cross-team proposal on its own track (dashed bars, the ranking and the target windows locked until Discard, no Save, `?proposal=` ignored): `proposals-web.md` "Prioritization".
 
 ### Route and data
 

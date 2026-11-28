@@ -13,6 +13,7 @@ import FormErrorAlert from "../components/FormErrorAlert";
 import JiraBarsToggle from "../components/JiraBarsToggle";
 import { JiraStaleNote } from "../components/JiraChips";
 import LoadingBlock from "../components/LoadingBlock";
+import OverviewProposalSection from "../components/OverviewProposalSection";
 import PageHeader from "../components/PageHeader";
 import PlanDependenciesPanel from "../components/PlanDependenciesPanel";
 import RoadmapCriticalChain from "../components/RoadmapCriticalChain";
@@ -26,6 +27,7 @@ import TimelineDndContext from "../components/TimelineDndContext";
 import { useBaselinePick, useDropUnknownPick } from "../hooks/useBaselinePick";
 import { isRejectedTarget, useCriticalAnnouncement, useCriticalTarget } from "../hooks/useCriticalTarget";
 import { useJiraBarsPick } from "../hooks/useJiraBarsPick";
+import { useOverviewProposal } from "../hooks/useOverviewProposal";
 import { usePlanScale } from "../hooks/usePlanScale";
 import { useRoadmapFilters } from "../hooks/useRoadmapFilters";
 import { useRoadmapRanking } from "../hooks/useRoadmapRanking";
@@ -173,7 +175,7 @@ function RoadmapBody({
   onTarget: (id: number | null) => void;
 }) {
   const { t } = useTranslation();
-  const { filters: urlFilters, pick: urlPick, setFilters, setPick } = useRoadmapFilters();
+  const { filters: urlFilters, pick: urlPick, setFilters, setPick, clear: clearFilters } = useRoadmapFilters();
   const timelineRef = useRef<TimelineHandle>(null);
   const filtersRef = useRef<HTMLButtonElement>(null);
   // The "Jira dates" toggle (1.3, remembered, on by default; offered only where the view links a Jira site): `jira` is the window the shadow bars are
@@ -181,16 +183,21 @@ function RoadmapBody({
   // stretch the grow-only range).
   const jiraBars = useJiraBarsPick();
   const jira = jiraBars.shown ? jiraWindow(datesOf(view), localIsoDate()) : null;
-  // Every date of the whole plan, not only of the visible rows: a filter never changes the range under the user.
-  const { scale, setZoom, today } = usePlanScale(datesOf(view, jira));
 
   // The address (or the remembered values) may name things that are gone; the filters and the pick are read through what the view still has.
   const filters = knownFilters(view, urlFilters);
   const pick = knownPick(view, urlPick);
   const visible = visibleProjects(view, filters, pick);
   const removed = visibleRemoved(view, filters, pick);
+  const filtered = activeFilterCount(filters, pick) > 0;
   const rowCount = visible.ranked.length + visible.unranked.length;
   const visibleRankedIds = visible.ranked.map((entry) => entry.project.id);
+  const shown = [...visible.ranked.map((entry) => entry.project), ...visible.unranked];
+  // 1.39: the schedule proposal previewed on the track (dashed bars; no Save, no saved list): it covers the shown rows' teams, and from the request to Discard it locks the ranking and the
+  // target windows (`guard` wraps every write below; dependencies stay editable). The range covers its dates and, as ever, every date of the whole plan, not only of the visible rows.
+  const proposal = useOverviewProposal({ shown, teams: view.teams, narrowed: filtered, unsettled: false, announce: ranking.announce, saved: false });
+  const { scale, setZoom, today } = usePlanScale([...datesOf(view, jira), ...proposal.days]);
+  const commitWindow = proposal.guard(windowWrite.commit);
 
   // The menu's moves are relative to the rows the user sees; the page binds the visible ranked ids. A taken menu change keeps the keyboard user on
   // the row they were working on (`useRowMenuFocus`: the row's menu button, or its header where the virtual path has unmounted the row); a row that
@@ -232,7 +239,7 @@ function RoadmapBody({
   // A ranking change from a row's menu: the focus stays on `id`; if it sent a PUT and that is rolled back, the focus returns to the row `from`.
   const rankingChange = (id: number, change: () => boolean, from = id) => {
     const sent = ranking.writeCount();
-    focus.keep(id, change(), from);
+    focus.keep(id, proposal.guard(change)(), from);
     if (ranking.writeCount() > sent) focus.watchRollback(from);
   };
   const actions: RoadmapActions = {
@@ -250,7 +257,7 @@ function RoadmapBody({
     unrank: (project) => rankingChange(project.id, () => ranking.unrank(project.id)),
     window: {
       edit: (project) => setEditingId(project.id),
-      clear: (project) => focus.keep(project.id, windowWrite.commit(project.id, null, null, { announce: true })),
+      clear: (project) => focus.keep(project.id, commitWindow(project.id, null, null, { announce: true })),
     },
     critical: { target, disabled: ranking.pending, toggle: (project) => showCriticalTo(project.id === target ? null : project) },
   };
@@ -261,6 +268,11 @@ function RoadmapBody({
 
   return (
     <>
+      {proposal.refusal !== null && (
+        <Alert color="orange" variant="light" role="note">
+          {proposal.refusal}
+        </Alert>
+      )}
       <RoadmapFacts ranked={visible.ranked.length} unranked={visible.unranked.length} flags={flagTotals(visible)} jiraStale={view.jiraSites.some(isStaleSource)} />
       {view.baseline !== undefined && <BaselineTotals name={view.baseline.name} totals={projectTotals(allProjects(view), view.baseline.removedProjects.length)} ranks={rankTotals(allProjects(view))} />}
       <FilterPanel activeFilterCount={activeFilterCount(filters, pick)} storageKey="roadmap" toggleRef={filtersRef}>
@@ -275,9 +287,9 @@ function RoadmapBody({
           // The only bar this page edits is a project's window (`window:<id>`): a move, a resize or a draw all land here.
           onSchedule={(barId, start, end) => {
             const id = projectOfWindowBar(barId);
-            return id !== null && windowWrite.commit(id, start, end);
+            return id !== null && commitWindow(id, start, end);
           }}
-          onReorder={(barId, slot) => ranking.dropAt(Number(barId), slot, visibleRankedIds)}
+          onReorder={proposal.guard((barId, slot) => ranking.dropAt(Number(barId), slot, visibleRankedIds))}
         >
           <Stack gap="xs">
             <Group gap="sm" align="center">
@@ -305,6 +317,7 @@ function RoadmapBody({
               label={t("roadmap.timelineAria")}
               timelineRef={timelineRef}
               jira={jira}
+              preview={{ proposed: proposal.proposed, locked: proposal.lock.locked }}
               toolbar={
                 <>
                   <BaselinePicker pick={baselinePick} onPick={onPick} current={view.baseline} disabled={ranking.pending} />
@@ -317,12 +330,14 @@ function RoadmapBody({
         </TimelineDndContext>
       )}
 
+      <OverviewProposalSection proposal={proposal} announce={ranking.announce} onShowAll={filtered ? clearFilters : null} host="prioritization" />
+
       <RoadmapFlagPanel entries={flagEntries(visible)} names={names} jiraSites={view.jiraSites} onShow={(projectId) => timelineRef.current?.focusRow(projectId)} />
 
       <RoadmapCriticalChain
         projects={allProjects(view)}
         criticalPath={view.criticalPath}
-        shown={new Set([...visible.ranked.map((entry) => entry.project.id), ...visible.unranked.map((project) => project.id)])}
+        shown={new Set(shown.map((project) => project.id))}
         intro="roadmap.critical.intro"
         notShown="roadmap.critical.notShown"
       />
@@ -332,10 +347,10 @@ function RoadmapBody({
           project={editing}
           refused={windowWrite.refused}
           onSave={(start, end) => {
-            if (windowWrite.commit(editing.id, start, end, { announce: true, ownRefusalAlert: true })) closeDialog(editing.id);
+            if (commitWindow(editing.id, start, end, { announce: true, ownRefusalAlert: true })) closeDialog(editing.id);
           }}
           onClear={() => {
-            if (windowWrite.commit(editing.id, null, null, { announce: true, ownRefusalAlert: true })) closeDialog(editing.id);
+            if (commitWindow(editing.id, null, null, { announce: true, ownRefusalAlert: true })) closeDialog(editing.id);
           }}
           onClose={() => closeDialog(editing.id)}
         />

@@ -56,7 +56,7 @@ Only DATE writes lock while a run is requested or open (`lockActions`, `guardDro
 
 Every login previews ONE cross-team run on the tree (the run, rights and sections: "The cross-team run" "What the viewer may accept").
 - **Propose** is a click (never automatic: run and accept share a 30/min bucket), off (the hint is its description) until the rights are read, while the address's work stream is unsettled or a window write runs, over 50 teams ("narrow the pick or choose fewer"), or with no team ("Choose at least one team"). It covers
-  `overviewTeamIds` by default: the union of the SHOWN projects' `teamIds` (`shownProjects`, `treeRows`' own filter: pick + work stream), every team with a milestone when nothing is narrowed; the viewer may choose any other ("The team picker"). `outside` (`OutsidePickNote`) counts the projects a SAVED run or a CHOSEN-set run moves beyond the shown ones; the default run stays silent (1.37).
+  `runTeamIds` (`programsTree.ts`) by default: the union of the SHOWN projects' `teamIds` (`shownProjects`, `treeRows`' own filter: pick + work stream), every team with a milestone when nothing is narrowed; the viewer may choose any other ("The team picker"). `outside` (`OutsidePickNote`) counts the projects a SAVED run or a CHOSEN-set run moves beyond the shown ones; the default run stays silent (1.37).
 - **Bars:** the projects that follow the TICKS (`overlayProjects`, 1.38: `proposals-preview.md` "Shared checks"; `useOverviewProposal.projects`) give a project row `proposal:<id>` (`projectTrack`'s `{proposed, locked}`; the roadmap passes none) and a node row `proposedSpan` (union, only when different),
   `proposal:ws|pg:<id>`; `usePlanScale` covers the WHOLE run's spans (`days`), whatever is ticked, so the range never moves under a tick. The "Projects whose dates would move" table keeps the RUN's rows and their order whatever is ticked (it sits above the checkboxes): a row the ticked moves no longer move reads "Unchanged" / "Would not move", the others take the check's dates and end shift; the "No project's dates would move" sentence is only for a run that moves none.
 - **Lock** (`useProposalLock`, request to Discard): window bars read-only, no draw surface or window items, `guard(commit)` refuses out loud. Dependencies stay UNLOCKED (decision): an edit bumps the
@@ -64,6 +64,16 @@ Every login previews ONE cross-team run on the tree (the run, rights and section
 - **Section** (h3 under the timeline): the teams as links, "Projects whose dates would move", `CrossTeamRunView`, Save (only when every run team is acceptable), Accept selected (N), Propose again,
   Discard. Nothing acceptable = a preview.
 - **Saved proposals**: `?proposal=<id>` opens a stored run in this section; the "Saved proposals (N)" panel sits under it ("The cross-team run" "Saved proposals").
+
+## Prioritization
+
+`/roadmap?mode=prioritization` (`pages/Roadmap.tsx`, `RoadmapBody`) previews the SAME cross-team run as the overview, through the same `useOverviewProposal` and `OverviewProposalSection` (`host="prioritization"`); the hook takes what the page shows (`shown`, `teams`, `narrowed`) instead of a Programs view, and `saved: false`.
+- **Covers** the visible rows' teams (`runTeamIds`: ranked and unranked rows after the filters and the program pick; every team with a milestone when `activeFilterCount` is 0), with 1.38's picker ("The team picker"). `unsettled` is always false. Propose is a click, as everywhere.
+- **Bars:** a dashed `proposal:<id>` bar per project the TICKED moves move (`RoadmapTimeline`'s `preview`: `projectTrack`'s `{proposed, locked}`); the page has no work stream or program rows, so no node bars; `usePlanScale` covers `proposal.days`. The section's "Projects whose dates would move" table is the overview's.
+- **Lock** (`useProposalLock`, request to Discard): the RANKING and the target windows, because the rank is each team's default order. `proposal.guard` wraps the window commit (band, draw, the dialog's Save and Clear, the menu's Clear), `rankingChange` (the menu's Move, Move to top / bottom, Rank, Unrank) and `onReorder`; a refusal says "A proposal is open, so the schedule is read-only" in the page's status region and a visible note.
+  `preview.locked` also takes the row handle, the menu's ranking and window items and the draw surface away. Dependencies stay UNLOCKED (as on the overview: an edit stales the accept, and the page says so).
+- **Accept** as on the overview, for the teams the viewer manages (a viewer who manages none previews: "This is a preview", no check asked). **No Save, no saved list, and `?proposal=` is ignored** (`useSavedRun`/`useSavedVerdict` `enabled: false`: nothing is read, nothing opens). Switching the mode discards the run (the body unmounts); `RoadmapModes` already drops `proposal`.
+- **Strings:** `roadmap.proposal.{requesting,intro,tooMany}` word the ranking's lock and the filters; every other string is `programs.proposal.*`. Tests: `Roadmap.proposal.test.tsx`, `RoadmapModes.test.tsx`; e2e `roadmap-proposal.spec.ts`, `accessibility.spec.ts`.
 
 ## The cross-team run
 
@@ -136,6 +146,6 @@ The overview's and project page's hooks spread `picker` (`useOverviewProposal`, 
 
 ### Tests
 
-Co-located: `Programs.{proposal,saved,save,runTeams}.test.tsx`, `ProjectView.runTeams.test.tsx`, `TeamDetails.run.test.tsx`, `useTeamProposals`, `teamRunPreview`, `RunTeamsPicker`, `useRunTeams`, `Saved*`, `CrossTeam*`, `useCrossTeamProposal*`, `planProposal` (fixtures `test/{crossTeamRun,overviewRun}.ts`); e2e `roadmap-proposal.spec.ts`, `team-run.spec.ts`.
+Co-located: `Programs.{proposal,saved,save,runTeams}.test.tsx`, `Roadmap.proposal.test.tsx`, `ProjectView.runTeams.test.tsx`, `TeamDetails.run.test.tsx`, `useTeamProposals`, `teamRunPreview`, `RunTeamsPicker`, `useRunTeams`, `Saved*`, `CrossTeam*`, `useCrossTeamProposal*`, `planProposal` (fixtures `test/{crossTeamRun,overviewRun}.ts`); e2e `roadmap-proposal.spec.ts`, `team-run.spec.ts`.
 
 The checks shared by the hosts and the Gantt preview: `proposals-preview.md` ("Shared checks", "The Gantt preview").

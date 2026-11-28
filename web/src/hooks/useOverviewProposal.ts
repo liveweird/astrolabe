@@ -1,8 +1,9 @@
 import { useMemo } from "react";
 import { useIsMutating } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import type { ProgramsView } from "../api/programs";
-import { overviewTeamIds, shownProjects, type ProposedSpans } from "../utils/programsTree";
+import type { RoadmapProject } from "../api/roadmap";
+import type { CrossTeamProposal } from "../api/scheduleProposals";
+import { runTeamIds, type ProposedSpans } from "../utils/programsTree";
 import { storedCheckState } from "../utils/savedProposal";
 import { movesOf, useCrossTeamProposal } from "./useCrossTeamProposal";
 import { useProposalFocus } from "./useProposalFocus";
@@ -14,33 +15,38 @@ import { useSavedRun } from "./useSavedRun";
 import { useScheduleCheck } from "./useScheduleCheck";
 import { useTickedProjects } from "./useTickedProjects";
 
+/** The projects an open run moves that the page shows (`shown`) or does not. */
+const runProjects = (run: CrossTeamProposal | null, shownIds: ReadonlySet<number>, shown: boolean) => (run?.projects ?? []).filter((project) => shownIds.has(project.projectId) === shown);
+
 /**
- * The Roadmap overview's schedule proposal (1.33): ONE cross-team run over the teams that work on the projects the page SHOWS (`overviewTeamIds`: the program pick
- * and the work stream narrowing; nothing narrowed = every team with a milestone), previewed for every login on the tree's own timeline. The run is the project page's
+ * The Roadmap overview's schedule proposal (1.33; Prioritization's too, 1.39): ONE cross-team run over the teams that work on the projects the page SHOWS (`runTeamIds`: the program pick
+ * and the work stream narrowing, or Prioritization's filters; nothing narrowed = every team with a milestone), previewed for every login on the page's own timeline. The run is the project page's
  * and the old page's (`useCrossTeamProposal`); what this hook adds is the page's side of it:
  * - the rights (`useProposalRights`): only the teams the viewer may accept have ticks and an accept; a viewer with none previews (the check is never asked);
  * - the lock (`useProposalLock`): from the request until Discard the target windows are read-only (`guard` wraps the window write path, which then refuses out loud);
  * - the bars: `proposed` is the span each project that the TICKED moves move gets (`projects`: the run's `projects[]`, or the server's check for the ticked subset, `useTickedProjects`), `days` the dates the page's range must cover (the whole run's);
  * - Propose waits while a `?proposal=` record is still being read, and never fires by itself (the run and the accept share a per-user rate limit), so `propose` is only ever a click's: also while a window write runs it answers `false`.
- * `view` is the whole plan, `narrowed` what `inWorkStream` leaves of it, `pick` the program pick as the tree takes it; `unsettled` = the address names a work stream the view does not
- * narrow to yet (Propose waits: the team set would be the whole plan's).
+ * `shown` is what the page shows (the overview: `shownProjects`; Prioritization: its visible rows), `teams` the document's teams, `narrowed` that anything is filtered out of the plan; `unsettled` = the address names a work stream the view does not
+ * narrow to yet (Propose waits: the team set would be the whole plan's). `saved: false` (Prioritization: no Save, no saved list) reads no `?proposal=` at all.
  * The team set starts as the page's (above) and the viewer may choose any other (`useRunTeams`, 1.38; `picker` is the props of `RunTeamsPicker`; `disabled` while a run is requested or open: the section does not draw it then): `teamIds` is the set Propose asks over,
  * `tooMany` and `proposable` follow it, `outside` counts the projects a saved or chosen-set run moves beyond the shown ones, and the picker is not drawn while a run is requested or open (its sections name the run's teams).
  * A saved proposal named by the address (`?proposal=<id>`, `useSavedRun`) opens in this same run: the bars, the table and the sections are the same.
  * Dependencies stay UNLOCKED while a run is open on purpose: an edit bumps the plan revision, so the accept is refused as stale and the page says so.
  */
 export function useOverviewProposal({
-  view,
+  shown,
+  teams,
   narrowed,
-  pick,
   unsettled,
   announce,
+  saved: savedOpens,
 }: {
-  view: ProgramsView;
-  narrowed: ProgramsView;
-  pick: ReadonlySet<number> | null;
+  shown: readonly RoadmapProject[];
+  teams: readonly { id: number }[];
+  narrowed: boolean;
   unsettled: boolean;
   announce: (text: string) => void;
+  saved: boolean;
 }) {
   const { t } = useTranslation();
   const rights = useProposalRights();
@@ -50,7 +56,7 @@ export function useOverviewProposal({
   const writing = useIsMutating({ mutationKey: ROADMAP_WRITE_KEY }) > 0;
   const busy = flow.requesting || flow.applying;
   // A saved proposal the address names (`?proposal=`) opens in this very run; its stored check describes its stored ticks, any other ticks are asked of the server.
-  const savedRun = useSavedRun({ flow, ready: rights.ready, announce });
+  const savedRun = useSavedRun({ flow, ready: rights.ready, announce, enabled: savedOpens });
   const focus = useProposalFocus(run, busy);
   const { saved } = savedRun;
   const liveCheck = useScheduleCheck({
@@ -63,7 +69,7 @@ export function useOverviewProposal({
     enabled: run !== null && flow.canAccept && (saved === null || saved.asking),
   });
   const check = saved !== null && !saved.asking ? storedCheckState(saved.record) : liveCheck;
-  const pageTeamIds = overviewTeamIds(view, narrowed, pick);
+  const pageTeamIds = runTeamIds(teams, shown, narrowed);
   const runTeams = useRunTeams(pageTeamIds);
   const teamIds = runTeams.ids;
   // The projects whose dates follow the TICKS (1.38, the server's own answer): the bars, the node spans and the "Projects whose dates would move" table (whose ROWS stay the run's).
@@ -73,11 +79,11 @@ export function useOverviewProposal({
   const { projects } = useTickedProjects(run, check, ticksAll || (saved !== null && !saved.asking));
   const proposed = useMemo<ProposedSpans>(() => new Map(projects.map((project) => [project.projectId, project.after])), [projects]);
   // The range covers the spans of the SHOWN projects only (a moved project outside the pick has no bar) and those of the WHOLE run, whatever is ticked (the range never moves under a tick).
-  const shownIds = useMemo(() => new Set(shownProjects(narrowed, pick).map((project) => project.id)), [narrowed, pick]);
-  const days = useMemo(() => (run?.projects ?? []).filter((project) => shownIds.has(project.projectId)).flatMap((project) => [project.after.start, project.after.end]), [run, shownIds]);
+  const shownIds = new Set(shown.map((project) => project.id));
+  const days = runProjects(run, shownIds, true).flatMap((project) => [project.after.start, project.after.end]);
   // A run moves what it moved when it was computed (a saved one, or a chosen team set's): projects the current pick hides have no bar (the table lists them) - the page says how many.
   // The default run (the shown projects' own teams) stays silent, as in 1.37; a saved run and a chosen team set say it.
-  const outside = saved === null && !runTeams.chosen ? 0 : (run?.projects ?? []).filter((project) => !shownIds.has(project.projectId)).length;
+  const outside = saved === null && !runTeams.chosen ? 0 : runProjects(run, shownIds, false).length;
   const tooMany = teamIds.length > MAX_RUN_TEAMS;
   const proposable = rights.ready && !unsettled && teamIds.length > 0 && !tooMany && run === null && !busy && !writing && !savedRun.loading;
   return {

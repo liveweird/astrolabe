@@ -4,7 +4,7 @@ import type { RoadmapProject } from "../api/roadmap";
 import { roadmapProject } from "../test/roadmapView";
 import { jiraWindow } from "./jiraBars";
 import type { RemovedProjectRow } from "./baselineOverlay";
-import { allOpen, arrowAnchors, defaultOpen, inWorkStream, overviewTeamIds, programChoices, shownProjects, toggled, treeDates, treeFacts, treeRows } from "./programsTree";
+import { allOpen, arrowAnchors, defaultOpen, inWorkStream, programChoices, runTeamIds, shownProjects, toggled, treeDates, treeFacts, treeRows } from "./programsTree";
 
 const project = (id: number, name: string, over: Partial<RoadmapProject> = {}): RoadmapProject => roadmapProject({ id, name, ...over });
 
@@ -315,8 +315,9 @@ describe("the schedule proposal's side of the tree (1.33)", () => {
     expect(shownProjects(view, new Set([11])).map((p) => p.name)).toEqual(["Dashboards"]);
   });
 
-  test("overviewTeamIds: nothing narrowed = every team of the view; a pick or a work stream = the union of the shown projects' teams, ascending, each once", () => {
+  test("runTeamIds (as the overview asks it): nothing narrowed = every team of the view; a pick or a work stream = the union of the shown projects' teams, ascending, each once", () => {
     const view = withTeams();
+    const overviewTeamIds = (plan: ProgramsView, narrowed: ProgramsView, pick: ReadonlySet<number> | null) => runTeamIds(plan.teams, shownProjects(narrowed, pick), narrowed !== plan || pick !== null);
     expect(overviewTeamIds(view, view, null)).toEqual([1, 2, 3, 4]);
     expect(overviewTeamIds(view, view, new Set([10]))).toEqual([1, 2]);
     expect(overviewTeamIds(view, view, new Set([11]))).toEqual([3]);

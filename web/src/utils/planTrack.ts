@@ -85,7 +85,7 @@ function bandsOf(project: RoadmapProject, t: TFunction): TimelineBandData[] {
  * none, the draw surface (a drag across the empty row proposes `onSchedule(window:<id>, start, end)`, the same seam as moving the band).
  * `conflicts` = the violated links ending on each project (`conflictsByProject`); `jira` = the page's Jira window while the "Jira dates" toggle is on (`jiraWindow`), else `null`;
  * `critical` (1.7, the roadmap's picked critical path) = the project is the target or on its chain: its span bar gets the critical emphasis.
- * `preview` (1.33, the overview's schedule proposal; the roadmap passes none, so its rows are as ever): the proposal bar, and while `locked` the window
+ * `preview` (1.33, a previewed schedule proposal: the overview's and, since 1.39, Prioritization's while one is open; without one the rows are as ever): the proposal bar, and while `locked` the window
  * bar is read-only and no draw surface is offered.
  */
 export function projectTrack(

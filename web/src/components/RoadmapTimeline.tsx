@@ -6,6 +6,7 @@ import type { RemovedProject, RoadmapProject, RoadmapView } from "../api/roadmap
 import { useHolidays } from "../hooks/useHolidays";
 import { useTimelineColumns } from "../hooks/useTimelineColumns";
 import { removedProjectRows } from "../utils/baselineOverlay";
+import type { ProposedSpans } from "../utils/programsTree";
 import type { JiraWindow } from "../utils/jiraBars";
 import { projectTrack, planArrows } from "../utils/planTrack";
 import { criticalIndex } from "../utils/roadmapCritical";
@@ -37,6 +38,10 @@ export type RoadmapActions = {
   /** The critical path toward a project (1.7): the menu's "Show critical path to this project" / "Hide critical path"; `target` is the project the page shows it toward. */
   critical: { target: number | null; toggle: (project: RoadmapProject) => void; disabled: boolean };
 };
+
+/** A previewed schedule proposal (1.39): the span each project would get (dashed bars) and whether the ranking and the target windows are read-only meanwhile. */
+type RoadmapPreview = { proposed: ProposedSpans; locked: boolean };
+const NO_PREVIEW: RoadmapPreview = { proposed: new Map(), locked: false };
 
 /** The sticky left columns: 460 px in all, so the track keeps the width on a laptop (work stream and owner are filters, not columns). The rank column grows to hold "(was 12)" while a baseline is picked. */
 const COLUMN_WIDTHS = { rank: 44, rankWithBaseline: 96, project: 240, flags: 120, actions: 56 } as const;
@@ -74,13 +79,14 @@ function RankCell({ project, position }: { project: RoadmapProject; position: nu
  * The row menu of one project: the ranking moves by the view's `can.editRank` (a ranked row: Move up / down / to top / to bottom, disabled at the
  * ends of the VISIBLE ranked rows, and Unrank; an unranked row: Rank, which appends), the target window's items by the project's own
  * `can.editTargetWindow` (Edit target window…, Clear target window), the critical path toward this project (1.7) and always a link to the project. This menu is the keyboard and
- * screen-reader path of the row drag and of the band's drag, and its button keeps focus through its own move.
+ * screen-reader path of the row drag and of the band's drag, and its button keeps focus through its own move. While a proposal is previewed (`locked`) the ranking and window items are left out.
  */
 function ProjectMenu({
   project,
   rankedIndex,
   rankedCount,
   canRank,
+  locked,
   actions,
   trigger,
 }: {
@@ -89,6 +95,8 @@ function ProjectMenu({
   rankedIndex: number | null;
   rankedCount: number;
   canRank: boolean;
+  /** A schedule proposal is requested or open (1.39): no rank and no target window item. */
+  locked: boolean;
   actions: RoadmapActions;
   trigger: RovingTarget;
 }) {
@@ -98,7 +106,7 @@ function ProjectMenu({
   const last = rankedIndex === rankedCount - 1;
   return (
     <RowActionsMenu label={t("common.table.operationsAria", { name })} trigger={{ ...trigger, "data-operations-for": project.id }} onClosed={() => actions.menuClosed(project)}>
-      {canRank && rankedIndex !== null && (
+      {canRank && !locked && rankedIndex !== null && (
         <>
           <MoveItems name={name} scope="roadmap.action" first={first} last={last} onMove={(delta) => actions.move(project, delta)} onMoveTo={(edge) => actions.moveTo(project, edge)} />
           <Menu.Item leftSection={<IconX size={14} />} onClick={() => actions.unrank(project)} aria-label={t("roadmap.action.unrankAria", { name })}>
@@ -107,7 +115,7 @@ function ProjectMenu({
           <Menu.Divider />
         </>
       )}
-      {canRank && rankedIndex === null && (
+      {canRank && !locked && rankedIndex === null && (
         <>
           <Menu.Item leftSection={<IconListNumbers size={14} />} onClick={() => actions.rank(project)} aria-label={t("roadmap.action.rankAria", { name })}>
             {t("roadmap.action.rank")}
@@ -116,7 +124,7 @@ function ProjectMenu({
         </>
       )}
       <CriticalPathItem project={project} target={actions.critical.target} disabled={actions.critical.disabled} onToggle={() => actions.critical.toggle(project)} />
-      <TargetWindowItems project={project} actions={actions.window} />
+      {!locked && <TargetWindowItems project={project} actions={actions.window} />}
       <DependenciesItem project={project} />
       <OpenProjectItem project={project} />
       <OpenEntityItem entity={{ kind: "program", id: project.programId }} name={project.programName} />
@@ -160,6 +168,7 @@ export default function RoadmapTimeline({
   timelineRef,
   toolbar,
   jira,
+  preview = NO_PREVIEW,
 }: {
   view: RoadmapView;
   visible: VisibleProjects;
@@ -176,10 +185,13 @@ export default function RoadmapTimeline({
   toolbar?: ReactNode;
   /** The page's Jira window while the "Jira dates" toggle is on (each project's Jira shadow bar), else `null`. */
   jira: JiraWindow | null;
+  /** The page's previewed schedule proposal (1.39, Prioritization): dashed bars, and while `locked` no row handle and no rank or window item (the page's guard refuses the writes too). */
+  preview?: RoadmapPreview;
 }) {
   const { t } = useTranslation();
   const { holidays, failed: holidaysFailed } = useHolidays();
   const canRank = view.can.editRank;
+  const { locked } = preview;
   const teamNames = new Map(view.teams.map((team) => [team.id, team.name]));
   const columns: TimelineColumn[] = [
     { id: "rank", header: t("roadmap.column.rank"), width: view.baseline === undefined ? COLUMN_WIDTHS.rank : COLUMN_WIDTHS.rankWithBaseline },
@@ -214,11 +226,11 @@ export default function RoadmapTimeline({
       id: project.id,
       cells: [
         <RankCell key="rank" project={project} position={position} />,
-        (stop: RovingTarget) => <ProjectCell project={project} placement={canRank ? { index, count: display.length } : null} stop={stop} />,
+        (stop: RovingTarget) => <ProjectCell project={project} placement={canRank && !locked ? { index, count: display.length } : null} stop={stop} />,
         <FlagCountsCell key="flags" counts={countFlags(project.flags)} flowPending={(project.flowPendingTeamIds?.length ?? 0) > 0} pendingTeams={pendingTeamNames(project, teamNames)} />,
-        (stop: RovingTarget) => <ProjectMenu project={project} rankedIndex={rankedIndex} rankedCount={rankedCount} canRank={canRank} actions={actions} trigger={stop} />,
+        (stop: RovingTarget) => <ProjectMenu project={project} rankedIndex={rankedIndex} rankedCount={rankedCount} canRank={canRank} locked={locked} actions={actions} trigger={stop} />,
       ],
-      ...projectTrack(project, t, conflicts, jira, chain.projects.has(project.id)),
+      ...projectTrack(project, t, conflicts, jira, chain.projects.has(project.id), { proposed: preview.proposed.get(project.id), locked }),
     };
   }
 

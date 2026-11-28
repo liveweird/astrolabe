@@ -19,10 +19,10 @@ type Flow = ReturnType<typeof useCrossTeamProposal>;
  * `UNREADABLE` one (saved in a shape this server no longer reads) says so and opens nothing; any other failure is worded by its status. In each case the
  * parameter leaves the address. `close()` (Close, Discard) drops it too, and so does an accept that went through or any other end of the run. A different id
  * replaces the run on screen (the previous one is discarded first, never while an accept runs); the parameter leaving the address (Back, a mode switch) closes the run it opened.
- * Nothing here asks the server to compute anything.
+ * Nothing here asks the server to compute anything. `enabled: false` (Prioritization, 1.39) reads no parameter: nothing ever opens and `saved` stays `null`.
  * The focus and the scroll of an opening (the heading at the top) are the shared `useProposalFocus`'s: a saved run is a run like any other.
  */
-export function useSavedRun({ flow, ready, announce }: { flow: Flow; ready: boolean; announce: (text: string) => void }) {
+export function useSavedRun({ flow, ready, announce, enabled = true }: { flow: Flow; ready: boolean; announce: (text: string) => void; enabled?: boolean }) {
   const { t } = useTranslation();
   // Which saved id's run was opened on screen (the parameter alone cannot say: a Close takes the run away a render before the address follows).
   const [opened, setOpened] = useState<number | null>(null);
@@ -31,7 +31,7 @@ export function useSavedRun({ flow, ready, announce }: { flow: Flow; ready: bool
   const { raw, id, record, verdict, notice, dismissNotice, drop, handled } = useSavedVerdict(announce, () => {
     // A verdict ends the run it had opened.
     if (opened !== null && running !== null && (id === null || opened === id)) discard();
-  });
+  }, enabled);
 
   // The stored run opens ONCE per id, as the overview's own preview. A run of another id (or the viewer's own) on screen is discarded first.
   const stored = record?.proposal ?? null;

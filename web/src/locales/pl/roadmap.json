@@ -191,5 +191,18 @@
     "column": {
       "program": "Program"
     }
+  },
+  "proposal": {
+    "requesting": "Pobieramy propozycję — ranking i terminy docelowe są zablokowane do jej nadejścia.",
+    "intro": "Kreskowane paski na osi czasu pokazują proponowane terminy. Ranking i terminy docelowe pozostają zablokowane, dopóki nie odrzucisz propozycji; zależności można nadal edytować. Nic się nie zmieni, dopóki nie zaakceptujesz propozycji.",
+    "tooMany_one": "Propozycja obejmowałaby {{count}} zespół, a obejmuje najwyżej {{max}} — zawęź filtry lub wybór programów albo wybierz mniej zespołów.",
+    "tooMany_few": "Propozycja obejmowałaby {{count}} zespoły, a obejmuje najwyżej {{max}} — zawęź filtry lub wybór programów albo wybierz mniej zespołów.",
+    "tooMany_many": "Propozycja obejmowałaby {{count}} zespołów, a obejmuje najwyżej {{max}} — zawęź filtry lub wybór programów albo wybierz mniej zespołów.",
+    "tooMany_other": "Propozycja obejmowałaby {{count}} zespołu, a obejmuje najwyżej {{max}} — zawęź filtry lub wybór programów albo wybierz mniej zespołów.",
+    "outside_one": "{{count}} projekt przesuwany przez tę propozycję jest ukryty przez bieżące filtry",
+    "outside_few": "{{count}} projekty przesuwane przez tę propozycję są ukryte przez bieżące filtry",
+    "outside_many": "{{count}} projektów przesuwanych przez tę propozycję jest ukrytych przez bieżące filtry",
+    "outside_other": "{{count}} projektu przesuwanego przez tę propozycję jest ukrytego przez bieżące filtry",
+    "showAll": "Wyczyść filtry"
   }
 }

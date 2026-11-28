@@ -844,6 +844,34 @@ test.describe("an open schedule proposal", () => {
     test.use({ colorScheme: "dark" });
     registerOverviewProposalScan("dark");
   });
+
+  // Prioritization (1.39) narrowed to the same program with an open cross-team proposal: the project rows' dashed bars (no row handle, no rank or window item while it is open),
+  // the section under the timeline (no Save), and its Accept / Propose again / Discard buttons.
+  function registerPrioritizationProposalScan(scheme: Scheme): void {
+    const suffix = scheme === "dark" ? " in the dark scheme" : "";
+    test(`/roadmap Prioritization with an open schedule proposal has no WCAG A/AA violations${suffix}`, async ({ page }) => {
+      await login(page);
+      await page.goto(`/roadmap?mode=prioritization&programId=${programId}`);
+      await expect(page.getByRole("grid", { name: "Roadmap timeline" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Propose schedule", exact: true })).toBeEnabled();
+      await page.getByRole("button", { name: "Propose schedule", exact: true }).click();
+      const heading = page.getByRole("heading", { level: 3, name: "Schedule proposal", exact: true });
+      await expect(heading).toBeVisible();
+      await expect(page.getByRole("table", { name: "Projects whose dates would move", exact: true })).toBeVisible();
+      await expect(page.getByRole("table", { name: `Proposed moves of ${teamName}` })).toBeVisible();
+      await expect(page.locator('[data-tone="proposal"]').first()).toBeVisible();
+      await expect(page.getByRole("button", { name: /^Accept selected \(\d+\)$/ })).toBeEnabled();
+      // The pointer still rests where Propose was: park it on the section heading so no row is hover-tinted.
+      await heading.hover();
+      await expectScheme(page, scheme);
+      await scan(page);
+    });
+  }
+  registerPrioritizationProposalScan("light");
+  test.describe("dark scheme", () => {
+    test.use({ colorScheme: "dark" });
+    registerPrioritizationProposalScan("dark");
+  });
 });
 
 interface PersonFixture {

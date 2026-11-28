@@ -52,6 +52,7 @@ beforeEach(() => {
       if (url.startsWith("/api/v1/views/roadmap")) return Promise.resolve(jsonResponse(200, VIEW));
       if (url === "/api/v1/baselines") return Promise.resolve(jsonResponse(200, { items: [], can: { manage: false } }));
       if (url === "/api/v1/public-holidays") return Promise.resolve(jsonResponse(200, { items: [] }));
+      if (url === "/api/v1/schedule-proposals/teams") return Promise.resolve(jsonResponse(200, { items: [], truncated: false }));
       return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
     }),
   );

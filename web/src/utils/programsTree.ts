@@ -242,11 +242,11 @@ export const shownProjects = (view: ProgramsView, pick: ReadonlySet<number> | nu
   shownStreams(view, pick).flatMap((entry) => entry.programs.flatMap((program) => program.projects));
 
 /**
- * The teams a schedule proposal from the overview covers (1.33): the union of the shown projects' `teamIds`, ascending; with nothing narrowed (`narrowed` is the
- * plan itself - `inWorkStream` returns the same view for no work stream - and no pick) every team of the view, i.e. every active team with a milestone.
+ * The teams a schedule proposal from a plan page covers (1.33, the overview; 1.39, Prioritization too): the union of the SHOWN projects' `teamIds`, ascending; with nothing
+ * narrowed (no program pick, no work stream, no filter) every team of the document, i.e. every active team with a milestone.
  */
-export function overviewTeamIds(plan: ProgramsView, narrowed: ProgramsView, pick: ReadonlySet<number> | null): number[] {
-  const ids = narrowed === plan && pick === null ? plan.teams.map((team) => team.id) : shownProjects(narrowed, pick).flatMap((project) => project.teamIds);
+export function runTeamIds(teams: readonly { id: number }[], shown: readonly RoadmapProject[], narrowed: boolean): number[] {
+  const ids = narrowed ? shown.flatMap((project) => project.teamIds) : teams.map((team) => team.id);
   return [...new Set(ids)].sort((a, b) => a - b);
 }
 

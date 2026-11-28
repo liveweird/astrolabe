@@ -3,7 +3,8 @@
 // runs ONE proposal over them, reads the second team's milestone landing after the first team's PROPOSED date and accepts both teams' moves in one write; unticking
 // the first team's move turns the link into a warning through the ticked-subset check; a manager of one team accepts that team's moves alone (the accept names only
 // them); a manager narrows the run to their own team with the team picker (1.38: only that team is asked, Save is offered, Reset restores the page's set); a saved proposal (1.26) is listed under the timeline, opened by a manager of another team, who cannot accept it, and accepted by the manager of both
-// teams, after which it reads as changed; the retired Schedule proposals addresses lead to the overview.
+// teams, after which it reads as changed; Prioritization (1.39) previews the same run on its own timeline, with the ranking and the target windows locked until Discard, and no Save;
+// the retired Schedule proposals addresses lead to the overview.
 // Every overview run here narrows the page to the spec's OWN program (`?mode=overview&programId=`): the run covers the teams of the projects the page shows, and
 // the plan is shared by every worker. Owns: its throwaway users, people, TWO teams (each with ONE capacity period from Monday 2048-01-06, 10 MD/week, no WIP
 // limit; the saved-proposal test adds a third, the SINGLE manager's), work stream, program, project, two milestones and the link between them (unique `e2e-ct-*`
@@ -445,6 +446,51 @@ test("a manager narrows the run to their own team: only that team is asked and s
   await expect(page.getByRole("button", { name: "Save proposal", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Discard", exact: true }).click();
   await expect(runHeading(page)).toHaveCount(0);
+});
+
+test("Prioritization previews the run on its own timeline: a dashed bar on the project's row, the ranking and the target windows locked until Discard, and no Save", async ({ page }) => {
+  const world = await seedWorld();
+  const grid = page.getByRole("grid", { name: "Roadmap timeline", exact: true });
+  const handles = grid.locator("[data-row-handle]");
+  const menuItem = (name: RegExp) => page.getByRole("menuitem", { name });
+
+  // The administrator opens Prioritization narrowed to the world's program: ONE (unranked) project row with its drag handle and Propose is offered once the rights are read.
+  await login(page);
+  await page.goto(`/roadmap?mode=prioritization&programId=${world.programId}`);
+  await expect(grid).toBeVisible();
+  await expect(proposeButton(page)).toBeEnabled();
+  await expect(handles).toHaveCount(1);
+  await expect(page.locator('[data-tone="proposal"]')).toHaveCount(0);
+
+  // Propose: the run covers the program's two teams; the project's row gets ONE dashed bar with the run's span, and there is no Save and no saved list.
+  await propose(page);
+  await expect(page.locator('[data-tone="proposal"]')).toHaveCount(1);
+  await expect(page.locator('[data-tone="proposal"]')).toHaveAttribute("aria-label", /^Proposed: .*, 2048-01-06 to 2048-01-08, read-only$/);
+  await expect(page.getByRole("table", { name: "Projects whose dates would move", exact: true })).toContainText("2048-01-06 to 2048-01-08");
+  await expect(acceptButton(page, 2)).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Save proposal", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 3, name: /^Saved proposals/ })).toHaveCount(0);
+
+  // Locked: no row handle, and the row menu offers neither the ranking nor the target window (its links stay).
+  await expect(handles).toHaveCount(0);
+  await grid.getByRole("button", { name: /^Operations for / }).click();
+  await expect(menuItem(/^Open project /)).toBeVisible();
+  await expect(menuItem(/^Rank /)).toHaveCount(0);
+  await expect(menuItem(/target window/)).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menuitem")).toHaveCount(0);
+
+  // Discard gives them back; nothing was written (y1 is still unscheduled).
+  await page.getByRole("button", { name: "Discard", exact: true }).click();
+  await expect(runHeading(page)).toHaveCount(0);
+  await expect(page.locator('[data-tone="proposal"]')).toHaveCount(0);
+  await expect(handles).toHaveCount(1);
+  await grid.getByRole("button", { name: /^Operations for / }).click();
+  await expect(menuItem(/^Rank /)).toBeVisible();
+  await page.keyboard.press("Escape");
+  const unmoved = await world.api.get(`/api/v1/milestones/${world.y1.id}`);
+  expect(((await unmoved.json()) as { startDate?: string | null }).startDate ?? null).toBeNull();
+  await world.api.dispose();
 });
 
 test("the retired Schedule proposals addresses lead to the Roadmap overview, and a saved proposal that does not exist says so there", async ({ page }) => {

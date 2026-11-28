@@ -107,6 +107,7 @@ beforeEach(() => {
     }
     if (url === "/api/v1/baselines") return Promise.resolve(jsonResponse(200, BASELINES));
     if (url === "/api/v1/public-holidays") return Promise.resolve(jsonResponse(200, { items: [] }));
+    if (url === "/api/v1/schedule-proposals/teams") return Promise.resolve(jsonResponse(200, { items: [], truncated: false }));
     return Promise.resolve(jsonResponse(404, { title: "x", status: 404 }));
   });
   vi.stubGlobal("fetch", mockFetch);
@@ -263,7 +264,7 @@ describe("Roadmap page with a baseline", () => {
       unranked: [rank(4, { ...project(4, "Fresh", { span: { start: "2026-07-06", end: "2026-07-10" } }), baseline: ranked.ranked[0].project.baseline })],
     };
     mockFetch.mockImplementation((url: string) =>
-      Promise.resolve(url.startsWith("/api/v1/views/roadmap") ? jsonResponse(200, view) : url === "/api/v1/baselines" ? jsonResponse(200, BASELINES) : url === "/api/v1/public-holidays" ? jsonResponse(200, { items: [] }) : jsonResponse(404, { title: "x", status: 404 })),
+      Promise.resolve(url.startsWith("/api/v1/views/roadmap") ? jsonResponse(200, view) : url === "/api/v1/baselines" ? jsonResponse(200, BASELINES) : url === "/api/v1/public-holidays" ? jsonResponse(200, { items: [] }) : url === "/api/v1/schedule-proposals/teams" ? jsonResponse(200, { items: [], truncated: false }) : jsonResponse(404, { title: "x", status: 404 })),
     );
     renderPage();
     await waitForGrid();

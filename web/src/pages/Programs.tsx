@@ -43,7 +43,7 @@ import { projectTotals, removedProjectRows } from "../utils/baselineOverlay";
 import { localIsoDate } from "../utils/isoDate";
 import { jiraWindow } from "../utils/jiraBars";
 import { projectOfWindowBar } from "../utils/planTrack";
-import { allOpen, arrowAnchors, defaultOpen, inWorkStream, isNodeRow, programChoices, toggled, treeDates, treeFacts, treeProjects, treeRows } from "../utils/programsTree";
+import { allOpen, arrowAnchors, defaultOpen, inWorkStream, isNodeRow, programChoices, shownProjects, toggled, treeDates, treeFacts, treeProjects, treeRows } from "../utils/programsTree";
 import { withoutCriticalPath } from "../utils/roadmapCritical";
 import { pickAmong } from "../utils/roadmapRows";
 import { isStaleSource } from "../utils/staleness";
@@ -162,7 +162,7 @@ function ProgramsBody({
   const open = expanded ?? defaultOpen(narrowed, narrowing.workStream !== null);
   // 1.33: the schedule proposal previewed on the tree (its bars, its lock over the target windows); the range covers its proposed dates too.
   const announce = (text: string) => setAnnouncement((previous) => (previous.endsWith(REREAD) ? text : text + REREAD));
-  const proposal = useOverviewProposal({ view, narrowed, pick, unsettled: narrowing.pending, announce });
+  const proposal = useOverviewProposal({ shown: shownProjects(narrowed, pick), teams: view.teams, narrowed: narrowed !== view || pick !== null, unsettled: narrowing.pending, announce, saved: true });
   // Every date of the whole plan, not only of the shown rows: neither the pick nor a fold changes the range under the user.
   const { scale, setZoom, today } = usePlanScale([...treeDates(view, jira), ...proposal.days]);
   const removedRows = removedProjectRows(view.baseline?.removedProjects ?? [], t);

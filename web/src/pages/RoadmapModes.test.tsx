@@ -7,6 +7,7 @@ import type { ProgramsView } from "../api/programs";
 import type { RoadmapView } from "../api/roadmap";
 import { forgetRevalidated } from "../api/revalidate";
 import i18n from "../i18n";
+import { RUN } from "../test/crossTeamRun";
 import { headingOutline } from "../test/headings";
 import { jsonResponse, routeFetch } from "../test/http";
 import { renderWithProviders } from "../test/render";
@@ -243,6 +244,37 @@ describe("RoadmapModes: the switch", () => {
     await user.click(screen.getByRole("radio", { name: "Prioritization" }));
     await prioritizationShown();
     expect(where()).toBe("/roadmap?mode=prioritization");
+  });
+
+  test("a switch with a Prioritization run open discards it: the overview opens without one, and so does the way back (1.39)", async () => {
+    const user = userEvent.setup();
+    const team = { id: 1, name: "Platform" };
+    const planned = roadmapView({ teams: [team], ranked: [{ position: 1, project: roadmapProject({ id: 1, name: "Invoices", rankPosition: 1, teamIds: [1] }) }] });
+    mockFetch = routeFetch({
+      "GET /api/v1/views/roadmap": planned,
+      "GET /api/v1/teams": { items: [], page: 1, pageSize: 100, total: 0 },
+      "GET /api/v1/views/programs": PROGRAMS,
+      "GET /api/v1/saved-schedule-proposals": { items: [] },
+      "GET /api/v1/baselines": { items: [], can: { manage: false } },
+      "GET /api/v1/public-holidays": { items: [] },
+      "GET /api/v1/schedule-proposals/teams": { items: [team], truncated: false },
+      "POST /api/v1/schedule-proposals": RUN,
+      "POST /api/v1/schedule-proposals/check": { teams: [] },
+    });
+    vi.stubGlobal("fetch", mockFetch);
+    renderAt("/roadmap?mode=prioritization");
+    await prioritizationShown();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Propose schedule" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "Propose schedule" }));
+    await screen.findByRole("heading", { name: "Schedule proposal" });
+    await user.click(screen.getByRole("radio", { name: "Roadmap overview" }));
+    await overviewShown();
+    expect(screen.queryByRole("heading", { name: "Schedule proposal" })).toBeNull();
+    await user.click(screen.getByRole("radio", { name: "Prioritization" }));
+    await prioritizationShown();
+    expect(screen.queryByRole("heading", { name: "Schedule proposal" })).toBeNull();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Propose schedule" })).toBeEnabled());
+    expect(mockFetch.mock.calls.filter(([url, init]) => url === "/api/v1/schedule-proposals" && (init as RequestInit | undefined)?.method === "POST")).toHaveLength(1);
   });
 
   test("a bare link after a choice lands on the chosen mode; a link naming the other mode shows it and leaves the choice", async () => {

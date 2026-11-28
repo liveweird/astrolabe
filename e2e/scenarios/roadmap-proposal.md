@@ -95,6 +95,17 @@ The run, counted by hand on the Monday-to-Friday calendar (no holiday): team X i
 4. They press **Discard**, then **Use this page's teams**.
    - *Expected*: the picker is back with team X still out and, after the reset, holds both teams with no reset button; **Propose schedule** now asks for both teams (`teamIds` of length 2, holding team Y), the run has both sections and no **Save proposal** (the viewer does not manage team X); **Discard** closes it.
 
+## Scenario: Prioritization previews the run on its own timeline: a dashed bar on the project's row, the ranking and the target windows locked until Discard, and no Save
+
+1. The administrator signs in and opens Prioritization narrowed to the spec's program.
+   - *Expected*: the "Roadmap timeline" grid shows the project's one row with its drag handle, no dashed bar, and **Propose schedule** is enabled once the viewer's rights are read.
+2. They press **Propose schedule**.
+   - *Expected*: the run request succeeds over the program's two teams; ONE dashed proposal bar sits on the project's row ("Proposed: …, 2048-01-06 to 2048-01-08, read-only"); the "Projects whose dates would move" table shows the proposed span; **Accept selected (2)** is enabled; there is no **Save proposal** and no "Saved proposals" heading.
+3. They look at the row and open its menu.
+   - *Expected*: the row has no drag handle; the menu offers "Open project …" but no "Rank …" item and no target window item.
+4. They press **Discard**.
+   - *Expected*: the section and the dashed bar are gone, the row's drag handle and the menu's "Rank …" item are back, and nothing was written (y1 is still unscheduled).
+
 ## Scenario: the retired Schedule proposals addresses lead to the Roadmap overview, and a saved proposal that does not exist says so there
 
 1. The administrator signs in and opens `/schedule-proposals?x=1`.

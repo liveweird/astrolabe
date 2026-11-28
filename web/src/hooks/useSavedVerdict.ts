@@ -15,13 +15,13 @@ export type SavedNotice = { kind: "gone" | "unreadable" | "failed"; text: string
  * What the Roadmap overview's address (`?proposal=<id>`, 1.33) names, read from the server: the record, and the verdict when it does not open - a 404 (deleted, or pruned by the
  * 21st save) drops the cached copy, an `UNREADABLE` one (saved in a shape this server no longer reads), a malformed id, any other failure worded by its status. Each verdict is
  * said once (`announce`), leaves the address (`replace`) and stays visible as `notice` until dismissed. `beforeDrop` runs once per verdict, before the parameter leaves
- * (`useSavedRun` closes the run the address had opened). Shared by the run (`useSavedRun`) and by an overview with no work streams, which has no run to open but must say the same.
+ * (`useSavedRun` closes the run the address had opened). `enabled: false` (Prioritization, 1.39: no saved proposals there) reads no parameter, so the verdict is never one. Shared by the run (`useSavedRun`) and by an overview with no work streams, which has no run to open but must say the same.
  */
-export function useSavedVerdict(announce: (text: string) => void, beforeDrop?: () => void) {
+export function useSavedVerdict(announce: (text: string) => void, beforeDrop?: () => void, enabled = true) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
-  const raw = params.get(PROPOSAL_PARAM);
+  const raw = enabled ? params.get(PROPOSAL_PARAM) : null;
   const id = idOf(raw) ?? null;
   const query = useQuery({ queryKey: savedProposalKey(id ?? 0), queryFn: () => getSavedProposal(id ?? 0), enabled: id !== null });
   const { data, error } = query;

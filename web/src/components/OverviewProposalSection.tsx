@@ -21,12 +21,26 @@ import ProposalNotes from "./TeamProposalNotes";
 import RunTeamsPicker from "./RunTeamsPicker";
 import { TOOLBAR_CONTROL_SIZE } from "../utils/timelineModel";
 
+/** Whose page the section sits on: the overview (its tree, saved proposals) or Prioritization (1.39: its ranking is locked too; no Save, no saved list). */
+type Host = "overview" | "prioritization";
+
+/** What differs by host besides Propose's hints: the intro sentence and what the outside-the-view note counts against (the pick, or Prioritization's filters). */
+const HOST_TEXT = {
+  overview: { intro: "programs.proposal.intro", scope: "pick" },
+  prioritization: { intro: "roadmap.proposal.intro", scope: "filters" },
+} as const;
+
+/** A first rights read that failed leaves nothing acceptable (a preview): say so, on Prioritization only once a run is requested or open (a viewer who never proposes gets no note there). */
+function rightsFailedShown({ rights, run, flow }: OverviewProposal, host: Host): boolean {
+  return rights.error !== null && rights.acceptable.size === 0 && (host === "overview" || run !== null || flow.requesting);
+}
+
 /** Why Propose is (not) available, in the order the reasons arrive: the request, the rights read, the narrowing the address names, the size of the team set, the team set itself. */
-function proposeHint({ flow, rights, unsettled, tooMany, teamIds, chosenTeams }: OverviewProposal, t: TFunction): string {
-  if (flow.requesting) return t("programs.proposal.requesting");
+function proposeHint({ flow, rights, unsettled, tooMany, teamIds, chosenTeams }: OverviewProposal, host: Host, t: TFunction): string {
+  if (flow.requesting) return t(host === "prioritization" ? "roadmap.proposal.requesting" : "programs.proposal.requesting");
   if (!rights.ready) return t("programs.proposal.checking");
   if (unsettled) return t("programs.proposal.settling");
-  if (tooMany) return t("programs.proposal.tooMany", { count: teamIds.length, max: MAX_RUN_TEAMS });
+  if (tooMany) return t(host === "prioritization" ? "roadmap.proposal.tooMany" : "programs.proposal.tooMany", { count: teamIds.length, max: MAX_RUN_TEAMS });
   if (teamIds.length === 0) return t(chosenTeams ? "programs.proposal.chooseOne" : "programs.proposal.noTeams");
   return t(chosenTeams ? "programs.proposal.coversChosen" : "programs.proposal.covers", { count: teamIds.length });
 }
@@ -40,8 +54,19 @@ function proposeHint({ flow, rights, unsettled, tooMany, teamIds, chosenTeams }:
  *
  * A SAVED proposal the address names (`?proposal=`, `useSavedRun`) opens in the same section: its own heading and facts, its state (`SavedRunHeader`), the stored ticks (read-only
  * unless the viewer may accept it), no Save (it is saved), and Close instead of Discard (nothing is thrown away). A saved proposal that does not open says why in a dismissible note.
+ * `host="prioritization"` (1.39) is the same section with its own sentences (the ranking is read-only too) and no Save: that page opens no saved proposal.
  */
-export default function OverviewProposalSection({ proposal, announce, onShowAll }: { proposal: OverviewProposal; announce: (text: string) => void; onShowAll: (() => void) | null }) {
+export default function OverviewProposalSection({
+  proposal,
+  announce,
+  onShowAll,
+  host = "overview",
+}: {
+  proposal: OverviewProposal;
+  announce: (text: string) => void;
+  onShowAll: (() => void) | null;
+  host?: Host;
+}) {
   const { t } = useTranslation();
   const { flow, rights, run, check, proposable, saved, ticked, editable } = proposal;
   const { proposeRef, headingRef } = proposal.focus;
@@ -56,10 +81,10 @@ export default function OverviewProposalSection({ proposal, announce, onShowAll 
   }, [error, run]);
 
   const busy = flow.requesting || flow.applying;
-  const canSave = flow.canAccept && run !== null && run.teams.every((team) => rights.acceptable.has(team.teamId)) && (saved === null || saved.fresh);
+  const canSave = host === "overview" && flow.canAccept && run !== null && run.teams.every((team) => rights.acceptable.has(team.teamId)) && (saved === null || saved.fresh);
   const closing = saved !== null && !saved.fresh;
   const hintId = useId();
-  const hint = proposeHint(proposal, t);
+  const hint = proposeHint(proposal, host, t);
   return (
     <Stack gap="sm">
       <Group gap="sm" align="center" wrap="wrap" data-print="hide">
@@ -74,7 +99,7 @@ export default function OverviewProposalSection({ proposal, announce, onShowAll 
         )}
       </Group>
       {/* A first rights read that failed leaves nothing acceptable (the hook's `ready` degrades to a preview): say so (a failed refetch that kept its list says nothing). */}
-      {rights.error !== null && rights.acceptable.size === 0 && (
+      {rightsFailedShown(proposal, host) && (
         <Alert color="orange" variant="light" role="note">
           {t("programs.proposal.rightsFailed")}
         </Alert>
@@ -115,9 +140,9 @@ export default function OverviewProposalSection({ proposal, announce, onShowAll 
             <SavedRunHeader record={saved.record} fresh={saved.fresh} outdated={saved.outdated} editable={saved.editable} />
           )}
           <Text size="sm" c="dimmed">
-            {t("programs.proposal.intro")}
+            {t(HOST_TEXT[host].intro)}
           </Text>
-          <OutsidePickNote count={proposal.outside} onShowAll={onShowAll} />
+          <OutsidePickNote count={proposal.outside} onShowAll={onShowAll} scope={HOST_TEXT[host].scope} />
           <OverviewProposalProjects projects={run.projects} moving={proposal.projects} />
           <CrossTeamRunView
             run={run}

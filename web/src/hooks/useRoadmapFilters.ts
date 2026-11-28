@@ -25,6 +25,8 @@ const KEYS = {
   pick: "planning.programPick",
 } as const;
 
+const NO_FILTERS: RoadmapFilters = { workStreamId: null, teamId: null, ownerPersonId: null, flaggedOnly: false, severity: null, unrankedOnly: false };
+
 function readRemembered(): RoadmapFilterState {
   const idOf = (key: string) => {
     const stored = readStoredJson(key);
@@ -73,6 +75,8 @@ export function useRoadmapFilters(): {
   pick: number[];
   setFilters: (change: Partial<RoadmapFilters>) => void;
   setPick: (ids: number[]) => void;
+  /** Every filter and the program pick off, in ONE change (two calls in a row would each start from the state before the other). */
+  clear: () => void;
 } {
   const [params, setParams] = useSearchParams();
   // What the browser remembers, read once when the page mounts (a change in another tab shows on the next bare visit, as before).
@@ -98,5 +102,6 @@ export function useRoadmapFilters(): {
     pick: shown.pick,
     setFilters: (change) => commit({ filters: { ...shown.filters, ...change }, pick: shown.pick }),
     setPick: (ids) => commit({ filters: shown.filters, pick: ids }),
+    clear: () => commit({ filters: NO_FILTERS, pick: [] }),
   };
 }

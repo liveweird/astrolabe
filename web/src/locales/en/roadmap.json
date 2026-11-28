@@ -163,5 +163,14 @@
     "column": {
       "program": "Program"
     }
+  },
+  "proposal": {
+    "requesting": "Asking for a proposal — the ranking and the target windows are read-only until it arrives.",
+    "intro": "Dashed bars on the timeline show the proposed dates. The ranking and the target windows stay read-only until you discard the proposal; dependencies can still be edited. Nothing changes until you accept.",
+    "tooMany_one": "The run would cover {{count}} team, but a proposal takes at most {{max}} — narrow the filters or the program pick, or choose fewer teams.",
+    "tooMany_other": "The run would cover {{count}} teams, but a proposal takes at most {{max}} — narrow the filters or the program pick, or choose fewer teams.",
+    "outside_one": "{{count}} of the projects this proposal moves is hidden by the current filters",
+    "outside_other": "{{count}} of the projects this proposal moves are hidden by the current filters",
+    "showAll": "Clear the filters"
   }
 }

@@ -116,6 +116,7 @@ function serve() {
   mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
     if (method === "GET" && url === "/api/v1/views/roadmap") return jsonResponse(200, view);
+    if (method === "GET" && url === "/api/v1/schedule-proposals/teams") return jsonResponse(200, { items: [], truncated: false });
     const window = /^\/api\/v1\/projects\/(\d+)\/target-window$/.exec(url);
     if (method === "PUT" && window !== null) {
       await windowGate;

@@ -133,6 +133,7 @@ function serve(mockFetch: FetchMock) {
   mockFetch.mockImplementation((url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
     if (method === "GET" && url === "/api/v1/views/roadmap") return Promise.resolve(jsonResponse(200, view));
+    if (method === "GET" && url === "/api/v1/schedule-proposals/teams") return Promise.resolve(jsonResponse(200, { items: [], truncated: false }));
     if (method === "GET" && url === "/api/v1/public-holidays") return Promise.resolve(jsonResponse(200, { items: [{ id: 1, date: "2026-03-18", name: "Founders' Day" }] }));
     if (method === "PUT" && url === "/api/v1/roadmap/ranking") {
       if (putStatus.status !== 200) return Promise.resolve(jsonResponse(putStatus.status, putStatus.body ?? { title: "x", status: putStatus.status }));
