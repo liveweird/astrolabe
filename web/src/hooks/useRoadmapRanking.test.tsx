@@ -113,6 +113,17 @@ describe("useRoadmapRanking across cached targets", () => {
     await waitFor(() => expect(client.getQueryState(HOME_VIEW_KEY)?.isInvalidated).toBe(true));
   });
 
+  test("a saved ranking drops the team views nobody is looking at: the global rank is the default tail of every team's order", async () => {
+    client.setQueryData(["plan", "team", 4, { baseline: null, chain: false }], { revision: 7 });
+    client.setQueryData(["plan", "project", 4, { baseline: null }], { revision: 7 });
+    const { result } = renderHook(() => useRoadmapRanking(null, null), { wrapper });
+    await waitFor(() => expect(result.current.view?.revision).toBe(7));
+    act(() => void result.current.move(2, -1, [1, 2, 3]));
+    // the refresh after the save drops it (the next visit loads the page again); other plan views stay
+    await waitFor(() => expect(client.getQueryData(["plan", "team", 4, { baseline: null, chain: false }])).toBeUndefined());
+    expect(client.getQueryData(["plan", "project", 4, { baseline: null }])).toEqual({ revision: 7 });
+  });
+
   test("rollbacks rises once per failed save, after the view is back and the reload has settled, and never for a saved one", async () => {
     const { result } = renderHook(() => useRoadmapRanking(null, null), { wrapper });
     await waitFor(() => expect(result.current.view?.revision).toBe(7));

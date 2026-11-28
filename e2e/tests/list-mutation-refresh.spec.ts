@@ -1,3 +1,7 @@
+// Held first responses of the list pages (Users, People, Feature Flags) cannot undo a write made meanwhile, and a held team-page GET cannot be written from:
+// a team page left and visited again after a write made on the project page shows no stale copy (1.38). Owns: its throwaway users, people, one team (no
+// manager) and a plan with one project (unique `e2e-race-*` names), all seeded through the API and deleted through it, even after a failure. It needs no lock
+// (the dates sit in 2027 and it writes no holiday, ranking or connection).
 import type { Page, Route } from "@playwright/test";
 import { apiAsAdmin, expect, login, openFilters, rowOperation, test, uniqueText } from "./helpers";
 
@@ -166,4 +170,119 @@ test("a pending Feature Flags filter cannot undo a successful toggle", async ({ 
       }
     }
   }
+});
+
+test("a team page left, then reopened after a write on the project page, shows no stale list while its refetch is held", async ({ page }) => {
+  const { api } = await apiAsAdmin();
+  const ownedPaths: string[] = [];
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  let markHeld!: () => void;
+  const held = new Promise<void>((resolve) => { markHeld = resolve; });
+  let holding = false;
+  let intercepted = false;
+  const create = async (path: string, data: object, tear: string) => {
+    const response = await api.post(path, { data });
+    expect(response.status(), await response.text()).toBe(201);
+    const { id } = await response.json() as { id: number };
+    ownedPaths.unshift(`${tear}/${id}`);
+    return id;
+  };
+  const prefix = uniqueText("e2e-race-ms");
+  const [first, second, tray] = [`${prefix}-a`, `${prefix}-b`, `${prefix}-c`];
+  let teamId = 0;
+  const teamGet = (url: string) => new URL(url).pathname === `/api/v1/views/team/${teamId}`;
+  // Every held GET (the page may ask more than once): the finally waits for all of them to be answered before the route goes away.
+  const inflight: Promise<void>[] = [];
+  const handler = async (route: Route) => {
+    if (!holding || route.request().method() !== "GET" || !teamGet(route.request().url())) {
+      await route.continue();
+      return;
+    }
+    const work = (async () => {
+      const response = await route.fetch();
+      expect(response.status()).toBe(200);
+      intercepted = true;
+      markHeld();
+      await gate;
+      await route.fulfill({ response });
+    })();
+    inflight.push(work);
+    await work;
+  };
+  try {
+    const owner = await create("/api/v1/people", { name: uniqueText("e2e-race-person") }, "/api/v1/people");
+    teamId = await create("/api/v1/teams", { name: uniqueText("e2e-race-team") }, "/api/v1/teams");
+    const stream = await create("/api/v1/work-streams", { name: uniqueText("e2e-race-stream"), ownerPersonId: owner, startDate: "2026-01-05" }, "/api/v1/work-streams");
+    const program = await create(`/api/v1/work-streams/${stream}/programs`, { name: uniqueText("e2e-race-program"), ownerPersonId: owner }, "/api/v1/programs");
+    const projectName = uniqueText("e2e-race-project");
+    const project = await create(`/api/v1/programs/${program}/projects`, { name: projectName, ownerPersonId: owner }, "/api/v1/projects");
+    const milestone = (name: string) => create(`/api/v1/projects/${project}/milestones`, { name, teamId, estimateMd: 2 }, "/api/v1/milestones");
+    const trayId = await milestone(tray);
+    for (const [name, start, end] of [[first, "2027-02-01", "2027-02-05"], [second, "2027-02-08", "2027-02-12"]]) {
+      const id = await milestone(name);
+      const { revision } = await (await api.get(`/api/v1/views/team/${teamId}`)).json() as { revision: number };
+      const scheduled = await api.put(`/api/v1/milestones/${id}/schedule`, { data: { expectedRevision: revision, startDate: start, endDate: end } });
+      expect(scheduled.status(), await scheduled.text()).toBe(200);
+    }
+
+    // 1. The team page, read once: two scheduled rows, one in the tray; this is the copy the cache keeps.
+    await login(page);
+    await page.goto(`/teams/${teamId}`);
+    const timeline = page.getByRole("grid", { name: "Team milestone timeline", exact: true });
+    const rows = timeline.getByRole("row").filter({ hasText: prefix });
+    await expect(rows).toHaveCount(2);
+    // 2. Leave it for the project page by the milestone's link (in the single-page app: the cache stays).
+    await timeline.getByRole("link", { name: `Open milestone ${first}`, exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`/projects/${project}$`));
+    await expect(page.getByRole("heading", { level: 2, name: projectName, exact: true })).toBeVisible();
+    // 3. Schedule the tray milestone there.
+    await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
+    // The project view's reload is registered BEFORE the click and awaited after the PUT: the page starts it in the write's success handler, which is also
+    // where the cached team page is dropped, so going Back before it would race that handler.
+    const reload = page.waitForResponse((r) => r.request().method() === "GET" && new URL(r.url()).pathname === `/api/v1/views/project/${project}`, { timeout: 15_000 });
+    reload.catch(() => undefined); // no unhandled rejection when the click fails first: the failure is the click's
+    const [scheduled] = await Promise.all([
+      page.waitForResponse((r) => r.request().method() === "PUT" && new RegExp(`/api/v1/milestones/${trayId}/schedule$`).test(r.url())),
+      page.getByRole("button", { name: `Schedule ${tray}`, exact: true }).click(),
+    ]);
+    expect(scheduled.status()).toBe(200);
+    await reload;
+    await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
+    // 4. Back to the team page while its GET is held: the copy from step 1 is gone, so no row of the old list is shown to write from.
+    await page.route("**/api/v1/views/team/*", handler);
+    holding = true;
+    await page.goBack();
+    await expect(page).toHaveURL(new RegExp(`/teams/${teamId}$`));
+    await held;
+    await expect(rows).toHaveCount(0);
+    // 5. The refetch lands: all three rows, and the first move sends a list that has the newly scheduled milestone in it.
+    holding = false;
+    release();
+    await expect(rows).toHaveCount(3);
+    const [put] = await Promise.all([
+      page.waitForRequest((r) => r.method() === "PUT" && new RegExp(`/api/v1/teams/${teamId}/milestone-order$`).test(r.url())),
+      rowOperation(page, second, `Move to top: ${second}`),
+    ]);
+    const { milestoneIds } = put.postDataJSON() as { milestoneIds: number[] };
+    expect(milestoneIds).toHaveLength(3);
+    expect(milestoneIds).toContain(trayId);
+  } finally {
+    try {
+      holding = false;
+      release();
+      await Promise.allSettled(inflight);
+      if (!page.isClosed()) await page.unroute("**/api/v1/views/team/*", handler);
+    } finally {
+      try {
+        for (const path of ownedPaths) {
+          const response = await api.delete(path);
+          expect([204, 404], `${path}: ${response.status()}`).toContain(response.status());
+        }
+      } finally {
+        await api.dispose();
+      }
+    }
+  }
+  expect(intercepted).toBe(true);
 });

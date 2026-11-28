@@ -8,8 +8,6 @@ import { useScheduleWritePath } from "./useScheduleWritePath";
  * The page's three writes take the SAME `(baseline, chain)` pair as the view and build their key here, so a write never stores a document under the other entry's key.
  */
 export const teamViewKey = (teamId: number, baseline: number | null, chain = false) => ["plan", "team", teamId, { baseline, chain }] as const;
-/** Every entry of one team's view (each pick and chain): what a successful write clears of its inactive siblings. */
-export const teamViewPrefix = (teamId: number) => ["plan", "team", teamId] as const;
 /** The mutation key the team page's two writes (schedule, order) share, so neither starts while the other is in flight. */
 export const teamWriteKey = (teamId: number) => ["plan", "team-write", teamId] as const;
 
@@ -26,6 +24,5 @@ export function useTeamSchedule(teamId: number, baseline: number | null, chain =
     enabled: Number.isInteger(teamId),
     writeKey: teamWriteKey(teamId),
     overlayPick: baseline,
-    siblings: teamViewPrefix(teamId),
   });
 }

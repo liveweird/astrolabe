@@ -211,7 +211,8 @@ describe("Baselines page", () => {
   test("every write invalidates the list and the plan and roadmap views the revision bump made stale", async () => {
     // The REAL keys: the Plan page, a team/project view (under ["plan"]), the roadmap and the programs view.
     const keys = [["plan", "view"], ["plan", "team", 3], ["roadmap", "view"], ["roadmap", "programs"]] as const;
-    const stale = (qc: QueryClient) => keys.map((key) => qc.getQueryState(key)?.isInvalidated);
+    // A team view nobody observes is not marked stale but dropped (`refreshQueriesAfterMutation`): it loads again when the page is opened.
+    const stale = (qc: QueryClient) => keys.map((key) => qc.getQueryState(key)?.isInvalidated ?? "dropped");
     const seeded = () => {
       const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
       for (const key of keys) qc.setQueryData(key, { revision: 1 });
@@ -226,7 +227,7 @@ describe("Baselines page", () => {
     await user.click(await screen.findByRole("button", { name: "Take baseline" }));
     await user.type(within(screen.getByRole("dialog")).getByLabelText("Name"), "Q3");
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Take baseline" }));
-    await waitFor(() => expect(stale(qc)).toEqual([true, true, true, true]));
+    await waitFor(() => expect(stale(qc)).toEqual([true, "dropped", true, true]));
     first.unmount();
 
     // rename
@@ -238,7 +239,7 @@ describe("Baselines page", () => {
     await user.click(await screen.findByRole("menuitem", { name: "Rename Q2 commitment" }));
     await user.type(within(await screen.findByRole("dialog")).getByLabelText("Name"), " v2");
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(stale(qc)).toEqual([true, true, true, true]));
+    await waitFor(() => expect(stale(qc)).toEqual([true, "dropped", true, true]));
     second.unmount();
 
     // delete
@@ -249,7 +250,7 @@ describe("Baselines page", () => {
     await user.click(await screen.findByRole("button", { name: "Operations for Q1 commitment" }));
     await user.click(await screen.findByRole("menuitem", { name: "Delete Q1 commitment" }));
     await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Delete" }));
-    await waitFor(() => expect(stale(qc)).toEqual([true, true, true, true]));
+    await waitFor(() => expect(stale(qc)).toEqual([true, "dropped", true, true]));
   });
 
   test("a rename that changes nothing sends no request", async () => {

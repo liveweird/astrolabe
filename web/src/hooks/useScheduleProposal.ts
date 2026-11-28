@@ -4,12 +4,12 @@ import { useTranslation } from "react-i18next";
 import { isStaleRevision } from "../api/roadmap";
 import { isStaleScope, proposeTeamSchedule, scheduleTeamMilestones, type ScheduleProposal, type TeamView } from "../api/teams";
 import { localIsoDate } from "../utils/isoDate";
-import { dropInactiveSiblings, refreshQueriesAfterMutation } from "../utils/queryRefresh";
+import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import { acceptItems, noteOf, outcomeOf, outcomeSentence, type ProposalNote, type ProposalOutcome } from "../utils/scheduleProposal";
 import { applyTeamSchedule } from "../utils/teamViewUpdate";
 import { useRefusal } from "./useRefusal";
-import { teamViewKey, teamViewPrefix, teamWriteKey } from "./useTeamSchedule";
+import { teamViewKey, teamWriteKey } from "./useTeamSchedule";
 
 const PROPOSE_ERROR_KEYS = {
   forbidden: "teams.proposal.forbidden",
@@ -43,8 +43,8 @@ type AcceptVariables = { expectedRevision: number; scopeHash: string; items: Ret
  * said in the page's live region (`announce`).
  *
  * The accepted dates and the answered revision go into the entry the accept was made on (`baseline`, the page's pick, captured at accept time)
- * and into no other: a sibling entry (visited earlier) still holds the OLD dates, so the inactive ones are removed (`dropInactiveSiblings`) and
- * load again when they are shown. `loading` (the shown view is
+ * and into no other: a sibling entry (visited earlier) still holds the OLD dates, so the refresh removes the inactive ones (`refreshQueriesAfterMutation`) and
+ * they load again when they are shown. `loading` (the shown view is
  * the previous pick's copy while the new one loads) refuses an accept like one made during a write. `chain` (1.27, the Critical path toggle) is the other
  * half of that entry's key and is captured with it: the accepted dates never land in the other document's entry.
  *
@@ -102,7 +102,7 @@ export function useScheduleProposal(teamId: number, announce: (text: string) => 
     onSuccess: (result, { items, key }) => {
       // The accepted milestones take their proposed dates in the entry the accept was made on at once (a skipped one keeps its old dates) and
       // that entry adopts the answered revision, so the page is right before the background refetch brings the server's derived figures.
-      // A sibling entry is never written (its old dates must not take the new revision): the inactive ones are removed instead.
+      // A sibling entry is never written (its old dates must not take the new revision): the refresh below removes the inactive ones instead.
       const spans = new Map(items.map((item) => [item.milestoneId, item]));
       queryClient.setQueryData<TeamView>(
         key,
@@ -113,7 +113,6 @@ export function useScheduleProposal(teamId: number, announce: (text: string) => 
             return span === undefined ? view : applyTeamSchedule(view, id, span.startDate, span.endDate);
           }, { ...current, revision: result.revision }),
       );
-      dropInactiveSiblings(queryClient, teamViewPrefix(teamId), key);
       // Not awaited: the write is over, so the next change may go at once; the refetch brings the server's dates and figures.
       void refreshQueriesAfterMutation(queryClient, ["plan"]);
       const done = outcomeOf(result);

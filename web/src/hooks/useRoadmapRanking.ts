@@ -6,7 +6,7 @@ import { getRoadmapView, isStaleRevision, putRanking, roadmapViewKey, type Roadm
 import { withoutCriticalPath } from "../utils/roadmapCritical";
 import { allProjects } from "../utils/roadmapRows";
 import { appendId, applyRanking, moveAmongVisible, rankingAfterDrop, removeId, sameIds } from "../utils/roadmapOrder";
-import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
+import { refreshQueriesAfterMutation, TEAM_VIEWS_KEY } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import { withoutStaleOverlay } from "./useBaselinePick";
 import { useRefusal } from "./useRefusal";
@@ -71,13 +71,14 @@ export function useRoadmapRanking(baseline: number | null, criticalPath: number 
       // is answered 409 by the server instead of reverting this one. (The page may have moved on to another pick by now; this entry is still right.)
       queryClient.setQueryData<RoadmapView>(key, (current) => current && { ...current, revision });
       // Not awaited: the save is over, so the next change may go at once; its `commit` cancels this refetch. Home's ranked/unranked and rank figures
-      // live under `["plan"]`, which a ranking write does not refresh, and Home keeps its read for a minute: name its key.
-      void refreshQueriesAfterMutation(queryClient, ["roadmap"], HOME_VIEW_KEY);
+      // live under `["plan"]`, which a ranking write does not refresh, and Home keeps its read for a minute: name its key. The global rank is also the
+      // default tail of every team's order, so the team views are named too: the inactive ones are dropped, a mounted one refetches (`queryRefresh.ts`).
+      void refreshQueriesAfterMutation(queryClient, ["roadmap"], HOME_VIEW_KEY, TEAM_VIEWS_KEY);
     },
     onError: async (_err, { before, key }) => {
       queryClient.setQueryData<RoadmapView>(key, before);
       try {
-        await refreshQueriesAfterMutation(queryClient, ["roadmap"], HOME_VIEW_KEY);
+        await refreshQueriesAfterMutation(queryClient, ["roadmap"], HOME_VIEW_KEY, TEAM_VIEWS_KEY);
       } finally {
         // The view is back (and the reload has settled): the page may return the keyboard focus to the row the change came from.
         setRollbacks((count) => count + 1);

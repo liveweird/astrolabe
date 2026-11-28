@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { useScheduleProposal } from "./useScheduleProposal";
 import { teamViewKey, useTeamSchedule } from "./useTeamSchedule";
@@ -61,6 +61,8 @@ const VIEW = {
 } as unknown as TeamView;
 
 let client: QueryClient;
+/** Unsubscribes the observer that keeps the team view's entry active, as the page does. */
+let watch: () => void;
 let mockFetch: ReturnType<typeof vi.fn>;
 let proposalAnswer: Response | (() => Response);
 let batchAnswer: Response | Promise<Response>;
@@ -90,11 +92,15 @@ beforeEach(() => {
   announce.mockClear();
   toast.mockClear();
   client.setQueryData(teamViewKey(1, null), VIEW);
+  // The page showing the entry: an observer keeps it ACTIVE, so a plan refresh refetches it (what the cache holds) instead of dropping it.
+  const key = teamViewKey(1, null);
+  watch = new QueryObserver(client, { queryKey: key, queryFn: () => client.getQueryData<TeamView>(key) as TeamView, staleTime: Infinity }).subscribe(() => undefined);
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(2042, 0, 5, 12, 0, 0));
 });
 
 afterEach(() => {
+  watch();
   vi.useRealTimers();
   vi.unstubAllGlobals();
   localStorage.clear();

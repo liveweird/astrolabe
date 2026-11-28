@@ -1,7 +1,22 @@
-import { hashKey, type QueryClient, type QueryKey } from "@tanstack/react-query";
+import { partialMatchKey, type QueryClient, type QueryKey } from "@tanstack/react-query";
 
-/** Refresh successful mutations without reusing a pending first fetch with no cached data. */
+/** Every entry of every team's view (each team, baseline pick and critical-chain toggle): `["plan","team",id,{baseline,chain}]`. */
+export const TEAM_VIEWS_KEY = ["plan", "team"] as const;
+
+/**
+ * Refresh successful mutations without reusing a pending first fetch with no cached data.
+ *
+ * A refresh that covers the team views (`["plan"]`, `["plan","team"]`) also REMOVES the INACTIVE ones, synchronously, before anything is awaited. An entry
+ * nobody observes would only be flagged stale and kept for the `gcTime`; coming back to the team page, `useQuery` returns that copy as real data, so the
+ * page's loading refusal never engages and a change made in the first moments (Move up) is built on the list this very write has outdated. Without
+ * the copy the page shows the loading placeholder (writes refused) and then the fresh document. The mounted entry stays: it refetches, and the
+ * page's own next write must still be possible. A rank write names `["plan","team"]` too (the global rank is the default tail of every team's order).
+ * Not covered: another person's or tab's write, which relies on the refetch on mount.
+ */
 export async function refreshQueriesAfterMutation(queryClient: QueryClient, ...queryKeys: QueryKey[]): Promise<void> {
+  if (queryKeys.some((queryKey) => partialMatchKey(TEAM_VIEWS_KEY, queryKey))) {
+    queryClient.removeQueries({ queryKey: TEAM_VIEWS_KEY, type: "inactive" });
+  }
   // keepPreviousData belongs to the observer: default invalidation can still reuse that
   // query's initial fetch. Cancel every affected group before starting any fresh reads.
   await Promise.all(queryKeys.map((queryKey) => queryClient.cancelQueries({ queryKey })));
@@ -15,15 +30,4 @@ export async function refreshQueriesAfterMutation(queryClient: QueryClient, ...q
  */
 export function refreshJiraAndTimelines(queryClient: QueryClient): Promise<void> {
   return refreshQueriesAfterMutation(queryClient, ["jira"], ["plan"], ["roadmap"]);
-}
-
-/**
- * After a successful write on one cached entry of a view whose key carries more than the id (the team page's baseline pick and critical-chain toggle):
- * the INACTIVE sibling entries under `prefix` are removed, the written one kept. A sibling still holds the document as it was before the write (its
- * order list, its tray), and coming back to it would show that copy until its refetch lands - a change made from it in that window would be built on a
- * list the write has outdated. Without a copy the page shows the loading placeholder (writes refused) and then the fresh document.
- */
-export function dropInactiveSiblings(queryClient: QueryClient, prefix: QueryKey, written: QueryKey): void {
-  const keep = hashKey(written);
-  queryClient.removeQueries({ queryKey: prefix, type: "inactive", predicate: (query) => query.queryHash !== keep });
 }

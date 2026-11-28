@@ -75,7 +75,8 @@ describe("TeamCapacity and Flow-imported periods", () => {
     await userEvent.click(await screen.findByRole("menuitem", { name: "Edit the period from 2027-02-03" }));
     await userEvent.click(within(await screen.findByRole("dialog", { name: "Edit the capacity period" })).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(queryClient.getQueryState(["flow", "deviations", "view", { teamId: 1 }])?.isInvalidated).toBe(true));
-    expect(queryClient.getQueryState(["plan", "team", 1])?.isInvalidated).toBe(true);
+    // an unobserved team view is dropped (it loads again when the page is opened), not just marked stale
+    expect(queryClient.getQueryState(["plan", "team", 1])).toBeUndefined();
     expect(queryClient.getQueryState(["roadmap", "view"])?.isInvalidated).toBe(true);
   });
 

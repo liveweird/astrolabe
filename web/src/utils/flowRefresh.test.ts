@@ -18,7 +18,8 @@ describe("refreshFlowLinks", () => {
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
     await refreshFlowLinks(queryClient);
     expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([["flow", "teams"], ["flow", "team"], ["flow", "deviations"], ["plan"], ["roadmap"]]);
-    expect(keys.map((key) => queryClient.getQueryState(key)?.isInvalidated)).toEqual([true, true, true, true, true, true, false]);
+    // the unobserved team view ("plan", "team", 3) is dropped rather than marked: it loads again when the page is opened
+    expect(keys.map((key) => queryClient.getQueryState(key)?.isInvalidated)).toEqual([true, true, true, true, undefined, true, false]);
   });
 });
 

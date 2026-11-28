@@ -402,7 +402,8 @@ describe("TeamFlowSection", () => {
       // The comparison with Flow moves with the import: the capacity it reads was just rewritten.
       expect(invalidated).toContainEqual(["flow", "deviations"]);
       expect(invalidated).toContainEqual(["roadmap"]);
-      expect(queryClient.getQueryState(["plan", "team", 1, { baseline: null }])?.isInvalidated).toBe(true);
+      // the team view nobody observes is dropped, so it loads again when the page is opened
+      expect(queryClient.getQueryState(["plan", "team", 1, { baseline: null }])).toBeUndefined();
     });
   });
 });

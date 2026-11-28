@@ -1,17 +1,19 @@
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryObserver, type QueryKey } from "@tanstack/react-query";
 import { useScheduleProposal } from "./useScheduleProposal";
+import { useMilestoneSchedule } from "./useMilestoneSchedule";
 import { useTeamOrder } from "./useTeamOrder";
 import { teamViewKey, useTeamSchedule } from "./useTeamSchedule";
 import type { TeamView } from "../api/teams";
 import { jsonResponse } from "../test/http";
 
-// A team-page write is stamped with its answered revision in the entry it was made on ONLY, and the INACTIVE sibling entries of the team (the view's
-// cache key carries the baseline pick and the Critical path toggle) are removed: a sibling visited earlier holds the OLD order, tray and dates, so
-// coming back to it would show that copy until its refetch lands - a change made from it in that window (a reorder of a stale list, a move of a
-// milestone it still has in the tray) would be built on what the write has outdated. With no copy the page shows the placeholder, which refuses writes.
+// A team-page write is stamped with its answered revision in the entry it was made on ONLY, and every plan refresh (`refreshQueriesAfterMutation`) removes
+// the INACTIVE team entries (the view's cache key carries the team, the baseline pick and the Critical path toggle) - those of other teams and those left by
+// a write made on another page too: such an entry holds the OLD order, tray and dates, so coming back to it would show that copy until its refetch
+// lands - a change made from it in that window (a reorder of a stale list, a move of a milestone it still has in the tray) would be built on what the
+// write has outdated. With no copy the page shows the placeholder, which refuses writes.
 
 const STALE = { type: "urn:astrolabe:problem:stale-revision", title: "Conflict", status: 409, detail: "stale" };
 const START = "2042-03-02";
@@ -26,6 +28,8 @@ let holdSchedulePut: Promise<void> | null;
 let holdPick5: Promise<void> | null;
 /** While set, a GET of the critical-chain entry waits for it. */
 let holdChain: Promise<void> | null;
+/** While set, a GET of the plain team entry (no pick, no chain) waits for it. */
+let holdPlain: Promise<void> | null;
 
 /** The document of one entry: with `chain`, the `?criticalChain=true` one, which alone carries the block. */
 const view = (chain = false): TeamView =>
@@ -46,6 +50,7 @@ beforeEach(() => {
   puts = [];
   holdPick5 = null;
   holdChain = null;
+  holdPlain = null;
   holdSchedulePut = null;
   vi.stubGlobal(
     "fetch",
@@ -102,6 +107,7 @@ beforeEach(() => {
       const chain = url.includes("criticalChain=true");
       const snapshot = view(chain);
       if (chain && holdChain) return holdChain.then(() => jsonResponse(200, view(true)));
+      if (url === "/api/v1/views/team/1" && holdPlain) return holdPlain.then(() => jsonResponse(200, view()));
       return url.endsWith("?baseline=5") && holdPick5 ? holdPick5.then(() => jsonResponse(200, view())) : Promise.resolve(jsonResponse(200, snapshot));
     }),
   );
@@ -109,9 +115,16 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  for (const stop of watching.splice(0)) stop();
   vi.unstubAllGlobals();
   localStorage.clear();
 });
+
+const watching: (() => void)[] = [];
+/** Keep an entry ACTIVE, as a mounted page showing it would: a plan refresh then refetches it (answered by what the cache holds) instead of dropping it. */
+const watch = (key: QueryKey) => {
+  watching.push(new QueryObserver(client, { queryKey: key, queryFn: () => client.getQueryData<TeamView>(key) as TeamView, staleTime: Infinity }).subscribe(() => undefined));
+};
 
 /** The page's write paths over one pick, as the team page composes them. */
 function useTeamWrites(pick: number | null, chain = false) {
@@ -213,13 +226,15 @@ describe("the team page's writes across cached baseline picks", () => {
     expect(server.start[6]).toBe("2042-04-06");
   });
 
-  test("the pick changing while a write runs: the entry the change was made on still gets the answered revision", async () => {
+  /** A write started on None, the page moved to pick 5 before the answer; `watched` keeps None's entry on screen (observed) through the answer. */
+  async function pickChangesWhileWriting(watched: boolean) {
     let release!: () => void;
     holdSchedulePut = new Promise<void>((resolve) => {
       release = resolve;
     });
     const { result, rerender } = renderHook(({ pick }: { pick: number | null }) => useTeamWrites(pick), { wrapper, initialProps: { pick: null as number | null } });
     await waitFor(() => expect(result.current.schedule.view?.revision).toBe(12));
+    if (watched) watch(teamViewKey(1, null));
     act(() => void result.current.schedule.commit(5, "2042-03-16", "2042-03-16"));
     await waitFor(() => expect(puts).toHaveLength(1));
     rerender({ pick: 5 });
@@ -228,9 +243,73 @@ describe("the team page's writes across cached baseline picks", () => {
       release();
     });
     await waitFor(() => expect(result.current.schedule.pending).toBe(false));
+    await waitFor(() => expect(client.isFetching()).toBe(0));
     expect(server.revision).toBe(13);
+  }
+
+  test("the pick changing while a write runs: the entry the change was made on still gets the answered revision and dates", async () => {
+    await pickChangesWhileWriting(true);
     expect(client.getQueryData<TeamView>(teamViewKey(1, null))?.revision).toBe(13);
     expect(client.getQueryData<TeamView>(teamViewKey(1, null))?.scheduled.find((m) => m.id === 5)?.startDate).toBe("2042-03-16");
+  });
+
+  test("the pick changing while a write runs, the written entry unobserved: the refresh removes it (no copy a later change could start from)", async () => {
+    await pickChangesWhileWriting(false);
+    expect(client.getQueryData<TeamView>(teamViewKey(1, null))).toBeUndefined();
+  });
+});
+
+describe("a write made on another page (1.38)", () => {
+  /** The server's state with milestone 7 in the tray: the team page opened on it, then left. */
+  async function openTeamPageThenLeaveIt() {
+    server.order = [5, 6];
+    server.tray = [7];
+    const page = renderHook(() => useTeamWrites(null), { wrapper });
+    await waitFor(() => expect(page.result.current.schedule.view?.revision).toBe(12));
+    await waitFor(() => expect(client.isFetching()).toBe(0));
+    page.unmount();
+    expect(client.getQueryData<TeamView>(teamViewKey(1, null))?.unscheduled.map((m) => m.id)).toEqual([7]);
+  }
+
+  test("a tray milestone scheduled on the project page: back on the team page, the cached copy is gone, so no Move up is built on the old list; the first PUT lists the milestone", async () => {
+    await openTeamPageThenLeaveIt();
+    // the project page schedules the tray milestone
+    const project = renderHook(() => useMilestoneSchedule(7, null), { wrapper });
+    await waitFor(() => expect(project.result.current.view).toBeDefined());
+    act(() => void project.result.current.commit(7, "2042-03-16", "2042-03-16"));
+    await waitFor(() => expect(project.result.current.pending).toBe(false));
+    await waitFor(() => expect(client.isFetching()).toBe(0));
+    project.unmount();
+    expect(server).toMatchObject({ revision: 13, order: [5, 6, 7], tray: [] });
+    expect(client.getQueryData<TeamView>(teamViewKey(1, null))).toBeUndefined();
+    // Back on the team page with its GET held: there is no view to write from
+    let release!: () => void;
+    holdPlain = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const back = renderHook(() => useTeamWrites(null), { wrapper });
+    await waitFor(() => expect(client.isFetching()).toBe(1));
+    expect(back.result.current.schedule.view).toBeUndefined();
+    expect(back.result.current.order.move(6, -1)).toBe(false);
+    expect(puts.filter((put) => put.url.endsWith("/milestone-order"))).toEqual([]);
+    await act(async () => {
+      release();
+    });
+    await waitFor(() => expect(back.result.current.schedule.view?.order.milestoneIds).toEqual([5, 6, 7]));
+    act(() => void back.result.current.order.move(7, -1));
+    await waitFor(() => expect(server.order).toEqual([5, 7, 6]));
+    expect(puts.filter((put) => put.url.endsWith("/milestone-order")).map((put) => put.body.milestoneIds)).toEqual([[5, 7, 6]]);
+  });
+
+  test("the mounted team page keeps its entry through a plan write and stays writable once its refetch lands", async () => {
+    const page = renderHook(() => useTeamWrites(null), { wrapper });
+    await waitFor(() => expect(page.result.current.schedule.view?.revision).toBe(12));
+    act(() => void page.result.current.schedule.commit(5, "2042-03-16", "2042-03-16"));
+    await waitFor(() => expect(page.result.current.schedule.pending).toBe(false));
+    await waitFor(() => expect(client.isFetching()).toBe(0));
+    expect(client.getQueryData<TeamView>(teamViewKey(1, null))?.revision).toBe(13);
+    act(() => void page.result.current.order.move(6, -1));
+    await waitFor(() => expect(server.order).toEqual([6, 5, 7]));
   });
 });
 
@@ -329,13 +408,15 @@ describe("the team page's writes across the Critical path toggle's cached entrie
     expect(hook.result.current.order.refused).toBe(true);
   });
 
-  test("the toggle turned off while a write runs: the answered revision still goes into the entry the change was made on (the chain one), not the plain one now shown", async () => {
+  /** A write started with the toggle on, the toggle turned off before the answer; `watched` keeps the chain entry on screen (observed) through the answer. */
+  async function toggleOffWhileWriting(watched: boolean) {
     let release!: () => void;
     holdSchedulePut = new Promise<void>((resolve) => {
       release = resolve;
     });
     const hook = renderHook(({ chain }: { chain: boolean }) => useTeamWrites(null, chain), { wrapper, initialProps: { chain: true } });
     await waitFor(() => expect(hook.result.current.schedule.view?.revision).toBe(12));
+    if (watched) watch(CHAIN_KEY);
     act(() => void hook.result.current.schedule.commit(5, "2042-03-16", "2042-03-16"));
     await waitFor(() => expect(puts).toHaveLength(1));
     hook.rerender({ chain: false });
@@ -344,8 +425,19 @@ describe("the team page's writes across the Critical path toggle's cached entrie
       release();
     });
     await waitFor(() => expect(hook.result.current.schedule.pending).toBe(false));
+    await waitFor(() => expect(client.isFetching()).toBe(0));
+  }
+
+  test("the toggle turned off while a write runs: the answered revision goes into the entry the change was made on (the chain one), not the plain one now shown", async () => {
+    await toggleOffWhileWriting(true);
     expect(client.getQueryData<TeamView>(CHAIN_KEY)?.revision).toBe(13);
     expect(client.getQueryData<TeamView>(CHAIN_KEY)?.scheduled.find((m) => m.id === 5)?.startDate).toBe("2042-03-16");
+    expectDocumentsMatchKeys();
+  });
+
+  test("the toggle turned off while a write runs, the chain entry unobserved: the refresh removes it (nothing is left to write from)", async () => {
+    await toggleOffWhileWriting(false);
+    expect(client.getQueryData<TeamView>(CHAIN_KEY)).toBeUndefined();
     expectDocumentsMatchKeys();
   });
 });

@@ -1,6 +1,6 @@
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { expect, test, vi } from "vitest";
-import { dropInactiveSiblings, refreshQueriesAfterMutation } from "./queryRefresh";
+import { refreshQueriesAfterMutation } from "./queryRefresh";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -48,25 +48,58 @@ test("refreshes active initial reads across prefixes, invalidates inactive data 
   }
 });
 
-test("dropInactiveSiblings removes the inactive entries under the prefix, keeps the written one, an observed one and every other prefix", () => {
+/** A client holding every kind of team entry, one of them (team 1, baseline 7) watched by a mounted page. */
+function clientWithTeamViews() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
-  const written = ["plan", "team", 1, { baseline: null, chain: true }] as const;
-  client.setQueryData(written, "written");
-  client.setQueryData(["plan", "team", 1, { baseline: null, chain: false }], "sibling");
+  client.setQueryData(["plan", "team", 1, { baseline: null, chain: true }], "sibling");
   client.setQueryData(["plan", "team", 1, { baseline: 5, chain: false }], "another sibling");
   client.setQueryData(["plan", "team", 2, { baseline: null, chain: false }], "another team");
   client.setQueryData(["plan", "project", 1, { baseline: null }], "a project");
+  client.setQueryData(["roadmap", "view"], "the roadmap");
   client.setQueryData(["plan", "team", 1, { baseline: 7, chain: false }], "shown");
-  const shown = new QueryObserver(client, { queryKey: ["plan", "team", 1, { baseline: 7, chain: false }], queryFn: () => "shown" }).subscribe(() => undefined);
+  const shown = new QueryObserver(client, { queryKey: ["plan", "team", 1, { baseline: 7, chain: false }], queryFn: () => "refetched" }).subscribe(() => undefined);
+  return { client, shown };
+}
+
+test.each([[["plan"]], [["plan", "team"]]])("a refresh of %j removes every INACTIVE team view of every team, synchronously, and keeps the mounted one and every other read", async (...keys) => {
+  const { client, shown } = clientWithTeamViews();
   try {
-    dropInactiveSiblings(client, ["plan", "team", 1], written);
-    expect(client.getQueryData(written)).toBe("written");
-    expect(client.getQueryData(["plan", "team", 1, { baseline: null, chain: false }])).toBeUndefined();
+    const refreshed = refreshQueriesAfterMutation(client, ...(keys as unknown as [string[]]));
+    // before anything is awaited
+    expect(client.getQueryData(["plan", "team", 1, { baseline: null, chain: true }])).toBeUndefined();
     expect(client.getQueryData(["plan", "team", 1, { baseline: 5, chain: false }])).toBeUndefined();
-    expect(client.getQueryData(["plan", "team", 1, { baseline: 7, chain: false }])).toBe("shown");
-    expect(client.getQueryData(["plan", "team", 2, { baseline: null, chain: false }])).toBe("another team");
+    expect(client.getQueryData(["plan", "team", 2, { baseline: null, chain: false }])).toBeUndefined();
+    await refreshed;
+    expect(client.getQueryData(["plan", "team", 1, { baseline: 7, chain: false }])).toBe("refetched");
     expect(client.getQueryData(["plan", "project", 1, { baseline: null }])).toBe("a project");
+    expect(client.getQueryData(["roadmap", "view"])).toBe("the roadmap");
   } finally {
     shown();
+    client.clear();
+  }
+});
+
+test("a refresh that does not cover the team views keeps them, however many keys it names", async () => {
+  const { client, shown } = clientWithTeamViews();
+  try {
+    await refreshQueriesAfterMutation(client, ["roadmap"], ["jira"], ["plan", "project"], ["plan", "team", 1, { baseline: 5, chain: false }]);
+    expect(client.getQueryData(["plan", "team", 1, { baseline: null, chain: true }])).toBe("sibling");
+    expect(client.getQueryData(["plan", "team", 1, { baseline: 5, chain: false }])).toBe("another sibling");
+    expect(client.getQueryData(["plan", "team", 2, { baseline: null, chain: false }])).toBe("another team");
+  } finally {
+    shown();
+    client.clear();
+  }
+});
+
+test("one covering key among several is enough: the team views go with a Jira, plan and roadmap refresh", async () => {
+  const { client, shown } = clientWithTeamViews();
+  try {
+    await refreshQueriesAfterMutation(client, ["jira"], ["plan"], ["roadmap"]);
+    expect(client.getQueryData(["plan", "team", 2, { baseline: null, chain: false }])).toBeUndefined();
+    expect(client.getQueryData(["plan", "team", 1, { baseline: 7, chain: false }])).toBe("refetched");
+  } finally {
+    shown();
+    client.clear();
   }
 });

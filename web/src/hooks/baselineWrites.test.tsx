@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { useRoadmapRanking } from "./useRoadmapRanking";
 import { useScheduleProposal } from "./useScheduleProposal";
@@ -80,10 +80,17 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  for (const stop of watching.splice(0)) stop();
   vi.unstubAllGlobals();
   localStorage.clear();
 });
 
+const watching: (() => void)[] = [];
+/** The page showing a pick: an observer keeps its entry ACTIVE, so a plan refresh refetches it instead of dropping it (the cached copy is what a refetch answers here). */
+const watch = (pick: number | null) => {
+  const key = teamViewKey(1, pick);
+  watching.push(new QueryObserver(client, { queryKey: key, queryFn: () => client.getQueryData<TeamView>(key) as TeamView, staleTime: Infinity }).subscribe(() => undefined));
+};
 const entry = (pick: number | null) => client.getQueryData<TeamView>(teamViewKey(1, pick));
 const startOf = (view: TeamView | undefined, id: number) => [...(view?.scheduled ?? []), ...(view?.unscheduled ?? [])].find((m) => m.id === id)?.startDate;
 
@@ -142,6 +149,8 @@ describe("the schedule path with a baseline pick", () => {
     client.setQueryData(teamViewKey(1, null), teamView());
     const { result, rerender } = renderHook(({ pick }: { pick: number | null }) => useTeamSchedule(1, pick), { wrapper, initialProps: { pick: 5 as number | null } });
     await waitFor(() => expect(result.current.view?.baseline).toBeDefined());
+    // pick 5's entry stays watched (as if still on screen), so the rollback into it can be read after the refresh
+    watch(5);
     act(() => void result.current.commit(5, "2042-03-16", "2042-03-17"));
     await waitFor(() => expect(puts).toHaveLength(1));
     expect(startOf(entry(5), 5)).toBe("2042-03-16");
@@ -186,6 +195,7 @@ describe("the order path with a baseline pick", () => {
   test("refused while the view is the placeholder; otherwise its order revision goes into the written entry only", async () => {
     client.setQueryData(teamViewKey(1, null), teamView());
     client.setQueryData(teamViewKey(1, 5), teamView({ baseline: BASELINE }));
+    watch(5);
     const { result, rerender } = renderHook(({ loading }: { loading: boolean }) => useTeamOrder(1, client.getQueryData<TeamView>(teamViewKey(1, 5)), announce, 5, loading), {
       wrapper,
       initialProps: { loading: true },
