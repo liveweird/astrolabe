@@ -31,7 +31,7 @@ describe("useTeamOptions", () => {
     );
     const { wrapper } = clientAndWrapper();
     const { result } = renderHook(() => useTeamOptions(), { wrapper });
-    expect(result.current).toEqual({ teams: [], settled: false });
+    expect(result.current).toEqual({ teams: [], settled: false, failed: false });
     release();
     await waitFor(() => expect(result.current.settled).toBe(true));
     expect(result.current.teams.map((team) => team.name)).toEqual(["Backend"]);
@@ -42,6 +42,6 @@ describe("useTeamOptions", () => {
     const { client, wrapper } = clientAndWrapper();
     const { result } = renderHook(() => useTeamOptions(), { wrapper });
     await waitFor(() => expect(client.getQueryState(["teams", "options"])?.status).toBe("error"));
-    expect(result.current).toEqual({ teams: [], settled: false });
+    expect(result.current).toEqual({ teams: [], settled: false, failed: true });
   });
 });

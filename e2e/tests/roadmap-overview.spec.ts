@@ -277,7 +277,8 @@ test("a Roadmap overview link that names a program shows it without changing wha
   await expect(nodeButton(page, `Program ${plan.b}`)).toHaveCount(0);
   await openFilters(page);
   // A MultiSelect pill has no accessible role, so the picked value is read by Mantine's pill class (the one class selector in e2e).
-  const picked = page.locator(".mantine-MultiSelect-pill");
+  // Scoped to the Programs field: the proposal row's own team picker (1.38) has pills too.
+  const picked = page.locator(".mantine-MultiSelect-root").filter({ has: page.getByRole("combobox", { name: "Programs" }) }).locator(".mantine-MultiSelect-pill");
   await expect(picked).toHaveCount(1);
   await expect(picked.filter({ hasText: plan.a })).toHaveCount(1);
   // Looking at a link wrote nothing: the remembered pick is still program B.

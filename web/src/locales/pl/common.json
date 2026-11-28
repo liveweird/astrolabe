@@ -59,6 +59,13 @@
     "clearProgram": "Wyczyść filtr programu",
     "teamUnknown": "Zespół {{id}}"
   },
+  "runTeams": {
+    "label": "Zespoły objęte propozycją",
+    "placeholder": "Wybierz zespoły",
+    "none": "Żaden zespół nie pasuje",
+    "clear": "Wyczyść wybrane zespoły",
+    "reset": "Użyj zespołów tej strony"
+  },
   "table": {
     "rowsPerPage": "Wierszy na stronę",
     "total": "Łącznie: {{count}}",

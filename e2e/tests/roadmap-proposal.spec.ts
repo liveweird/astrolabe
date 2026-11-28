@@ -2,7 +2,7 @@
 // A login that manages nothing previews (the dashed bars, the table of the projects that would move) and is offered no accept; a login that manages both teams
 // runs ONE proposal over them, reads the second team's milestone landing after the first team's PROPOSED date and accepts both teams' moves in one write; unticking
 // the first team's move turns the link into a warning through the ticked-subset check; a manager of one team accepts that team's moves alone (the accept names only
-// them); a saved proposal (1.26) is listed under the timeline, opened by a manager of another team, who cannot accept it, and accepted by the manager of both
+// them); a manager narrows the run to their own team with the team picker (1.38: only that team is asked, Save is offered, Reset restores the page's set); a saved proposal (1.26) is listed under the timeline, opened by a manager of another team, who cannot accept it, and accepted by the manager of both
 // teams, after which it reads as changed; the retired Schedule proposals addresses lead to the overview.
 // Every overview run here narrows the page to the spec's OWN program (`?mode=overview&programId=`): the run covers the teams of the projects the page shows, and
 // the plan is shared by every worker. Owns: its throwaway users, people, TWO teams (each with ONE capacity period from Monday 2048-01-06, 10 MD/week, no WIP
@@ -386,6 +386,59 @@ test("a manager of two teams saves a proposal, a manager of another team opens i
   await expect(note(page, "The plan changed after it was saved, so it can no longer be accepted.")).toBeVisible();
   await expect(page.getByRole("button", { name: /^Accept selected/ })).toHaveCount(0);
   await api.dispose();
+});
+
+test("a manager narrows the run to their own team: only that team is asked and sectioned, Save is offered, and Reset brings the page's teams back", async ({ page }) => {
+  // SINGLE manages Y alone; the page's own set is both teams of the project (X is the MANAGER's), so with the page's set there is no Save.
+  const world = await seedWorld(true);
+  await world.api.dispose();
+  const picker = page.getByRole("combobox", { name: "Teams in the run", exact: true });
+  // Scoped to the team picker's own field (a pill has no role; the page has other multi-selects).
+  const chosen = (team: string) => page.locator(".mantine-MultiSelect-root").filter({ has: picker }).locator(".mantine-MultiSelect-pill").filter({ hasText: team });
+  const reset = page.getByRole("button", { name: "Use this page's teams", exact: true });
+
+  await login(page, world.single.email, world.single.password);
+  await openOverview(page, world);
+  await expect(chosen(world.teamX)).toHaveCount(1);
+  await expect(chosen(world.teamY)).toHaveCount(1);
+  await expect(reset).toHaveCount(0);
+
+  // Take team X out: the reset appears, the row says the teams are chosen.
+  await picker.click();
+  await page.getByRole("option", { name: world.teamX, exact: true }).click();
+  await page.keyboard.press("Escape");
+  await expect(chosen(world.teamX)).toHaveCount(0);
+  await expect(reset).toBeVisible();
+  await expect(page.getByText("Proposes dates for the 1 team you chose.")).toBeVisible();
+
+  // The request names team Y alone, the run has team Y's section only, and the viewer manages every team of it: Save is offered. The picker is not drawn while the run is open.
+  const [response] = await Promise.all([page.waitForResponse(isApi("POST", "")), proposeButton(page).click()]);
+  await expectOk(response);
+  expect((response.request().postDataJSON() as { teamIds: number[] }).teamIds).toEqual([world.teamYId]);
+  await expect(runHeading(page)).toBeVisible();
+  await expect(page.getByRole("heading", { level: 3, name: world.teamY, exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 3, name: world.teamX, exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save proposal", exact: true })).toBeEnabled();
+  await expect(picker).toHaveCount(0);
+  await expect(reset).toHaveCount(0);
+
+  // Discard gives the picker back with the choice kept; Reset puts the page's two teams back, and the next run asks for both.
+  await page.getByRole("button", { name: "Discard", exact: true }).click();
+  await expect(picker).toBeVisible();
+  await expect(chosen(world.teamX)).toHaveCount(0);
+  await reset.click();
+  await expect(chosen(world.teamX)).toHaveCount(1);
+  await expect(chosen(world.teamY)).toHaveCount(1);
+  await expect(reset).toHaveCount(0);
+  const [again] = await Promise.all([page.waitForResponse(isApi("POST", "")), proposeButton(page).click()]);
+  await expectOk(again);
+  const asked = (again.request().postDataJSON() as { teamIds: number[] }).teamIds;
+  expect(asked).toHaveLength(2);
+  expect(asked).toContain(world.teamYId);
+  await expect(page.getByRole("heading", { level: 3, name: world.teamX, exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save proposal", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Discard", exact: true }).click();
+  await expect(runHeading(page)).toHaveCount(0);
 });
 
 test("the retired Schedule proposals addresses lead to the Roadmap overview, and a saved proposal that does not exist says so there", async ({ page }) => {

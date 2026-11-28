@@ -83,6 +83,17 @@ The run, counted by hand on the Monday-to-Friday calendar (no holiday): team X i
 7. They open the same proposal from the list again.
    - *Expected*: the badge turns **Changed** with its note ("The plan changed after it was saved, so it can no longer be accepted."); no Accept button is offered.
 
+## Scenario: a manager narrows the run to their own team: only that team is asked and sectioned, Save is offered, and Reset brings the page's teams back
+
+1. The SINGLE manager (manager of team Y only; team X is the other person's) signs in and opens the overview narrowed to the spec's program.
+   - *Expected*: the picker "Teams in the run" holds both teams of the project (the page's own set) and there is no "Use this page's teams" button.
+2. They open the picker and pick team X off.
+   - *Expected*: team X's chip is gone, **Use this page's teams** appears, and the row reads "Proposes dates for the 1 team you chose."
+3. They press **Propose schedule**.
+   - *Expected*: the run request succeeds and its body's `teamIds` is exactly team Y's id; the run has team Y's h3 section and none for team X; **Save proposal** is offered and enabled (the viewer manages every team of the run); the picker and the reset are not drawn while the run is open.
+4. They press **Discard**, then **Use this page's teams**.
+   - *Expected*: the picker is back with team X still out and, after the reset, holds both teams with no reset button; **Propose schedule** now asks for both teams (`teamIds` of length 2, holding team Y), the run has both sections and no **Save proposal** (the viewer does not manage team X); **Discard** closes it.
+
 ## Scenario: the retired Schedule proposals addresses lead to the Roadmap overview, and a saved proposal that does not exist says so there
 
 1. The administrator signs in and opens `/schedule-proposals?x=1`.

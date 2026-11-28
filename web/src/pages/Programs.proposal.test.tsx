@@ -10,7 +10,7 @@ import type { RoadmapProject } from "../api/roadmap";
 import { ACCEPT_URL, CHECK_URL, RUN_URL } from "../test/crossTeamRun";
 import { headingOutline } from "../test/headings";
 import { routeFetch } from "../test/http";
-import { DASHBOARDS, INVOICES, REPORTS, RUN, TEAMS, viewOf } from "../test/overviewRun";
+import { DASHBOARDS, INVOICES, REPORTS, RUN, TEAMS, TEAM_LIST, viewOf } from "../test/overviewRun";
 import { renderWithProviders } from "../test/render";
 import { localIsoDate } from "../utils/isoDate";
 
@@ -48,6 +48,7 @@ beforeEach(() => {
   runAnswer = () => RUN;
   dndProps = null;
   mockFetch = routeFetch({
+    "GET /api/v1/teams": TEAM_LIST,
     "GET /api/v1/views/programs": () => view,
     "GET /api/v1/public-holidays": { items: [] },
     "GET /api/v1/baselines": { items: [], can: { manage: false } },
@@ -137,9 +138,9 @@ describe("asking for the proposal", () => {
     rights = many;
     renderWithProviders(<Programs />, { route: "/roadmap?mode=overview" });
     await screen.findByRole("grid", { name: "Programs timeline" });
-    expect(await screen.findByText("The projects shown involve 51 teams, and a proposal takes at most 50 — narrow the program or work stream pick.")).toBeInTheDocument();
+    expect(await screen.findByText("The run would cover 51 teams, but a proposal takes at most 50 — narrow the program or work stream pick, or choose fewer teams.")).toBeInTheDocument();
     expect(proposeButton()).toBeDisabled();
-    expect(proposeButton()).toHaveAccessibleDescription("The projects shown involve 51 teams, and a proposal takes at most 50 — narrow the program or work stream pick.");
+    expect(proposeButton()).toHaveAccessibleDescription("The run would cover 51 teams, but a proposal takes at most 50 — narrow the program or work stream pick, or choose fewer teams.");
     expect(bodies("POST", RUN_URL)).toEqual([]);
   });
 
@@ -149,6 +150,7 @@ describe("asking for the proposal", () => {
       release = resolve;
     });
     mockFetch = routeFetch({
+      "GET /api/v1/teams": TEAM_LIST,
       "GET /api/v1/views/programs": () => view,
       "GET /api/v1/public-holidays": { items: [] },
       "GET /api/v1/baselines": { items: [], can: { manage: false } },
@@ -174,6 +176,7 @@ describe("asking for the proposal", () => {
       release = resolve;
     });
     mockFetch = routeFetch({
+      "GET /api/v1/teams": TEAM_LIST,
       "GET /api/v1/views/programs": async () => {
         await gate;
         return view;
@@ -350,6 +353,7 @@ describe("the target windows are locked while a proposal is requested or open", 
       release = resolve;
     });
     mockFetch = routeFetch({
+      "GET /api/v1/teams": TEAM_LIST,
       "GET /api/v1/views/programs": () => view,
       "GET /api/v1/public-holidays": { items: [] },
       "GET /api/v1/baselines": { items: [], can: { manage: false } },
@@ -425,6 +429,7 @@ describe("what the viewer may accept", () => {
 
   test("a failed rights read degrades to a preview: Propose still works, nothing is offered to accept", async () => {
     mockFetch = routeFetch({
+      "GET /api/v1/teams": TEAM_LIST,
       "GET /api/v1/views/programs": () => view,
       "GET /api/v1/public-holidays": { items: [] },
       "GET /api/v1/baselines": { items: [], can: { manage: false } },

@@ -45,6 +45,7 @@ const reads = (path: string) => mockFetch.mock.calls.filter(([url]) => String(ur
 beforeEach(() => {
   mockFetch = routeFetch({
     "GET /api/v1/views/roadmap": ROADMAP,
+    "GET /api/v1/teams": { items: [], page: 1, pageSize: 100, total: 0 },
     "GET /api/v1/views/programs": PROGRAMS,
     "GET /api/v1/saved-schedule-proposals": { items: [] },
     "GET /api/v1/saved-schedule-proposals/:id": () => jsonResponse(404, { title: "Not found", status: 404 }),

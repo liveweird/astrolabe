@@ -30,7 +30,7 @@ unplaced rows are `components/ProposalTable.tsx`, a controlled, action-free tabl
 
 ### The schedule proposal on the project page
 
-Propose (`components/ProjectProposal.tsx`, state in `hooks/useProjectProposal.ts`) is a click only (the run and the accept share a per-user rate limit), after `useProposalRights`. ONE cross-team run over the distinct teams of the project's milestones, scheduled or not (other teams stay fixed, no dependency closure).
+Propose (`components/ProjectProposal.tsx`, state in `hooks/useProjectProposal.ts`) is a click only (the run and the accept share a per-user rate limit), after `useProposalRights`. ONE cross-team run over the distinct teams of the project's milestones, scheduled or not (other teams stay fixed, no dependency closure) by default; the viewer may choose any other active teams ("The team picker"), over 50 or none keeps Propose off with its reason.
 Everyone previews: `ProjectTimeline`'s `proposal?` prop (`ProjectTimelineProposal.tsx`) draws a dashed bar on each moved row, a "(new)" row per placed tray milestone and the summary row's `proposal:project` span (`projects[]`), drops the idle bands, makes every bar and the tray read-only.
 The h3 after the tray gives the project's end ("would end on D instead of D′, N working days earlier", "would not change", "newly scheduled"), cuts `CrossTeamRunView` to this project (`projectId`), counts the run's moves of the same teams elsewhere (shown, not offered) and offers Accept selected, Propose again, Discard; no Save. Only this project's moves tick, for the teams the viewer may accept; the accept names their teams, the check describes exactly them.
 Only DATE writes lock while a run is requested or open (`lockActions`, `guardDrop`); other edits stay (one that moves dates through a link makes the accept stale, 409).
@@ -40,8 +40,8 @@ Only DATE writes lock while a run is requested or open (`lockActions`, `guardDro
 ### The schedule proposal
 
 Every login previews ONE cross-team run on the tree (the run, rights and sections: "The cross-team run" "What the viewer may accept").
-- **Propose** is a click (never automatic: run and accept share a 30/min bucket), off (the hint is its description) until the rights are read, while the address's work stream is unsettled or a window write runs, over 50 teams ("narrow the pick") or with no team. It covers
-  `overviewTeamIds`: the union of the SHOWN projects' `teamIds` (`shownProjects`, `treeRows`' own filter: pick + work stream), every team with a milestone when nothing is narrowed.
+- **Propose** is a click (never automatic: run and accept share a 30/min bucket), off (the hint is its description) until the rights are read, while the address's work stream is unsettled or a window write runs, over 50 teams ("narrow the pick or choose fewer"), or with no team ("Choose at least one team"). It covers
+  `overviewTeamIds` by default: the union of the SHOWN projects' `teamIds` (`shownProjects`, `treeRows`' own filter: pick + work stream), every team with a milestone when nothing is narrowed; the viewer may choose any other ("The team picker"). `outside` (`OutsidePickNote`) counts the projects a SAVED run or a CHOSEN-set run moves beyond the shown ones; the default run stays silent (1.37).
 - **Bars:** the run's `projects[]` gives a project row `proposal:<id>` (`projectTrack`'s `{proposed, locked}`; the roadmap passes none) and a node row `proposedSpan` (union, only when different),
   `proposal:ws|pg:<id>`; `usePlanScale` covers them.
 - **Lock** (`useProposalLock`, request to Discard): window bars read-only, no draw surface or window items, `guard(commit)` refuses out loud. Dependencies stay UNLOCKED (decision): an edit bumps the
@@ -102,9 +102,17 @@ A saved run is the SERVER's own re-computation (`scheduling.md` "Saved proposals
 - **The open one is marked**: `SavedProposalsTable`'s row of the run on screen (`openId` = `saved.record.id`; a failed read marks nothing) takes `aria-current="true"` and `.rowCurrent`, cleared with the run.
 - It ends with **Close** (Discard once fresh), an accept, a stale refusal, Back or a mode switch (`RoadmapModes` drops `proposal`): the parameter leaves the address. A 404 (also a malformed id), an `UNREADABLE` record (saved by an earlier version) or a failed read opens nothing, says so in a dismissible note (`SavedNotice`) and drops the parameter.
 
+### The team picker
+
+`components/RunTeamsPicker.tsx` (props `value`, `onChange`, `defaultIds`, `disabled?`, `label?`; no page knowledge, the team page reuses it) is a searchable `MultiSelect` named "Teams in the run" over EVERY active team (`useTeamOptions`, the one cached read, the theme's folded filter), wrapping at 390 px, with a "Use this page's teams" reset only while it is enabled and the value differs from the defaults as a set.
+Both pages DRAW NO picker while a run is requested or open (a disabled one failed dark-scheme contrast, and the run's sections name its teams, so a saved run or a pick change can never disagree with it).
+`hooks/useRunTeams.ts` holds the choice as page state (never remembered): `ids` is the page's own array while untouched or re-chosen to the same set, so an untouched picker posts exactly what the page always posted; a chosen set is sorted by id, and choosing the page's own set (by hand or the reset) stores nothing, so the picker keeps following the page.
+Both pages spread their hook's `picker` (`useOverviewProposal`, `useProjectProposal`: value, change, the page's set, `disabled` while a run is requested or open, when the section leaves it out: changing the set means Discard, then Propose).
+`MAX_RUN_TEAMS` (50, the server's ceiling) lives there; Save keeps its rule (every run team acceptable), so a manager who picks only their own teams gets it.
+
 ### Tests
 
-Co-located: `Programs.{proposal,saved,save}.test.tsx`, `Saved*`, `CrossTeam*`, `useCrossTeamProposal*`, `planProposal` (fixtures `test/{crossTeamRun,overviewRun}.ts`); e2e `roadmap-proposal.spec.ts`.
+Co-located: `Programs.{proposal,saved,save,runTeams}.test.tsx`, `ProjectView.runTeams.test.tsx`, `RunTeamsPicker`, `useRunTeams`, `Saved*`, `CrossTeam*`, `useCrossTeamProposal*`, `planProposal` (fixtures `test/{crossTeamRun,overviewRun}.ts`); e2e `roadmap-proposal.spec.ts`.
 
 ## Shared checks
 

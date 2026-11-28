@@ -7,7 +7,7 @@ import Programs from "./Programs";
 import { savedProposalKey, type SavedProposalRecord } from "../api/savedProposals";
 import { ACCEPT_URL, CHECK_URL, RUN_URL, SAVED, SAVED_RECORD, SAVED_URL, STALE_REVISION, STALE_SCOPE, week } from "../test/crossTeamRun";
 import { jsonResponse, routeFetch } from "../test/http";
-import { RUN, TEAMS, viewOf } from "../test/overviewRun";
+import { RUN, TEAMS, TEAM_LIST, viewOf } from "../test/overviewRun";
 import { renderWithProviders } from "../test/render";
 import { localIsoDate } from "../utils/isoDate";
 
@@ -77,6 +77,7 @@ beforeEach(() => {
   runAnswer = jsonResponse(200, { ...RUN, revision: 13, scopeHash: "c".repeat(64) });
   acceptAnswer = jsonResponse(200, { revision: 13, accepted: [11, 21, 31], skipped: [] });
   mockFetch = routeFetch({
+    "GET /api/v1/teams": TEAM_LIST,
     "GET /api/v1/views/programs": () => planView,
     "GET /api/v1/public-holidays": { items: [] },
     "GET /api/v1/baselines": { items: [], can: { manage: false } },
@@ -441,6 +442,7 @@ describe("opening from the list", () => {
     localStorage.setItem(OPEN, "true");
     const second = { ...SAVED, id: 6, name: "Q2 plan" };
     mockFetch = routeFetch({
+      "GET /api/v1/teams": TEAM_LIST,
       "GET /api/v1/views/programs": () => viewOf(),
       "GET /api/v1/public-holidays": { items: [] },
       "GET /api/v1/baselines": { items: [], can: { manage: false } },

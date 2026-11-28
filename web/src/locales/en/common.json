@@ -59,6 +59,13 @@
     "clearProgram": "Clear the program filter",
     "teamUnknown": "Team {{id}}"
   },
+  "runTeams": {
+    "label": "Teams in the run",
+    "placeholder": "Choose teams",
+    "none": "No team matches",
+    "clear": "Clear the chosen teams",
+    "reset": "Use this page's teams"
+  },
   "table": {
     "rowsPerPage": "Rows per page",
     "total": "{{count}} total",

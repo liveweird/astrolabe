@@ -38,6 +38,14 @@ export const TEAMS = [
   { id: 3, name: "Gamma" },
 ];
 
+/** The teams read behind the run's team picker (`GET /api/v1/teams`): the plan's three and Delta, which no project of the plan uses. */
+export const TEAM_LIST = {
+  items: [...TEAMS, { id: 4, name: "Delta" }].map((team) => ({ ...team, description: null, managerPersonId: null, managerName: null, colour: "TEAL" as const, createdAt: 0, updatedAt: 0 })),
+  page: 1,
+  pageSize: 100,
+  total: 4,
+};
+
 export const viewOf = (over: Partial<ProgramsView> = {}): ProgramsView => ({
   jiraSites: [],
   revision: 9,

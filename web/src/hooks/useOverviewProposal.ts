@@ -9,11 +9,9 @@ import { useProposalFocus } from "./useProposalFocus";
 import { useProposalLock } from "./useProposalLock";
 import { useProposalRights } from "./useProposalRights";
 import { ROADMAP_WRITE_KEY } from "./useRoadmapRanking";
+import { MAX_RUN_TEAMS, useRunTeams } from "./useRunTeams";
 import { useSavedRun } from "./useSavedRun";
 import { useScheduleCheck } from "./useScheduleCheck";
-
-/** The most teams one run takes (the server's `teamIds` ceiling): above it Propose is off and the page says to narrow the pick. */
-export const MAX_RUN_TEAMS = 50;
 
 /**
  * The Roadmap overview's schedule proposal (1.33): ONE cross-team run over the teams that work on the projects the page SHOWS (`overviewTeamIds`: the program pick
@@ -25,6 +23,8 @@ export const MAX_RUN_TEAMS = 50;
  * - Propose waits while a `?proposal=` record is still being read, and never fires by itself (the run and the accept share a per-user rate limit), so `propose` is only ever a click's: also while a window write runs it answers `false`.
  * `view` is the whole plan, `narrowed` what `inWorkStream` leaves of it, `pick` the program pick as the tree takes it; `unsettled` = the address names a work stream the view does not
  * narrow to yet (Propose waits: the team set would be the whole plan's).
+ * The team set starts as the page's (above) and the viewer may choose any other (`useRunTeams`, 1.38; `picker` is the props of `RunTeamsPicker`; `disabled` while a run is requested or open: the section does not draw it then): `teamIds` is the set Propose asks over,
+ * `tooMany` and `proposable` follow it, `outside` counts the projects a saved or chosen-set run moves beyond the shown ones, and the picker is not drawn while a run is requested or open (its sections name the run's teams).
  * A saved proposal named by the address (`?proposal=<id>`, `useSavedRun`) opens in this same run: the bars, the table and the sections are the same.
  * Dependencies stay UNLOCKED while a run is open on purpose: an edit bumps the plan revision, so the accept is refused as stale and the page says so.
  */
@@ -62,13 +62,16 @@ export function useOverviewProposal({
     enabled: run !== null && flow.canAccept && (saved === null || saved.asking),
   });
   const check = saved !== null && !saved.asking ? storedCheckState(saved.record) : liveCheck;
-  const teamIds = overviewTeamIds(view, narrowed, pick);
+  const pageTeamIds = overviewTeamIds(view, narrowed, pick);
+  const runTeams = useRunTeams(pageTeamIds);
+  const teamIds = runTeams.ids;
   const proposed = useMemo<ProposedSpans>(() => new Map((run?.projects ?? []).map((project) => [project.projectId, project.after])), [run]);
   // The range covers the spans of the SHOWN projects only (a moved project outside the pick has no bar); the table still lists every project the run moves.
   const shownIds = useMemo(() => new Set(shownProjects(narrowed, pick).map((project) => project.id)), [narrowed, pick]);
   const days = useMemo(() => [...proposed].filter(([id]) => shownIds.has(id)).flatMap(([, span]) => [span.start, span.end]), [proposed, shownIds]);
-  // A saved run moves what it moved when it was computed: projects the current pick hides have no bar (the table lists them) - the page says how many.
-  const outside = saved === null ? 0 : (run?.projects ?? []).filter((project) => !shownIds.has(project.projectId)).length;
+  // A run moves what it moved when it was computed (a saved one, or a chosen team set's): projects the current pick hides have no bar (the table lists them) - the page says how many.
+  // The default run (the shown projects' own teams) stays silent, as in 1.37; a saved run and a chosen team set say it.
+  const outside = saved === null && !runTeams.chosen ? 0 : (run?.projects ?? []).filter((project) => !shownIds.has(project.projectId)).length;
   const tooMany = teamIds.length > MAX_RUN_TEAMS;
   const proposable = rights.ready && !unsettled && teamIds.length > 0 && !tooMany && run === null && !busy && !writing && !savedRun.loading;
   return {
@@ -91,7 +94,11 @@ export function useOverviewProposal({
     /** Close the run (Discard, or Close for a saved one): the parameter leaves the address too. */
     close: savedRun.close,
     teamIds,
-    /** The shown projects involve more teams than a run takes. */
+    /** The viewer chose a team set other than the page's. */
+    chosenTeams: runTeams.chosen,
+    /** The props of the team picker (`RunTeamsPicker`): the set, its change, the page's own set, and `disabled` while a run is requested or open (the section draws no picker then). */
+    picker: { value: teamIds, onChange: runTeams.set, defaultIds: pageTeamIds, disabled: run !== null || busy },
+    /** The team set involves more teams than a run takes. */
     tooMany,
     /** Propose may be clicked now. */
     proposable,
@@ -100,7 +107,7 @@ export function useOverviewProposal({
     refusal: lock.refused ? (lock.open !== null ? t("teams.proposal.readOnly") : t("project.busy")) : null,
     proposed,
     days,
-    /** How many projects a saved run moves are outside the current pick (0 for a run of the viewer's own). */
+    /** How many projects the open run moves are outside the current pick (a saved run's or a chosen team set's; 0 for the default run). */
     outside,
     /** The page's write path behind the lock: while a proposal is requested or open a change is refused out loud (`lock.refuse`), else `commit` runs. */
     guard:

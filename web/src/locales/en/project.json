@@ -252,6 +252,10 @@
   "proposal": {
     "covers_one": "Proposes dates for the {{count}} team that works on this project's milestones; other teams' dates are kept. Nothing changes until you accept.",
     "covers_other": "Proposes dates for the {{count}} teams that work on this project's milestones; other teams' dates are kept. Nothing changes until you accept.",
+    "coversChosen_one": "Proposes dates for the {{count}} team you chose; other teams' dates are kept. Nothing changes until you accept.",
+    "coversChosen_other": "Proposes dates for the {{count}} teams you chose; other teams' dates are kept. Nothing changes until you accept.",
+    "tooMany_one": "The run would cover {{count}} team, but a proposal takes at most {{max}} — choose fewer teams.",
+    "tooMany_other": "The run would cover {{count}} teams, but a proposal takes at most {{max}} — choose fewer teams.",
     "requesting": "Asking for a proposal — the dates are read-only until it arrives.",
     "intro": "Dashed bars on the timeline show the proposed dates. Nothing changes until you accept; only this project's moves are offered.",
     "unchanged": "The project's dates would not change.",

@@ -10,6 +10,8 @@ import CrossTeamRunView from "./CrossTeamRunView";
 import EntityLink from "./EntityLink";
 import FormErrorAlert from "./FormErrorAlert";
 import ProposalNotes from "./TeamProposalNotes";
+import RunTeamsPicker from "./RunTeamsPicker";
+import { MAX_RUN_TEAMS } from "../hooks/useRunTeams";
 import { TOOLBAR_CONTROL_SIZE } from "../utils/timelineModel";
 
 /** What the run does to the project's own span, in one sentence (the server's `projects[]` entry, absent = its span stays). */
@@ -45,13 +47,18 @@ export default function ProjectProposal({ proposal, announce }: { proposal: Proj
     ? t("project.proposal.requesting")
     : !rights.ready
       ? t("programs.proposal.checking")
-      : t("project.proposal.covers", { count: teamIds.length });
+      : proposal.tooMany
+        ? t("project.proposal.tooMany", { count: teamIds.length, max: MAX_RUN_TEAMS })
+        : teamIds.length === 0
+          ? t("programs.proposal.chooseOne")
+          : t(proposal.chosenTeams ? "project.proposal.coversChosen" : "project.proposal.covers", { count: teamIds.length });
   return (
     <Stack gap="sm">
       <Group gap="sm" align="center" wrap="wrap" data-print="hide">
         <Button ref={proposeRef} variant="default" size={TOOLBAR_CONTROL_SIZE} leftSection={<IconWand size={14} />} loading={flow.requesting} disabled={!proposable} aria-describedby={!proposable && run === null ? hintId : undefined} onClick={proposal.propose}>
           {t("programs.proposal.propose")}
         </Button>
+        {!proposal.picker.disabled && <RunTeamsPicker {...proposal.picker} />}
         {run === null && (
           <Text id={hintId} size="sm" c="dimmed">
             {hint}

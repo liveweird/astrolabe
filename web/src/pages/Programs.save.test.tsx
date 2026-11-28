@@ -4,7 +4,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import Programs from "./Programs";
 import { CHECK_URL, RUN_URL, SAVED, SAVED_URL, STALE_SCOPE, TEAMS_URL } from "../test/crossTeamRun";
 import { jsonResponse, routeFetch } from "../test/http";
-import { RUN, TEAMS, viewOf } from "../test/overviewRun";
+import { RUN, TEAMS, TEAM_LIST, viewOf } from "../test/overviewRun";
 import { renderWithProviders } from "../test/render";
 
 // "Save proposal" on the Roadmap overview's run and the "Saved proposals" panel under its timeline: the run is kept by the server, the list follows.
@@ -21,6 +21,7 @@ beforeEach(() => {
   teams = TEAMS;
   saveAnswer = jsonResponse(201, SAVED);
   mockFetch = routeFetch({
+    "GET /api/v1/teams": TEAM_LIST,
     "GET /api/v1/views/programs": () => viewOf(),
     "GET /api/v1/public-holidays": { items: [] },
     "GET /api/v1/baselines": { items: [], can: { manage: false } },
