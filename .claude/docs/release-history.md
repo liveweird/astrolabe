@@ -13,6 +13,17 @@ Owns: what each version shipped, newest first: its scope, the user's answers, th
 
 Newest first. Each version: its scope, the user's answers, the defaults that still bind and what was not built; the commits, the plans (they live outside the repository) and the test runs are in git. "No migration" means the preceding schema still applies. Every release leaves "nothing is written to Jira or Flow" true.
 
+### v1.39.0 — proposals for everyone: a team page preview, the teams a project waits on, Prioritization
+
+Built overnight on 2026-11-28: before leaving at 01:24 the user chose "More proposal items" as the work after 1.38 (three Increments items, promoted in a949b10b). Every open question took the recommended option (the user's standing "recommended default"), each listed below for review. A minor bump; web, e2e and docs only (the spec changes only in `info.version`); no migration (schema 35). Step 0 moved "Shared checks" and "The Gantt preview" into `proposals-preview.md`.
+
+- **A preview for non-managers on the team page** (`proposals-web.md` "The team page"): a viewer without `team.can.schedule` runs the cross-team proposal over this one team (the per-team route keeps its 403): the team's table open, dashed bars, a preview note and intro, no ticks, no Accept; with "Plan together with" they accept only the teams they manage. A manager with nothing chosen keeps the per-team proposal.
+- **The dependency closure** (`proposals-web.md` "The team picker"): "Add the teams this project waits on" on the project page reads the Roadmap document on click (its project-pair `links`, each project's `teamIds`) and adds the whole upstream chain's teams, nearest first, stopping before 50 (`runClosure.ts`); Propose waits for the read.
+- **A preview in Prioritization** (`proposals-web.md` "Prioritization"): the overview's run (`useOverviewProposal`, generalised to shown projects, teams and "narrowed"), dashed bars, the ranking and the target windows locked from the request to Discard; Accept as on the overview, no Save, `?proposal=` ignored; a mode switch discards the run.
+- **Defaults taken:** the non-manager preview through the run route, with "Plan together with" and the ticks of the teams they manage; the closure on the project page only, a button that fills the picker, the whole upstream chain, all teams of each upstream project, bound 50, upstream moves not accepted there (1.33 D7);
+  Prioritization covers the visible projects' teams (all when unfiltered) with the picker, locks rank and windows (dependencies stay editable), no Save, a mode switch discards; its "outside" note names the filters; its rights-failure note shows only while a run is open; a pure preview is announced with its moves.
+- **Not built:** the per-team route opened to everyone, a one-hop or milestone-exact closure, the closure on the Roadmap, Save in Prioritization, a run that survives the mode switch.
+
 ### v1.38.0 — choose the run's teams, plan together from a team page, bars that follow the ticks
 
 The four `[next]` items the user promoted on 2026-11-27 ("go ahead with all four as 1.38"), with four answers on 2026-11-28 (each the recommended option): Q1 "Plan together, there" (a cross-team run started on the team page), Q2 "Linked ones the run moves" (dimmed rows for the other teams' linked milestones the run moves), Q3 "Milestones and projects" (project-level bars follow the ticks too, from the server; saved proposals read UNREADABLE once), Q4 "Any team, all pages" (the run's team picker). 

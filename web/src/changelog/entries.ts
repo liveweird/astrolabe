@@ -17,6 +17,20 @@ interface ChangelogEntry {
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: "1.39.0",
+    date: "2026-11-28",
+    en: `**Schedule proposals for everyone: a team page preview, the teams a project waits on, Prioritization**
+
+- **Anyone may preview a team's proposal:** Propose on a team page is no longer for its manager only. Anyone sees the proposed dates as dashed bars; only the moves of teams you manage can be accepted.
+- **The teams a project waits on:** on the project page, "Add the teams this project waits on" adds the teams of every project upstream of it to the run, so the whole chain is planned together (at most 50 teams).
+- **A preview in Prioritization:** the Roadmap's Prioritization mode can propose a schedule too, with dashed bars on its timeline. While the proposal is open, the ranking and the target windows are locked; Accept works as in the overview.`,
+    pl: `**Propozycje harmonogramu dla wszystkich: podgląd na stronie zespołu, zespoły, na które czeka projekt, Priorytetyzacja**
+
+- **Każdy może podejrzeć propozycję zespołu:** „Zaproponuj” na stronie zespołu nie jest już tylko dla jego menedżera. Każdy widzi proponowane daty jako przerywane paski; zaakceptować można tylko ruchy zespołów, którymi kierujesz.
+- **Zespoły, na które czeka projekt:** na stronie projektu „Dodaj zespoły, na które czeka ten projekt” dodaje do przebiegu zespoły wszystkich projektów przed nim, więc cały łańcuch jest planowany razem (najwyżej 50 zespołów).
+- **Podgląd w Priorytetyzacji:** tryb Priorytetyzacji na Roadmapie też może zaproponować harmonogram, z przerywanymi paskami na osi czasu. Dopóki propozycja jest otwarta, kolejność i okna docelowe są zablokowane; „Akceptuj” działa jak w przeglądzie.`,
+  },
+  {
     version: "1.38.0",
     date: "2026-11-28",
     en: `**Schedule proposals: choose the teams, plan together from a team page, bars that follow the ticks**

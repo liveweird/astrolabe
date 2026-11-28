@@ -15,7 +15,7 @@ Scale assumed: about 15 teams, 5 work streams, 20 programs, 100 projects, 1,000 
 
 ## Roadmap
 
-Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.38.0**. Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-visible fix between two increments is a patch bump. One row a version (patches ride their minor's row); the scope only, the detail is in `release-history.md`.
+Each increment gets its own plan (architect) before implementation; only v0.1.0 was specified up front. **Current version: 1.39.0**. Version numbers are not strictly roadmap milestones (`app-releases.md`): a user-visible fix between two increments is a patch bump. One row a version (patches ride their minor's row); the scope only, the detail is in `release-history.md`.
 
 ### 0.1 to 0.9: the plan
 
@@ -84,6 +84,7 @@ Each increment gets its own plan (architect) before implementation; only v0.1.0 
 | **1.36.0 Less repetition, a compact header** | The project page's Milestones table and the Teams page's warning weeks removed (Home's link lands on Unscheduled; the badges open the team's weekly load at the week); titles compact, descriptions behind an ⓘ, facts visible; web and e2e only |
 | **1.37.0 The walkthrough's five** | Every Gantt opens around today, else at its work; one small toolbar size; table and left-pane links brand cyan; a person's page lists what they manage and own; a proposal opens on its heading; web and e2e only |
 | **1.38.0 Proposals: teams, together, ticks** | Choose a run's teams on every page; plan together from a team page (the other teams' linked moves as dimmed rows); dashed bars, project bars included, follow the ticks (`STORED_PROPOSAL_FORMAT` 4); a left team page never writes from a stale list |
+| **1.39.0 Proposals for everyone** | Anyone previews a team's proposal; the project page adds the teams it waits on; a preview in Prioritization (rank and windows locked) |
 
 ## Domain decisions taken with the user
 
