@@ -85,7 +85,7 @@ tests may be order-dependent); different files run concurrently. That is only so
   revision (no client write is staled by it).
 - `public-holidays.spec.ts` sweeps every 2040 holiday before its first test and again in its afterAll; the calendar-in-the-views test lives in the same file (a file's tests run serially). The Polish preset is only ever applied to such a year.
 - A holiday write also changes a schedule proposal's scope token (its holidays part), so a write while a proposal is open can stale its accept (409 `stale-scope`, only when the write changes an accepted date).
-  `public-holidays`, `schedule-proposal`, `roadmap-proposal` and `project-proposal` therefore share the lock `holiday-dictionary`. A spec that only reads the calendar needs no lock unless it compares a scope hash.
+  `public-holidays`, `schedule-proposal`, `roadmap-proposal`, `project-proposal` and `team-run` therefore share the lock `holiday-dictionary`. A spec that only reads the calendar needs no lock unless it compares a scope hash.
 - A project or team timeline's range always includes today, so a year far ahead stretches every timeline spec to decades of header day cells: the far-off years stay below 2085. A new spec that needs a holiday takes the next unused year (2050, ...), records it in its scenario's **Owns** line and sweeps by date.
 
 | Year | Years other specs must not write holidays in, and who dates a world there |
@@ -100,6 +100,7 @@ tests may be order-dependent); different files run concurrently. That is only so
 | 2047 | `flow-sync`, `flow-capacity-deviation`, `flow-capacity-acknowledge` (the stub's "E2E Flow Team": six two-week sprints from Monday 2047-01-07, ten working days each) |
 | 2048 | `roadmap-proposal` (two teams from Monday 2048-01-06) |
 | 2049 | `project-proposal` (two teams from Monday 2049-01-04) |
+| 2050 | `team-run` (two teams from Monday 2050-01-03) |
 | 2027 | `dependencies`, `team-view` |
 | 2026 | `accessibility` |
 | none | `jira-polling` and `dialog-focus` date nothing |
@@ -113,7 +114,7 @@ would shift their figures. This is a rule, not a guard: a fail-fast check on 202
 
 | Lock | Held by | Why |
 |---|---|---|
-| `holiday-dictionary` | `public-holidays`, `schedule-proposal`, `roadmap-proposal`, `project-proposal` | a holiday write can stale an open proposal's accept (above) |
+| `holiday-dictionary` | `public-holidays`, `schedule-proposal`, `roadmap-proposal`, `project-proposal`, `team-run` | a holiday write can stale an open proposal's accept (above) |
 | `jira-import-stub` | `jira-import` alone | no other spec imports the stub's `IMP` project; it only serialises `--repeat-each` copies, which would race on the global "IMP Program" name |
 | `flow-stub-scenario` | `flow-sync`, `flow-capacity-deviation`, `flow-capacity-acknowledge` | the second and third flip the stub's `flow-day2` (and reset it; the third flips it again in its last scenario, to day one and back to day two), the first asserts day one's figures of the same "E2E Flow Team", so the three files take turns |
 
@@ -185,12 +186,16 @@ One line a spec: what it proves. The design (actors, owned state, numbered steps
 - [`roadmap.spec.ts`](scenarios/roadmap.md) — the Roadmap: a ROADMAP_EDITOR ranks, moves, drags below the "Unranked" divider and unranks, and meets the "changed in the meantime" notice; a plain user has no handle or ranking item; the target-window band is dragged, drawn, set from the keyboard and cleared; the URL filters (`flagged`, `unranked`, `severity`) and the remembered program pick; the page opens in the mode last used (Prioritization or Roadmap overview, the switch, `?mode=`) and a link naming a mode leaves the memory alone.
 - [`roadmap-overview.spec.ts`](scenarios/roadmap-overview.md) — the Roadmap's overview mode (the former Programs page): work stream open and programs folded, span bars with roll-up flags, open and fold by pointer and keyboard, the project link as ONE arrow between the rows that stand for its projects, Expand/Collapse all and Year zoom; the program pick is shared with the Prioritization mode and can be set in the address; the old `/programs` address redirects here; `workStreamId` narrows the tree to a work stream (with a way back; an unknown id is a notice). Phone layout at 390 px.
 - [`critical-path.spec.ts`](scenarios/critical-path.md) — the critical path and idle gaps, in 2041: the toggle marks the zero-slack bars and arrows, fills the Slack column and the Critical chain list, survives a reload and, off, takes every trace away; the idle band and its table; the same on the team page, where the whole chain through the team's work (the other team's milestones, two links away too) is dimmed rows with critical arrows and a text table, asked for only while the toggle is on, on the Roadmap ("Show critical path to this project") and in its overview mode.
+- [`baselines.spec.ts`](scenarios/baselines.md) — baselines, in 2043: take one on `/baselines`, re-plan under it, pick it on the team page (shadow bars, the Movement table), read the comparison page as the project owner, compare two baselines with **Compare against**; a reader has no Take button; rename and delete behind a confirmation; a link added and a capacity period cut after one are listed in the comparison's Links and Capacity sections, and the project page marks the link "New since the baseline".
+
+### Schedule proposals
+
 - [`schedule-proposal.spec.ts`](scenarios/schedule-proposal.md) — the schedule proposal on the team page, in 2042: the manager proposes and reads the dashed bars, the strip and the table, accepts a selection (or a subset: an unticked move loses its dashed bar, its table entry stays) and an accept skips a milestone rescheduled in the meantime; the project owner has no Propose; a pinned milestone is untouched.
 - [`roadmap-proposal.spec.ts`](scenarios/roadmap-proposal.md) — the cross-team proposal on the Roadmap overview (narrowed to the spec's own program), in 2048: a login managing no team previews it (dashed bars, the projects that would move) and has no Accept; a manager of two teams proposes, reads the sections and the dates a link forces, and accepts across teams; unticking x1 turns y1's Links cell into the red "Conflict" and the project's span in "Projects whose dates would move" follows the tick; a manager of one team accepts that team's moves alone;
   a manager narrows the run to their own team with the team picker (the request names that team only, Save is offered, the picker is hidden while the run is open, Reset brings the page's teams back);
   a saved proposal is listed under the timeline, opened by a manager of another team (it lands on the proposal's heading, focused and below the header, and the list marks its row; a fresh run lands on its heading too), who has no Accept, and accepted from there by the manager of both teams, after which it reads as changed; the old Schedule proposals addresses lead to the overview.
 - [`project-proposal.spec.ts`](scenarios/project-proposal.md) — the cross-team proposal on the project page, in 2049: a login managing no team previews it (three dashed bars, the "(new)" row of the tray milestone, the sentence about the project's end) and has no Accept; the manager of one of the two teams accepts only their move (the check describes that tick, an unticked move loses its dashed bar and the other team's keeps it, the Schedule button is locked meanwhile, the accept names their team alone, the other team's milestone stays); axe over the open preview.
-- [`baselines.spec.ts`](scenarios/baselines.md) — baselines, in 2043: take one on `/baselines`, re-plan under it, pick it on the team page (shadow bars, the Movement table), read the comparison page as the project owner, compare two baselines with **Compare against**; a reader has no Take button; rename and delete behind a confirmation; a link added and a capacity period cut after one are listed in the comparison's Links and Capacity sections, and the project page marks the link "New since the baseline".
+- [`team-run.spec.ts`](scenarios/team-run.md) — the cross-team proposal planned from the team page, in 2050: the manager of two teams adds the linked team beside Propose ("Plan together with", "Add linked teams"), proposes and reads the other team's linked milestone as a dimmed row (ghost bar at its current dates, dashed bar at the proposed ones) after the team's own, unticks it (its dashed bar goes, its row stays), and accepts: the run's one accept schedules both teams; left empty the picker proposes for the team alone; the picker row wraps at 390 px; axe over the open run in both schemes.
 
 ### Jira
 

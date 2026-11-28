@@ -7,7 +7,7 @@ import { localIsoDate } from "../utils/isoDate";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { saveErrorMessage } from "../utils/saveError";
 import { acceptItems, noteOf, outcomeOf, outcomeSentence, type ProposalNote, type ProposalOutcome } from "../utils/scheduleProposal";
-import { applyTeamSchedule } from "../utils/teamViewUpdate";
+import { applyAcceptedBatch } from "../utils/teamViewUpdate";
 import { useRefusal } from "./useRefusal";
 import { teamViewKey, teamWriteKey } from "./useTeamSchedule";
 
@@ -103,16 +103,7 @@ export function useScheduleProposal(teamId: number, announce: (text: string) => 
       // The accepted milestones take their proposed dates in the entry the accept was made on at once (a skipped one keeps its old dates) and
       // that entry adopts the answered revision, so the page is right before the background refetch brings the server's derived figures.
       // A sibling entry is never written (its old dates must not take the new revision): the refresh below removes the inactive ones instead.
-      const spans = new Map(items.map((item) => [item.milestoneId, item]));
-      queryClient.setQueryData<TeamView>(
-        key,
-        (current) =>
-          current &&
-          result.accepted.reduce((view, id) => {
-            const span = spans.get(id);
-            return span === undefined ? view : applyTeamSchedule(view, id, span.startDate, span.endDate);
-          }, { ...current, revision: result.revision }),
-      );
+      queryClient.setQueryData<TeamView>(key, (current) => current && applyAcceptedBatch(current, result, items));
       // Not awaited: the write is over, so the next change may go at once; the refetch brings the server's dates and figures.
       void refreshQueriesAfterMutation(queryClient, ["plan"]);
       const done = outcomeOf(result);

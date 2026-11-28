@@ -316,6 +316,13 @@ Files: `e2e/tests/project-proposal.spec.ts` (the project page, 1.33); prefix `e2
   a project with `x1` on X scheduled 2049-03-02..03, `y1` on Y unscheduled and the link `x1 -FS-> y1`. A project-page run covers only the project's own teams, so no narrowing is needed and the plan stays shared.
 - The hand-counted run: `x1` 01-04..05, `y1` 01-06, the project's end 40 working days earlier. The spec holds the lock `holiday-dictionary`; its last test is the axe scan of the open preview (light scheme only).
 
+### The e2e team-run world
+
+Files: `e2e/tests/team-run.spec.ts` (the team page's "Plan together with", 1.38); prefix `e2e-tr-*`. Year **2050** (2050-01-03 is a Monday; nothing writes a holiday there).
+
+- Seeded per test: ONE manager login whose person manages BOTH teams A and B (one capacity period each from Monday 2050-01-03, 10 MD/week), a project with `a1` on A scheduled 2050-03-01..02, `b1` on B scheduled 2050-03-03..04 and the link `a1 -FS-> b1` (so A's page names B's milestone).
+- The hand-counted run: `a1` 01-03..04, `b1` 01-05. The spec holds the lock `holiday-dictionary`; its tests: plan together and accept, the empty picker (the per-team route), the picker row at 390 px, axe over the open run in both schemes.
+
 ### The e2e baselines world
 
 Files: `e2e/tests/baselines.spec.ts`; prefix `e2e-bl-*`. Year **2043** (2043-01-01 is a Thursday, so the Mondays are 01-05, 01-12, 01-19, 01-26; nothing writes a holiday there).
@@ -339,7 +346,7 @@ Files: `e2e/tests/jira-sync.spec.ts`; prefix `e2e-jira-*`. Year **2044** (2044-0
 - **The stub is one process with one scenario state, and this file alone flips `jira-day2`**: the beforeAll starts it at `Started`, the day-2 step resets it right after the refresh that shows "Gone from Jira" (in a `finally`), and the afterAll is the backstop.
 - A refresh is proven by the Deviations view's `observedAt` of the item growing (a bind already writes the first reading), never by a fixed sleep.
 - Test connection and Peek share a per-IP bucket across the whole suite (10 a minute by default, 30 on the e2e stacks). This file spends about six calls (the chip scenario's own connection included), and one more in the accessibility Jira describe, which seeds its own `e2e-axe-jira-*` world and binds `E2E-4`, present in both stub states; the three result tables the file shows are axe-scanned in place, which costs no call.
-- `schedule-proposal.spec.ts`, `roadmap-proposal.spec.ts`, `project-proposal.spec.ts` and `public-holidays.spec.ts` share the Playwright lock `holiday-dictionary` (a proposal's scope hash covers the global holiday dictionary); the Jira specs never write a holiday and need none.
+- `schedule-proposal.spec.ts`, `roadmap-proposal.spec.ts`, `project-proposal.spec.ts`, `team-run.spec.ts` and `public-holidays.spec.ts` share the Playwright lock `holiday-dictionary` (a proposal's scope hash covers the global holiday dictionary); the Jira specs never write a holiday and need none.
 
 ### The e2e Jira import world
 

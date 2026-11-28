@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { SAVED_PROPOSALS_KEY } from "../api/savedProposals";
 import { acceptCrossTeamSchedule, proposeCrossTeamSchedule, type CrossTeamProposal } from "../api/scheduleProposals";
 import { isStaleRevision } from "../api/roadmap";
-import { isStaleScope, type ScheduleProposalMove } from "../api/teams";
+import { isStaleScope, type ScheduleProposalMove, type TeamScheduleBatchResponse } from "../api/teams";
 import { localIsoDate } from "../utils/isoDate";
 import { acceptTeamIdsOf, tickableMoveIds } from "../utils/planProposal";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
@@ -33,6 +33,8 @@ export type CrossTeamProposalOptions = {
   projectId?: number;
   /** Which of the tickable moves start ticked on a fresh run (default: all of them); a kept selection after a stale scope wins. */
   initialTicks?: (move: ScheduleProposalMove) => boolean;
+  /** Called with the answer and the accepted items right after a successful accept, BEFORE the refresh: a host that keeps a cached view (the team page) patches it here, as the team page's own accept does. */
+  onAccepted?: (result: TeamScheduleBatchResponse, items: AcceptVariables["items"]) => void;
 };
 
 /** Every move of every team of a run, in placement order (milestone ids are global, so one selection covers all the sections). */
@@ -56,6 +58,8 @@ export const movesOf = (run: Pick<CrossTeamProposal, "teams"> | null) => run?.te
  * of the moves that still exist (`rescoped` says so); any other failure stays inline in `error` (already words) with the preview open.
  * Every taken step is said through `announce`, the page's polite status region.
  *
+ * `options.onAccepted(result, items)` (1.38) lets a host that holds a cached view (the team page) put the accepted dates into it before the refresh.
+ *
  * With `options` (1.33) the viewer is not necessarily a manager of the run's teams: only the moves of `acceptable` teams (and of `projectId`) are
  * TICKABLE, the default ticks are those, select all/none and the "n of N selected" speak of them, `canAccept` says whether there is anything to
  * accept, and the accept body names the teams of the ticked moves (`acceptTeamIds`; without `acceptable` it is the run's `teamIds`, as before).
@@ -65,7 +69,7 @@ export const movesOf = (run: Pick<CrossTeamProposal, "teams"> | null) => run?.te
  * moves that still exist (the stale-scope path's own mechanism). An accept refreshes the saved list too: what it read is now `CHANGED`.
  */
 export function useCrossTeamProposal(announce: (text: string) => void, options: CrossTeamProposalOptions = {}) {
-  const { acceptable, projectId, initialTicks } = options;
+  const { acceptable, projectId, initialTicks, onAccepted } = options;
   // With rights or a slice given, the run's moves are not all the viewer's: the counts and the accept speak of the tickable ones.
   const restricted = acceptable !== undefined || projectId !== undefined;
   const { t } = useTranslation();
@@ -129,7 +133,8 @@ export function useCrossTeamProposal(announce: (text: string) => void, options: 
     onSettled: () => {
       inFlight.current = false;
     },
-    onSuccess: (result) => {
+    onSuccess: (result, { items }) => {
+      onAccepted?.(result, items);
       // Not awaited: the write is over, so the next change may go at once; every team view and timeline carries these dates.
       void refreshQueriesAfterMutation(queryClient, ["plan"], ["roadmap"], [...SAVED_PROPOSALS_KEY]);
       const done = outcomeOf(result);

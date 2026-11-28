@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { TeamMilestone, TeamView } from "../api/teams";
-import { applyTeamOrder, applyTeamSchedule } from "./teamViewUpdate";
+import { applyAcceptedBatch, applyTeamOrder, applyTeamSchedule } from "./teamViewUpdate";
 
 const milestone = (id: number, name: string, over: Partial<TeamMilestone> = {}): TeamMilestone => ({
   jira: null,
@@ -153,5 +153,22 @@ describe("applyTeamOrder", () => {
       milestone(3, "z", { startDate: "2027-02-01", endDate: "2027-02-05" }),
     ]);
     expect(ids(applyTeamOrder(same, []).scheduled)).toEqual([3, 2, 1]);
+  });
+});
+
+describe("applyAcceptedBatch", () => {
+  const item = (milestoneId: number, startDate: string, endDate: string) => ({ milestoneId, startDate, endDate });
+
+  test("every accepted milestone of the view takes its dates, the view the answered revision; a skipped one, another team's item and a tray milestone not accepted stay", () => {
+    const view = viewOf([milestone(1, "a"), milestone(2, "b")], [milestone(3, "tray", { startDate: null, endDate: null })]);
+    const next = applyAcceptedBatch(view, { revision: 13, accepted: [2, 3, 99] }, [item(1, "2027-03-01", "2027-03-02"), item(2, "2027-04-05", "2027-04-06"), item(3, "2027-04-12", "2027-04-13"), item(99, "2027-05-03", "2027-05-04")]);
+    expect(next.revision).toBe(13);
+    expect(next.scheduled.map((m) => [m.id, m.startDate])).toEqual([[1, "2027-02-01"], [2, "2027-04-05"], [3, "2027-04-12"]]);
+    expect(next.unscheduled).toEqual([]);
+  });
+
+  test("nothing accepted still adopts the revision (the write happened for the others)", () => {
+    const view = viewOf([milestone(1, "a")]);
+    expect(applyAcceptedBatch(view, { revision: 14, accepted: [] }, [item(1, "2027-03-01", "2027-03-02")])).toEqual({ ...view, revision: 14 });
   });
 });

@@ -1,12 +1,12 @@
 # Schedule proposals in the web app
 
-One doc for the web side of the server's schedule proposals (`scheduling.md`): the preview on the team page, the project page and the Roadmap overview, the cross-team run and its saved proposals, the checks they share, and the dashed Gantt bars. Read the host's section and "Shared checks"; the page mechanics around them stay in `web-internals.md`.
+The web side of the server's schedule proposals (`scheduling.md`): the preview on the team page, the project page and the Roadmap overview, the cross-team run and its saved proposals, the shared checks and the dashed Gantt bars. Read the host's section and "Shared checks"; page mechanics stay in `web-internals.md`.
 
 ## The team page
 
 ### The schedule proposal
 
-A third write path, `hooks/useScheduleProposal.ts` (the generated view: `proposals-web.md` "The proposal preview"). "Propose schedule" (timeline header, `team.can.schedule`) POSTs the viewer's local day as
+A third write path, `hooks/useScheduleProposal.ts`. "Propose schedule" (timeline header, `team.can.schedule`) POSTs the viewer's local day as
 `asOf`. A proposal with something to show opens the **Proposed schedule section** (`components/TeamProposal.tsx`, h3, under the timeline before the Unscheduled tray; its summary line, table and
 unplaced rows are `components/ProposalTable.tsx`, a controlled, action-free table over the structural `ProposalContent`, which the cross-team page composes once per team); one with nothing to show
 (nothing to propose / no capacity: add a period first) opens nothing and says so in a note. The page is read-only while a proposal is requested or open (`hooks/useProposalLock.ts`).
@@ -25,6 +25,15 @@ unplaced rows are `components/ProposalTable.tsx`, a controlled, action-free tabl
 - **Failures.** A 403/404/400 of the accept is a `FormErrorAlert` INSIDE the open section above the actions (the preview stays open, the selection is kept) and takes the focus (the disabled Accept
   would otherwise drop it to the body); a propose's failure shows under the timeline header while no preview is open.
 - **Focus** (`hooks/useProposalFocus.ts`): the section's heading on open ("The cross-team run" "Saved proposals"); Propose gets it back after Discard, an accept or a stale refusal, once no write runs (a disabled button cannot take it).
+
+### Plan together with
+
+(1.38) `hooks/useTeamProposals.ts` is the one surface of the page's proposals (buttons, notices, lock, focus and range read it), in two forms; `used` is the form of the last Propose and cannot change while one is requested or open.
+- **Alone** (nothing chosen, the default): `useScheduleProposal`, the per-team route and `TeamProposal`, as above; no rights are read.
+- **Together**: beside Propose (`team.can.schedule`) the "Plan together with" `RunTeamsPicker` (every other team; not drawn while one is requested or open) and **Add linked teams** (the far ends of `view.dependencies`, `linkedTeamIds`; absent without any). With teams chosen Propose asks ONE run over `[this team, ...chosen]` (`useCrossTeamProposal`; `useProposalRights(enabled)` is read only then and Propose waits for it, 50 teams at most).
+  `TeamRunSection` (h3 "Schedule proposal", `CrossTeamRunView acceptable`, Accept selected, Discard; no Save: the overview's) replaces `TeamProposal`. This team's moves and those of every other run team the viewer may accept are ticked; the other sections are previews. `proposal` is this team's block of the run (with its `revision`, `scopeHash`).
+  `onAccepted(result, items)` patches the page's own team-view entry (`applyAcceptedBatch`, shared with the per-team accept) before the refresh, or the next Move up would be built on a list lacking the milestone just scheduled.
+- **The rows** (`utils/teamRunPreview.ts`, the `run` prop of `TeamTimeline`): each milestone of ANOTHER run team and each project of `projects[]` that a link of this team's milestones names and the run moves is a dimmed `ghost:m|p:<id>` row after the chain's (ghost bar = its dates now, dashed bar = the proposed, by the ticks; the row stays when the dash goes); a chain row the run moves takes the dashed bar, no second row; `barOf` knows the ids, so the arrows reach them; the range covers them.
 
 ## The project page
 
@@ -56,7 +65,7 @@ Every login previews ONE cross-team run on the tree (the run, rights and section
 Files: `api/scheduleProposals.ts`; `hooks/use{CrossTeamProposal,ProposalRights,ScheduleCheck,SavedRun,StatusAnnouncer}.ts`;
 `utils/{planProposal,scheduleProposal,savedProposal}.ts`; `components/CrossTeam{Facts,ProposalSection,RunView}.tsx`; saved: `api/savedProposals.ts`, `components/Saved{ProposalsPanel,ProposalsTable,RunHeader,ProposalState}.tsx`, `SaveProposalModal.tsx`.
 
-There is no page of its own (gone in 1.33 with its nav leaf). The run is previewed on the Roadmap overview ("The Roadmap overview" "The schedule proposal" - the host, the bars, the lock) and accepts the
+There is no page of its own (gone in 1.33 with its nav leaf). The run is previewed on the Roadmap overview, the project page and (1.38) the team page ("The Roadmap overview" "The schedule proposal" - the host, the bars, the lock) and accepts the
 ticked moves in ONE plan write (`scheduling.md` "The cross-team run"). `/schedule-proposals` redirects to `/roadmap?mode=overview` (`LegacyRedirect`, `carry={false}`), `/schedule-proposals/saved/:id` to the
 overview with `proposal=<id>` (`LegacySavedProposalRedirect`, `legacySavedProposalTarget`; a malformed id: the overview alone).
 
@@ -105,15 +114,15 @@ A saved run is the SERVER's own re-computation (`scheduling.md` "Saved proposals
 
 ### The team picker
 
-`components/RunTeamsPicker.tsx` (props `value`, `onChange`, `defaultIds`, `disabled?`, `label?`; no page knowledge, the team page reuses it) is a searchable `MultiSelect` named "Teams in the run" over EVERY active team (`useTeamOptions`, the one cached read, the theme's folded filter), wrapping at 390 px, with a "Use this page's teams" reset only while it is enabled and the value differs from the defaults as a set.
-Both pages DRAW NO picker while a run is requested or open (a disabled one failed dark-scheme contrast, and the run's sections name its teams, so a saved run or a pick change can never disagree with it).
+`components/RunTeamsPicker.tsx` (props `value`, `onChange`, `defaultIds`, `disabled?`, `label?`; the team page reuses it, "Plan together with") is a searchable `MultiSelect` named "Teams in the run" over EVERY active team (`useTeamOptions`, the one cached read, the theme's folded filter), wrapping at 390 px, with a "Use this page's teams" reset only while it is enabled and the value differs from the defaults as a set.
+All three pages (the team page's too) DRAW NO picker while a run is requested or open (a disabled one failed dark-scheme contrast; the run's sections name its teams, so nothing can disagree with them).
 `hooks/useRunTeams.ts` holds the choice as page state (never remembered): `ids` is the page's own array while untouched or re-chosen to the same set, so an untouched picker posts exactly what the page always posted; a chosen set is sorted by id, and choosing the page's own set (by hand or the reset) stores nothing, so the picker keeps following the page.
-Both pages spread their hook's `picker` (`useOverviewProposal`, `useProjectProposal`: value, change, the page's set, `disabled` while a run is requested or open, when the section leaves it out: changing the set means Discard, then Propose).
+The overview's and project page's hooks spread `picker` (`useOverviewProposal`, `useProjectProposal`: value, change, the page's set, `disabled` while a run is requested or open, when the section leaves it out: changing the set means Discard, then Propose).
 `MAX_RUN_TEAMS` (50, the server's ceiling) lives there; Save keeps its rule (every run team acceptable), so a manager who picks only their own teams gets it.
 
 ### Tests
 
-Co-located: `Programs.{proposal,saved,save,runTeams}.test.tsx`, `ProjectView.runTeams.test.tsx`, `RunTeamsPicker`, `useRunTeams`, `Saved*`, `CrossTeam*`, `useCrossTeamProposal*`, `planProposal` (fixtures `test/{crossTeamRun,overviewRun}.ts`); e2e `roadmap-proposal.spec.ts`.
+Co-located: `Programs.{proposal,saved,save,runTeams}.test.tsx`, `ProjectView.runTeams.test.tsx`, `TeamDetails.run.test.tsx`, `useTeamProposals`, `teamRunPreview`, `RunTeamsPicker`, `useRunTeams`, `Saved*`, `CrossTeam*`, `useCrossTeamProposal*`, `planProposal` (fixtures `test/{crossTeamRun,overviewRun}.ts`); e2e `roadmap-proposal.spec.ts`, `team-run.spec.ts`.
 
 ## Shared checks
 

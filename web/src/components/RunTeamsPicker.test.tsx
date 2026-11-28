@@ -65,4 +65,20 @@ describe("RunTeamsPicker", () => {
     expect(screen.getByRole("combobox", { name: "Plan together with" })).toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "Teams in the run" })).toBeNull();
   });
+
+  test("a page may word it itself and leave out one team: its own aria-label, placeholder and reset, and no option for the excluded team", async () => {
+    const user = userEvent.setup();
+    function Wording() {
+      const [value, setValue] = useState<number[]>([]);
+      return <RunTeamsPicker value={value} onChange={setValue} defaultIds={[]} ariaLabel="Plan together with" placeholder="Other teams" resetLabel="Plan this team alone" excludeId={1} />;
+    }
+    renderWithProviders(<Wording />);
+    const combobox = await screen.findByRole("combobox", { name: "Plan together with" });
+    expect(combobox).toHaveAttribute("placeholder", "Other teams");
+    await user.click(combobox);
+    expect((await screen.findAllByRole("option")).map((option) => option.textContent)).toEqual(["Beta", "Gamma", "Delta"]);
+    await user.click(screen.getByRole("option", { name: "Gamma" }));
+    await user.click(await screen.findByRole("button", { name: "Plan this team alone" }));
+    await waitFor(() => expect(pills()).toEqual([]));
+  });
 });

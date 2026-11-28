@@ -6,6 +6,7 @@ import { barList, type BaselineRow } from "../utils/baselineOverlay";
 import { baselineUnscheduledIds, jiraScheduleDates, jiraTrayRowId, jiraTrayRows } from "../utils/jiraBars";
 import { ghostRowId } from "../utils/dependencyArrows";
 import { orderedMembers } from "../utils/teamChain";
+import type { RunPreviewEntry, TeamRunPreview } from "../utils/teamRunPreview";
 import { teamTint, type TeamColour } from "../utils/teamColours";
 import type { RovingTarget, TimelineBarData, TimelineRowData } from "../utils/timelineModel";
 import { BaselineRowName } from "./BaselineParts";
@@ -113,6 +114,35 @@ export function jiraTrayAppendedRows(appended: readonly BaselineRow[], ctx: Appe
   }));
 }
 
+/** What a ghost row's name and menu cells need of its milestone or project: the chain's members and the run preview's entries both have it. */
+type GhostEnd = Pick<TeamChainMember, "kind" | "id" | "name" | "projectId" | "teamId" | "teamName">;
+
+/** A ghost row's name cell: a milestone's name (its link is the pointer's) and its team (the cell's one stop, the way on); a whole project's is plain text. */
+function ghostNameCell(member: GhostEnd, t: TFunction): TimelineRowData["cells"][number] {
+  if (member.kind === "PROJECT" || member.teamId === null || member.teamName === null) {
+    return (
+      <Text key="name" component="span" size="sm" c="dimmed" truncate>
+        {member.kind === "PROJECT" ? t("project.dependency.wholeProject", { name: member.name }) : member.name}
+      </Text>
+    );
+  }
+  const { teamId, teamName } = member;
+  return (stop: RovingTarget) => (
+    <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+      {/* The cell's one stop is the team (the way on); the milestone's link is the pointer's, its keyboard path is the row menu's "Open milestone" (D4). */}
+      <EntityLink entity={{ kind: "milestone", id: member.id, projectId: member.projectId }} name={member.name} size="sm" c="dimmed" truncate secondary />
+      <EntityLink entity={{ kind: "team", id: teamId }} name={teamName} size="sm" c="dimmed" truncate stop={stop} />
+    </Group>
+  );
+}
+
+/** A milestone member's menu is its way to the milestone; a whole project's is its way to the project (the Project cell, now hideable, was the only link: "Hidden columns"). */
+function ghostMenu(member: GhostEnd & { projectName: string }): TimelineRowData["cells"][number] {
+  if (member.kind === "PROJECT") return (stop: RovingTarget) => <OpenProjectMenu row={{ name: member.name, projectId: member.projectId }} trigger={stop} />;
+  if (member.teamId === null || member.teamName === null) return null;
+  return (stop: RovingTarget) => <OpenMilestoneMenu name={member.name} projectId={member.projectId} id={member.id} trigger={stop} />;
+}
+
 /**
  * The critical chain's ghost rows (1.27): another team's milestone, or a whole project a chain link names, that lies on the chain through this team's
  * work - read-only (no handle, no estimate; a milestone's menu holds only "Open milestone", a whole project's only "Open project"), dimmed, one gray bar that says it is on the chain, "0 critical path" in the Slack column. The way on is the
@@ -122,32 +152,9 @@ export function jiraTrayAppendedRows(appended: readonly BaselineRow[], ctx: Appe
  */
 export function chainGhostRows(
   chain: TeamCriticalChain,
-  { t, withOptional, projectNames, colours }: Pick<AppendedContext, "t" | "withOptional"> & { projectNames: ReadonlyMap<number, string>; colours: ReadonlyMap<number, TeamColour> },
+  { t, withOptional, projectNames, colours, dashed }: Pick<AppendedContext, "t" | "withOptional"> & { projectNames: ReadonlyMap<number, string>; colours: ReadonlyMap<number, TeamColour>; dashed?: ReadonlyMap<string, TimelineBarData> },
 ): TimelineRowData[] {
   const slack = <SlackCell key="slack" slackDays={0} critical />;
-  const nameCell = (member: TeamChainMember): TimelineRowData["cells"][number] => {
-    if (member.kind === "PROJECT" || member.teamId === null || member.teamName === null) {
-      return (
-        <Text key="name" component="span" size="sm" c="dimmed" truncate>
-          {member.kind === "PROJECT" ? t("project.dependency.wholeProject", { name: member.name }) : member.name}
-        </Text>
-      );
-    }
-    const { teamId, teamName } = member;
-    return (stop: RovingTarget) => (
-      <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
-        {/* The cell's one stop is the team (the way on); the milestone's link is the pointer's, its keyboard path is the row menu's "Open milestone" (D4). */}
-        <EntityLink entity={{ kind: "milestone", id: member.id, projectId: member.projectId }} name={member.name} size="sm" c="dimmed" truncate secondary />
-        <EntityLink entity={{ kind: "team", id: teamId }} name={teamName} size="sm" c="dimmed" truncate stop={stop} />
-      </Group>
-    );
-  };
-  // A milestone member's menu is its way to the milestone; a whole project's is its way to the project (the Project cell, now hideable, was the only link: "Hidden columns").
-  const chainMenu = (member: TeamChainMember): TimelineRowData["cells"][number] => {
-    if (member.kind === "PROJECT") return (stop: RovingTarget) => <OpenProjectMenu row={{ name: member.name, projectId: member.projectId }} trigger={stop} />;
-    if (member.teamId === null || member.teamName === null) return null;
-    return (stop: RovingTarget) => <OpenMilestoneMenu name={member.name} projectId={member.projectId} id={member.id} trigger={stop} />;
-  };
   return orderedMembers(chain).map((member) => {
     const id = ghostRowId(member);
     const chains = member.chainOf.flatMap((projectId) => {
@@ -163,17 +170,76 @@ export function chainGhostRows(
       id,
       cells: withOptional(
         [
-          nameCell(member),
+          ghostNameCell(member, t),
           (stop: RovingTarget) => (
             <EntityLink entity={{ kind: "project", id: member.projectId }} name={member.projectName} size="sm" c="dimmed" truncate title={member.projectName} stop={stop} />
           ),
           "",
-          chainMenu(member),
+          ghostMenu(member),
         ],
         null,
         slack,
       ),
-      bars: [{ id, start: member.startDate, end: member.endDate, label: member.name, describe, editable: false, tone: "ghost", emphasis: "critical", ...teamTint(colours, member.teamId) }],
+      bars: [{ id, start: member.startDate, end: member.endDate, label: member.name, describe, editable: false, tone: "ghost", emphasis: "critical", ...teamTint(colours, member.teamId) }, ...barList(dashed?.get(id))],
+    };
+  });
+}
+
+/**
+ * The dashed bars of a cross-team run planned from this page (1.38), by row id: another team's milestone, or a whole project, that the run moves, drawn where its row is
+ * (a critical-chain ghost row takes it as a second bar instead of getting a second row). Only the entries that keep a dash (`drawn`: they follow the ticks).
+ */
+export function runDashedBars(preview: TeamRunPreview, t: TFunction): Map<string, TimelineBarData> {
+  const bars = new Map<string, TimelineBarData>();
+  for (const entry of preview.byRow.values()) {
+    if (!entry.drawn) continue;
+    bars.set(entry.rowId, {
+      id: entry.kind === "MILESTONE" ? `proposal:${entry.id}` : `proposal:p:${entry.id}`,
+      start: entry.proposed.start,
+      end: entry.proposed.end,
+      label: entry.name,
+      describe: t("timeline.bar.proposal", { name: entry.name, start: entry.proposed.start, end: entry.proposed.end }),
+      editable: false,
+      tone: "proposal",
+    });
+  }
+  return bars;
+}
+
+/**
+ * The rows a run planned from this page adds (1.38, `entries` = `TeamRunPreview.rows`): another team's milestone, or a whole project, that a link of this team's work names and the run
+ * moves - dimmed and read-only like the chain's ghost rows (the same name, project and menu cells; no Slack figure): the ghost bar is where it stands now (none while it has no dates), the
+ * dashed bar (`dashed`, `runDashedBars`) where the run would put it. A milestone's bar takes its team's colour from `colours`.
+ */
+export function runPreviewRows(
+  entries: readonly RunPreviewEntry[],
+  { t, withOptional, colours, dashed }: Pick<AppendedContext, "t" | "withOptional"> & { colours: ReadonlyMap<number, TeamColour>; dashed: ReadonlyMap<string, TimelineBarData> },
+): TimelineRowData[] {
+  return entries.map((entry) => {
+    const now = entry.current;
+    const describe =
+      now === null
+        ? ""
+        : entry.kind === "PROJECT"
+          ? t("teams.run.ghostProjectBarAria", { name: entry.name, start: now.start, end: now.end })
+          : t("teams.run.ghostBarAria", { name: entry.name, team: entry.teamName ?? "", project: entry.projectName, start: now.start, end: now.end });
+    return {
+      id: entry.rowId,
+      cells: withOptional(
+        [
+          ghostNameCell(entry, t),
+          (stop: RovingTarget) => (
+            <EntityLink entity={{ kind: "project", id: entry.projectId }} name={entry.projectName} size="sm" c="dimmed" truncate title={entry.projectName} stop={stop} />
+          ),
+          "",
+          ghostMenu(entry),
+        ],
+        null,
+      ),
+      bars: [
+        ...(now === null ? [] : [{ id: entry.rowId, start: now.start, end: now.end, label: entry.name, describe, editable: false, tone: "ghost" as const, ...teamTint(colours, entry.teamId) }]),
+        ...barList(dashed.get(entry.rowId)),
+      ],
     };
   });
 }

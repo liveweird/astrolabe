@@ -9,6 +9,9 @@ import { withoutGeneratedIds } from "../test/generatedIds";
 import { jsonResponse } from "../test/http";
 import { renderWithProviders } from "../test/render";
 import type { JiraLink } from "../api/roadmap";
+import type { TeamChainMember } from "../api/teams";
+import { block } from "../test/crossTeamRun";
+import { teamRunPreview, type TeamRunPreview } from "../utils/teamRunPreview";
 import type { JiraWindow } from "../utils/jiraBars";
 import { makeScale, toEpochDay } from "../utils/timelineScale";
 
@@ -96,11 +99,11 @@ const PROPOSAL = {
 
 const ACTIONS: TeamActions = { editSchedule: vi.fn(), unschedule: vi.fn(), pin: vi.fn(), schedule: vi.fn(), scheduleOnJira: vi.fn(), move: vi.fn(), moveTo: vi.fn() };
 
-function renderTimeline(view: TeamView, proposal?: typeof PROPOSAL, criticalPath?: boolean, jira?: JiraWindow | null) {
+function renderTimeline(view: TeamView, proposal?: typeof PROPOSAL, criticalPath?: boolean, jira?: JiraWindow | null, run?: TeamRunPreview | null) {
   const scale = makeScale("week", { from: toEpochDay("2042-01-05"), to: toEpochDay("2042-02-22") });
   return renderWithProviders(
     <TimelineDndContext scale={scale} onSchedule={vi.fn(() => true)} onReorder={vi.fn(() => true)}>
-      <TeamTimeline view={view} scale={scale} onZoomChange={vi.fn()} today="2042-01-06" busy={false} actions={ACTIONS} label="Team milestone timeline" proposal={proposal} criticalPath={criticalPath} jira={jira} />
+      <TeamTimeline view={view} scale={scale} onZoomChange={vi.fn()} today="2042-01-06" busy={false} actions={ACTIONS} label="Team milestone timeline" proposal={proposal} criticalPath={criticalPath} jira={jira} run={run} />
       <TeamTray view={view} actions={ACTIONS} label="Unscheduled milestones of the team" previewing={proposal !== undefined} />
     </TimelineDndContext>,
   );
@@ -432,5 +435,86 @@ describe("TeamTimeline with tray milestones that Jira dates (1.16)", () => {
     // the Flags and Slack cells hold nothing (the name and the project are links now, the tray milestone being a live one)
     expect(within(rowOf("tp-y")).getAllByRole("gridcell").slice(2, 4).map((cell) => cell.textContent)).toEqual(["", ""]);
     expect(rowOf("tp-y").querySelector("[data-flags]")).toBeNull();
+  });
+});
+
+describe("TeamTimeline with a cross-team run planned from the page (1.38)", () => {
+  const other = (kind: "MILESTONE" | "PROJECT", id: number, name: string, teamId: number | null): DependencyEndpoint => ({
+    kind,
+    id,
+    name,
+    projectId: kind === "PROJECT" ? id : 8,
+    projectName: kind === "PROJECT" ? name : "Taxes",
+    teamId,
+    teamName: teamId === null ? null : "Platform",
+    startDate: "2042-02-16",
+    endDate: "2042-02-17",
+  });
+  const own = (m: TeamMilestone): DependencyEndpoint => ({ kind: "MILESTONE", id: m.id, name: m.name, projectId: m.projectId, projectName: m.projectName, teamId: 1, teamName: "Payments", startDate: m.startDate, endDate: m.endDate });
+  const linkTo = (id: number, from: DependencyEndpoint, to: TeamMilestone, over: Partial<ProjectDependency> = {}): ProjectDependency => ({
+    id,
+    predecessor: from,
+    successor: own(to),
+    type: "FS",
+    lagDays: 0,
+    check: { status: "OK", shortfallDays: null, slackDays: 0, requiredDate: "2042-02-09", actualDate: "2042-02-09" },
+    critical: false,
+    can: { edit: false, delete: false },
+    ...over,
+  });
+  const MS = other("MILESTONE", 21, "px-linked", 2);
+  const WHOLE = other("PROJECT", 9, "Whole", null);
+  const dependencies = [linkTo(51, MS, B), linkTo(52, WHOLE, A)];
+  const RUN_OF = {
+    teams: [
+      block(1, "Payments", [move(2, "tp-b", { from: { start: "2042-02-09", end: "2042-02-10" }, to: { start: "2042-01-15", end: "2042-01-16" }, workingDays: 2, shiftDays: -17 })]),
+      block(2, "Platform", [move(21, "px-linked", { projectId: 8, projectName: "Taxes", from: { start: "2042-02-16", end: "2042-02-17" }, to: { start: "2042-02-23", end: "2042-02-24" } }), move(22, "px-unlinked", { projectId: 8, projectName: "Taxes", to: { start: "2042-02-02", end: "2042-02-03" } })]),
+    ],
+    projects: [{ projectId: 9, name: "Whole", before: { start: "2042-02-16", end: "2042-02-27" }, after: { start: "2042-02-23", end: "2042-03-06" }, endShiftDays: 5 }],
+  };
+  const previewOf = (over: Partial<Parameters<typeof teamRunPreview>[0]> = {}) =>
+    teamRunPreview({ teamId: 1, dependencies, run: RUN_OF, projects: RUN_OF.projects, selected: new Set([2, 21]), tickable: new Set([2, 21]), chainRows: new Set(), ...over });
+
+  test("a linked milestone the run moves and a linked project each get a dimmed row after the team's own, the ghost bar where it stands and the dashed bar where the run puts it; an unlinked move gets none", () => {
+    renderTimeline(viewOf({ dependencies }), PROPOSAL, undefined, undefined, previewOf());
+    const rows = bodyRows();
+    expect(rows.map((row) => row.querySelector('[role="rowheader"]')?.textContent)).toEqual(["tp-a", "tp-b", "px-linkedPlatform", "Project Whole", "tp-x (new)", "tp-y (new)"]);
+    const linked = rowOf("px-linked");
+    expect(within(linked).getByRole("img", { name: "px-linked, Platform, Taxes, 2042-02-16 to 2042-02-17, linked to this team's work, read-only" })).toHaveAttribute("data-tone", "ghost");
+    expect(within(linked).getByRole("img", { name: "Proposed: px-linked, 2042-02-23 to 2042-02-24, read-only" })).toHaveAttribute("data-tone", "proposal");
+    const project = rowOf("Project Whole");
+    expect(within(project).getByRole("img", { name: "Project Whole, 2042-02-16 to 2042-02-27, linked to this team's work, read-only" })).toBeInTheDocument();
+    expect(within(project).getByRole("img", { name: "Proposed: Whole, 2042-02-23 to 2042-03-06, read-only" })).toHaveAttribute("data-tone", "proposal");
+    expect(screen.queryByText("px-unlinked")).toBeNull();
+    // the name leads to the milestone, the team after it to the team (the cell's one stop)
+    expect(within(linked).getByRole("link", { name: "Open team Platform" })).toBeInTheDocument();
+  });
+
+  test("the links' arrows reach the new rows, onto the team's own bars", () => {
+    renderTimeline(viewOf({ dependencies }), PROPOSAL, undefined, undefined, previewOf());
+    expect([...document.querySelectorAll("[data-arrow]")].map((arrow) => arrow.getAttribute("data-arrow")).sort()).toEqual(["51", "52"]);
+  });
+
+  test("without a run (or with none open) no row, bar or arrow is added", () => {
+    renderTimeline(viewOf({ dependencies }), PROPOSAL, undefined, undefined, null);
+    expect(bodyRows()).toHaveLength(4);
+    expect(document.querySelectorAll("[data-arrow]")).toHaveLength(0);
+  });
+
+  test("an unticked move keeps its row and ghost bar but loses the dashed bar; a project the ticked moves no longer move does too", () => {
+    renderTimeline(viewOf({ dependencies }), PROPOSAL, undefined, undefined, previewOf({ selected: new Set([2]), projects: [] }));
+    expect(within(rowOf("px-linked")).getAllByRole("img")).toHaveLength(1);
+    expect(within(rowOf("Project Whole")).getAllByRole("img")).toHaveLength(1);
+  });
+
+  test("a critical-chain row the run moves takes the dashed bar instead of a second row", () => {
+    const member: TeamChainMember = { kind: "MILESTONE", id: 21, name: "px-linked", projectId: 8, projectName: "Taxes", teamId: 2, teamName: "Platform", startDate: "2042-02-16", endDate: "2042-02-17", hops: 1, chainOf: [7] };
+    const chained = viewOf({ dependencies, criticalChain: { members: [member], links: [], truncated: false } });
+    renderTimeline(chained, PROPOSAL, true, undefined, previewOf({ chainRows: new Set(["ghost:m:21"]) }));
+    expect(bodyRows().filter((row) => row.textContent?.includes("px-linked"))).toHaveLength(1);
+    const row = rowOf("px-linked");
+    expect(within(row).getAllByRole("img")).toHaveLength(2);
+    expect(within(row).getByRole("img", { name: "Proposed: px-linked, 2042-02-23 to 2042-02-24, read-only" })).toHaveAttribute("data-tone", "proposal");
+    expect(document.querySelectorAll('[data-arrow="51"]')).toHaveLength(1);
   });
 });

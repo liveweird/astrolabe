@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Alert, VisuallyHidden } from "@mantine/core";
 import type { useProposalLock } from "../hooks/useProposalLock";
-import type { useScheduleProposal } from "../hooks/useScheduleProposal";
+import type { TeamProposals } from "../hooks/useTeamProposals";
 import type { useTeamOrder } from "../hooks/useTeamOrder";
 import type { useTeamSchedule } from "../hooks/useTeamSchedule";
 import FormErrorAlert from "./FormErrorAlert";
@@ -9,7 +9,7 @@ import FormErrorAlert from "./FormErrorAlert";
 type NoticeSources = {
   schedule: ReturnType<typeof useTeamSchedule>;
   order: ReturnType<typeof useTeamOrder>;
-  proposal: ReturnType<typeof useScheduleProposal>;
+  proposal: Pick<TeamProposals, "refused">;
   lock: ReturnType<typeof useProposalLock>;
 };
 

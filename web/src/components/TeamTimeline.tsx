@@ -13,6 +13,7 @@ import { withPinned } from "../utils/pinText";
 import { teamColourVar } from "../utils/teamColours";
 import { proposalBars, proposalRows, type TeamProposalView } from "../utils/scheduleProposal";
 import { chainArrowSpecs, chainProjectNames } from "../utils/teamChain";
+import type { TeamRunPreview } from "../utils/teamRunPreview";
 import type { BarId, RovingTarget, TimelineBarData, TimelineColumn, TimelineRowData } from "../utils/timelineModel";
 import type { TimelineScale, Zoom } from "../utils/timelineScale";
 import { jiraTrayNote } from "../utils/flagSentences";
@@ -21,7 +22,7 @@ import { MilestoneFlags, NameWithFlags } from "./MilestoneFlags";
 import PinMark from "./PinMark";
 import SlackCell from "./SlackCell";
 import MilestoneMenu, { type TeamActions } from "./TeamTimelineMenu";
-import { baselineAppendedRows, chainGhostRows, estimateText, jiraTrayAppendedRows } from "./TeamTimelineRows";
+import { baselineAppendedRows, chainGhostRows, estimateText, jiraTrayAppendedRows, runDashedBars, runPreviewRows } from "./TeamTimelineRows";
 import Timeline, { type TimelineHandle } from "./Timeline";
 import TimelineArrows from "./TimelineArrows";
 import TimelineColumnsControl from "./TimelineColumnsControl";
@@ -124,6 +125,10 @@ const proposalBarOf = (proposed: ReadonlyMap<number, TimelineBarData>, milestone
  * column appears after Flags (the project page's cell), a critical milestone's bar is emphasised (and its accessible name says so) and the critical links' arrows
  * are drawn heavier. Off, none of it is in the DOM. With the view's `criticalChain` (1.27, requested only while the toggle is on) the other teams' milestones and
  * whole projects on the chain through this team's work are appended as read-only ghost rows after the scheduled ones, and the chain's links are critical arrows between rows.
+ *
+ * With a `run` (1.38, a cross-team run planned from this page, `proposal` being this team's block of it) the other teams' milestones and the whole projects that a link of this team's work names and
+ * the run moves are appended after the chain's rows as dimmed ghost rows (the current dates a ghost bar, the proposed dates the dashed bar), the links' arrows reach them, and a chain row the run
+ * moves takes the dashed bar instead of getting a second row.
  */
 export default function TeamTimeline({
   view,
@@ -138,6 +143,7 @@ export default function TeamTimeline({
   jira,
   criticalPath = false,
   timelineRef,
+  run,
 }: {
   view: TeamView;
   scale: TimelineScale;
@@ -155,6 +161,8 @@ export default function TeamTimeline({
   criticalPath?: boolean;
   /** The Timeline's imperative handle, for the page's focus after "Schedule on Jira's dates" took the dashed row away. */
   timelineRef?: Ref<TimelineHandle>;
+  /** The other teams' rows and bars of a cross-team run planned from this page (1.38), while it is open. */
+  run?: TeamRunPreview | null;
 }) {
   const { t } = useTranslation();
   const { holidays, failed: holidaysFailed } = useHolidays();
@@ -190,6 +198,10 @@ export default function TeamTimeline({
   // The critical chain (1.27, only while the toggle is on): the ghost rows of the other teams' members, so a link to one is an arrow like any other.
   const chain = criticalPath ? view.criticalChain : undefined;
   const ghostIds = new Set<BarId>((chain?.members ?? []).map(ghostRowId));
+  // A cross-team run's rows (1.38) are ghost rows too: the links' arrows reach them like the chain's.
+  const runRows = (run?.rows ?? []).filter((row) => !ghostIds.has(row.rowId));
+  const runBars = run == null ? new Map<string, TimelineBarData>() : runDashedBars(run, t);
+  for (const row of runRows) ghostIds.add(row.rowId);
   const barOf = (endpoint: { kind: string; id: number }): BarId | null => {
     if (endpoint.kind === "MILESTONE" && rowIds.has(endpoint.id)) return endpoint.id;
     const ghost = ghostRowId(endpoint);
@@ -259,8 +271,9 @@ export default function TeamTimeline({
     trayBars: jiraTrayBars(view.unscheduled, jira ?? null, t),
     scheduleOnJira: view.team.can.schedule && !previewing ? actions.scheduleOnJira : null,
   };
-  // The chain's ghost rows come right after the team's own, before the baseline's and the tray's appended rows.
-  if (chain !== undefined) rows.push(...chainGhostRows(chain, { t, withOptional, projectNames: chainProjectNames(view), colours }));
+  // The chain's ghost rows come right after the team's own, then a run's (1.38), before the baseline's and the tray's appended rows.
+  if (chain !== undefined) rows.push(...chainGhostRows(chain, { t, withOptional, projectNames: chainProjectNames(view), colours, dashed: runBars }));
+  rows.push(...runPreviewRows(runRows, { t, withOptional, colours, dashed: runBars }));
   rows.push(...baselineAppendedRows(appended, appendedCtx), ...jiraTrayAppendedRows(appended, appendedCtx));
   // A preview appends the tray milestones the proposal schedules: only the proposal bar (they have no current one).
   for (const milestone of proposalRows(view, proposal?.moves ?? [])) {

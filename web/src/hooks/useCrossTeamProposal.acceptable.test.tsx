@@ -4,7 +4,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { movesOf, useCrossTeamProposal, type CrossTeamProposalOptions } from "./useCrossTeamProposal";
 import { useScheduleCheck } from "./useScheduleCheck";
-import { ACCEPT_URL, block, CHECK_URL, ids, move, RUN, RUN_URL, STALE_SCOPE } from "../test/crossTeamRun";
+import { ACCEPT_URL, block, CHECK_URL, ids, move, RUN, RUN_URL, STALE_REVISION, STALE_SCOPE } from "../test/crossTeamRun";
 import { jsonResponse } from "../test/http";
 import { requestsAnswered } from "../test/requestsAnswered";
 
@@ -178,6 +178,30 @@ describe("the accept names the teams it writes", () => {
     expect(bodies(RUN_URL)).toHaveLength(2);
     expect([...result.current.selected].sort()).toEqual([11, 21]);
     expect(movesOf(result.current.proposal)).toHaveLength(3);
+  });
+});
+
+describe("onAccepted", () => {
+  test("a successful accept hands the answer and the accepted items to the host, once", async () => {
+    const onAccepted = vi.fn();
+    const { result } = await opened({ acceptable: new Set([1, 2]), onAccepted });
+    acceptAnswer = jsonResponse(200, { revision: 13, accepted: [11, 12, 21], skipped: [] });
+    act(() => void result.current.accept());
+    await waitFor(() => expect(onAccepted).toHaveBeenCalledTimes(1));
+    expect(onAccepted).toHaveBeenCalledWith({ revision: 13, accepted: [11, 12, 21], skipped: [] }, [
+      { milestoneId: 11, startDate: "2042-01-06", endDate: "2042-01-08" },
+      { milestoneId: 12, startDate: "2042-01-09", endDate: "2042-01-09" },
+      { milestoneId: 21, startDate: "2042-01-12", endDate: "2042-01-14" },
+    ]);
+  });
+
+  test("a refused accept (stale revision) does not", async () => {
+    const onAccepted = vi.fn();
+    const { result } = await opened({ acceptable: new Set([1, 2]), onAccepted });
+    acceptAnswer = jsonResponse(409, STALE_REVISION);
+    act(() => void result.current.accept());
+    await waitFor(() => expect(result.current.stale).toBe(true));
+    expect(onAccepted).not.toHaveBeenCalled();
   });
 });
 

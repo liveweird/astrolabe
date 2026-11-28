@@ -51,6 +51,22 @@ export function applyTeamSchedule(view: TeamView, id: number, start: string | nu
 }
 
 /**
+ * The view after a schedule batch was accepted (the team's own accept and the cross-team run's): every ACCEPTED milestone the view holds takes its proposed dates (a skipped
+ * one keeps its old ones; an item of another team's milestone is not in the view and changes nothing) and the view adopts the revision the batch answered. The refetch brings the server's figures.
+ */
+export function applyAcceptedBatch(
+  view: TeamView,
+  result: { revision: number; accepted: readonly number[] },
+  items: readonly { milestoneId: number; startDate: string | null; endDate: string | null }[],
+): TeamView {
+  const spans = new Map(items.map((item) => [item.milestoneId, item]));
+  return result.accepted.reduce((current, id) => {
+    const span = spans.get(id);
+    return span === undefined ? current : applyTeamSchedule(current, id, span.startDate, span.endDate);
+  }, { ...view, revision: result.revision });
+}
+
+/**
  * The view as it will read once the FULL order list `ids` (`teamOrderList.ts`) is saved: the listed scheduled rows first in that order,
  * the rest (unlisted) after them in the default order, `order.milestoneIds` the list itself (an id the view holds on neither side is
  * dropped, as the server would refuse it) and `order.custom` set — an EMPTY list is the reset: the default order everywhere and `custom`

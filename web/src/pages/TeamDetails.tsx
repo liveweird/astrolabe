@@ -27,6 +27,7 @@ import TimelineTitle from "../components/TimelineTitle";
 import UnscheduledTraySection from "../components/UnscheduledTraySection";
 import TeamFlowSection from "../components/TeamFlowSection";
 import TeamProposal from "../components/TeamProposal";
+import TeamRunSection from "../components/TeamRunSection";
 import JiraBarsToggle from "../components/JiraBarsToggle";
 import { TeamJiraChip } from "../components/JiraChips";
 import TeamTimeline, { TeamTray, type TeamActions } from "../components/TeamTimeline";
@@ -41,8 +42,7 @@ import { isOneOf, useStoredState } from "../hooks/useStoredState";
 import { useProposalFocus } from "../hooks/useProposalFocus";
 import { useProposalLock } from "../hooks/useProposalLock";
 import { useRowMenuFocus } from "../hooks/useRowMenuFocus";
-import { useScheduleCheck } from "../hooks/useScheduleCheck";
-import { useScheduleProposal } from "../hooks/useScheduleProposal";
+import { useTeamProposals } from "../hooks/useTeamProposals";
 import { useTeamOrder } from "../hooks/useTeamOrder";
 import { useJiraBarsPick } from "../hooks/useJiraBarsPick";
 import { useLocalToday } from "../hooks/useLocalToday";
@@ -55,7 +55,7 @@ import { jiraPageRange, jiraScheduleDates } from "../utils/jiraBars";
 import { teamMarks } from "../utils/jiraMarks";
 import { refreshQueriesAfterMutation } from "../utils/queryRefresh";
 import { loadErrorMessage } from "../utils/saveError";
-import { drawnMoves, overlayCheck, proposalDays } from "../utils/scheduleProposal";
+import { proposalDays } from "../utils/scheduleProposal";
 import { growSeenRange, type SeenRange } from "../utils/seenRange";
 import { chainDays } from "../utils/teamChain";
 import { teamsPath } from "../utils/teamLinks";
@@ -95,13 +95,12 @@ function TeamPage({ id }: { id: number }) {
   const criticalNoteId = useId();
   const dropping = useDropUnknownPick(query.error, pick, setPick);
   const order = useTeamOrder(id, view, schedule.announce, pick, schedule.placeholder, criticalPath);
-  const proposal = useScheduleProposal(id, schedule.announce, schedule.placeholder, pick, criticalPath);
+  // The team's own proposal, or (1.38) one cross-team run over it and the teams chosen beside Propose: one surface (`useTeamProposals`).
+  const proposal = useTeamProposals(id, schedule.announce, schedule.placeholder, pick, criticalPath, view);
   // The chain's block, only while the toggle is on (the copy kept while the toggle changes may be the other document's); said once when it arrives.
   const chain = useTeamChain(view, criticalPath, schedule.announce);
   const lock = useProposalLock(proposal, schedule.announce);
   const { open, locked } = lock;
-  // 1.8: while only some moves are ticked, the server judges THOSE moves (the link warnings and the proposed load); all or none need no request.
-  const check = useScheduleCheck({ teamIds: [id], revision: open?.revision ?? 0, scopeHash: open?.scopeHash ?? "", moves: open?.moves ?? [], selected: proposal.selected, enabled: open !== null });
   const writing = schedule.pending || order.pending;
   const busy = writing || proposal.requesting;
   // The baseline pick and the Critical path toggle each select the cached view entry the writes target: neither changes while a write runs or a proposal is requested or open.
@@ -148,8 +147,8 @@ function TeamPage({ id }: { id: number }) {
 
   const { team } = view;
   // Every day the page shows: the scheduled milestones (the weekly strip lies inside their span by construction) and, while a proposal
-  // previews, every proposed span (so the range only grows and no proposed bar sits outside it).
-  const planDates = [...view.scheduled.flatMap((m) => [m.startDate, m.endDate]), ...(open === null ? [] : proposalDays(open.moves)), ...baselineDays(view.baseline), ...chainDays(chain)].filter(
+  // previews, every proposed span (so the range only grows and no proposed bar sits outside it), the other teams' rows of a run included.
+  const planDates = [...view.scheduled.flatMap((m) => [m.startDate, m.endDate]), ...(open === null ? [] : proposalDays(open.moves)), ...(proposal.preview?.days ?? []), ...baselineDays(view.baseline), ...chainDays(chain)].filter(
     (d): d is string => d !== null,
   );
   // The Jira window (the plan's own dates padded by a year) bounds the shadow bars and what they add to the range: a mistyped Jira date cannot stretch the page.
@@ -157,8 +156,6 @@ function TeamPage({ id }: { id: number }) {
   const grown = growSeenRange(seen, dates);
   if (grown !== null) setSeen(grown);
   const scale = makeScale(zoom, defaultRange(seen === null ? [] : [seen.min, seen.max], today, zoom));
-  // What the table and the strip show: the proposal with the verdicts and the load of the TICKED moves.
-  const shown = open === null ? null : overlayCheck(open, check, id);
 
   // The schedule and the order are read-only while locked: every entry point (menu, tray, dialog, drag, Reset) refuses out loud instead.
   if (locked && scheduling !== null) setScheduling(null);
@@ -229,7 +226,8 @@ function TeamPage({ id }: { id: number }) {
               busy={busy}
               actions={actions}
               label={t("teams.view.timelineAria")}
-              proposal={shown === null ? undefined : { ...shown, drawn: drawnMoves(shown.moves, proposal.selected) }}
+              proposal={proposal.shown ?? undefined}
+              run={proposal.preview}
               jira={jiraWindowNow}
               criticalPath={criticalPath}
               timelineRef={timelineRef}
@@ -242,10 +240,11 @@ function TeamPage({ id }: { id: number }) {
               }
             />
           </Stack>
-          {shown !== null && (
+          {proposal.run !== null && <TeamRunSection proposal={proposal} busy={busy} headingRef={headingRef} />}
+          {proposal.shown !== null && proposal.run === null && (
             <TeamProposal
-              proposal={shown}
-              check={check}
+              proposal={proposal.shown}
+              check={proposal.check}
               selected={proposal.selected}
               busy={busy}
               applying={proposal.applying}

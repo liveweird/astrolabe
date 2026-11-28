@@ -33,6 +33,18 @@ describe("useProposalRights", () => {
     expect(client.getQueryData(["schedule-proposals", "teams"])).toBeDefined();
   });
 
+  test("disabled (the team page before teams are chosen) reads nothing and is not ready; enabling it reads", async () => {
+    const mockFetch = vi.fn((_url: string) => Promise.resolve(jsonResponse(200, { items: [{ id: 2, name: "Payments" }], truncated: false })));
+    vi.stubGlobal("fetch", mockFetch);
+    const { result, rerender } = renderHook(({ on }: { on: boolean }) => useProposalRights(on), { wrapper, initialProps: { on: false } });
+    await act(async () => undefined);
+    expect(result.current.ready).toBe(false);
+    expect(mockFetch).not.toHaveBeenCalled();
+    rerender({ on: true });
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    expect([...result.current.acceptable]).toEqual([2]);
+  });
+
   test("a viewer who manages nothing gets an empty set that is ready", async () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse(200, { items: [], truncated: false }))));
     const { result } = renderHook(() => useProposalRights(), { wrapper });

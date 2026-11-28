@@ -284,5 +284,14 @@
       "NO_CAPACITY": "no capacity after {{date}}",
       "NO_ROOM": "no room within the {{weeks}}-week horizon"
     }
+  },
+  "run": {
+    "pickerLabel": "Plan together with",
+    "pickerPlaceholder": "Plan together with other teams",
+    "addLinked": "Add linked teams",
+    "reset": "Plan this team alone",
+    "intro": "Dashed bars on the timeline show the proposed dates; the other teams' milestones and projects that this team's links name and the run moves are dimmed rows under the team's own. Link warnings and the proposed load follow the moves you tick. Nothing changes until you accept.",
+    "ghostBarAria": "{{name}}, {{team}}, {{project}}, {{start}} to {{end}}, linked to this team's work",
+    "ghostProjectBarAria": "Project {{name}}, {{start}} to {{end}}, linked to this team's work"
   }
 }

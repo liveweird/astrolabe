@@ -332,5 +332,14 @@
       "NO_CAPACITY": "brak przepustowości po {{date}}",
       "NO_ROOM": "brak miejsca w horyzoncie {{weeks}} tygodni"
     }
+  },
+  "run": {
+    "pickerLabel": "Planuj razem z",
+    "pickerPlaceholder": "Planuj razem z innymi zespołami",
+    "addLinked": "Dodaj powiązane zespoły",
+    "reset": "Planuj tylko ten zespół",
+    "intro": "Paski z przerywanym obrysem na osi czasu pokazują proponowane terminy; kamienie milowe i projekty innych zespołów, które wskazują zależności tego zespołu i które propozycja przesuwa, są przyciemnionymi wierszami pod wierszami zespołu. Ostrzeżenia o zależnościach i proponowane obciążenie uwzględniają zaznaczone zmiany. Nic się nie zmieni, dopóki nie zaakceptujesz propozycji.",
+    "ghostBarAria": "{{name}}, {{team}}, {{project}}, od {{start}} do {{end}}, powiązany z pracą tego zespołu",
+    "ghostProjectBarAria": "Projekt {{name}}, od {{start}} do {{end}}, powiązany z pracą tego zespołu"
   }
 }
